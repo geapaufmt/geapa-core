@@ -1,0 +1,59 @@
+/**
+ * Registry institucional (IDs compartilhados)
+ * Coloque aqui SOMENTE planilhas base.
+ * GEAPA_CORE — API pública (Library)
+ * Tudo que módulos devem chamar vem daqui.
+ */
+const GEAPA_CORE = Object.freeze({
+  sheets: {
+    openSpreadsheetById: core_openSpreadsheetById_,
+    getSheetById: core_getSheetById_,
+    headerMap: core_headerMap_,
+    getCol: core_getCol_,
+    normalizeHeader: core_normalizeHeader_,
+  },
+  dates: {
+    startOfDay: core_startOfDay_,
+    addDays: core_addDays_,
+    isSameDay: core_isSameDay_,
+    inWindowDay: core_inWindowDay_,
+    now: core_now_,
+    format: core_formatDate_,
+  },
+  email: {
+    isValid: core_isValidEmail_,
+    sendText: core_sendEmailText_,
+    sendHtml: core_sendEmailHtml_,
+  },
+  gmail: {
+    ensureLabel: core_ensureLabel_,
+    getLabel: core_getLabel_,
+  },
+  lock: {
+    withLock: core_withLock_,
+  },
+  log: {
+    runId: core_runId_,
+    info: core_logInfo_,
+    warn: core_logWarn_,
+    error: core_logError_,
+    summarize: core_logSummarize_,
+  },
+  assert: {
+    required: core_assertRequired_,
+  },
+
+  registry: core_getRegistry_(),
+
+  drive: {
+    getFolderById: core_driveGetFolderById_,
+    getFileById: core_driveGetFileById_,
+    ensureFolder: core_driveEnsureFolder_,
+    listFiles: core_driveListFiles_,
+    moveFileToFolder: core_driveMoveFileToFolder_,
+  },
+
+  http: {
+    postJson: core_httpPostJson_,
+  },
+});
