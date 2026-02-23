@@ -1,0 +1,77 @@
+GEAPA-CORE/
+│
+├── 00_core_public_api.gs
+│   ├─ 01_core_sheets
+│   ├─ 02_core_dates
+│   ├─ 03_core_email
+│   ├─ 04_core_gmail
+│   ├─ 05_core_lock
+│   ├─ 06_core_log
+│   ├─ 07_core_assert
+│   ├─ 08_core_drive
+│   └─ 09_core_http
+│
+├── 10_core_registry.gs
+│   └─ core_getRegistry_()
+│      ├─ MEMBERS
+│      ├─ PROFS
+│      ├─ DIRECTORIAS
+│      ├─ FALTAS
+│      ├─ OFFBOARD
+│      └─ PROCESSO_SELETIVO
+│          ├─ PUBLIC_SCHEDULE
+│          ├─ PRIVATE_LOG
+│          ├─ INTERVIEWERS
+│          └─ FORMS_RESPONSES
+│
+├── 12_core_registry_ref.gs
+│   ├─ coreRef_()
+│   └─ coreRef()
+│
+├── 13_core_sheets_headers.gs
+│   ├─ coreGetHeaderMap_()
+│   ├─ coreGetHeaderMap()
+│   ├─ coreFindHeader_()
+│   └─ coreFindHeader()
+│
+├── 14_core_gmail_labels.gs
+│   ├─ coreGetOrCreateLabel_()
+│   ├─ coreGetOrCreateLabel()
+│   ├─ coreMoveThread_()
+│   ├─ coreMoveThread()
+│   ├─ coreExtractEmail_()
+│   ├─ coreExtractEmail()
+│   ├─ coreExtractName_()
+│   └─ coreExtractName()
+│
+├── 15_core_mail_wrap.gs
+│   ├─ coreWrapEmailHtml_()
+│   ├─ coreWrapEmailHtml()
+│   ├─ coreReplyThreadHtml()
+│   └─ (possível uso de GEAPA_ASSETS)
+│
+├── 16_core_runlog.gs
+│   ├─ coreRun_()
+│   ├─ coreRun()
+│   ├─ coreLog()
+│   └─ coreLog_() (se existir)
+│
+├── 30_core_assets.gs
+│   ├─ GEAPA_ASSETS (objeto)
+│   │   ├─ LOGO_URL ou LOGO_FILE_ID
+│   │   ├─ (talvez) getInlineLogo()
+│   │   └─ (talvez) helpers de imagem
+│
+└── 20_public_exports.gs
+    ├─ getRegistry()
+    ├─ coreRef()
+    ├─ coreGetHeaderMap()
+    ├─ coreFindHeader()
+    ├─ coreGetOrCreateLabel()
+    ├─ coreMoveThread()
+    ├─ coreExtractEmail()
+    ├─ coreExtractName()
+    ├─ coreWrapEmailHtml()
+    ├─ coreReplyThreadHtml()
+    ├─ coreRun()
+    └─ coreLog()
