@@ -1,0 +1,11 @@
+function core_healthCheck() {
+  const runId = core_runId_();
+  const startedAt = new Date();
+  core_logInfo_(runId, 'CORE healthCheck: INÍCIO');
+
+  // checks simples, sem depender de IDs
+  core_logInfo_(runId, 'Timezone do projeto', Session.getScriptTimeZone());
+  core_logInfo_(runId, 'Mail quota', MailApp.getRemainingDailyQuota());
+
+  core_logSummarize_(runId, 'CORE healthCheck', startedAt, { ok: true });
+}
