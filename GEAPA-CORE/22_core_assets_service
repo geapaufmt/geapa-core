@@ -1,0 +1,21 @@
+function coreAssetId_(value) {
+  const str = String(value || "").trim();
+
+  // ID puro
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(str)) return str;
+
+  // /d/<id>/
+  let m = str.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+
+  // id=<id>
+  m = str.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+
+  throw new Error("Asset inválido. Use ID puro do Drive ou link com /d/<id> ou ?id=<id>.");
+}
+
+function coreGetAssetBlob(assetIdOrUrl) {
+  const id = coreAssetId_(assetIdOrUrl);
+  return DriveApp.getFileById(id).getBlob();
+}
