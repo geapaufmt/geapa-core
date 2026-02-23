@@ -1,0 +1,10 @@
+function core_getLabel_(name) {
+  if (!name) return null;
+  return GmailApp.getUserLabelByName(name);
+}
+
+function core_ensureLabel_(name) {
+  if (!name) return;
+  const l = GmailApp.getUserLabelByName(name);
+  if (!l) GmailApp.createLabel(name);
+}
