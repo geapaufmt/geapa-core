@@ -1,0 +1,31 @@
+function core_now_() {
+  return new Date();
+}
+
+function core_startOfDay_(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function core_addDays_(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + Number(days || 0));
+  return d;
+}
+
+function core_isSameDay_(d1, d2) {
+  return core_startOfDay_(d1).getTime() === core_startOfDay_(d2).getTime();
+}
+
+/**
+ * Verifica se date está dentro da janela [windowStart, windowEnd)
+ */
+function core_inWindowDay_(date, windowStart, windowEnd) {
+  const t = new Date(date).getTime();
+  return t >= new Date(windowStart).getTime() && t < new Date(windowEnd).getTime();
+}
+
+function core_formatDate_(date, tz, pattern) {
+  return Utilities.formatDate(new Date(date), tz || Session.getScriptTimeZone(), pattern || 'dd/MM/yyyy');
+}
