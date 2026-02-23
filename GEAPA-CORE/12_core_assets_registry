@@ -1,0 +1,16 @@
+/**
+ * GEAPA-CORE — Assets oficiais do grupo (Drive File IDs ou links)
+ * - Use IDs puros do Drive quando possível.
+ */
+const GEAPA_ASSETS = Object.freeze({
+  BRAND: {
+    // ✅ você já tem esse ID
+    LOGO_GEAPA: "1Md2YlFNXo4qD_5D1TwD7Ej3QqqvgitPV",
+  },
+
+  EMAIL: {
+    // opcionais (se você tiver):
+    // BANNER_PADRAO: "ID_OU_LINK",
+    // ASSINATURA_DIRETORIA: "ID_OU_LINK",
+  }
+});
