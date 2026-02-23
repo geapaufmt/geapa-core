@@ -1,0 +1,14 @@
+function core_withLock_(key, fn, timeoutMs = 15000) {
+  core_assertRequired_(key, 'Lock key');
+  core_assertRequired_(fn, 'Lock fn');
+
+  const lock = LockService.getScriptLock();
+  const ok = lock.tryLock(timeoutMs);
+  if (!ok) throw new Error(`Lock não obtido (${key}). Execução concorrente em andamento.`);
+
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
