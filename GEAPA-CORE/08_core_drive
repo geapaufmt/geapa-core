@@ -1,0 +1,77 @@
+/**************************************
+ * 08_core_drive.gs — helpers de Drive
+ **************************************/
+
+function core_driveGetFolderById_(folderId) {
+  core_assertRequired_(folderId, 'Drive folderId');
+  return DriveApp.getFolderById(folderId);
+}
+
+function core_driveGetFileById_(fileId) {
+  core_assertRequired_(fileId, 'Drive fileId');
+  return DriveApp.getFileById(fileId);
+}
+
+/**
+ * Garante que existe uma subpasta dentro de parentFolder.
+ * Retorna a pasta existente (primeira encontrada) ou cria uma nova.
+ */
+function core_driveEnsureFolder_(parentFolderId, childFolderName) {
+  core_assertRequired_(parentFolderId, 'parentFolderId');
+  core_assertRequired_(childFolderName, 'childFolderName');
+
+  const parent = DriveApp.getFolderById(parentFolderId);
+  const it = parent.getFoldersByName(childFolderName);
+
+  if (it.hasNext()) return it.next();
+  return parent.createFolder(childFolderName);
+}
+
+/**
+ * Lista arquivos (metadados básicos) dentro de uma pasta.
+ * Retorna array: [{id, name, mimeType, url, lastUpdated}]
+ */
+function core_driveListFiles_(folderId, max = 200) {
+  core_assertRequired_(folderId, 'folderId');
+  const folder = DriveApp.getFolderById(folderId);
+
+  const out = [];
+  const files = folder.getFiles();
+  while (files.hasNext() && out.length < max) {
+    const f = files.next();
+    out.push({
+      id: f.getId(),
+      name: f.getName(),
+      mimeType: f.getMimeType(),
+      url: f.getUrl(),
+      lastUpdated: f.getLastUpdated(),
+    });
+  }
+  return out;
+}
+
+/**
+ * Move arquivo para pasta destino (mantém uma cópia do acesso).
+ * Observação: Apps Script não tem "move" direto; faz addToFolder + removeFromFolder.
+ */
+function core_driveMoveFileToFolder_(fileId, targetFolderId) {
+  core_assertRequired_(fileId, 'fileId');
+  core_assertRequired_(targetFolderId, 'targetFolderId');
+
+  const file = DriveApp.getFileById(fileId);
+  const target = DriveApp.getFolderById(targetFolderId);
+
+  // adiciona no destino
+  target.addFile(file);
+
+  // remove de todas as pastas "pais" atuais (exceto o destino, por segurança)
+  const parents = file.getParents();
+  while (parents.hasNext()) {
+    const p = parents.next();
+    if (p.getId() !== target.getId()) {
+      p.removeFile(file);
+    }
+  }
+
+  return { id: file.getId(), url: file.getUrl(), name: file.getName() };
+}
