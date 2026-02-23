@@ -1,0 +1,34 @@
+/*******************************
+/*****  IDs Institucionais *****
+********************************/
+
+function core_getRegistry_() {
+  return Object.freeze({
+
+    MEMBERS: Object.freeze({
+      id: '1j3ea96-ySjz7qrn4PJ4Ds3wlQc19cfpJrIiAA72560Q',
+      sheet: 'Membros Atuais',
+    }),
+
+    PROFS: Object.freeze({
+      id: '1HrdhA_r73XZ_BU2tXMibNcsxAU7XZFmeMDEMkb0Ct_Q',
+      sheet: 'Professores',
+    }),
+
+    DIRECTORIAS: Object.freeze({
+      id: '',
+      sheet: 'Diretorias',
+    }),
+
+    FALTAS: Object.freeze({
+      id: '',
+      sheet: 'Faltas',
+    }),
+
+    OFFBOARD: Object.freeze({
+      id: '1XoxzA3I6CajIsciTREsMsicE73nhjoZFysHf_TT4b8s',
+      sheet: 'Respostas ao formulário',
+    }),
+
+  })
+}
