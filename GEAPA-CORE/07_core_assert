@@ -1,0 +1,5 @@
+function core_assertRequired_(value, label) {
+  if (value === undefined || value === null || value === '') {
+    throw new Error(`Obrigatório: ${label}`);
+  }
+}
