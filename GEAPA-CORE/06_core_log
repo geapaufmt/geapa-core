@@ -1,0 +1,29 @@
+function core_runId_() {
+  return Utilities.getUuid().slice(0, 8);
+}
+
+function core_logInfo_(runId, msg, obj) {
+  Logger.log(core_logLine_('INFO', runId, msg, obj));
+}
+
+function core_logWarn_(runId, msg, obj) {
+  Logger.log(core_logLine_('WARN', runId, msg, obj));
+}
+
+function core_logError_(runId, msg, obj) {
+  Logger.log(core_logLine_('ERROR', runId, msg, obj));
+}
+
+function core_logLine_(level, runId, msg, obj) {
+  const base = `[${level}] [${runId}] ${msg}`;
+  if (obj === undefined) return base;
+  return `${base} | ${JSON.stringify(obj)}`;
+}
+
+/**
+ * Fechamento padrão: duração + contadores
+ */
+function core_logSummarize_(runId, title, startedAt, counters) {
+  const dur = startedAt ? (new Date().getTime() - new Date(startedAt).getTime()) : null;
+  core_logInfo_(runId, `${title} | FIM`, { durMs: dur, ...counters });
+}
