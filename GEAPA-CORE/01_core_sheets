@@ -1,0 +1,46 @@
+function core_openSpreadsheetById_(id) {
+  core_assertRequired_(id, 'Spreadsheet ID');
+  return SpreadsheetApp.openById(id);
+}
+
+function core_getSheetById_(spreadsheetId, sheetName) {
+  core_assertRequired_(spreadsheetId, 'Spreadsheet ID');
+  core_assertRequired_(sheetName, 'Sheet name');
+
+  const ss = SpreadsheetApp.openById(spreadsheetId);
+  const sh = ss.getSheetByName(sheetName);
+  if (!sh) throw new Error(`Aba não encontrada: "${sheetName}" no arquivo ${spreadsheetId}`);
+  return sh;
+}
+
+/**
+ * Cria mapa header->colIndex (1-based) a partir da linha de cabeçalho.
+ * Normaliza (trim, lower, remove espaços duplicados).
+ */
+function core_headerMap_(sheet, headerRow = 1) {
+  core_assertRequired_(sheet, 'Sheet');
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return {};
+
+  const headers = sheet.getRange(headerRow, 1, 1, lastCol).getValues()[0];
+  const map = {};
+  for (let c = 0; c < headers.length; c++) {
+    const key = core_normalizeHeader_(headers[c]);
+    if (!key) continue;
+    // se repetido, mantém o primeiro (mais seguro)
+    if (!(key in map)) map[key] = c + 1;
+  }
+  return map;
+}
+
+function core_getCol_(headerMap, headerName) {
+  const key = core_normalizeHeader_(headerName);
+  return headerMap[key] || 0;
+}
+
+function core_normalizeHeader_(h) {
+  return String(h || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
