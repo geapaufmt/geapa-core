@@ -1,0 +1,34 @@
+function core_isValidEmail_(email) {
+  const e = String(email || '').trim();
+  return !!e && e.includes('@') && !/\s/.test(e);
+}
+
+function core_sendEmailText_(opts) {
+  // opts: {to, subject, body, bcc, name}
+  core_assertRequired_(opts, 'Email opts');
+  if (!core_isValidEmail_(opts.to)) throw new Error('E-mail inválido: ' + opts.to);
+
+  MailApp.sendEmail({
+    to: opts.to,
+    bcc: opts.bcc || '',
+    subject: opts.subject || '',
+    body: opts.body || '',
+    name: opts.name || 'GEAPA',
+  });
+}
+
+function core_sendEmailHtml_(opts) {
+  // opts: {to, subject, htmlBody, body (fallback), bcc, name, inlineImages}
+  core_assertRequired_(opts, 'Email opts');
+  if (!core_isValidEmail_(opts.to)) throw new Error('E-mail inválido: ' + opts.to);
+
+  MailApp.sendEmail({
+    to: opts.to,
+    bcc: opts.bcc || '',
+    subject: opts.subject || '',
+    body: opts.body || 'Mensagem em HTML',
+    htmlBody: opts.htmlBody || '',
+    inlineImages: opts.inlineImages || undefined,
+    name: opts.name || 'GEAPA',
+  });
+}
