@@ -1,0 +1,33 @@
+/**************************************
+ * 09_core_http.gs — helpers de HTTP/Webhook
+ **************************************/
+
+/**
+ * POST JSON simples (ex.: Google Chat Incoming Webhook)
+ * opts:
+ * - url (string)
+ * - payload (object)
+ * - headers (object opcional)
+ * - muteHttpExceptions (bool opcional)
+ *
+ * Retorna: { code, body, headers }
+ */
+function core_httpPostJson_(opts) {
+  core_assertRequired_(opts, 'http opts');
+  core_assertRequired_(opts.url, 'url');
+  core_assertRequired_(opts.payload, 'payload');
+
+  const res = UrlFetchApp.fetch(opts.url, {
+    method: 'post',
+    contentType: 'application/json; charset=utf-8',
+    payload: JSON.stringify(opts.payload),
+    headers: opts.headers || {},
+    muteHttpExceptions: !!opts.muteHttpExceptions,
+  });
+
+  return {
+    code: res.getResponseCode(),
+    body: res.getContentText(),
+    headers: res.getAllHeaders(),
+  };
+}
