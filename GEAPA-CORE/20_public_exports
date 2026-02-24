@@ -1,125 +1,117 @@
-/**************************************
+/**
+ * ============================================================
  * 20_public_exports.gs
- * Exporta funções públicas para uso via Library.
- * (Apps Script Libraries exportam funções, não objetos/constantes.)
- **************************************/
+ * ============================================================
+ *
+ * Este arquivo define a API PUBLICA do GEAPA-CORE como Library.
+ *
+ * IMPORTANTE:
+ * - Apps Script Libraries exportam FUNÇÕES GLOBAIS.
+ * - Objetos/constantes (ex.: const GEAPA_CORE = {...}) não são exportados.
+ *
+ * Então: este arquivo contém wrappers do tipo:
+ *   function coreXxx(...) { return core_xxx_(...) }
+ *
+ * Os módulos chamam assim (exemplo):
+ *   GEAPA_CORE.coreGetRegistry()
+ *   GEAPA_CORE.coreSendEmailHtml({...})
+ *   GEAPA_CORE.coreInlineImagesDefault()
+ */
 
-/** Registry */
-function coreGetRegistry() {
-  return core_getRegistry_();
+
+/* ============================================================
+ * REGISTRY
+ * ============================================================ */
+function coreGetRegistry() { return core_getRegistry_(); }
+
+
+/* ============================================================
+ * SHEETS
+ * ============================================================ */
+function coreOpenSpreadsheetById(id) { return core_openSpreadsheetById_(id); }
+function coreGetSheetById(spreadsheetId, sheetName) { return core_getSheetById_(spreadsheetId, sheetName); }
+function coreHeaderMap(sheet, headerRow) { return core_headerMap_(sheet, headerRow || 1); }
+function coreGetCol(headerMap, headerName) { return core_getCol_(headerMap, headerName); }
+function coreNormalizeHeader(s) { return core_normalizeHeader_(s); }
+
+
+/* ============================================================
+ * DATES
+ * ============================================================ */
+function coreNow() { return core_now_(); }
+function coreStartOfDay(date) { return core_startOfDay_(date); }
+function coreAddDays(date, days) { return core_addDays_(date, days); }
+function coreIsSameDay(d1, d2) { return core_isSameDay_(d1, d2); }
+function coreInWindowDay(date, startInclusive, endExclusive) { return core_inWindowDay_(date, startInclusive, endExclusive); }
+function coreFormatDate(date, tz, pattern) { return core_formatDate_(date, tz, pattern); }
+
+
+/* ============================================================
+ * EMAIL (sem inlineImages)
+ * ============================================================ */
+function coreIsValidEmail(email) { return core_isValidEmail_(email); }
+function coreSendEmailText(opts) { return core_sendEmailText_(opts); }
+function coreSendEmailHtml(opts) { return core_sendEmailHtml_(opts); }
+
+
+/* ============================================================
+ * GMAIL (labels)
+ * ============================================================ */
+function coreEnsureLabel(name) { return core_ensureLabel_(name); }
+function coreGetLabel(name) { return core_getLabel_(name); }
+
+
+/* ============================================================
+ * LOGS
+ * ============================================================ */
+function coreRunId() { return core_runId_(); }
+function coreLogInfo(runId, msg, obj) { return core_logInfo_(runId, msg, obj); }
+function coreLogWarn(runId, msg, obj) { return core_logWarn_(runId, msg, obj); }
+function coreLogError(runId, msg, obj) { return core_logError_(runId, msg, obj); }
+function coreLogSummarize(runId, title, startedAt, counters) { return core_logSummarize_(runId, title, startedAt, counters || {}); }
+
+
+/* ============================================================
+ * ASSERT
+ * ============================================================ */
+function coreAssertRequired(value, msg) { return core_assertRequired_(value, msg); }
+
+
+/* ============================================================
+ * DRIVE
+ * ============================================================ */
+function coreDriveGetFolderById(folderId) { return core_driveGetFolderById_(folderId); }
+function coreDriveGetFileById(fileId) { return core_driveGetFileById_(fileId); }
+function coreDriveEnsureFolder(parentFolderId, childName) { return core_driveEnsureFolder_(parentFolderId, childName); }
+function coreDriveMoveFileToFolder(fileId, folderId) { return core_driveMoveFileToFolder_(fileId, folderId); }
+function coreDriveListFiles(folderId, max) { return core_driveListFiles_(folderId, max || 200); }
+
+
+/* ============================================================
+ * HTTP
+ * ============================================================ */
+function coreHttpPostJson(opts) { return core_httpPostJson_(opts); }
+
+
+/* ============================================================
+ * ASSETS / EMAIL COM IMAGENS
+ * ============================================================ *
+ * Aqui exportamos via FUNÇÕES (nada de "this.*").
+ * Módulos chamam:
+ *   GEAPA_CORE.coreInlineImagesDefault()
+ *   GEAPA_CORE.coreSendHtmlEmail({...})
+ */
+function coreGetAssetBlob(assetKey) { return coreGetAssetBlob(assetKey); }
+function coreInlineImagesDefault() { return coreInlineImagesDefault(); }
+function coreSendHtmlEmail(opts) { return coreSendHtmlEmail(opts); }
+
+
+/* ============================================================
+ * LOCK (Library limitation)
+ * ============================================================ *
+ * Callback não atravessa library, então não exportamos com execução.
+ * Módulos devem usar LockService localmente.
+ */
+function coreWithLock() {
+  throw new Error("coreWithLock não suportado via Library. Use LockService no módulo.");
 }
-
-/** Sheets */
-function coreOpenSpreadsheetById(id) {
-  return core_openSpreadsheetById_(id);
-}
-
-function coreGetSheetById(spreadsheetId, sheetName) {
-  return core_getSheetById_(spreadsheetId, sheetName);
-}
-
-function coreHeaderMap(sheet, headerRow) {
-  return core_headerMap_(sheet, headerRow || 1);
-}
-
-function coreGetCol(headerMap, headerName) {
-  return core_getCol_(headerMap, headerName);
-}
-
-/** Dates */
-function coreNow() {
-  return core_now_();
-}
-
-function coreStartOfDay(date) {
-  return core_startOfDay_(date);
-}
-
-function coreAddDays(date, days) {
-  return core_addDays_(date, days);
-}
-
-function coreIsSameDay(d1, d2) {
-  return core_isSameDay_(d1, d2);
-}
-
-function coreFormatDate(date, tz, pattern) {
-  return core_formatDate_(date, tz, pattern);
-}
-
-/** Email */
-function coreIsValidEmail(email) {
-  return core_isValidEmail_(email);
-}
-
-function coreSendEmailText(opts) {
-  return core_sendEmailText_(opts);
-}
-
-function coreSendEmailHtml(opts) {
-  return core_sendEmailHtml_(opts);
-}
-
-/** Gmail Labels */
-function coreEnsureLabel(name) {
-  return core_ensureLabel_(name);
-}
-
-function coreGetLabel(name) {
-  return core_getLabel_(name);
-}
-
-/** Lock */
-function coreWithLock(key, fnName, timeoutMs) {
-  // IMPORTANTE:
-  // Library não consegue receber callback function de outro projeto.
-  // Então aqui a gente NÃO aceita fn.
-  // Em módulos, você usa lock local (LockService) OU faz lock no próprio módulo.
-  // Vou manter esta função para uso futuro se você quiser jobs dentro do CORE.
-  throw new Error('coreWithLock não suportado via Library (callback não atravessa projetos). Use LockService no módulo.');
-}
-
-/** Logs */
-function coreRunId() {
-  return core_runId_();
-}
-
-function coreLogInfo(runId, msg, obj) {
-  return core_logInfo_(runId, msg, obj);
-}
-
-function coreLogWarn(runId, msg, obj) {
-  return core_logWarn_(runId, msg, obj);
-}
-
-function coreLogError(runId, msg, obj) {
-  return core_logError_(runId, msg, obj);
-}
-
-function coreLogSummarize(runId, title, startedAt, counters) {
-  return core_logSummarize_(runId, title, startedAt, counters || {});
-}
-
-/** Drive */
-function coreDriveEnsureFolder(parentFolderId, childName) {
-  return core_driveEnsureFolder_(parentFolderId, childName);
-}
-
-function coreDriveMoveFileToFolder(fileId, folderId) {
-  return core_driveMoveFileToFolder_(fileId, folderId);
-}
-
-function coreDriveListFiles(folderId, max) {
-  return core_driveListFiles_(folderId, max || 200);
-}
-
-/** HTTP */
-function coreHttpPostJson(opts) {
-  return core_httpPostJson_(opts);
-}
-
-/**Imagens Oficiais */
-this.GEAPA_ASSETS = GEAPA_ASSETS;
-this.coreGetAssetBlob = coreGetAssetBlob;
-this.coreInlineImagesDefault = coreInlineImagesDefault;
-this.coreSendHtmlEmail = coreSendHtmlEmail;
