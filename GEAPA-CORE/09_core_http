@@ -2,15 +2,49 @@
  * 09_core_http.gs — helpers de HTTP/Webhook
  **************************************/
 
+
 /**
- * POST JSON simples (ex.: Google Chat Incoming Webhook)
- * opts:
- * - url (string)
- * - payload (object)
- * - headers (object opcional)
- * - muteHttpExceptions (bool opcional)
+ * ------------------------------------------------------------
+ * Realiza requisição HTTP POST com JSON.
+ * ------------------------------------------------------------
  *
- * Retorna: { code, body, headers }
+ * Quando usar:
+ * - Enviar mensagem para Google Chat (Incoming Webhook).
+ * - Integrar com APIs externas.
+ * - Disparar webhook institucional.
+ *
+ * Parâmetros (opts):
+ * {
+ *   url: string (obrigatório),
+ *   payload: object (obrigatório),
+ *   headers: object opcional,
+ *   muteHttpExceptions: boolean opcional
+ * }
+ *
+ * Funcionamento:
+ * - Converte payload para JSON.
+ * - Envia como POST.
+ * - Content-Type: application/json.
+ *
+ * Retorna:
+ * {
+ *   code: status HTTP (ex.: 200, 400, 500),
+ *   body: texto da resposta,
+ *   headers: headers retornados pelo servidor
+ * }
+ *
+ * Observações importantes:
+ * - Se muteHttpExceptions = false (padrão),
+ *   erros HTTP podem gerar exceção.
+ *
+ * - Se true, mesmo erro HTTP retorna resposta,
+ *   permitindo tratamento manual.
+ *
+ * Exemplo de uso:
+ *   core_httpPostJson_({
+ *     url: CHAT_WEBHOOK_URL,
+ *     payload: { text: "Mensagem de teste" }
+ *   });
  */
 function core_httpPostJson_(opts) {
   core_assertRequired_(opts, 'http opts');
