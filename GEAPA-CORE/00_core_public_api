@@ -118,7 +118,7 @@ const GEAPA_CORE = Object.freeze({
     sendText: core_sendEmailText_,
 
     /** Envia e-mail HTML (sem inlineImages). */
-    sendHtml: core_sendEmailHtml_,
+    sendHtml: core_sendHtmlEmail_,
   }),
 
   /**
