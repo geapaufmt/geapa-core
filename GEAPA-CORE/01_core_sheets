@@ -1,46 +1,132 @@
+/**************************************
+ * 01_core_sheets.gs (refatorado)
+ *
+ * Objetivo:
+ * - Centralizar operações comuns de Sheets (open / get sheet / header map)
+ * - Garantir falhas explícitas (erros claros) quando algo essencial estiver faltando
+ * - Evitar repetição e reduzir custo de abrir planilhas repetidamente
+ **************************************/
+
+/**
+ * Cache por execução (in-memory).
+ * - Evita abrir a mesma planilha N vezes numa única execução.
+ * - Não “persiste” entre execuções (o que é bom: sempre atualiza no próximo run).
+ */
+const __core_ss_cache = Object.create(null);
+
+/**
+ * ------------------------------------------------------------
+ * Abre uma planilha pelo ID (com validação + cache).
+ * ------------------------------------------------------------
+ *
+ * Quando usar:
+ * - Sempre que precisar de SpreadsheetApp.openById(id).
+ *
+ * Por que existe:
+ * - Valida ID obrigatório.
+ * - Cacheia o Spreadsheet para reduzir chamadas repetidas.
+ */
 function core_openSpreadsheetById_(id) {
   core_assertRequired_(id, 'Spreadsheet ID');
-  return SpreadsheetApp.openById(id);
+  const key = String(id).trim();
+
+  if (!__core_ss_cache[key]) {
+    __core_ss_cache[key] = SpreadsheetApp.openById(key);
+  }
+  return __core_ss_cache[key];
 }
 
+/**
+ * ------------------------------------------------------------
+ * Retorna uma aba (Sheet) pelo (spreadsheetId + sheetName).
+ * ------------------------------------------------------------
+ *
+ * Comportamento:
+ * - Valida parâmetros obrigatórios.
+ * - Lança erro explícito se a aba não existir.
+ */
 function core_getSheetById_(spreadsheetId, sheetName) {
   core_assertRequired_(spreadsheetId, 'Spreadsheet ID');
   core_assertRequired_(sheetName, 'Sheet name');
 
-  const ss = SpreadsheetApp.openById(spreadsheetId);
-  const sh = ss.getSheetByName(sheetName);
-  if (!sh) throw new Error(`Aba não encontrada: "${sheetName}" no arquivo ${spreadsheetId}`);
+  const ss = core_openSpreadsheetById_(spreadsheetId);
+  const sh = ss.getSheetByName(String(sheetName).trim());
+
+  if (!sh) {
+    throw new Error(`Aba não encontrada: "${sheetName}" no arquivo ${spreadsheetId}`);
+  }
   return sh;
 }
 
 /**
- * Cria mapa header->colIndex (1-based) a partir da linha de cabeçalho.
- * Normaliza (trim, lower, remove espaços duplicados).
+ * ------------------------------------------------------------
+ * Cria mapa { headerNormalizado -> coluna(1-based) }.
+ * ------------------------------------------------------------
+ *
+ * Quando usar:
+ * - Para buscar colunas pelo nome do cabeçalho, sem depender de índice fixo.
+ *
+ * Notas:
+ * - Mantém o primeiro cabeçalho em caso de duplicidade.
+ * - Colunas retornam 1-based (compatível com getRange()).
  */
-function core_headerMap_(sheet, headerRow = 1) {
+function core_headerMap_(sheet, headerRow) {
   core_assertRequired_(sheet, 'Sheet');
-  const lastCol = sheet.getLastColumn();
-  if (lastCol < 1) return {};
 
-  const headers = sheet.getRange(headerRow, 1, 1, lastCol).getValues()[0];
-  const map = {};
+  const row = Number(headerRow || 1);
+  if (row < 1) throw new Error('headerRow inválido: ' + headerRow);
+
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return Object.freeze({});
+
+  const headers = sheet.getRange(row, 1, 1, lastCol).getValues()[0];
+
+  const map = Object.create(null);
   for (let c = 0; c < headers.length; c++) {
     const key = core_normalizeHeader_(headers[c]);
     if (!key) continue;
-    // se repetido, mantém o primeiro (mais seguro)
-    if (!(key in map)) map[key] = c + 1;
+    if (map[key]) continue;     // duplicado -> mantém o primeiro
+    map[key] = c + 1;           // 1-based
   }
-  return map;
+
+  return Object.freeze(map);
 }
 
+/**
+ * ------------------------------------------------------------
+ * Retorna a coluna (1-based) associada ao headerName.
+ * ------------------------------------------------------------
+ *
+ * Retorna:
+ * - coluna 1-based, se existir
+ * - 0, se não existir (o módulo decide se é obrigatório ou opcional)
+ */
 function core_getCol_(headerMap, headerName) {
+  core_assertRequired_(headerMap, 'headerMap');
   const key = core_normalizeHeader_(headerName);
-  return headerMap[key] || 0;
+  return (key && headerMap[key]) ? headerMap[key] : 0;
 }
 
+/**
+ * ------------------------------------------------------------
+ * Normaliza texto de cabeçalho para comparação robusta.
+ * ------------------------------------------------------------
+ *
+ * O que faz:
+ * - trim
+ * - lowercase
+ * - remove acentos
+ * - colapsa múltiplos espaços
+ *
+ * Exemplo:
+ * - "  Data   de  Nascimento  " -> "data de nascimento"
+ * - "E-mail" -> "e-mail" (mantém hífen)
+ */
 function core_normalizeHeader_(h) {
   return String(h || '')
     .trim()
     .toLowerCase()
+    .normalize('NFD')                 // separa acentos
+    .replace(/[\u0300-\u036f]/g, '')  // remove acentos
     .replace(/\s+/g, ' ');
 }
