@@ -1,34 +1,229 @@
 /*******************************
-/*****  IDs Institucionais *****
-********************************/
+ *****  Registry Dinâmico  *****
+ * Lê uma planilha "mãe" (GEAPA_REGISTRY) e monta:
+ * { KEY: { id, sheet } }
+ *******************************/
 
+// ✅ 1 único ID fixo no core (planilha-mãe)
+const CORE_REGISTRY_SPREADSHEET_ID = '1KQ_-GcFuvLA-jrPVQsfE3_TuaR8AM0yM4X41AzEGXGI';
+// Nome fixo da aba dentro dessa planilha
+const CORE_REGISTRY_SHEET_NAME = 'Registry';
+
+// Cache
+const CORE_REGISTRY_CACHE_KEY = 'GEAPA_CORE_REGISTRY_V1';
+const CORE_REGISTRY_CACHE_TTL_SECONDS = 15 * 60; // 15 min
+
+/**
+ * Retorna o registry institucional (dinâmico).
+ *
+ * - Busca no cache primeiro
+ * - Se não houver cache, lê a planilha Registry
+ * - Valida e monta { KEY: { id, sheet } }
+ * - Congela (imutável) e salva no cache
+ */
 function core_getRegistry_() {
-  return Object.freeze({
+  const runId = core_runId_();
+  const startedAt = new Date();
 
-    MEMBERS: Object.freeze({
-      id: '1j3ea96-ySjz7qrn4PJ4Ds3wlQc19cfpJrIiAA72560Q',
-      sheet: 'Membros Atuais',
-    }),
+  // 1) tenta cache
+  const cached = core_registryCacheGet_();
+  if (cached) {
+    core_logInfo_(runId, 'Registry (cache): OK', { keys: Object.keys(cached).length });
+    core_logSummarize_(runId, 'core_getRegistry_', startedAt, { source: 'cache' });
+    return cached;
+  }
 
-    PROFS: Object.freeze({
-      id: '1HrdhA_r73XZ_BU2tXMibNcsxAU7XZFmeMDEMkb0Ct_Q',
-      sheet: 'Professores',
-    }),
+  // 2) lê planilha mãe
+  core_logInfo_(runId, 'Registry (cache): MISS, lendo planilha-mãe');
+  const ss = core_openSpreadsheetById_(CORE_REGISTRY_SPREADSHEET_ID);
+  const sh = ss.getSheetByName(CORE_REGISTRY_SHEET_NAME);
+  if (!sh) {
+    throw new Error(
+      `Aba "${CORE_REGISTRY_SHEET_NAME}" não encontrada na planilha Registry (${CORE_REGISTRY_SPREADSHEET_ID}).`
+    );
+  }
 
-    DIRECTORIAS: Object.freeze({
-      id: '',
-      sheet: 'Diretorias',
-    }),
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) {
+    throw new Error('Planilha Registry vazia: precisa de cabeçalho e ao menos 1 linha de dados.');
+  }
 
-    FALTAS: Object.freeze({
-      id: '',
-      sheet: 'Faltas',
-    }),
+  // 3) mapeia colunas pelo cabeçalho (não depende de posição)
+  const headerMap = core_headerMap_(sh, 1);
 
-    OFFBOARD: Object.freeze({
-      id: '1XoxzA3I6CajIsciTREsMsicE73nhjoZFysHf_TT4b8s',
-      sheet: 'Respostas ao formulário',
-    }),
+  const colKey   = core_getCol_(headerMap, 'KEY');
+  const colId    = core_getCol_(headerMap, 'SPREADSHEET_ID');
+  const colSheet = core_getCol_(headerMap, 'SHEET_NAME');
+  const colAtivo = core_getCol_(headerMap, 'ATIVO'); // opcional
 
-  })
+  if (!colKey || !colId || !colSheet) {
+    throw new Error(
+      'Registry inválido. Cabeçalhos obrigatórios: KEY, SPREADSHEET_ID, SHEET_NAME.'
+    );
+  }
+
+  // 4) lê dados (a partir da linha 2)
+  const values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  const out = {};
+  let ignorados = 0;
+  let invalidos = 0;
+
+  values.forEach((row, idx) => {
+    const lineNo = idx + 2;
+
+    const keyRaw = row[colKey - 1];
+    const idRaw = row[colId - 1];
+    const sheetRaw = row[colSheet - 1];
+
+    const key = String(keyRaw || '').trim().toUpperCase();
+    const id  = String(idRaw || '').trim();
+    const sheet = String(sheetRaw || '').trim();
+
+    // linha sem key -> ignora
+    if (!key) {
+      ignorados++;
+      return;
+    }
+
+    // ATIVO opcional: se existir e for "NÃO"/"NAO" -> ignora
+    if (colAtivo) {
+      const ativo = String(row[colAtivo - 1] || '').trim().toUpperCase();
+      if (ativo && (ativo === 'NAO' || ativo === 'NÃO' || ativo === 'NO' || ativo === '0')) {
+        ignorados++;
+        return;
+      }
+    }
+
+    // validação básica
+    if (!id || !sheet) {
+      invalidos++;
+      core_logWarn_(runId, 'Registry linha inválida (faltando id/sheet)', { lineNo, key, id, sheet });
+      return;
+    }
+
+    // evita sobrescrever sem querer
+    if (out[key]) {
+      invalidos++;
+      core_logWarn_(runId, 'Registry duplicado (mantendo o primeiro)', { lineNo, key });
+      return;
+    }
+
+    out[key] = Object.freeze({ id, sheet });
+  });
+
+  const frozen = Object.freeze(out);
+
+  // 5) salva no cache
+  core_registryCacheSet_(frozen);
+
+  core_logInfo_(runId, 'Registry (planilha): OK', {
+    keys: Object.keys(frozen).length,
+    ignorados,
+    invalidos,
+  });
+
+  core_logSummarize_(runId, 'core_getRegistry_', startedAt, { source: 'sheet' });
+
+  return frozen;
+}
+
+/**
+ * Busca registry no cache (se existir).
+ */
+function core_registryCacheGet_() {
+  const cache = CacheService.getScriptCache();
+  const s = cache.get(CORE_REGISTRY_CACHE_KEY);
+  if (!s) return null;
+  try {
+    const obj = JSON.parse(s);
+    // congela a estrutura de volta para manter imutável
+    const out = {};
+    Object.keys(obj).forEach(k => {
+      out[k] = Object.freeze({ id: obj[k].id, sheet: obj[k].sheet });
+    });
+    return Object.freeze(out);
+  } catch (e) {
+    // cache corrompido → ignora
+    return null;
+  }
+}
+
+/**
+ * Salva registry no cache.
+ */
+function core_registryCacheSet_(registryObj) {
+  const cache = CacheService.getScriptCache();
+  cache.put(CORE_REGISTRY_CACHE_KEY, JSON.stringify(registryObj), CORE_REGISTRY_CACHE_TTL_SECONDS);
+}
+
+/**
+ * (Opcional) Força limpar cache do registry (para debug).
+ * Use quando você editar a planilha Registry e quiser refletir imediatamente.
+ */
+function core_registryCacheClear_() {
+  CacheService.getScriptCache().remove(CORE_REGISTRY_CACHE_KEY);
+}
+/**
+ * ------------------------------------------------------------
+ * Busca uma referência do Registry por KEY.
+ * ------------------------------------------------------------
+ *
+ * KEY é o identificador institucional cadastrado na planilha Registry:
+ * Ex.: "MEMBERS_ATUAIS", "PROFS", "OFFBOARD_RESPONSES"
+ *
+ * Retorna:
+ * - { id, sheet }
+ *
+ * Erros:
+ * - Se KEY não existir → erro claro com lista de keys disponíveis.
+ */
+/**
+ * ------------------------------------------------------------
+ * Retorna a referência do Registry por KEY.
+ * ------------------------------------------------------------
+ *
+ * KEY = identificador institucional cadastrado na planilha Registry:
+ * Ex.: "MEMBERS_ATUAIS", "PROFS_BASE", "OFFBOARD_RESPONSES"
+ *
+ * Retorna:
+ * - { id, sheet }
+ *
+ * Erro:
+ * - Se KEY não existir, lança erro com lista de keys disponíveis.
+ */
+function core_getRegistryRefByKey_(key) {
+  core_assertRequired_(key, 'Registry KEY');
+
+  const k = String(key).trim().toUpperCase();
+  const reg = core_getRegistry_(); // cacheado quando possível
+  const ref = reg[k];
+
+  if (!ref) {
+    const keys = Object.keys(reg).sort();
+    throw new Error(
+      `Registry KEY não encontrada: "${k}". ` +
+      `Cadastre na planilha Registry ou corrija a KEY. ` +
+      `Disponíveis: ${keys.join(', ')}`
+    );
+  }
+
+  return ref; // { id, sheet }
+}
+
+/**
+ * ------------------------------------------------------------
+ * Abre e retorna o Sheet diretamente a partir de uma KEY do Registry.
+ * ------------------------------------------------------------
+ *
+ * Uso:
+ *   const sh = core_getSheetByKey_('MEMBERS_ATUAIS');
+ *
+ * Retorna:
+ * - Google Sheets Sheet (aba aberta e pronta)
+ */
+function core_getSheetByKey_(key) {
+  const ref = core_getRegistryRefByKey_(key);
+  return core_getSheetById_(ref.id, ref.sheet);
 }
