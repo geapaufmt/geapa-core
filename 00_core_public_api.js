@@ -256,9 +256,27 @@ const GEAPA_CORE = Object.freeze({
     sendHtmlEmail: coreSendHtmlEmail, // <- sua função pública interna existente
   }),
 
-  members: Object.freeze({
-    getAll: core_getMembers_,
-    getByRole: core_getMembersByRole_,
-  getLeadership: core_getLeadership_,
+/* ============================================================
+ * GOVERNANCE / VIGÊNCIAS
+ *
+ * Camada institucional para consulta da diretoria vigente.
+ *
+ * Finalidades:
+ * - identificar a diretoria atualmente em exercício
+ * - retornar os membros da diretoria vigente
+ * - localizar ocupantes atuais de cargos/funções institucionais
+ * - servir de base para módulos que dependem da gestão atual,
+ *   como processo seletivo, comunicações e automações internas
+ *
+ * Observação:
+ * - a composição da diretoria é lida das planilhas de Vigências
+ * - dados de contato (telefone/email) são cruzados com MEMBERS_ATUAIS
+ * ============================================================ */
+  governance: Object.freeze({
+    getCurrentBoard: core_getCurrentBoard_,
+    getCurrentBoardMembers: core_getCurrentBoardMembers_,
+    getCurrentBoardMembersByRole: core_getCurrentBoardMembersByRole_,
+    getCurrentBoardMemberByRole: core_getCurrentBoardMemberByRole_,
+    getCurrentLeadership: core_getCurrentLeadership_,
   }),
 });
