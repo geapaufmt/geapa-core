@@ -255,4 +255,10 @@ const GEAPA_CORE = Object.freeze({
   emailAssets: Object.freeze({
     sendHtmlEmail: coreSendHtmlEmail, // <- sua função pública interna existente
   }),
+
+  members: Object.freeze({
+    getAll: core_getMembers_,
+    getByRole: core_getMembersByRole_,
+  getLeadership: core_getLeadership_,
+  }),
 });

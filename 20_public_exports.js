@@ -215,3 +215,26 @@ function coreSendHtmlEmail(opts) {
 function coreWithLock() {
   throw new Error("coreWithLock não suportado via Library. Use LockService no módulo.");
 }
+
+/* ============================================================
+ * GOVERNANCE / VIGÊNCIAS
+ * ============================================================ */
+function coreGetCurrentBoard(refDate) {
+  return core_getCurrentBoard_(refDate);
+}
+
+function coreGetCurrentBoardMembers(refDate) {
+  return core_getCurrentBoardMembers_(refDate);
+}
+
+function coreGetCurrentBoardMembersByRole(role, refDate) {
+  return core_getCurrentBoardMembersByRole_(role, refDate);
+}
+
+function coreGetCurrentBoardMemberByRole(role, refDate) {
+  return core_getCurrentBoardMemberByRole_(role, refDate);
+}
+
+function coreGetCurrentLeadership(refDate) {
+  return core_getCurrentLeadership_(refDate);
+}
