@@ -238,3 +238,18 @@ function coreGetCurrentBoardMemberByRole(role, refDate) {
 function coreGetCurrentLeadership(refDate) {
   return core_getCurrentLeadership_(refDate);
 }
+
+/* ============================================================
+ * SEMESTRES / RGA
+ * ============================================================ */
+function coreGetCurrentSemester(refDate) {
+  return core_getCurrentSemester_(refDate);
+}
+
+function coreParseEntrySemesterFromRga(rga) {
+  return core_parseEntrySemesterFromRga_(rga);
+}
+
+function coreGetStudentCurrentSemesterFromRga(rga, refDate) {
+  return core_getStudentCurrentSemesterFromRga_(rga, refDate);
+}

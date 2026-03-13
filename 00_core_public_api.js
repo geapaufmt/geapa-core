@@ -279,4 +279,21 @@ const GEAPA_CORE = Object.freeze({
     getCurrentBoardMemberByRole: core_getCurrentBoardMemberByRole_,
     getCurrentLeadership: core_getCurrentLeadership_,
   }),
+
+  /* ============================================================
+ * SEMESTRES / RGA
+ *
+ * Camada para:
+ * - descobrir o semestre institucional vigente
+ * - interpretar ano/semestre de ingresso a partir do RGA
+ * - calcular o semestre atual teórico do aluno
+ *
+ * Fonte de verdade:
+ * - VIGENCIA_SEMESTRES
+ * ============================================================ */
+  semester: Object.freeze({
+    getCurrentSemester: core_getCurrentSemester_,
+    parseEntrySemesterFromRga: core_parseEntrySemesterFromRga_,
+    getStudentCurrentSemesterFromRga: core_getStudentCurrentSemesterFromRga_,
+  }),
 });

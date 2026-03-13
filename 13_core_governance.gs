@@ -264,3 +264,183 @@ function core_getCurrentLeadership_(refDate) {
     coordenadorComunicacao: core_getCurrentBoardMemberByRole_("Coordenador(a) de Comunicação", refDate)
   });
 }
+
+/* ======================================================================
+ * Semestre vigente / semestre por RGA
+ * ====================================================================== */
+
+/**
+ * Retorna o semestre institucional vigente na data informada.
+ *
+ * Exemplo de retorno:
+ * {
+ *   id: "2026/1",
+ *   startDate: Date,
+ *   endDate: Date,
+ *   periodId: "GEAPA_2026"
+ * }
+ *
+ * Fonte:
+ * - VIGENCIA_SEMESTRES
+ *
+ * @param {Date=} refDate
+ * @return {Object|null}
+ */
+/**
+ * Retorna o semestre institucional vigente na data informada.
+ *
+ * Regra:
+ * 1. se a data estiver dentro de um semestre, retorna esse semestre
+ * 2. se houver buraco entre semestres, retorna o próximo semestre futuro
+ *
+ * Exemplo de retorno:
+ * {
+ *   id: "2026/1",
+ *   startDate: Date,
+ *   endDate: Date,
+ *   periodId: "GEAPA_2026"
+ * }
+ *
+ * Fonte:
+ * - VIGENCIA_SEMESTRES
+ *
+ * @param {Date=} refDate
+ * @return {Object|null}
+ */
+function core_getCurrentSemester_(refDate) {
+  const now = refDate || new Date();
+  const data = core_getRowsFromSheetByKey_("VIGENCIA_SEMESTRES");
+
+  const idx = core_getHeaderIndexMap_(data.headers, {
+    semesterId: "ID_Semestre",
+    start: "Início",
+    end: "Fim",
+    periodId: "ID_Período"
+  });
+
+  if (idx.semesterId < 0 || idx.start < 0 || idx.end < 0) {
+    throw new Error("core_getCurrentSemester_: cabeçalhos obrigatórios não encontrados em VIGENCIA_SEMESTRES.");
+  }
+
+  let nextSemester = null;
+
+  for (let i = 0; i < data.rows.length; i++) {
+    const row = data.rows[i];
+    const semesterId = String(row[idx.semesterId] || "").trim();
+    const start = core_parseDateOrNull_(row[idx.start]);
+    const end = core_parseDateOrNull_(row[idx.end]);
+    const periodId = idx.periodId >= 0 ? String(row[idx.periodId] || "").trim() : "";
+
+    if (!semesterId || !start) continue;
+
+    // Caso 1: semestre vigente de fato
+    if (core_isDateInRange_(now, start, end)) {
+      return Object.freeze({
+        id: semesterId,
+        startDate: start,
+        endDate: end,
+        periodId: periodId
+      });
+    }
+
+    // Caso 2: guardar o próximo semestre futuro mais próximo
+    if (start > now) {
+      if (!nextSemester || start < nextSemester.startDate) {
+        nextSemester = Object.freeze({
+          id: semesterId,
+          startDate: start,
+          endDate: end,
+          periodId: periodId
+        });
+      }
+    }
+  }
+
+  // Se não houver semestre vigente, assume o próximo semestre futuro
+  if (nextSemester) return nextSemester;
+
+  return null;
+}
+
+/**
+ * Extrai ano e semestre de ingresso a partir do RGA.
+ *
+ * Regra esperada:
+ * - 4 primeiros dígitos = ano
+ * - 5º dígito = semestre de ingresso (1 ou 2)
+ *
+ * Exemplo:
+ * 202311801028 -> { year: 2023, semester: 1 }
+ *
+ * @param {string|number} rga
+ * @return {Object|null}
+ */
+function core_parseEntrySemesterFromRga_(rga) {
+  const digits = String(rga || "").replace(/\D/g, "");
+  if (digits.length < 5) return null;
+
+  const year = parseInt(digits.slice(0, 4), 10);
+  const semester = parseInt(digits.slice(4, 5), 10);
+
+  if (!year || (semester !== 1 && semester !== 2)) return null;
+
+  return Object.freeze({
+    year: year,
+    semester: semester
+  });
+}
+
+/**
+ * Faz o parse de um ID de semestre no formato YYYY/S.
+ *
+ * Exemplo:
+ * "2026/1" -> { year: 2026, semester: 1 }
+ *
+ * @param {string} semesterId
+ * @return {Object|null}
+ */
+function core_parseSemesterId_(semesterId) {
+  const m = String(semesterId || "").trim().match(/^(\d{4})\/([12])$/);
+  if (!m) return null;
+
+  return Object.freeze({
+    year: parseInt(m[1], 10),
+    semester: parseInt(m[2], 10)
+  });
+}
+
+/**
+ * Calcula o semestre atual teórico do aluno com base no RGA
+ * e no semestre institucional vigente.
+ *
+ * Regra:
+ * semestreAtual = diferença de semestres + 1
+ *
+ * Exemplo:
+ * entrada 2023/1
+ * atual   2026/1
+ * resultado = 7
+ *
+ * @param {string|number} rga
+ * @param {Date=} refDate
+ * @return {number|null}
+ */
+function core_getStudentCurrentSemesterFromRga_(rga, refDate) {
+  const entry = core_parseEntrySemesterFromRga_(rga);
+  if (!entry) return null;
+
+  const currentSemester = core_getCurrentSemester_(refDate);
+  if (!currentSemester || !currentSemester.id) return null;
+
+  const current = core_parseSemesterId_(currentSemester.id);
+  if (!current) return null;
+
+  const diff =
+    (current.year - entry.year) * 2 +
+    (current.semester - entry.semester);
+
+  const semesterNumber = diff + 1;
+
+  if (semesterNumber < 1) return null;
+  return semesterNumber;
+}
