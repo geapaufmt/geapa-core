@@ -444,3 +444,417 @@ function core_getStudentCurrentSemesterFromRga_(rga, refDate) {
   if (semesterNumber < 1) return null;
   return semesterNumber;
 }
+
+/* ======================================================================
+ * Semestre institucional por data / semestres concluídos no grupo
+ * ====================================================================== */
+
+/**
+ * Retorna o semestre institucional correspondente a uma data.
+ *
+ * Regra:
+ * 1. se a data cair dentro de um semestre, retorna esse semestre
+ * 2. se cair em um buraco entre semestres, retorna o próximo semestre futuro
+ *
+ * @param {Date|string|number} refDate
+ * @return {Object|null}
+ */
+function core_getSemesterForDate_(refDate) {
+  const target = core_parseDateOrNull_(refDate);
+  if (!target) return null;
+
+  const data = core_getRowsFromSheetByKey_("VIGENCIA_SEMESTRES");
+  const idx = core_getHeaderIndexMap_(data.headers, {
+    semesterId: "ID_Semestre",
+    start: "Início",
+    end: "Fim",
+    periodId: "ID_Período"
+  });
+
+  if (idx.semesterId < 0 || idx.start < 0 || idx.end < 0) {
+    throw new Error("core_getSemesterForDate_: cabeçalhos obrigatórios não encontrados em VIGENCIA_SEMESTRES.");
+  }
+
+  let nextSemester = null;
+
+  for (let i = 0; i < data.rows.length; i++) {
+    const row = data.rows[i];
+    const semesterId = String(row[idx.semesterId] || "").trim();
+    const start = core_parseDateOrNull_(row[idx.start]);
+    const end = core_parseDateOrNull_(row[idx.end]);
+    const periodId = idx.periodId >= 0 ? String(row[idx.periodId] || "").trim() : "";
+
+    if (!semesterId || !start) continue;
+
+    if (core_isDateInRange_(target, start, end)) {
+      return Object.freeze({
+        id: semesterId,
+        startDate: start,
+        endDate: end,
+        periodId: periodId
+      });
+    }
+
+    if (start > target) {
+      if (!nextSemester || start < nextSemester.startDate) {
+        nextSemester = Object.freeze({
+          id: semesterId,
+          startDate: start,
+          endDate: end,
+          periodId: periodId
+        });
+      }
+    }
+  }
+
+  return nextSemester || null;
+}
+
+/**
+ * Retorna o último semestre institucional concluído na data informada.
+ *
+ * Regra:
+ * - considera apenas semestres cujo Fim seja anterior ou igual à data de referência
+ * - se nenhum semestre tiver sido concluído ainda, retorna null
+ *
+ * @param {Date=} refDate
+ * @return {Object|null}
+ */
+function core_getLastCompletedSemester_(refDate) {
+  const now = refDate || new Date();
+  const data = core_getRowsFromSheetByKey_("VIGENCIA_SEMESTRES");
+  const idx = core_getHeaderIndexMap_(data.headers, {
+    semesterId: "ID_Semestre",
+    start: "Início",
+    end: "Fim",
+    periodId: "ID_Período"
+  });
+
+  if (idx.semesterId < 0 || idx.end < 0) {
+    throw new Error("core_getLastCompletedSemester_: cabeçalhos obrigatórios não encontrados em VIGENCIA_SEMESTRES.");
+  }
+
+  let lastCompleted = null;
+
+  for (let i = 0; i < data.rows.length; i++) {
+    const row = data.rows[i];
+    const semesterId = String(row[idx.semesterId] || "").trim();
+    const start = idx.start >= 0 ? core_parseDateOrNull_(row[idx.start]) : null;
+    const end = core_parseDateOrNull_(row[idx.end]);
+    const periodId = idx.periodId >= 0 ? String(row[idx.periodId] || "").trim() : "";
+
+    if (!semesterId || !end) continue;
+    if (end > now) continue;
+
+    if (!lastCompleted || end > lastCompleted.endDate) {
+      lastCompleted = Object.freeze({
+        id: semesterId,
+        startDate: start,
+        endDate: end,
+        periodId: periodId
+      });
+    }
+  }
+
+  return lastCompleted;
+}
+
+/**
+ * Retorna a quantidade de semestres entre dois IDs institucionais.
+ *
+ * Exemplo:
+ * de 2024/1 até 2025/2 -> 4
+ *
+ * @param {string} fromSemesterId
+ * @param {string} toSemesterId
+ * @return {number|null}
+ */
+function core_getSemesterCountBetweenIds_(fromSemesterId, toSemesterId) {
+  const from = core_parseSemesterId_(fromSemesterId);
+  const to = core_parseSemesterId_(toSemesterId);
+
+  if (!from || !to) return null;
+
+  const diff =
+    (to.year - from.year) * 2 +
+    (to.semester - from.semester);
+
+  const count = diff + 1;
+  return count < 1 ? null : count;
+}
+
+/**
+ * Calcula o número de semestres concluídos no grupo a partir da data de entrada.
+ *
+ * Regra:
+ * - identifica o semestre institucional correspondente à data de entrada
+ * - identifica o último semestre concluído
+ * - conta quantos semestres completos existem entre eles
+ *
+ * Exemplo:
+ * entrada em 2024/1
+ * último concluído = 2025/2
+ * resultado = 4
+ *
+ * @param {Date|string|number} entryDate
+ * @param {Date=} refDate
+ * @return {number|null}
+ */
+function core_getCompletedGroupSemesterCountFromEntryDate_(entryDate, refDate) {
+  const entrySemester = core_getSemesterForDate_(entryDate);
+  if (!entrySemester || !entrySemester.id) return null;
+
+  const lastCompleted = core_getLastCompletedSemester_(refDate);
+  if (!lastCompleted || !lastCompleted.id) return null;
+
+  return core_getSemesterCountBetweenIds_(entrySemester.id, lastCompleted.id);
+}
+
+/* ======================================================================
+ * MEMBERS_ATUAIS - sincronização de campos derivados
+ * ====================================================================== */
+
+/**
+ * Atualiza em MEMBERS_ATUAIS:
+ * - Semestre atual (via RGA)
+ * - N° de semestres no grupo (via Entrada + semestres concluídos)
+ *
+ * Cabeçalhos esperados:
+ * - RGA
+ * - Entrada
+ * - Semestre atual
+ * - N° de semestres no grupo
+ *
+ * @return {Object}
+ */
+/**
+ * Atualiza em MEMBERS_ATUAIS:
+ * - Semestre atual (via RGA)
+ * - N° de semestres no grupo (via Entrada = semestre de entrada no grupo)
+ *
+ * Cabeçalhos esperados:
+ * - RGA
+ * - Entrada
+ * - Semestre atual
+ * - N° de semestres no grupo
+ *
+ * Observação:
+ * - a coluna Entrada deve estar no formato YY/S, ex.: 25/2
+ *
+ * @return {Object}
+ */
+function core_syncMembersCurrentDerivedFields_() {
+  const sh = core_getSheetByKey_("MEMBERS_ATUAIS");
+  if (!sh) return { updatedRows: 0, changedCells: 0 };
+
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { updatedRows: 0, changedCells: 0 };
+
+  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || "").trim());
+  const normalized = headers.map(core_normalizeGovernanceText_);
+
+  const rgaIdx = normalized.indexOf("rga");
+  const entryIdx = normalized.indexOf("semestre de entrada");
+  const currentSemesterIdx = normalized.indexOf("semestre atual");
+  const groupSemestersIdx = normalized.indexOf("n° de semestres no grupo");
+
+  if (rgaIdx === -1) {
+    throw new Error('core_syncMembersCurrentDerivedFields_: cabeçalho "RGA" não encontrado em MEMBERS_ATUAIS.');
+  }
+  if (entryIdx === -1) {
+    throw new Error('core_syncMembersCurrentDerivedFields_: cabeçalho "Semestre de Entrada" não encontrado em MEMBERS_ATUAIS.');
+  }
+  if (currentSemesterIdx === -1) {
+    throw new Error('core_syncMembersCurrentDerivedFields_: cabeçalho "Semestre atual" não encontrado em MEMBERS_ATUAIS.');
+  }
+  if (groupSemestersIdx === -1) {
+    throw new Error('core_syncMembersCurrentDerivedFields_: cabeçalho "N° de semestres no grupo" não encontrado em MEMBERS_ATUAIS.');
+  }
+
+  const values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  let changedCells = 0;
+  let updatedRows = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const row = values[i];
+    let rowChanged = false;
+
+    const rga = String(row[rgaIdx] || "").trim();
+    const entrySemester = String(row[entryIdx] || "").trim();
+
+    const currentSemester = rga
+      ? core_getStudentCurrentSemesterFromRga_(rga)
+      : null;
+
+    const completedGroupSemesterCount = entrySemester
+      ? core_getCompletedGroupSemesterCountFromEntrySemester_(entrySemester)
+      : null;
+
+    const currentSemesterDisplay = currentSemester != null ? `${currentSemester}º semestre` : "";
+    const groupSemesterDisplay = completedGroupSemesterCount != null ? completedGroupSemesterCount : "";
+
+    if (String(row[currentSemesterIdx] || "").trim() !== String(currentSemesterDisplay).trim()) {
+      row[currentSemesterIdx] = currentSemesterDisplay;
+      changedCells++;
+      rowChanged = true;
+    }
+
+    if (String(row[groupSemestersIdx] || "").trim() !== String(groupSemesterDisplay).trim()) {
+      row[groupSemestersIdx] = groupSemesterDisplay;
+      changedCells++;
+      rowChanged = true;
+    }
+
+    if (rowChanged) updatedRows++;
+  }
+
+  if (changedCells > 0) {
+    sh.getRange(2, 1, lastRow - 1, lastCol).setValues(values);
+  }
+
+  return {
+    updatedRows: updatedRows,
+    changedCells: changedCells
+  };
+}
+/* ======================================================================
+ * Semestre institucional por ID curto / semestres concluídos no grupo
+ * ====================================================================== */
+
+/**
+ * Faz o parse de um ID curto de semestre no formato YY/S.
+ *
+ * Exemplo:
+ * "25/2" -> { year: 2025, semester: 2 }
+ *
+ * @param {string} semesterIdShort
+ * @return {Object|null}
+ */
+/**
+ * Faz o parse de um ID de semestre nos formatos:
+ * - YY/S   (ex.: 25/2)
+ * - YYYY/S (ex.: 2025/2)
+ *
+ * @param {string|number} semesterIdRaw
+ * @return {Object|null}
+ */
+function core_parseShortSemesterId_(semesterIdRaw) {
+  const raw = String(semesterIdRaw || "").trim().replace(/\s+/g, "");
+
+  // formato YYYY/S
+  let m = raw.match(/^(\d{4})\/([12])$/);
+  if (m) {
+    return Object.freeze({
+      year: parseInt(m[1], 10),
+      semester: parseInt(m[2], 10)
+    });
+  }
+
+  // formato YY/S
+  m = raw.match(/^(\d{2})\/([12])$/);
+  if (m) {
+    return Object.freeze({
+      year: 2000 + parseInt(m[1], 10),
+      semester: parseInt(m[2], 10)
+    });
+  }
+
+  return null;
+}
+
+/**
+ * Retorna o último semestre institucional concluído na data informada.
+ *
+ * Regra:
+ * - considera apenas semestres cujo Fim seja anterior ou igual à data de referência
+ * - se nenhum semestre tiver sido concluído ainda, retorna null
+ *
+ * @param {Date=} refDate
+ * @return {Object|null}
+ */
+function core_getLastCompletedSemester_(refDate) {
+  const now = refDate || new Date();
+  const data = core_getRowsFromSheetByKey_("VIGENCIA_SEMESTRES");
+  const idx = core_getHeaderIndexMap_(data.headers, {
+    semesterId: "ID_Semestre",
+    start: "Início",
+    end: "Fim",
+    periodId: "ID_Período"
+  });
+
+  if (idx.semesterId < 0 || idx.end < 0) {
+    throw new Error("core_getLastCompletedSemester_: cabeçalhos obrigatórios não encontrados em VIGENCIA_SEMESTRES.");
+  }
+
+  let lastCompleted = null;
+
+  for (let i = 0; i < data.rows.length; i++) {
+    const row = data.rows[i];
+    const semesterId = String(row[idx.semesterId] || "").trim();
+    const start = idx.start >= 0 ? core_parseDateOrNull_(row[idx.start]) : null;
+    const end = core_parseDateOrNull_(row[idx.end]);
+    const periodId = idx.periodId >= 0 ? String(row[idx.periodId] || "").trim() : "";
+
+    if (!semesterId || !end) continue;
+    if (end > now) continue;
+
+    if (!lastCompleted || end > lastCompleted.endDate) {
+      lastCompleted = Object.freeze({
+        id: semesterId,
+        startDate: start,
+        endDate: end,
+        periodId: periodId
+      });
+    }
+  }
+
+  return lastCompleted;
+}
+
+/**
+ * Retorna a quantidade de semestres entre um ID curto (YY/S)
+ * e um ID completo (YYYY/S).
+ *
+ * Exemplo:
+ * fromShort = "25/2"
+ * toFull = "2025/2"
+ * resultado = 1
+ *
+ * @param {string} fromShortSemesterId
+ * @param {string} toFullSemesterId
+ * @return {number|null}
+ */
+function core_getSemesterCountFromShortToFullId_(fromShortSemesterId, toFullSemesterId) {
+  const from = core_parseShortSemesterId_(fromShortSemesterId);
+  const to = core_parseSemesterId_(toFullSemesterId);
+
+  if (!from || !to) return null;
+
+  const diff =
+    (to.year - from.year) * 2 +
+    (to.semester - from.semester);
+
+  const count = diff + 1;
+  return count < 1 ? null : count;
+}
+
+/**
+ * Calcula o número de semestres concluídos no grupo a partir
+ * do semestre de entrada no grupo no formato YY/S.
+ *
+ * Exemplo:
+ * entrada = "25/2"
+ * último concluído = "2025/2"
+ * resultado = 1
+ *
+ * @param {string} entrySemesterShort
+ * @param {Date=} refDate
+ * @return {number|null}
+ */
+function core_getCompletedGroupSemesterCountFromEntrySemester_(entrySemesterShort, refDate) {
+  const lastCompleted = core_getLastCompletedSemester_(refDate);
+  if (!lastCompleted || !lastCompleted.id) return null;
+
+  return core_getSemesterCountFromShortToFullId_(entrySemesterShort, lastCompleted.id);
+}

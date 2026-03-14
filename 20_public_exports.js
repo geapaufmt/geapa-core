@@ -253,3 +253,22 @@ function coreParseEntrySemesterFromRga(rga) {
 function coreGetStudentCurrentSemesterFromRga(rga, refDate) {
   return core_getStudentCurrentSemesterFromRga_(rga, refDate);
 }
+
+/* ============================================================
+ * SEMESTRES / MEMBERS_ATUAIS
+ * ============================================================ */
+function coreGetSemesterForDate(refDate) {
+  return core_getSemesterForDate_(refDate);
+}
+
+function coreGetLastCompletedSemester(refDate) {
+  return core_getLastCompletedSemester_(refDate);
+}
+
+function coreGetCompletedGroupSemesterCountFromEntrySemester(entrySemesterShort, refDate) {
+  return core_getCompletedGroupSemesterCountFromEntrySemester_(entrySemesterShort, refDate);
+}
+
+function coreSyncMembersCurrentDerivedFields() {
+  return core_syncMembersCurrentDerivedFields_();
+}

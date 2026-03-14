@@ -296,4 +296,34 @@ const GEAPA_CORE = Object.freeze({
     parseEntrySemesterFromRga: core_parseEntrySemesterFromRga_,
     getStudentCurrentSemesterFromRga: core_getStudentCurrentSemesterFromRga_,
   }),
+
+  /* ============================================================
+ * SEMESTRES / VIGÊNCIAS
+ *
+ * Camada para:
+ * - descobrir o semestre institucional vigente
+ * - descobrir o semestre institucional correspondente a uma data
+ * - descobrir o último semestre concluído
+ * - interpretar ano/semestre de ingresso a partir do RGA
+ * - calcular semestre atual teórico do aluno
+ * - calcular semestres concluídos no grupo pela data de entrada
+ * ============================================================ */
+  semester: Object.freeze({
+    getCurrentSemester: core_getCurrentSemester_,
+    getSemesterForDate: core_getSemesterForDate_,
+    getLastCompletedSemester: core_getLastCompletedSemester_,
+    parseEntrySemesterFromRga: core_parseEntrySemesterFromRga_,
+    getStudentCurrentSemesterFromRga: core_getStudentCurrentSemesterFromRga_,
+    getCompletedGroupSemesterCountFromEntryDate: core_getCompletedGroupSemesterCountFromEntryDate_,
+  }),
+
+  /* ============================================================
+  * MEMBERS_ATUAIS - CAMPOS DERIVADOS
+  *
+  * Rotinas de sincronização de colunas calculadas em MEMBERS_ATUAIS,
+  * como semestre atual e número de semestres concluídos no grupo.
+  * ============================================================ */
+  membersCurrent: Object.freeze({
+    syncDerivedFields: core_syncMembersCurrentDerivedFields_,
+  }),
 });
