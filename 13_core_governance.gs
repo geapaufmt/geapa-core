@@ -692,7 +692,7 @@ function core_syncMembersCurrentDerivedFields_() {
       : null;
 
     const currentSemesterDisplay = currentSemester != null ? `${currentSemester}º semestre` : "";
-    const groupSemesterDisplay = completedGroupSemesterCount != null ? completedGroupSemesterCount : "";
+    const groupSemesterDisplay = completedGroupSemesterCount != null ? completedGroupSemesterCount : "0";
 
     if (String(row[currentSemesterIdx] || "").trim() !== String(currentSemesterDisplay).trim()) {
       row[currentSemesterIdx] = currentSemesterDisplay;
