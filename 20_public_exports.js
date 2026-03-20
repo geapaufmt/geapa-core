@@ -45,6 +45,34 @@ function coreGetSheetByKey(key) {
   return core_getSheetByKey_(key);
 }
 
+function coreGetCurrentEnv() {
+  return core_getCurrentEnv_();
+}
+
+function coreGetRegistryMetaByKey(key) {
+  return core_getRegistryMetaByKey_(key);
+}
+
+function coreClearRegistryCache() {
+  return core_registryCacheClear_();
+}
+
+/* ============================================================
+ * REGISTRY / DEBUG
+ * ============================================================ */
+
+function coreClearRegistryCache() {
+  return core_registryCacheClear_();
+}
+
+function coreGetCurrentEnv() {
+  return core_getCurrentEnv_();
+}
+
+function coreGetRegistry() {
+  return core_getRegistry_();
+}
+
 /* ============================================================
  * SHEETS
  * ============================================================ */
