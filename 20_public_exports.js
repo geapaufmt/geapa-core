@@ -300,3 +300,80 @@ function coreGetCompletedGroupSemesterCountFromEntrySemester(entrySemesterShort,
 function coreSyncMembersCurrentDerivedFields() {
   return core_syncMembersCurrentDerivedFields_();
 }
+
+
+/* ============================================================
+ * CARGOS INSTITUCIONAIS / CONFIG
+ * ============================================================ */
+
+function coreGetInstitutionalRolesActive() {
+  return core_getInstitutionalRolesActive_();
+}
+
+function coreFindInstitutionalRoleByKey(cargoKey) {
+  return core_findInstitutionalRoleByKey_(cargoKey);
+}
+
+function coreFindInstitutionalRoleByPublicName(publicName) {
+  return core_findInstitutionalRoleByPublicName_(publicName);
+}
+
+function coreFindInstitutionalRoleByAnyName(text) {
+  return core_findInstitutionalRoleByAnyName_(text);
+}
+
+function coreGetInstitutionalRolesByEmailGroup(groupName) {
+  return core_getInstitutionalRolesByEmailGroup_(groupName);
+}
+
+function coreDebugInstitutionalRolesConfig() {
+  return core_debugInstitutionalRolesConfig_();
+}
+
+function coreClearInstitutionalRolesConfigCache() {
+  return core_rolesConfigCacheClear_();
+}
+
+/* ============================================================
+ * CARGOS INSTITUCIONAIS / PROJEÇÃO ATUAL
+ * ============================================================ */
+
+function coreGetCurrentInstitutionalAssignments(refDate) {
+  return core_getCurrentInstitutionalAssignments_(refDate);
+}
+
+function coreGetCurrentOccupantsByEmailGroup(groupName, refDate) {
+  return core_getCurrentOccupantsByEmailGroup_(groupName, refDate);
+}
+
+function coreGetCurrentContactsHtmlByEmailGroup(groupName, refDate) {
+  return core_getCurrentContactsHtmlByEmailGroup_(groupName, refDate);
+}
+
+function coreSyncMembersCurrentInstitutionalRoles(refDate) {
+  return core_syncMembersCurrentInstitutionalRoles_(refDate);
+}
+
+function coreDebugCurrentInstitutionalProjection(refDate) {
+  return core_debugCurrentInstitutionalProjection_(refDate);
+}
+
+function coreGetCurrentEmailsByEmailGroup(groupName, refDate) {
+  return core_getCurrentEmailsByEmailGroup_(groupName, refDate);
+}
+
+function coreGetCurrentEmailsByRole(roleName, refDate) {
+  return core_getCurrentEmailsByRole_(roleName, refDate);
+}
+
+/* ============================================================
+ * IDENTIDADE DE MEMBRO / AUTOFILL
+ * ============================================================ */
+
+function coreFindMemberIdentityByAny(identity) {
+  return core_memberIdentityFindByAny_(identity);
+}
+
+function coreAutofillIdentityRowInSheet(sheet, rowNumber) {
+  return core_autofillIdentityRowInSheet_(sheet, rowNumber);
+}

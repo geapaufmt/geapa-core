@@ -272,23 +272,6 @@ function core_getCurrentLeadership_(refDate) {
 /**
  * Retorna o semestre institucional vigente na data informada.
  *
- * Exemplo de retorno:
- * {
- *   id: "2026/1",
- *   startDate: Date,
- *   endDate: Date,
- *   periodId: "GEAPA_2026"
- * }
- *
- * Fonte:
- * - VIGENCIA_SEMESTRES
- *
- * @param {Date=} refDate
- * @return {Object|null}
- */
-/**
- * Retorna o semestre institucional vigente na data informada.
- *
  * Regra:
  * 1. se a data estiver dentro de um semestre, retorna esse semestre
  * 2. se houver buraco entre semestres, retorna o próximo semestre futuro
@@ -613,20 +596,6 @@ function core_getCompletedGroupSemesterCountFromEntryDate_(entryDate, refDate) {
 /* ======================================================================
  * MEMBERS_ATUAIS - sincronização de campos derivados
  * ====================================================================== */
-
-/**
- * Atualiza em MEMBERS_ATUAIS:
- * - Semestre atual (via RGA)
- * - N° de semestres no grupo (via Entrada + semestres concluídos)
- *
- * Cabeçalhos esperados:
- * - RGA
- * - Entrada
- * - Semestre atual
- * - N° de semestres no grupo
- *
- * @return {Object}
- */
 /**
  * Atualiza em MEMBERS_ATUAIS:
  * - Semestre atual (via RGA)
@@ -643,13 +612,29 @@ function core_getCompletedGroupSemesterCountFromEntryDate_(entryDate, refDate) {
  *
  * @return {Object}
  */
-function core_syncMembersCurrentDerivedFields_() {
+function core_syncMembersCurrentDerivedFields_(refDate) {
+  // 1) primeiro sincroniza cargos institucionais atuais
+  var rolesResult = core_syncMembersCurrentInstitutionalRoles_(refDate);
+
+  // 2) depois mantém os derivados acadêmicos já existentes
   const sh = core_getSheetByKey_("MEMBERS_ATUAIS");
-  if (!sh) return { updatedRows: 0, changedCells: 0 };
+  if (!sh) {
+    return {
+      ok: true,
+      roles: rolesResult,
+      academic: { updatedRows: 0, changedCells: 0 }
+    };
+  }
 
   const lastRow = sh.getLastRow();
   const lastCol = sh.getLastColumn();
-  if (lastRow < 2) return { updatedRows: 0, changedCells: 0 };
+  if (lastRow < 2) {
+    return {
+      ok: true,
+      roles: rolesResult,
+      academic: { updatedRows: 0, changedCells: 0 }
+    };
+  }
 
   const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || "").trim());
   const normalized = headers.map(core_normalizeGovernanceText_);
@@ -684,11 +669,11 @@ function core_syncMembersCurrentDerivedFields_() {
     const entrySemester = String(row[entryIdx] || "").trim();
 
     const currentSemester = rga
-      ? core_getStudentCurrentSemesterFromRga_(rga)
+      ? core_getStudentCurrentSemesterFromRga_(rga, refDate)
       : null;
 
     const completedGroupSemesterCount = entrySemester
-      ? core_getCompletedGroupSemesterCountFromEntrySemester_(entrySemester)
+      ? core_getCompletedGroupSemesterCountFromEntrySemester_(entrySemester, refDate)
       : null;
 
     const currentSemesterDisplay = currentSemester != null ? `${currentSemester}º semestre` : "";
@@ -714,23 +699,18 @@ function core_syncMembersCurrentDerivedFields_() {
   }
 
   return {
-    updatedRows: updatedRows,
-    changedCells: changedCells
+    ok: true,
+    roles: rolesResult,
+    academic: {
+      updatedRows: updatedRows,
+      changedCells: changedCells
+    }
   };
 }
 /* ======================================================================
  * Semestre institucional por ID curto / semestres concluídos no grupo
  * ====================================================================== */
 
-/**
- * Faz o parse de um ID curto de semestre no formato YY/S.
- *
- * Exemplo:
- * "25/2" -> { year: 2025, semester: 2 }
- *
- * @param {string} semesterIdShort
- * @return {Object|null}
- */
 /**
  * Faz o parse de um ID de semestre nos formatos:
  * - YY/S   (ex.: 25/2)
