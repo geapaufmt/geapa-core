@@ -9,20 +9,10 @@ const CORE_ROLES_CONFIG_KEY = 'CARGOS_INSTITUCIONAIS_CONFIG';
 const CORE_ROLES_CONFIG_CACHE_KEY = 'GEAPA_CORE_ROLES_CONFIG_V1';
 const CORE_ROLES_CONFIG_CACHE_TTL_SECONDS = 15 * 60;
 
-/**
- * ------------------------------------------------------------
- * Abre a sheet da configuração de cargos institucionais.
- * ------------------------------------------------------------
- */
 function core_getInstitutionalRolesConfigSheet_() {
   return core_getSheetByKey_(CORE_ROLES_CONFIG_KEY);
 }
 
-/**
- * ------------------------------------------------------------
- * Normaliza texto para comparações internas.
- * ------------------------------------------------------------
- */
 function core_rolesNormalizeText_(value) {
   return String(value == null ? '' : value)
     .normalize('NFD')
@@ -32,96 +22,41 @@ function core_rolesNormalizeText_(value) {
     .toUpperCase();
 }
 
-/**
- * ------------------------------------------------------------
- * Parseia SIM/NÃO.
- * ------------------------------------------------------------
- */
 function core_rolesParseYesNo_(value) {
-  const s = core_rolesNormalizeText_(value);
-  if (!s) return false;
-  return s === 'SIM';
+  return core_rolesNormalizeText_(value) === 'SIM';
 }
 
-/**
- * ------------------------------------------------------------
- * Parseia número de ordenação.
- * ------------------------------------------------------------
- */
 function core_rolesParseDisplayOrder_(value, fallback) {
   if (value === '' || value == null) return fallback;
   const n = Number(value);
   return isNaN(n) ? fallback : n;
 }
 
-/**
- * ------------------------------------------------------------
- * Parseia lista CSV simples.
- * Ex.: "SECRETARIA,DIRETORIA"
- * ------------------------------------------------------------
- */
 function core_rolesParseCsvList_(value) {
   const raw = String(value == null ? '' : value).trim();
   if (!raw) return [];
-
   return raw
     .split(',')
     .map(s => core_rolesNormalizeText_(s))
     .filter(Boolean);
 }
 
-/**
- * ------------------------------------------------------------
- * Parseia aliases/variações.
- * Ex.: "Vice Presidente, Vice-Presidente"
- * ------------------------------------------------------------
- */
 function core_rolesParseAliases_(value) {
   return core_rolesParseCsvList_(value);
 }
 
-/**
- * ------------------------------------------------------------
- * Lê todas as linhas válidas da config e devolve objetos já
- * normalizados.
- * ------------------------------------------------------------
- *
- * Retorno:
- * [
- *   {
- *     publicName,
- *     publicNameNorm,
- *     group,
- *     groupNorm,
- *     roleKey,
- *     roleKeyNorm,
- *     isActive,
- *     displayOrder,
- *     receivesEmails,
- *     emailGroups,
- *     isUniqueRole,
- *     aliases,
- *     aliasesNorm
- *   }
- * ]
- */
 function core_getInstitutionalRolesConfigRows_() {
   const cached = core_rolesConfigCacheGet_();
   if (cached) return cached;
 
   const sh = core_getInstitutionalRolesConfigSheet_();
   if (!sh) {
-    throw new Error(
-      `Sheet da config institucional não encontrada para KEY "${CORE_ROLES_CONFIG_KEY}".`
-    );
+    throw new Error(`Sheet da config institucional não encontrada para KEY "${CORE_ROLES_CONFIG_KEY}".`);
   }
 
   const lastRow = sh.getLastRow();
   const lastCol = sh.getLastColumn();
-
-  if (lastRow < 2 || lastCol < 1) {
-    return [];
-  }
+  if (lastRow < 2 || lastCol < 1) return [];
 
   const headerMap = core_headerMap_(sh, 1);
 
@@ -147,64 +82,47 @@ function core_getInstitutionalRolesConfigRows_() {
     ['ESCRITA_VARIACAO', colVariacao]
   ];
 
-  const missing = required
-    .filter(item => !item[1])
-    .map(item => item[0]);
-
+  const missing = required.filter(item => !item[1]).map(item => item[0]);
   if (missing.length) {
-    throw new Error(
-      'CARGOS_INSTITUCIONAIS_CONFIG inválida. Cabeçalhos ausentes: ' + missing.join(', ')
-    );
+    throw new Error('CARGOS_INSTITUCIONAIS_CONFIG inválida. Cabeçalhos ausentes: ' + missing.join(', '));
   }
 
   const values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
-  const rows = values
-    .map((row, idx) => {
-      const lineNo = idx + 2;
+  const rows = values.map((row, idx) => {
+    const lineNo = idx + 2;
 
-      const publicName = String(row[colPublicName - 1] || '').trim();
-      const group = String(row[colGroup - 1] || '').trim();
-      const roleKey = String(row[colRoleKey - 1] || '').trim();
+    const publicName = String(row[colPublicName - 1] || '').trim();
+    const group = String(row[colGroup - 1] || '').trim();
+    const roleKey = String(row[colRoleKey - 1] || '').trim();
 
-      if (!publicName || !group || !roleKey) {
-        return null;
-      }
+    if (!publicName || !group || !roleKey) return null;
 
-      const aliases = core_rolesParseAliases_(row[colVariacao - 1]);
-      const publicNameNorm = core_rolesNormalizeText_(publicName);
-      const groupNorm = core_rolesNormalizeText_(group);
-      const roleKeyNorm = core_rolesNormalizeText_(roleKey);
+    const aliases = core_rolesParseAliases_(row[colVariacao - 1]);
 
-      return Object.freeze({
-        lineNo: lineNo,
-        publicName: publicName,
-        publicNameNorm: publicNameNorm,
-        group: group,
-        groupNorm: groupNorm,
-        roleKey: roleKey,
-        roleKeyNorm: roleKeyNorm,
-        isActive: core_rolesParseYesNo_(row[colAtivo - 1]),
-        displayOrder: core_rolesParseDisplayOrder_(row[colDisplayOrder - 1], 999999),
-        receivesEmails: core_rolesParseYesNo_(row[colRecebeEmails - 1]),
-        emailGroups: Object.freeze(core_rolesParseCsvList_(row[colEmailsGrupo - 1])),
-        isUniqueRole: core_rolesParseYesNo_(row[colCargoUnico - 1]),
-        aliases: Object.freeze(aliases),
-        aliasesNorm: Object.freeze(aliases.map(a => core_rolesNormalizeText_(a)))
-      });
-    })
-    .filter(Boolean);
+    return Object.freeze({
+      lineNo: lineNo,
+      publicName: publicName,
+      publicNameNorm: core_rolesNormalizeText_(publicName),
+      group: group,
+      groupNorm: core_rolesNormalizeText_(group),
+      roleKey: roleKey,
+      roleKeyNorm: core_rolesNormalizeText_(roleKey),
+      isActive: core_rolesParseYesNo_(row[colAtivo - 1]),
+      displayOrder: core_rolesParseDisplayOrder_(row[colDisplayOrder - 1], 999999),
+      receivesEmails: core_rolesParseYesNo_(row[colRecebeEmails - 1]),
+      emailGroups: Object.freeze(core_rolesParseCsvList_(row[colEmailsGrupo - 1])),
+      isUniqueRole: core_rolesParseYesNo_(row[colCargoUnico - 1]),
+      aliases: Object.freeze(aliases),
+      aliasesNorm: Object.freeze(aliases.map(a => core_rolesNormalizeText_(a)))
+    });
+  }).filter(Boolean);
 
   const frozen = Object.freeze(rows);
   core_rolesConfigCacheSet_(frozen);
   return frozen;
 }
 
-/**
- * ------------------------------------------------------------
- * Monta mapa/index da config para buscas rápidas.
- * ------------------------------------------------------------
- */
 function core_getInstitutionalRolesConfigMap_() {
   const rows = core_getInstitutionalRolesConfigRows_();
 
@@ -213,15 +131,14 @@ function core_getInstitutionalRolesConfigMap_() {
   const byAnyName = {};
   const byEmailGroup = {};
 
-  rows.forEach((role) => {
+  rows.forEach(role => {
     if (!role.isActive) return;
 
     byKey[role.roleKeyNorm] = role;
     byPublicName[role.publicNameNorm] = role;
-
-    // busca por qualquer escrita conhecida
     byAnyName[role.roleKeyNorm] = role;
     byAnyName[role.publicNameNorm] = role;
+
     role.aliasesNorm.forEach(aliasNorm => {
       byAnyName[aliasNorm] = role;
     });
@@ -232,7 +149,7 @@ function core_getInstitutionalRolesConfigMap_() {
     });
   });
 
-  Object.keys(byEmailGroup).forEach((k) => {
+  Object.keys(byEmailGroup).forEach(k => {
     byEmailGroup[k] = Object.freeze(
       byEmailGroup[k].slice().sort((a, b) => a.displayOrder - b.displayOrder)
     );
@@ -247,59 +164,30 @@ function core_getInstitutionalRolesConfigMap_() {
   });
 }
 
-/**
- * ------------------------------------------------------------
- * Busca cargo por CARGO_KEY.
- * ------------------------------------------------------------
- */
 function core_findInstitutionalRoleByKey_(cargoKey) {
   core_assertRequired_(cargoKey, 'cargoKey');
   const map = core_getInstitutionalRolesConfigMap_();
   return map.byKey[core_rolesNormalizeText_(cargoKey)] || null;
 }
 
-/**
- * ------------------------------------------------------------
- * Busca cargo por NOME_PUBLICO exato normalizado.
- * ------------------------------------------------------------
- */
 function core_findInstitutionalRoleByPublicName_(publicName) {
   core_assertRequired_(publicName, 'publicName');
   const map = core_getInstitutionalRolesConfigMap_();
   return map.byPublicName[core_rolesNormalizeText_(publicName)] || null;
 }
 
-/**
- * ------------------------------------------------------------
- * Busca cargo por qualquer nome conhecido:
- * - CARGO_KEY
- * - NOME_PUBLICO
- * - ESCRITA_VARIACAO
- * ------------------------------------------------------------
- */
 function core_findInstitutionalRoleByAnyName_(text) {
   core_assertRequired_(text, 'text');
   const map = core_getInstitutionalRolesConfigMap_();
   return map.byAnyName[core_rolesNormalizeText_(text)] || null;
 }
 
-/**
- * ------------------------------------------------------------
- * Retorna cargos ativos de um grupo de e-mail.
- * Ex.: SECRETARIA, COMUNICACAO, EVENTOS...
- * ------------------------------------------------------------
- */
 function core_getInstitutionalRolesByEmailGroup_(groupName) {
   core_assertRequired_(groupName, 'groupName');
   const map = core_getInstitutionalRolesConfigMap_();
   return map.byEmailGroup[core_rolesNormalizeText_(groupName)] || Object.freeze([]);
 }
 
-/**
- * ------------------------------------------------------------
- * Retorna todos os cargos ativos.
- * ------------------------------------------------------------
- */
 function core_getInstitutionalRolesActive_() {
   return Object.freeze(
     core_getInstitutionalRolesConfigRows_()
@@ -309,11 +197,6 @@ function core_getInstitutionalRolesActive_() {
   );
 }
 
-/**
- * ------------------------------------------------------------
- * Debug / healthcheck da configuração.
- * ------------------------------------------------------------
- */
 function core_debugInstitutionalRolesConfig_() {
   const all = core_getInstitutionalRolesConfigRows_();
   const active = core_getInstitutionalRolesActive_();
@@ -333,11 +216,6 @@ function core_debugInstitutionalRolesConfig_() {
   };
 }
 
-/**
- * ------------------------------------------------------------
- * Cache GET
- * ------------------------------------------------------------
- */
 function core_rolesConfigCacheGet_() {
   const cache = CacheService.getScriptCache();
   const s = cache.get(CORE_ROLES_CONFIG_CACHE_KEY);
@@ -366,26 +244,14 @@ function core_rolesConfigCacheGet_() {
   }
 }
 
-/**
- * ------------------------------------------------------------
- * Cache SET
- * ------------------------------------------------------------
- */
 function core_rolesConfigCacheSet_(rows) {
-  CacheService
-    .getScriptCache()
-    .put(
-      CORE_ROLES_CONFIG_CACHE_KEY,
-      JSON.stringify(rows),
-      CORE_ROLES_CONFIG_CACHE_TTL_SECONDS
-    );
+  CacheService.getScriptCache().put(
+    CORE_ROLES_CONFIG_CACHE_KEY,
+    JSON.stringify(rows),
+    CORE_ROLES_CONFIG_CACHE_TTL_SECONDS
+  );
 }
 
-/**
- * ------------------------------------------------------------
- * Cache CLEAR
- * ------------------------------------------------------------
- */
 function core_rolesConfigCacheClear_() {
   CacheService.getScriptCache().remove(CORE_ROLES_CONFIG_CACHE_KEY);
 }

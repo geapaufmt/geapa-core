@@ -1,8 +1,5 @@
 /***************************************
  * 16_core_member_identity_autofill.js
- *
- * Autofill de Nome / RGA / E-mail
- * a partir de MEMBERS_ATUAIS
  ***************************************/
 
 const CORE_MEMBER_IDENTITY_BASE_KEY = 'MEMBERS_ATUAIS';
@@ -24,9 +21,7 @@ function core_memberIdentityFindByAny_(identity) {
   core_assertRequired_(identity, 'identity');
 
   var sh = core_memberIdentityGetBaseSheet_();
-  if (!sh) {
-    throw new Error('MEMBERS_ATUAIS não encontrada.');
-  }
+  if (!sh) throw new Error('MEMBERS_ATUAIS não encontrada.');
 
   var lastRow = sh.getLastRow();
   var lastCol = sh.getLastColumn();
@@ -47,7 +42,6 @@ function core_memberIdentityFindByAny_(identity) {
 
   var target = core_memberIdentityNormalize_(identity);
 
-  // prioridade: RGA
   for (var i = 0; i < values.length; i++) {
     if (idxRga >= 0 && core_memberIdentityNormalize_(values[i][idxRga]) === target) {
       return {
@@ -62,7 +56,6 @@ function core_memberIdentityFindByAny_(identity) {
     }
   }
 
-  // depois: email
   for (var j = 0; j < values.length; j++) {
     if (idxEmail >= 0 && core_memberIdentityNormalize_(values[j][idxEmail]) === target) {
       return {
@@ -77,7 +70,6 @@ function core_memberIdentityFindByAny_(identity) {
     }
   }
 
-  // por último: nome
   for (var k = 0; k < values.length; k++) {
     if (idxName >= 0 && core_memberIdentityNormalize_(values[k][idxName]) === target) {
       return {
@@ -95,14 +87,6 @@ function core_memberIdentityFindByAny_(identity) {
   return null;
 }
 
-/**
- * Preenche Nome / RGA / E-mail na linha de uma sheet institucional.
- *
- * Requisitos de cabeçalho na sheet destino:
- * - Nome
- * - RGA
- * - E-mail
- */
 function core_autofillIdentityRowInSheet_(sheet, rowNumber) {
   if (!sheet) throw new Error('sheet obrigatória');
   if (!rowNumber || rowNumber < 2) throw new Error('rowNumber inválido');
@@ -127,16 +111,13 @@ function core_autofillIdentityRowInSheet_(sheet, rowNumber) {
   var currentEmail = String(row[colEmail - 1] || '').trim();
 
   var identity = currentRga || currentEmail || currentName;
-  if (!identity) {
-    return { ok: false, reason: 'linha sem identificador' };
-  }
+  if (!identity) return { ok: false, reason: 'linha sem identificador' };
 
   var member = core_memberIdentityFindByAny_(identity);
   if (!member || !member.found) {
     return { ok: false, reason: 'membro não encontrado', identity: identity };
   }
 
-  // conflito explícito
   if (currentName && member.name && core_memberIdentityNormalize_(currentName) !== core_memberIdentityNormalize_(member.name)) {
     return { ok: false, reason: 'conflito nome', identity: identity, found: member };
   }
