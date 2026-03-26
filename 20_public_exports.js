@@ -61,14 +61,6 @@ function coreClearRegistryCache() {
   return core_registryCacheClear_();
 }
 
-function coreGetCurrentEnv() {
-  return core_getCurrentEnv_();
-}
-
-function coreGetRegistry() {
-  return core_getRegistry_();
-}
-
 /* ============================================================
  * SHEETS
  * ============================================================ */
