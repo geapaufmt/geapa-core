@@ -222,7 +222,7 @@ function coreGetAssetBlob(assetIdOrUrl) {
 }
 
 function coreInlineImagesDefault() {
-  return coreInlineImagesDefault_();
+  return core_inlineImagesDefault_();
 }
 
 function coreSendHtmlEmail(opts) {

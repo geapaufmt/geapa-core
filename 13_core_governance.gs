@@ -630,55 +630,6 @@ function core_parseShortSemesterId_(semesterIdRaw) {
 }
 
 /**
- * Retorna o último semestre institucional concluído na data informada.
- *
- * Regra:
- * - considera apenas semestres cujo Fim seja anterior ou igual à data de referência
- * - se nenhum semestre tiver sido concluído ainda, retorna null
- *
- * @param {Date=} refDate
- * @return {Object|null}
- */
-function core_getLastCompletedSemester_(refDate) {
-  const now = refDate || new Date();
-  const data = core_getRowsFromSheetByKey_("VIGENCIA_SEMESTRES");
-  const idx = core_getHeaderIndexMap_(data.headers, {
-    semesterId: "ID_Semestre",
-    start: "Início",
-    end: "Fim",
-    periodId: "ID_Período"
-  });
-
-  if (idx.semesterId < 0 || idx.end < 0) {
-    throw new Error("core_getLastCompletedSemester_: cabeçalhos obrigatórios não encontrados em VIGENCIA_SEMESTRES.");
-  }
-
-  let lastCompleted = null;
-
-  for (let i = 0; i < data.rows.length; i++) {
-    const row = data.rows[i];
-    const semesterId = String(row[idx.semesterId] || "").trim();
-    const start = idx.start >= 0 ? core_parseDateOrNull_(row[idx.start]) : null;
-    const end = core_parseDateOrNull_(row[idx.end]);
-    const periodId = idx.periodId >= 0 ? String(row[idx.periodId] || "").trim() : "";
-
-    if (!semesterId || !end) continue;
-    if (end > now) continue;
-
-    if (!lastCompleted || end > lastCompleted.endDate) {
-      lastCompleted = Object.freeze({
-        id: semesterId,
-        startDate: start,
-        endDate: end,
-        periodId: periodId
-      });
-    }
-  }
-
-  return lastCompleted;
-}
-
-/**
  * Retorna a quantidade de semestres entre um ID curto (YY/S)
  * e um ID completo (YYYY/S).
  *
