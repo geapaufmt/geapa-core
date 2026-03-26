@@ -264,29 +264,8 @@ function core_getCurrentContactsHtmlByEmailGroup_(groupName, refDate) {
   }
 
   return people.map(function(person) {
-    const nome = String(person.nome || '').trim() || 'Membro';
+    const nome = String(person.nome || person.memberName || '').trim() || 'Membro';
     const contatoHtml = core_buildPreferredContactHtml_(person);
     return `<b>${nome}</b>: ${contatoHtml}`;
   }).join('<br>');
-}
-
-function core_buildPreferredContactHtml_(person) {
-  const phoneRaw =
-    String(person.contatoPreferencial || person.telefone || person.whatsapp || '').trim();
-
-  const email =
-    String(person.email || '').trim();
-
-  const digits = phoneRaw.replace(/\D+/g, '');
-
-  if (digits.length >= 10) {
-    const br = digits.startsWith('55') ? digits : '55' + digits;
-    return `<a href="https://wa.me/${br}">${phoneRaw}</a>`;
-  }
-
-  if (email) {
-    return `<a href="mailto:${email}">${email}</a>`;
-  }
-
-  return 'Contato não disponível';
 }

@@ -40,55 +40,6 @@ function core_getCurrentEnv_() {
 
 /**
  * ------------------------------------------------------------
- * Normaliza valor lógico da coluna ATIVO.
- * ------------------------------------------------------------
- *
- * Regras:
- * - vazio => true
- * - NÃO / NAO / NO / 0 / FALSE / INATIVO => false
- * - qualquer outro valor => true
- */
-function core_registryIsActiveValue_(value) {
-  const s = String(value || '').trim().toUpperCase();
-  if (!s) return true;
-
-  return !(
-    s === 'NÃO' ||
-    s === 'NAO' ||
-    s === 'NO' ||
-    s === '0' ||
-    s === 'FALSE' ||
-    s === 'INATIVO'
-  );
-}
-
-/**
- * ------------------------------------------------------------
- * Normaliza valor da coluna AMBIENTE.
- * ------------------------------------------------------------
- *
- * Retornos:
- * - ''      => sem restrição
- * - DEV
- * - PROD
- * - ALL     => sem restrição
- */
-function core_registryNormalizeEnvValue_(value) {
-  const s = String(value || '').trim().toUpperCase();
-
-  if (!s) return '';
-  if (s === 'DEV') return 'DEV';
-  if (s === 'PROD') return 'PROD';
-  if (s === 'ALL' || s === 'BOTH' || s === 'AMBOS') return 'ALL';
-
-  throw new Error(
-    `Valor inválido na coluna AMBIENTE do Registry: "${s}". ` +
-    `Use DEV, PROD, ALL/BOTH/AMBOS ou deixe vazio.`
-  );
-}
-
-/**
- * ------------------------------------------------------------
  * True se a entrada puder ser usada no ambiente atual.
  * ------------------------------------------------------------
  */
