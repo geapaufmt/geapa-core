@@ -53,10 +53,6 @@ function coreGetRegistryMetaByKey(key) {
   return core_getRegistryMetaByKey_(key);
 }
 
-function coreClearRegistryCache() {
-  return core_registryCacheClear_();
-}
-
 /* ============================================================
  * REGISTRY / DEBUG
  * ============================================================ */
@@ -257,10 +253,6 @@ function coreGetCurrentBoardMembers(refDate) {
 
 function coreGetCurrentBoardMembersByRole(role, refDate) {
   return core_getCurrentBoardMembersByRole_(role, refDate);
-}
-
-function coreGetCurrentBoardMemberByRole(role, refDate) {
-  return core_getCurrentBoardMemberByRole_(role, refDate);
 }
 
 function coreGetCurrentLeadership(refDate) {

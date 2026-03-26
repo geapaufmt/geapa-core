@@ -323,31 +323,25 @@ function core_formatWhatsappLink_(phone) {
   return 'https://wa.me/' + digits;
 }
 
-function core_getCurrentContactsHtmlByEmailGroup_(groupName, refDate) {
-  var people = core_getCurrentOccupantsByEmailGroup_(groupName, refDate);
-  if (!people.length) return '<p>Nenhum contato disponível no momento.</p>';
+function core_buildPreferredContactHtml_(person) {
+  const phoneRaw =
+    String(person.contatoPreferencial || person.telefone || person.whatsapp || '').trim();
 
-  var items = people.map(function(p) {
-    var member = core_findCurrentMemberContactByIdentity_(p);
+  const email =
+    String(person.email || '').trim();
 
-    var displayName = member && member.name ? member.name : p.memberName;
-    var phone = member && member.phone ? member.phone : '';
-    var email = member && member.email ? member.email : p.email;
-    var parts = [];
+  const digits = phoneRaw.replace(/\D+/g, '');
 
-    if (phone) {
-      var wa = core_formatWhatsappLink_(phone);
-      parts.push('<a href="' + wa + '">' + phone + '</a>');
-    } else if (email) {
-      parts.push('<a href="mailto:' + email + '">' + email + '</a>');
-    }
+  if (digits.length >= 10) {
+    const br = digits.startsWith('55') ? digits : '55' + digits;
+    return `<a href="https://wa.me/${br}">${phoneRaw}</a>`;
+  }
 
-    return '<li><strong>' + displayName + '</strong>' +
-      (parts.length ? ' — ' + parts.join(' | ') : '') +
-      '</li>';
-  });
+  if (email) {
+    return `<a href="mailto:${email}">${email}</a>`;
+  }
 
-  return '<ul>' + items.join('') + '</ul>';
+  return 'Contato não disponível';
 }
 
 function core_getCurrentEmailsByEmailGroup_(groupName, refDate) {
