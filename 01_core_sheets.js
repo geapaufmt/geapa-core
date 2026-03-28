@@ -2,33 +2,179 @@
  * 01_core_sheets.gs (refatorado)
  *
  * Objetivo:
- * - Centralizar operações comuns de Sheets (open / get sheet / header map)
- * - Garantir falhas explícitas (erros claros) quando algo essencial estiver faltando
- * - Evitar repetição e reduzir custo de abrir planilhas repetidamente
+ * - Centralizar operacoes comuns de Sheets (open / get sheet / header map)
+ * - Garantir falhas explicitas (erros claros) quando algo essencial estiver faltando
+ * - Evitar repeticao e reduzir custo de abrir planilhas repetidamente
  **************************************/
 
 /**
- * Cache por execução (in-memory).
- * - Evita abrir a mesma planilha N vezes numa única execução.
- * - Não “persiste” entre execuções (o que é bom: sempre atualiza no próximo run).
+ * Cache por execucao (in-memory).
+ * - Evita abrir a mesma planilha N vezes numa unica execucao.
+ * - Nao "persiste" entre execucoes (o que e bom: sempre atualiza no proximo run).
  */
 const __core_ss_cache = Object.create(null);
 
+function core_normalizeText_(value, opts) {
+  opts = opts || {};
+
+  var text = String(value == null ? '' : value).trim();
+  if (!text) return '';
+
+  if (opts.removeAccents === true) {
+    text = text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  if (opts.collapseWhitespace !== false) {
+    text = text.replace(/\s+/g, ' ');
+  }
+
+  if (opts.caseMode === 'upper') {
+    text = text.toUpperCase();
+  } else if (opts.caseMode !== 'none') {
+    text = text.toLowerCase();
+  }
+
+  return text;
+}
+
+function core_onlyDigits_(value) {
+  return String(value == null ? '' : value).replace(/\D+/g, '');
+}
+
+function core_buildHeaderIndexMap_(headers, opts) {
+  opts = opts || {};
+
+  var normalize = opts.normalize !== false;
+  var oneBased = opts.oneBased === true;
+  var keepFirst = opts.keepFirst !== false;
+  var map = Object.create(null);
+
+  headers.forEach(function(header, index) {
+    var raw = String(header || '').trim();
+    if (!raw) return;
+
+    var key = normalize ? core_normalizeHeader_(raw) : raw;
+    if (!key) return;
+    if (keepFirst && Object.prototype.hasOwnProperty.call(map, key)) return;
+
+    map[key] = oneBased ? index + 1 : index;
+  });
+
+  return Object.freeze(map);
+}
+
+function core_findHeaderIndex_(headerMap, headerName, opts) {
+  core_assertRequired_(headerMap, 'headerMap');
+  opts = opts || {};
+
+  var key = opts.normalize === false
+    ? String(headerName || '').trim()
+    : core_normalizeHeader_(headerName);
+
+  if (!key || !Object.prototype.hasOwnProperty.call(headerMap, key)) {
+    return opts.notFoundValue != null ? opts.notFoundValue : -1;
+  }
+
+  return headerMap[key];
+}
+
+function core_setRowValueByHeader_(rowArr, headerMap, headerName, value, opts) {
+  core_assertRequired_(rowArr, 'rowArr');
+  core_assertRequired_(headerMap, 'headerMap');
+
+  var idx = core_findHeaderIndex_(headerMap, headerName, {
+    normalize: !(opts && opts.normalize === false),
+    notFoundValue: -1
+  });
+
+  if (idx < 0) return false;
+  rowArr[idx] = value;
+  return true;
+}
+
+function core_getCellByHeader_(rowArr, headerMap, headerName, opts) {
+  core_assertRequired_(rowArr, 'rowArr');
+  core_assertRequired_(headerMap, 'headerMap');
+
+  var idx = core_findHeaderIndex_(headerMap, headerName, {
+    normalize: !(opts && opts.normalize === false),
+    notFoundValue: -1
+  });
+
+  if (idx < 0) {
+    return opts && Object.prototype.hasOwnProperty.call(opts, 'defaultValue')
+      ? opts.defaultValue
+      : '';
+  }
+
+  return rowArr[idx];
+}
+
+function core_findFirstExistingHeader_(headerMap, headerNames, opts) {
+  core_assertRequired_(headerMap, 'headerMap');
+  core_assertRequired_(headerNames, 'headerNames');
+
+  var names = Array.isArray(headerNames) ? headerNames : [headerNames];
+
+  for (var i = 0; i < names.length; i++) {
+    var idx = core_findHeaderIndex_(headerMap, names[i], {
+      normalize: !(opts && opts.normalize === false),
+      notFoundValue: -1
+    });
+
+    if (idx >= 0) {
+      return {
+        found: true,
+        headerName: names[i],
+        index: idx
+      };
+    }
+  }
+
+  return {
+    found: false,
+    headerName: '',
+    index: opts && Object.prototype.hasOwnProperty.call(opts, 'notFoundValue')
+      ? opts.notFoundValue
+      : -1
+  };
+}
+
+function core_writeCellByHeader_(sheet, rowNumber, headerMap, headerName, value, opts) {
+  core_assertRequired_(sheet, 'sheet');
+  core_assertRequired_(rowNumber, 'rowNumber');
+  core_assertRequired_(headerMap, 'headerMap');
+
+  opts = opts || {};
+  var idx = core_findHeaderIndex_(headerMap, headerName, {
+    normalize: opts.normalize !== false,
+    notFoundValue: -1
+  });
+
+  if (idx < 0) return false;
+
+  var colNumber = opts.oneBased === true ? idx : idx + 1;
+  sheet.getRange(Number(rowNumber), colNumber).setValue(value);
+  return true;
+}
+
 /**
  * ------------------------------------------------------------
- * Abre uma planilha pelo ID (com validação + cache).
+ * Abre uma planilha pelo ID (com validacao + cache).
  * ------------------------------------------------------------
  *
  * Quando usar:
  * - Sempre que precisar de SpreadsheetApp.openById(id).
  *
  * Por que existe:
- * - Valida ID obrigatório.
+ * - Valida ID obrigatorio.
  * - Cacheia o Spreadsheet para reduzir chamadas repetidas.
  */
 function core_openSpreadsheetById_(id) {
   core_assertRequired_(id, 'Spreadsheet ID');
-  const key = String(id).trim();
+  var key = String(id).trim();
 
   if (!__core_ss_cache[key]) {
     __core_ss_cache[key] = SpreadsheetApp.openById(key);
@@ -42,18 +188,18 @@ function core_openSpreadsheetById_(id) {
  * ------------------------------------------------------------
  *
  * Comportamento:
- * - Valida parâmetros obrigatórios.
- * - Lança erro explícito se a aba não existir.
+ * - Valida parametros obrigatorios.
+ * - Lanca erro explicito se a aba nao existir.
  */
 function core_getSheetById_(spreadsheetId, sheetName) {
   core_assertRequired_(spreadsheetId, 'Spreadsheet ID');
   core_assertRequired_(sheetName, 'Sheet name');
 
-  const ss = core_openSpreadsheetById_(spreadsheetId);
-  const sh = ss.getSheetByName(String(sheetName).trim());
+  var ss = core_openSpreadsheetById_(spreadsheetId);
+  var sh = ss.getSheetByName(String(sheetName).trim());
 
   if (!sh) {
-    throw new Error(`Aba não encontrada: "${sheetName}" no arquivo ${spreadsheetId}`);
+    throw new Error('Aba nao encontrada: "' + sheetName + '" no arquivo ' + spreadsheetId);
   }
   return sh;
 }
@@ -64,32 +210,27 @@ function core_getSheetById_(spreadsheetId, sheetName) {
  * ------------------------------------------------------------
  *
  * Quando usar:
- * - Para buscar colunas pelo nome do cabeçalho, sem depender de índice fixo.
+ * - Para buscar colunas pelo nome do cabecalho, sem depender de indice fixo.
  *
  * Notas:
- * - Mantém o primeiro cabeçalho em caso de duplicidade.
- * - Colunas retornam 1-based (compatível com getRange()).
+ * - Mantem o primeiro cabecalho em caso de duplicidade.
+ * - Colunas retornam 1-based (compativel com getRange()).
  */
 function core_headerMap_(sheet, headerRow) {
   core_assertRequired_(sheet, 'Sheet');
 
-  const row = Number(headerRow || 1);
-  if (row < 1) throw new Error('headerRow inválido: ' + headerRow);
+  var row = Number(headerRow || 1);
+  if (row < 1) throw new Error('headerRow invalido: ' + headerRow);
 
-  const lastCol = sheet.getLastColumn();
+  var lastCol = sheet.getLastColumn();
   if (lastCol < 1) return Object.freeze({});
 
-  const headers = sheet.getRange(row, 1, 1, lastCol).getValues()[0];
-
-  const map = Object.create(null);
-  for (let c = 0; c < headers.length; c++) {
-    const key = core_normalizeHeader_(headers[c]);
-    if (!key) continue;
-    if (map[key]) continue;     // duplicado -> mantém o primeiro
-    map[key] = c + 1;           // 1-based
-  }
-
-  return Object.freeze(map);
+  var headers = sheet.getRange(row, 1, 1, lastCol).getValues()[0];
+  return core_buildHeaderIndexMap_(headers, {
+    normalize: true,
+    oneBased: true,
+    keepFirst: true
+  });
 }
 
 /**
@@ -99,34 +240,26 @@ function core_headerMap_(sheet, headerRow) {
  *
  * Retorna:
  * - coluna 1-based, se existir
- * - 0, se não existir (o módulo decide se é obrigatório ou opcional)
+ * - 0, se nao existir (o modulo decide se e obrigatorio ou opcional)
  */
 function core_getCol_(headerMap, headerName) {
   core_assertRequired_(headerMap, 'headerMap');
-  const key = core_normalizeHeader_(headerName);
-  return (key && headerMap[key]) ? headerMap[key] : 0;
+  var idx = core_findHeaderIndex_(headerMap, headerName, {
+    normalize: true,
+    notFoundValue: -1
+  });
+  return idx >= 0 ? idx : 0;
 }
 
 /**
  * ------------------------------------------------------------
- * Normaliza texto de cabeçalho para comparação robusta.
+ * Normaliza texto de cabecalho para comparacao robusta.
  * ------------------------------------------------------------
- *
- * O que faz:
- * - trim
- * - lowercase
- * - remove acentos
- * - colapsa múltiplos espaços
- *
- * Exemplo:
- * - "  Data   de  Nascimento  " -> "data de nascimento"
- * - "E-mail" -> "e-mail" (mantém hífen)
  */
 function core_normalizeHeader_(h) {
-  return String(h || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')                 // separa acentos
-    .replace(/[\u0300-\u036f]/g, '')  // remove acentos
-    .replace(/\s+/g, ' ');
+  return core_normalizeText_(h, {
+    removeAccents: true,
+    collapseWhitespace: true,
+    caseMode: 'lower'
+  });
 }

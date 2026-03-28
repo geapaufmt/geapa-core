@@ -61,6 +61,23 @@ const GEAPA_CORE = Object.freeze({
      * Ajuda quando há pequenas variações no texto do cabeçalho.
      */
     normalizeHeader: core_normalizeHeader_,
+    normalizeText: core_normalizeText_,
+    onlyDigits: core_onlyDigits_,
+    buildHeaderIndexMap: core_buildHeaderIndexMap_,
+    findHeaderIndex: core_findHeaderIndex_,
+    setRowValueByHeader: core_setRowValueByHeader_,
+    writeCellByHeader: core_writeCellByHeader_,
+  }),
+
+  records: Object.freeze({
+    rowToObject: core_rowToObject_,
+    buildRowFromObjectByHeaders: core_buildRowFromObjectByHeaders_,
+    appendObjectByHeaders: core_appendObjectByHeaders_,
+    readSheetRecords: core_readSheetRecords_,
+    readRecordsByKey: core_readRecordsByKey_,
+    findFirstRecordByField: core_findFirstRecordByField_,
+    findFirstRecordByAnyField: core_findFirstRecordByAnyField_,
+    findFirstRecordByKeyField: core_findFirstRecordByKeyField_,
   }),
 
   /**
@@ -114,11 +131,19 @@ const GEAPA_CORE = Object.freeze({
     /** Validação simples de e-mail (evita to="" vazio / inválido). */
     isValid: core_isValidEmail_,
 
+    /** Normaliza e-mail institucional para comparação/chaves. */
+    normalizeEmail: core_normalizeEmail_,
+    extractAddress: core_extractEmailAddress_,
+    uniqueEmails: core_uniqueEmails_,
+
     /** Envia e-mail em texto puro. */
     sendText: core_sendEmailText_,
 
     /** Envia e-mail HTML (sem inlineImages). */
     sendHtml: core_sendHtmlEmail_,
+
+    /** Envia e-mail e tenta retornar threadId/messageId do Gmail. */
+    sendTracked: core_sendTrackedEmail_,
   }),
 
   /**
@@ -311,6 +336,7 @@ const GEAPA_CORE = Object.freeze({
   semester: Object.freeze({
     getCurrentSemester: core_getCurrentSemester_,
     getSemesterForDate: core_getSemesterForDate_,
+    getSemesterIdForDate: core_getSemesterIdForDate_,
     getLastCompletedSemester: core_getLastCompletedSemester_,
     parseEntrySemesterFromRga: core_parseEntrySemesterFromRga_,
     getStudentCurrentSemesterFromRga: core_getStudentCurrentSemesterFromRga_,
@@ -325,5 +351,12 @@ const GEAPA_CORE = Object.freeze({
   * ============================================================ */
   membersCurrent: Object.freeze({
     syncDerivedFields: core_syncMembersCurrentDerivedFields_,
+  }),
+
+  identity: Object.freeze({
+    normalizeKey: core_normalizeIdentityKey_,
+    findByAny: core_memberIdentityFindByAny_,
+    findCurrentRowByAny: core_findMemberCurrentRowByAny_,
+    autofillRowInSheet: core_autofillIdentityRowInSheet_,
   }),
 });

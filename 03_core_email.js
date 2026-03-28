@@ -1,139 +1,196 @@
 /**
  * ------------------------------------------------------------
- * Validação simples de e-mail.
+ * Normalizacao simples de e-mail.
  * ------------------------------------------------------------
- *
- * Quando usar:
- * - Antes de enviar qualquer e-mail.
- *
- * O que valida:
- * - Não vazio
- * - Contém "@"
- * - Não possui espaços
- *
- * Observação:
- * - Não é validação RFC completa.
- * - É uma validação leve para evitar erros óbvios.
- *
- * Por que é simples?
- * - Evita regex complexa desnecessária.
- * - O MailApp já falhará em casos extremos.
  */
-function core_isValidEmail_(email) {
-  const e = String(email || '').trim();
-  return !!e && e.includes('@') && !/\s/.test(e);
+function core_normalizeEmail_(value) {
+  return core_normalizeText_(value, {
+    collapseWhitespace: true,
+    caseMode: 'lower'
+  });
 }
 
+function core_extractEmailAddress_(value) {
+  var text = String(value || '').trim();
+  if (!text) return '';
+
+  var match = text.match(/<([^>]+)>/);
+  return core_normalizeEmail_(match ? match[1] : text);
+}
+
+function core_extractDisplayName_(value) {
+  var text = String(value || '').trim();
+  if (!text) return '';
+
+  var match = text.match(/^"?([^"<]+)"?\s*</);
+  var name = String(match ? match[1] : text).trim();
+  return name.indexOf('@') !== -1 ? '' : name;
+}
+
+function core_uniqueEmails_(values) {
+  var input = Array.isArray(values)
+    ? values
+    : String(values || '').split(/[;,]/);
+
+  var seen = Object.create(null);
+  var out = [];
+
+  input.forEach(function(item) {
+    var email = core_extractEmailAddress_(item);
+    if (!email || seen[email]) return;
+
+    seen[email] = true;
+    out.push(email);
+  });
+
+  return Object.freeze(out);
+}
+
+function core_resolveEmailRecipients_(value) {
+  var list = core_uniqueEmails_(value);
+  list.forEach(function(email) {
+    if (!core_isValidEmail_(email)) {
+      throw new Error('E-mail invalido: ' + email);
+    }
+  });
+  return list;
+}
+
+/**
+ * ------------------------------------------------------------
+ * Validacao simples de e-mail.
+ * ------------------------------------------------------------
+ */
+function core_isValidEmail_(email) {
+  var e = core_extractEmailAddress_(email);
+  return !!e && e.includes('@') && !/\s/.test(e);
+}
 
 /**
  * ------------------------------------------------------------
  * Envia e-mail em TEXTO simples.
  * ------------------------------------------------------------
- *
- * Quando usar:
- * - Mensagens administrativas simples.
- * - Logs ou notificações internas.
- *
- * Parâmetros (opts):
- * {
- *   to: obrigatório,
- *   subject: opcional,
- *   body: opcional,
- *   bcc: opcional,
- *   name: nome do remetente (padrão: "GEAPA")
- * }
- *
- * Comportamento:
- * - Valida se opts existe.
- * - Valida se e-mail é válido.
- * - Lança erro se inválido (falha explícita).
- *
- * Por que falhar?
- * - Melhor interromper o job do que enviar para endereço errado.
  */
 function core_sendEmailText_(opts) {
   core_assertRequired_(opts, 'Email opts');
 
-  if (!core_isValidEmail_(opts.to)) {
-    throw new Error('E-mail inválido: ' + opts.to);
+  var toList = core_resolveEmailRecipients_(opts.to);
+  if (!toList.length) {
+    throw new Error('core_sendEmailText_: destinatario ausente.');
   }
 
+  var bccList = opts.bcc ? core_resolveEmailRecipients_(opts.bcc) : [];
+
   MailApp.sendEmail({
-    to: opts.to,
-    bcc: opts.bcc || '',
+    to: toList.join(','),
+    bcc: bccList.join(','),
     subject: opts.subject || '',
     body: opts.body || '',
     name: opts.name || 'GEAPA',
+    attachments: opts.attachments || undefined,
+    replyTo: opts.replyTo || undefined,
+    noReply: opts.noReply === true
   });
 }
-
 
 /**
  * ------------------------------------------------------------
  * Envia e-mail em HTML (com suporte a inlineImages).
  * ------------------------------------------------------------
- *
- * Quando usar:
- * - E-mails institucionais.
- * - Mensagens com logo do GEAPA.
- * - Templates estilizados.
- *
- * Parâmetros (opts):
- * {
- *   to: obrigatório,
- *   subject: opcional,
- *   htmlBody: conteúdo HTML,
- *   body: fallback texto simples,
- *   bcc: opcional,
- *   name: nome do remetente,
- *   inlineImages: objeto { cidKey: Blob }
- * }
- *
- * Comportamento:
- * - Valida parâmetros obrigatórios.
- * - Permite fallback de texto (caso cliente não renderize HTML).
- * - inlineImages é opcional.
- *
- * Observação importante:
- * - inlineImages deve casar com <img src="cid:chave">
- * - Se não informado, não envia imagens.
  */
 function core_sendHtmlEmail_(opts) {
   core_assertRequired_(opts, 'Email opts');
 
-  if (!core_isValidEmail_(opts.to)) {
-    throw new Error('E-mail inválido: ' + opts.to);
+  var toList = core_resolveEmailRecipients_(opts.to);
+  if (!toList.length) {
+    throw new Error('core_sendHtmlEmail_: destinatario ausente.');
   }
 
+  var bccList = opts.bcc ? core_resolveEmailRecipients_(opts.bcc) : [];
+
   MailApp.sendEmail({
-    to: opts.to,
-    bcc: opts.bcc || '',
+    to: toList.join(','),
+    bcc: bccList.join(','),
     subject: opts.subject || '',
     body: opts.body || 'Mensagem em HTML',
     htmlBody: opts.htmlBody || '',
+    attachments: opts.attachments || undefined,
     inlineImages: opts.inlineImages || undefined,
-    name: opts.name || 'GEAPA',
+    replyTo: opts.replyTo || undefined,
+    noReply: opts.noReply === true,
+    name: opts.name || 'GEAPA'
+  });
+}
+
+function core_sendTrackedEmail_(params) {
+  core_assertRequired_(params, 'Email params');
+
+  var toList = core_resolveEmailRecipients_(params.to);
+  if (toList.length !== 1) {
+    throw new Error('core_sendTrackedEmail_: informe exatamente um destinatario em "to".');
+  }
+
+  var to = toList[0];
+  var subject = String(params.subject || '').trim();
+  var htmlBody = String(params.htmlBody || '');
+  var body = String(params.body || '');
+  var newerThanDays = Number(params.newerThanDays || 7);
+  var maxThreads = Number(params.maxThreads || 10);
+  var sleepMs = Number(params.sleepMs || 1500);
+
+  if (!subject) {
+    throw new Error('core_sendTrackedEmail_: parametro obrigatorio ausente (subject).');
+  }
+
+  if (htmlBody) {
+    core_sendHtmlEmail_(Object.assign({}, params, {
+      to: to,
+      subject: subject,
+      body: body || 'Mensagem em HTML',
+      htmlBody: htmlBody
+    }));
+  } else {
+    core_sendEmailText_(Object.assign({}, params, {
+      to: to,
+      subject: subject,
+      body: body
+    }));
+  }
+
+  if (sleepMs > 0) {
+    Utilities.sleep(sleepMs);
+  }
+
+  var safeSubject = subject.replace(/"/g, '\\"');
+  var query = 'to:' + to + ' subject:"' + safeSubject + '" newer_than:' + newerThanDays + 'd';
+  var threads = GmailApp.search(query, 0, maxThreads);
+
+  var threadId = '';
+  var messageId = '';
+
+  if (threads && threads.length) {
+    var thread = threads[0];
+    threadId = String(thread.getId() || '');
+
+    var messages = thread.getMessages();
+    if (messages && messages.length) {
+      messageId = String(messages[messages.length - 1].getId() || '');
+    }
+  }
+
+  return Object.freeze({
+    threadId: threadId,
+    messageId: messageId
   });
 }
 
 /**
  * ------------------------------------------------------------
- * Retorna inlineImages padrão do GEAPA (ex.: logo).
+ * Retorna inlineImages padrao do GEAPA (ex.: logo).
  * ------------------------------------------------------------
- *
- * Por que existe:
- * - Muitos módulos querem sempre a logo no topo sem repetir código.
- *
- * Retorna:
- * - {} se não houver logo configurada
- * - ou { geapa_logo: Blob } se houver
- *
- * Observação:
- * - O template deve usar: <img src="cid:geapa_logo">
  */
 function core_inlineImagesDefault_() {
-  // Se você tiver um registry de assets no core (GEAPA_ASSETS), usa ele:
-  const logoId =
+  var logoId =
     (typeof GEAPA_ASSETS !== 'undefined' &&
      GEAPA_ASSETS.BRAND &&
      GEAPA_ASSETS.BRAND.LOGO_GEAPA)
@@ -142,54 +199,44 @@ function core_inlineImagesDefault_() {
 
   if (!logoId) return {};
 
-  // coreGetAssetBlob / core_getAssetBlob_ depende de como você nomeou.
-  // Vou usar coreGetAssetBlob() porque você já tem essa função hoje.
-  return {
-    geapa_logo: coreGetAssetBlob(logoId),
-  };
+  try {
+    return {
+      geapa_logo: coreGetAssetBlob(logoId)
+    };
+  } catch (err) {
+    var message = err && err.message ? err.message : String(err || '');
+    if (message.indexOf('Access denied') !== -1 || message.indexOf('DriveApp') !== -1) {
+      return {};
+    }
+    throw err;
+  }
 }
 
 /**
  * ------------------------------------------------------------
- * Envia HTML mesclando inlineImages padrão + inlineImages do módulo.
+ * Envia HTML mesclando inlineImages padrao + inlineImages do modulo.
  * ------------------------------------------------------------
- *
- * Quando usar:
- * - Em módulos que sempre devem ter logo (ou outros assets padrão).
- *
- * Como funciona:
- * - inlineImagesFinal = defaultInline + opts.inlineImages
- * - Se houver conflito de CID, o do módulo (opts.inlineImages) vence.
- *
- * Reaproveita:
- * - core_sendEmailHtml_ (função já existente e testada)
  */
 function core_sendEmailHtmlWithDefaultInline_(opts) {
   core_assertRequired_(opts, 'Email opts');
-  const baseInline = core_inlineImagesDefault_();
-  const extraInline = opts.inlineImages || {};
-
-  // Merge: extra sobrescreve base se repetir a chave/cid
-  const mergedInline = Object.assign({}, baseInline, extraInline);
+  var baseInline = core_inlineImagesDefault_();
+  var extraInline = opts.inlineImages || {};
+  var mergedInline = Object.assign({}, baseInline, extraInline);
 
   return core_sendHtmlEmail_(Object.assign({}, opts, {
-    inlineImages: Object.keys(mergedInline).length ? mergedInline : undefined,
+    inlineImages: Object.keys(mergedInline).length ? mergedInline : undefined
   }));
 }
 
 /**
- * Alias de compatibilidade:
- * Alguns módulos chamam core_sendEmailHtml_ (nome antigo).
- * O nome "oficial" atual é core_sendHtmlEmail_.
+ * Alias de compatibilidade.
  */
 function core_sendEmailHtml_(opts) {
   return core_sendHtmlEmail_(opts);
 }
 
 /**
- * Alias de compatibilidade:
- * Alguns módulos chamam coreSendHtmlEmail_ (nome usado em assets/email).
- * O nome "oficial" atual é core_sendHtmlEmail_.
+ * Alias de compatibilidade.
  */
 function coreSendHtmlEmail_(opts) {
   return core_sendHtmlEmail_(opts);

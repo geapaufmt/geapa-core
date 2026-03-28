@@ -4,104 +4,182 @@
 
 const CORE_MEMBER_IDENTITY_BASE_KEY = 'MEMBERS_ATUAIS';
 
+function core_normalizeIdentityKey_(value) {
+  return core_normalizeText_(value, {
+    removeAccents: true,
+    collapseWhitespace: true,
+    caseMode: 'upper'
+  });
+}
+
 function core_memberIdentityNormalize_(value) {
-  return String(value == null ? '' : value)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase();
+  return core_normalizeIdentityKey_(value);
 }
 
 function core_memberIdentityGetBaseSheet_() {
   return core_getSheetByKey_(CORE_MEMBER_IDENTITY_BASE_KEY);
 }
 
+function core_memberIdentityResolveIndexes_(headers) {
+  var headerMap = core_buildHeaderIndexMap_(headers, {
+    normalize: true,
+    oneBased: false
+  });
+
+  function pick(candidates) {
+    for (var i = 0; i < candidates.length; i++) {
+      var idx = core_findHeaderIndex_(headerMap, candidates[i], {
+        normalize: true,
+        notFoundValue: -1
+      });
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  }
+
+  return {
+    headerMap: headerMap,
+    idxName: pick(['MEMBRO', 'Nome']),
+    idxRga: pick(['RGA']),
+    idxEmail: pick(['EMAIL', 'E-mail']),
+    idxStatus: pick(['Status'])
+  };
+}
+
+function core_findSheetRowByIdentity_(sheet, identity, opts) {
+  core_assertRequired_(sheet, 'sheet');
+  core_assertRequired_(identity, 'identity');
+
+  opts = opts || {};
+  var headerRow = Number(opts.headerRow || 1);
+  var startRow = Number(opts.startRow || (headerRow + 1));
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < startRow || lastCol < 1) return { found: false };
+
+  var headers = sheet.getRange(headerRow, 1, 1, lastCol).getValues()[0]
+    .map(function(h) { return String(h || '').trim(); });
+  var values = sheet.getRange(startRow, 1, lastRow - startRow + 1, lastCol).getValues();
+  var idx = core_memberIdentityResolveIndexes_(headers);
+
+  var input = typeof identity === 'object' && identity !== null
+    ? identity
+    : { rga: identity, email: identity, name: identity };
+
+  var targetRga = core_normalizeIdentityKey_(input.rga || '');
+  var targetEmail = core_normalizeIdentityKey_(input.email || '');
+  var targetName = core_normalizeIdentityKey_(input.name || identity || '');
+
+  function buildResult(row, index, matchBy) {
+    var record = core_rowToObject_(headers, row);
+    record.__rowNumber = startRow + index;
+
+    return {
+      found: true,
+      matchBy: matchBy,
+      rowNumber: startRow + index,
+      rowValues: row,
+      headers: headers,
+      headerMap: idx.headerMap,
+      record: record,
+      name: idx.idxName >= 0 ? String(row[idx.idxName] || '').trim() : '',
+      rga: idx.idxRga >= 0 ? String(row[idx.idxRga] || '').trim() : '',
+      email: idx.idxEmail >= 0 ? String(row[idx.idxEmail] || '').trim() : '',
+      status: idx.idxStatus >= 0 ? String(row[idx.idxStatus] || '').trim() : ''
+    };
+  }
+
+  if (idx.idxRga >= 0 && targetRga) {
+    for (var i = 0; i < values.length; i++) {
+      if (core_normalizeIdentityKey_(values[i][idx.idxRga]) === targetRga) {
+        return buildResult(values[i], i, 'RGA');
+      }
+    }
+  }
+
+  if (idx.idxEmail >= 0 && targetEmail) {
+    for (var j = 0; j < values.length; j++) {
+      if (core_normalizeIdentityKey_(values[j][idx.idxEmail]) === targetEmail) {
+        return buildResult(values[j], j, 'EMAIL');
+      }
+    }
+  }
+
+  if (idx.idxName >= 0 && targetName) {
+    for (var k = 0; k < values.length; k++) {
+      if (core_normalizeIdentityKey_(values[k][idx.idxName]) === targetName) {
+        return buildResult(values[k], k, 'NOME');
+      }
+    }
+  }
+
+  return {
+    found: false,
+    headers: headers,
+    headerMap: idx.headerMap
+  };
+}
+
+function core_findMemberCurrentRowByAny_(identity) {
+  var sh = core_memberIdentityGetBaseSheet_();
+  if (!sh) throw new Error('MEMBERS_ATUAIS nao encontrada.');
+  return core_findSheetRowByIdentity_(sh, identity);
+}
+
 function core_memberIdentityFindByAny_(identity) {
   core_assertRequired_(identity, 'identity');
 
-  var sh = core_memberIdentityGetBaseSheet_();
-  if (!sh) throw new Error('MEMBERS_ATUAIS não encontrada.');
+  var found = core_findMemberCurrentRowByAny_(identity);
+  if (!found || !found.found) return null;
 
-  var lastRow = sh.getLastRow();
-  var lastCol = sh.getLastColumn();
-  if (lastRow < 2 || lastCol < 1) return null;
-
-  var headerMap = core_headerMap_(sh, 1);
-  var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
-
-  var idxName = core_getCol_(headerMap, 'MEMBRO') || core_getCol_(headerMap, 'Nome');
-  var idxRga = core_getCol_(headerMap, 'RGA');
-  var idxEmail = core_getCol_(headerMap, 'EMAIL') || core_getCol_(headerMap, 'E-mail');
-  var idxStatus = core_getCol_(headerMap, 'Status');
-
-  idxName = idxName ? idxName - 1 : -1;
-  idxRga = idxRga ? idxRga - 1 : -1;
-  idxEmail = idxEmail ? idxEmail - 1 : -1;
-  idxStatus = idxStatus ? idxStatus - 1 : -1;
-
-  var target = core_memberIdentityNormalize_(identity);
-
-  for (var i = 0; i < values.length; i++) {
-    if (idxRga >= 0 && core_memberIdentityNormalize_(values[i][idxRga]) === target) {
-      return {
-        found: true,
-        matchBy: 'RGA',
-        rowNumber: i + 2,
-        name: idxName >= 0 ? String(values[i][idxName] || '').trim() : '',
-        rga: idxRga >= 0 ? String(values[i][idxRga] || '').trim() : '',
-        email: idxEmail >= 0 ? String(values[i][idxEmail] || '').trim() : '',
-        status: idxStatus >= 0 ? String(values[i][idxStatus] || '').trim() : ''
-      };
-    }
-  }
-
-  for (var j = 0; j < values.length; j++) {
-    if (idxEmail >= 0 && core_memberIdentityNormalize_(values[j][idxEmail]) === target) {
-      return {
-        found: true,
-        matchBy: 'EMAIL',
-        rowNumber: j + 2,
-        name: idxName >= 0 ? String(values[j][idxName] || '').trim() : '',
-        rga: idxRga >= 0 ? String(values[j][idxRga] || '').trim() : '',
-        email: idxEmail >= 0 ? String(values[j][idxEmail] || '').trim() : '',
-        status: idxStatus >= 0 ? String(values[j][idxStatus] || '').trim() : ''
-      };
-    }
-  }
-
-  for (var k = 0; k < values.length; k++) {
-    if (idxName >= 0 && core_memberIdentityNormalize_(values[k][idxName]) === target) {
-      return {
-        found: true,
-        matchBy: 'NOME',
-        rowNumber: k + 2,
-        name: idxName >= 0 ? String(values[k][idxName] || '').trim() : '',
-        rga: idxRga >= 0 ? String(values[k][idxRga] || '').trim() : '',
-        email: idxEmail >= 0 ? String(values[k][idxEmail] || '').trim() : '',
-        status: idxStatus >= 0 ? String(values[k][idxStatus] || '').trim() : ''
-      };
-    }
-  }
-
-  return null;
+  return {
+    found: true,
+    matchBy: found.matchBy,
+    rowNumber: found.rowNumber,
+    name: found.name,
+    rga: found.rga,
+    email: found.email,
+    status: found.status
+  };
 }
 
-function core_autofillIdentityRowInSheet_(sheet, rowNumber) {
-  if (!sheet) throw new Error('sheet obrigatória');
-  if (!rowNumber || rowNumber < 2) throw new Error('rowNumber inválido');
+function core_autofillIdentityRowInSheet_(sheet, rowNumber, opts) {
+  if (!sheet) throw new Error('sheet obrigatoria');
+  if (!rowNumber || rowNumber < 2) throw new Error('rowNumber invalido');
+
+  opts = opts || {};
 
   var lastCol = sheet.getLastColumn();
   if (lastCol < 1) return { ok: false, reason: 'sheet vazia' };
 
   var headerMap = core_headerMap_(sheet, 1);
 
-  var colName = core_getCol_(headerMap, 'Nome');
-  var colRga = core_getCol_(headerMap, 'RGA');
-  var colEmail = core_getCol_(headerMap, 'E-mail') || core_getCol_(headerMap, 'EMAIL');
+  var nameHeaders = Array.isArray(opts.nameHeaders) && opts.nameHeaders.length
+    ? opts.nameHeaders
+    : ['Nome'];
+  var rgaHeaders = Array.isArray(opts.rgaHeaders) && opts.rgaHeaders.length
+    ? opts.rgaHeaders
+    : ['RGA'];
+  var emailHeaders = Array.isArray(opts.emailHeaders) && opts.emailHeaders.length
+    ? opts.emailHeaders
+    : ['E-mail', 'EMAIL'];
 
-  if (!colName || !colRga || !colEmail) {
-    throw new Error('A sheet destino precisa ter os cabeçalhos Nome, RGA e E-mail.');
+  var resolvedName = core_findFirstExistingHeader_(headerMap, nameHeaders);
+  var resolvedRga = core_findFirstExistingHeader_(headerMap, rgaHeaders);
+  var resolvedEmail = core_findFirstExistingHeader_(headerMap, emailHeaders);
+
+  var colName = resolvedName && resolvedName.found ? resolvedName.index : -1;
+  var colRga = resolvedRga && resolvedRga.found ? resolvedRga.index : -1;
+  var colEmail = resolvedEmail && resolvedEmail.found ? resolvedEmail.index : -1;
+
+  if (colName < 1 || colRga < 1 || colEmail < 1) {
+    throw new Error(
+      'A sheet destino precisa ter os cabecalhos ' +
+      nameHeaders.join(' / ') + ', ' +
+      rgaHeaders.join(' / ') + ' e ' +
+      emailHeaders.join(' / ') + '.'
+    );
   }
 
   var row = sheet.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
@@ -115,7 +193,7 @@ function core_autofillIdentityRowInSheet_(sheet, rowNumber) {
 
   var member = core_memberIdentityFindByAny_(identity);
   if (!member || !member.found) {
-    return { ok: false, reason: 'membro não encontrado', identity: identity };
+    return { ok: false, reason: 'membro nao encontrado', identity: identity };
   }
 
   if (currentName && member.name && core_memberIdentityNormalize_(currentName) !== core_memberIdentityNormalize_(member.name)) {
@@ -142,7 +220,7 @@ function core_autofillIdentityRowInSheet_(sheet, rowNumber) {
 
   if (!currentEmail && member.email) {
     sheet.getRange(rowNumber, colEmail).setValue(member.email);
-    updated.push('E-mail');
+    updated.push(emailHeaders[0]);
   }
 
   return {

@@ -493,6 +493,11 @@ function core_getSemesterForDate_(refDate) {
   return nextSemester || null;
 }
 
+function core_getSemesterIdForDate_(refDate) {
+  var semester = core_getSemesterForDate_(refDate);
+  return semester && semester.id ? semester.id : "";
+}
+
 /**
  * Retorna o último semestre institucional concluído na data informada.
  *

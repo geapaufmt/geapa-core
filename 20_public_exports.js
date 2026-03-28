@@ -85,6 +85,38 @@ function coreNormalizeHeader(s) {
   return core_normalizeHeader_(s);
 }
 
+function coreNormalizeText(value, opts) {
+  return core_normalizeText_(value, opts || {});
+}
+
+function coreOnlyDigits(value) {
+  return core_onlyDigits_(value);
+}
+
+function coreBuildHeaderIndexMap(headers, opts) {
+  return core_buildHeaderIndexMap_(headers, opts || {});
+}
+
+function coreFindHeaderIndex(headerMap, headerName, opts) {
+  return core_findHeaderIndex_(headerMap, headerName, opts || {});
+}
+
+function coreSetRowValueByHeader(rowArr, headerMap, headerName, value, opts) {
+  return core_setRowValueByHeader_(rowArr, headerMap, headerName, value, opts || {});
+}
+
+function coreGetCellByHeader(rowArr, headerMap, headerName, opts) {
+  return core_getCellByHeader_(rowArr, headerMap, headerName, opts || {});
+}
+
+function coreFindFirstExistingHeader(headerMap, headerNames, opts) {
+  return core_findFirstExistingHeader_(headerMap, headerNames, opts || {});
+}
+
+function coreWriteCellByHeader(sheet, rowNumber, headerMap, headerName, value, opts) {
+  return core_writeCellByHeader_(sheet, rowNumber, headerMap, headerName, value, opts || {});
+}
+
 /* ============================================================
  * DATES
  * ============================================================ */
@@ -121,12 +153,32 @@ function coreIsValidEmail(email) {
   return core_isValidEmail_(email);
 }
 
+function coreNormalizeEmail(value) {
+  return core_normalizeEmail_(value);
+}
+
 function coreSendEmailText(opts) {
   return core_sendEmailText_(opts);
 }
 
 function coreSendEmailHtml(opts) {
   return core_sendEmailHtml_(opts);
+}
+
+function coreSendTrackedEmail(params) {
+  return core_sendTrackedEmail_(params);
+}
+
+function coreExtractEmailAddress(value) {
+  return core_extractEmailAddress_(value);
+}
+
+function coreExtractDisplayName(value) {
+  return core_extractDisplayName_(value);
+}
+
+function coreUniqueEmails(values) {
+  return core_uniqueEmails_(values);
 }
 
 /* ============================================================
@@ -139,6 +191,26 @@ function coreEnsureLabel(name) {
 
 function coreGetLabel(name) {
   return core_getLabel_(name);
+}
+
+function coreGetOrCreateLabel(name) {
+  return core_getOrCreateLabel_(name);
+}
+
+function coreThreadHasLabel(thread, labelName) {
+  return core_threadHasLabel_(thread, labelName);
+}
+
+function coreSearchThreads(query, start, max) {
+  return core_searchThreads_(query, start, max);
+}
+
+function coreMarkThread(thread, labelIn, labelOut) {
+  return core_markThread_(thread, labelIn, labelOut);
+}
+
+function coreReplyThreadHtml(thread, subject, htmlBody, opts) {
+  return core_replyThreadHtml_(thread, subject, htmlBody, opts || {});
 }
 
 /* ============================================================
@@ -273,6 +345,10 @@ function coreGetSemesterForDate(refDate) {
   return core_getSemesterForDate_(refDate);
 }
 
+function coreGetSemesterIdForDate(refDate) {
+  return core_getSemesterIdForDate_(refDate);
+}
+
 function coreGetLastCompletedSemester(refDate) {
   return core_getLastCompletedSemester_(refDate);
 }
@@ -358,6 +434,14 @@ function coreFindMemberIdentityByAny(identity) {
   return core_memberIdentityFindByAny_(identity);
 }
 
-function coreAutofillIdentityRowInSheet(sheet, rowNumber) {
-  return core_autofillIdentityRowInSheet_(sheet, rowNumber);
+function coreNormalizeIdentityKey(value) {
+  return core_normalizeIdentityKey_(value);
+}
+
+function coreFindMemberCurrentRowByAny(identity) {
+  return core_findMemberCurrentRowByAny_(identity);
+}
+
+function coreAutofillIdentityRowInSheet(sheet, rowNumber, opts) {
+  return core_autofillIdentityRowInSheet_(sheet, rowNumber, opts || {});
 }
