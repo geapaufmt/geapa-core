@@ -27,7 +27,8 @@ const CORE_GOVERNANCE_CFG = Object.freeze({
   boardHeaders: Object.freeze({
     boardId: "ID_Diretoria",
     start: "Início_Mandato",
-    end: "Fim_Mandato"
+    end: "Fim_Mandato",
+    slogan: "Slogan"
   }),
 
   boardMemberHeaders: Object.freeze({
@@ -156,12 +157,19 @@ function core_getCurrentBoard_(refDate) {
       return Object.freeze({
         id: boardId,
         startDate: core_parseDateOrNull_(start),
-        endDate: core_parseDateOrNull_(end)
+        endDate: core_parseDateOrNull_(end),
+        slogan: idx.slogan >= 0 ? String(row[idx.slogan] || "").trim() : ""
       });
     }
   }
 
   return null;
+}
+
+function core_getCurrentBoardSlogan_(refDate) {
+  const board = core_getCurrentBoard_(refDate);
+  if (!board) return "";
+  return String(board.slogan || "").trim();
 }
 
 /**

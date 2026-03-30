@@ -95,6 +95,55 @@ Funcoes centrais:
 - `coreReplyThreadHtml(thread, subject, htmlBody, opts)`
 - `coreMarkThread(thread, labelIn, labelOut)`
 
+### Mail Renderer Institucional
+
+Camada central para montar o HTML final dos e-mails do GEAPA sem tomar dos modulos o texto de negocio.
+
+Responsabilidades do core nesta camada:
+
+- cabecalho institucional;
+- layout e estilos HTML;
+- rodape e assinatura institucional;
+- assunto final com `[GEAPA][CHAVE]`;
+- draft compativel com a futura fila de saida.
+
+Variantes disponiveis:
+
+- `GEAPA_COMEMORATIVO`
+- `GEAPA_OPERACIONAL`
+- `GEAPA_CONVITE`
+
+Funcoes publicas:
+
+- `coreMailRenderEmailTemplate(templateKey, subjectHuman, payload)`
+- `coreMailBuildFinalSubject(subjectHuman, correlationKey)`
+- `coreMailBuildOutgoingDraft(contract)`
+
+Contrato esperado do modulo para montar um draft:
+
+- `moduleName`
+- `templateKey`
+- `correlationKey`
+- `to`
+- `cc`
+- `bcc`
+- `subjectHuman`
+- `payload`
+
+Estrutura esperada de `payload`:
+
+- `title`, `subtitle`, `eyebrow`
+- `introText` ou `introHtml`
+- `blocks`: lista de blocos com `title`, `text`, `html`, `items` e `cta`
+- `cta` opcional no nivel raiz
+- `footerNote` e `preheader` opcionais
+
+Observacao:
+
+- os modulos continuam donos do conteudo de negocio;
+- o renderer devolve `htmlBody`, `bodyText` e `emailOptions`, deixando o caminho pronto para a futura `MAIL_SAIDA`;
+- o slogan exibido no rodape nao e fixo: ele e buscado da coluna `Slogan` da diretoria vigente em `VIGENCIA_DIRETORIAS`, com fallback seguro quando estiver vazio.
+
 ### Mail Hub (V1)
 
 Camada central de ingestao de e-mails do Gmail para registro institucional em planilhas centrais.
@@ -118,6 +167,9 @@ Funcoes publicas:
 - `coreMailParseCorrelationKey(key)`
 - `coreMailResolveRouting(msgCtx)`
 - `coreMailNormalizeOutgoingSubject(moduleCodeOrName, subject, ctx)`
+- `coreMailRenderEmailTemplate(templateKey, subjectHuman, payload)`
+- `coreMailBuildFinalSubject(subjectHuman, correlationKey)`
+- `coreMailBuildOutgoingDraft(contract)`
 - `coreMailIngestInbox(opts)`
 - `coreMailGetConfig(key, defaultValue)`
 - `coreMailGetConfigBoolean(key, defaultValue)`
@@ -197,6 +249,11 @@ Testes manuais no projeto:
 - `test_core_mailAdapters_parse_mem()`
 - `test_core_mailAdapters_resolveRouting_mem()`
 - `test_core_mailAdapters_normalizeOutgoingSubject_mem()`
+- `test_core_mailRenderer_render_operacional()`
+- `test_core_mailRenderer_render_convite()`
+- `test_core_mailRenderer_buildFinalSubject()`
+- `test_core_mailRenderer_buildOutgoingDraft()`
+- `test_core_governance_currentBoardSlogan()`
 - `test_core_mailHub_assertSchema()`
 - `test_core_mailHub_config_read()`
 - `test_core_mailHub_ingestInbox_dryRun()`
@@ -225,6 +282,7 @@ Projecao de ocupantes atuais por cargo/funcao e por grupo de e-mails.
 Funcoes centrais:
 
 - `coreGetCurrentBoard(refDate)`
+- `coreGetCurrentBoardSlogan(refDate)`
 - `coreGetCurrentBoardMembers(refDate)`
 - `coreGetCurrentBoardMemberByRole(role, refDate)`
 - `coreGetCurrentLeadership(refDate)`

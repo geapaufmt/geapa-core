@@ -210,3 +210,89 @@ function test_core_mailAdapters_normalizeOutgoingSubject_mem() {
     stage: 'CONFIRMACAO'
   }));
 }
+
+function test_core_mailRenderer_render_operacional() {
+  Logger.log(JSON.stringify(coreMailRenderEmailTemplate_(
+    'GEAPA_OPERACIONAL',
+    'Confirmacao de dados cadastrais',
+    {
+      subtitle: 'Fluxo institucional do GEAPA',
+      introText: 'Esta mensagem usa o layout institucional centralizado do GEAPA, enquanto o modulo continua dono do conteudo de negocio.',
+      blocks: [
+        {
+          title: 'Proximos passos',
+          text: 'Revise os dados abaixo e responda este e-mail caso encontre qualquer inconsistencia.'
+        },
+        {
+          title: 'Resumo',
+          items: [
+            { label: 'Modulo', value: 'MEMBROS' },
+            { label: 'Chave', value: 'MEM-2026-001' },
+            { label: 'Prazo', value: '03/04/2026' }
+          ]
+        }
+      ],
+      cta: {
+        label: 'Responder este e-mail',
+        helper: 'Se preferir, voce tambem pode responder diretamente nesta mesma conversa.'
+      }
+    }
+  ), null, 2));
+}
+
+function test_core_mailRenderer_render_convite() {
+  Logger.log(JSON.stringify(coreMailRenderEmailTemplate_(
+    'GEAPA_CONVITE',
+    'Convite para atividade do GEAPA',
+    {
+      subtitle: 'Participacao institucional',
+      introText: 'Convidamos voce para uma atividade organizada pelo GEAPA.',
+      blocks: [
+        {
+          title: 'Detalhes',
+          items: [
+            { label: 'Data', value: '05/04/2026' },
+            { label: 'Horario', value: '19:00' },
+            { label: 'Local', value: 'Sala do GEAPA' }
+          ]
+        }
+      ],
+      cta: {
+        label: 'Confirmar presenca',
+        url: 'https://example.com/confirmacao'
+      }
+    }
+  ), null, 2));
+}
+
+function test_core_mailRenderer_buildFinalSubject() {
+  Logger.log(coreMailBuildFinalSubject_('Convite para atividade do GEAPA', 'APR-2026-010'));
+}
+
+function test_core_mailRenderer_buildOutgoingDraft() {
+  Logger.log(JSON.stringify(coreMailBuildOutgoingDraft_({
+    moduleName: 'APRESENTACOES',
+    templateKey: 'GEAPA_CONVITE',
+    correlationKey: 'APR-2026-010',
+    to: 'destinatario@exemplo.com',
+    cc: 'apoio@exemplo.com',
+    subjectHuman: 'Convite para atividade do GEAPA',
+    payload: {
+      subtitle: 'Template central institucional',
+      introText: 'O modulo informa o conteudo, e o geapa-core monta o HTML final.',
+      blocks: [
+        {
+          title: 'Agenda',
+          items: [
+            { label: 'Tema', value: 'Apresentacao institucional' },
+            { label: 'Data', value: '05/04/2026' }
+          ]
+        }
+      ]
+    }
+  }), null, 2));
+}
+
+function test_core_governance_currentBoardSlogan() {
+  Logger.log(core_getCurrentBoardSlogan_());
+}
