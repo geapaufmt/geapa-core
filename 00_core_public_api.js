@@ -166,6 +166,28 @@ const GEAPA_CORE = Object.freeze({
     getLabel: core_getLabel_,
   }),
 
+  mailHub: Object.freeze({
+    ingestInbox: core_mailIngestInbox_,
+    getConfig: coreMailHubGetConfig_,
+    getConfigBoolean: coreMailHubGetConfigBooleanByKey_,
+    getConfigList: coreMailHubGetConfigListByKey_,
+    listPendingByModule: core_mailListPendingByModule_,
+    getLatestEvent: core_mailGetLatestEvent_,
+    markLatestPendingByModule: core_mailMarkLatestPendingByModule_,
+    markEventProcessed: core_mailMarkEventProcessed_,
+    cleanupNoiseEvents: coreMailCleanupNoiseEvents_,
+  }),
+
+  mailAdapters: Object.freeze({
+    register: coreMailRegisterModuleAdapter_,
+    get: coreMailGetModuleAdapter_,
+    list: coreMailListModuleAdapters_,
+    buildCorrelationKey: coreMailBuildCorrelationKey_,
+    parseCorrelationKey: coreMailParseCorrelationKey_,
+    resolveRouting: coreMailResolveRouting_,
+    normalizeOutgoingSubject: coreMailNormalizeOutgoingSubject_,
+  }),
+
   /**
    * ----------------------------------------------------------
    * lock (Concorrência)

@@ -214,6 +214,76 @@ function coreReplyThreadHtml(thread, subject, htmlBody, opts) {
 }
 
 /* ============================================================
+ * MAIL HUB
+ * ============================================================ */
+
+function coreMailIngestInbox(opts) {
+  return core_mailIngestInbox_(opts || {});
+}
+
+function coreMailGetConfig(key, defaultValue) {
+  return coreMailHubGetConfig_(key, defaultValue);
+}
+
+function coreMailGetConfigBoolean(key, defaultValue) {
+  return coreMailHubGetConfigBooleanByKey_(key, defaultValue === true);
+}
+
+function coreMailGetConfigList(key) {
+  return coreMailHubGetConfigListByKey_(key);
+}
+
+function coreMailListPendingByModule(moduleName) {
+  return core_mailListPendingByModule_(moduleName);
+}
+
+function coreMailRegisterModuleAdapter(adapter) {
+  return coreMailRegisterModuleAdapter_(adapter);
+}
+
+function coreMailGetModuleAdapter(moduleCodeOrName) {
+  return coreMailAdapterToSnapshot_(coreMailGetModuleAdapter_(moduleCodeOrName));
+}
+
+function coreMailListModuleAdapters() {
+  return coreMailListModuleAdapters_().map(function(adapter) {
+    return coreMailAdapterToSnapshot_(adapter);
+  });
+}
+
+function coreMailBuildCorrelationKey(moduleCodeOrName, ctx) {
+  return coreMailBuildCorrelationKey_(moduleCodeOrName, ctx || {});
+}
+
+function coreMailParseCorrelationKey(key) {
+  return coreMailParseCorrelationKey_(key);
+}
+
+function coreMailResolveRouting(msgCtx) {
+  return coreMailResolveRouting_(msgCtx || {});
+}
+
+function coreMailNormalizeOutgoingSubject(moduleCodeOrName, subject, ctx) {
+  return coreMailNormalizeOutgoingSubject_(moduleCodeOrName, subject, ctx || {});
+}
+
+function coreMailGetLatestEvent(opts) {
+  return core_mailGetLatestEvent_(opts || {});
+}
+
+function coreMailMarkLatestPendingByModule(moduleName, processorName) {
+  return core_mailMarkLatestPendingByModule_(moduleName, processorName);
+}
+
+function coreMailMarkEventProcessed(eventId, processorName) {
+  return core_mailMarkEventProcessed_(eventId, processorName);
+}
+
+function coreMailCleanupNoiseEvents() {
+  return coreMailCleanupNoiseEvents_();
+}
+
+/* ============================================================
  * LOGS
  * ============================================================ */
 
