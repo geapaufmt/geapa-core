@@ -188,6 +188,12 @@ const GEAPA_CORE = Object.freeze({
     normalizeOutgoingSubject: coreMailNormalizeOutgoingSubject_,
   }),
 
+  mailRenderer: Object.freeze({
+    renderTemplate: coreMailRenderEmailTemplate_,
+    buildFinalSubject: coreMailBuildFinalSubject_,
+    buildOutgoingDraft: coreMailBuildOutgoingDraft_,
+  }),
+
   /**
    * ----------------------------------------------------------
    * lock (Concorrência)
@@ -321,6 +327,7 @@ const GEAPA_CORE = Object.freeze({
  * ============================================================ */
   governance: Object.freeze({
     getCurrentBoard: core_getCurrentBoard_,
+    getCurrentBoardSlogan: core_getCurrentBoardSlogan_,
     getCurrentBoardMembers: core_getCurrentBoardMembers_,
     getCurrentBoardMembersByRole: core_getCurrentBoardMembersByRole_,
     getCurrentBoardMemberByRole: core_getCurrentBoardMemberByRole_,

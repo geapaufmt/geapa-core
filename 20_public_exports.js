@@ -267,6 +267,18 @@ function coreMailNormalizeOutgoingSubject(moduleCodeOrName, subject, ctx) {
   return coreMailNormalizeOutgoingSubject_(moduleCodeOrName, subject, ctx || {});
 }
 
+function coreMailRenderEmailTemplate(templateKey, subjectHuman, payload) {
+  return coreMailRenderEmailTemplate_(templateKey, subjectHuman, payload || {});
+}
+
+function coreMailBuildFinalSubject(subjectHuman, correlationKey) {
+  return coreMailBuildFinalSubject_(subjectHuman, correlationKey);
+}
+
+function coreMailBuildOutgoingDraft(contract) {
+  return coreMailBuildOutgoingDraft_(contract || {});
+}
+
 function coreMailGetLatestEvent(opts) {
   return core_mailGetLatestEvent_(opts || {});
 }
@@ -379,6 +391,10 @@ function coreWithLock() {
  * ============================================================ */
 function coreGetCurrentBoard(refDate) {
   return core_getCurrentBoard_(refDate);
+}
+
+function coreGetCurrentBoardSlogan(refDate) {
+  return core_getCurrentBoardSlogan_(refDate);
 }
 
 function coreGetCurrentBoardMembers(refDate) {
