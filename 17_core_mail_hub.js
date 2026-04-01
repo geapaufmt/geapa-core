@@ -13,9 +13,9 @@
  * - registrar anexos recebidos;
  * - expor consultas minimas para posterior consumo por modulos.
  *
- * Fora de escopo nesta V1:
- * - migracao dos modulos consumidores;
- * - fila de envio;
+ * Fora de escopo nesta rodada:
+ * - migracao completa dos modulos consumidores;
+ * - retry avancado da fila de envio;
  * - salvamento de anexos no Drive;
  * - roteamento complexo por regras.
  */
@@ -104,6 +104,33 @@ var CORE_MAIL_HUB_SCHEMA = Object.freeze({
     'Chave',
     'Valor',
     'Ativo'
+  ]),
+  MAIL_SAIDA: Object.freeze([
+    'Id Saida',
+    'Modulo Dono',
+    'Tipo Entidade',
+    'Id Entidade',
+    'Chave de Correlacao',
+    'Etapa Fluxo',
+    'Email Destinatario Principal',
+    'Emails Destinatarios',
+    'Emails Cc',
+    'Emails Cco',
+    'Nome Destinatario',
+    'Assunto',
+    'Corpo Texto',
+    'Corpo Html',
+    'Data Hora Agendada',
+    'Prioridade',
+    'Status Envio',
+    'Tentativas',
+    'Ultimo Erro',
+    'Id Thread Gmail',
+    'Id Mensagem Gmail',
+    'Enviado Em',
+    'Criado Em',
+    'Atualizado Em',
+    'Observacoes'
   ])
 });
 
@@ -263,6 +290,11 @@ function coreMailHubAssertSchema_() {
       CORE_MAIL_HUB_KEYS.CONFIG,
       coreMailHubGetConfigSheet_(),
       CORE_MAIL_HUB_SCHEMA.MAIL_CONFIG
+    ),
+    coreMailHubAssertSheetSchema_(
+      CORE_MAIL_HUB_KEYS.SAIDA,
+      coreMailHubGetSaidaSheet_(),
+      CORE_MAIL_HUB_SCHEMA.MAIL_SAIDA
     )
   ];
 
@@ -455,6 +487,201 @@ function coreMailHubBuildIndiceState_(sheet) {
     rowByCorrelationKey: rowByCorrelationKey,
     recordByCorrelationKey: recordByCorrelationKey
   };
+}
+
+function coreMailHubBuildSaidaState_(sheet) {
+  var ctx = coreMailHubGetSheetContext_(sheet, { includeRows: true });
+  var rowBySaidaId = Object.create(null);
+
+  for (var i = 0; i < ctx.rows.length; i++) {
+    var row = ctx.rows[i];
+    var saidaId = String(coreMailHubGetRowValue_(row, ctx, 'Id Saida', '') || '').trim();
+    if (!saidaId) continue;
+    rowBySaidaId[saidaId] = ctx.startRow + i;
+  }
+
+  return {
+    ctx: ctx,
+    rowBySaidaId: rowBySaidaId
+  };
+}
+
+function coreMailHubNormalizeEmailList_(value) {
+  return core_uniqueEmails_(value).slice();
+}
+
+function coreMailHubJoinEmails_(value) {
+  return coreMailHubNormalizeEmailList_(value).join(', ');
+}
+
+function coreMailHubGenerateOutgoingId_() {
+  return 'MSA-' + new Date().getTime().toString(36).toUpperCase();
+}
+
+function coreMailHubNormalizePriority_(value) {
+  var normalized = coreMailHubNormalizeFlag_(value || 'NORMAL');
+  return normalized || 'NORMAL';
+}
+
+function coreMailHubParseOutboxMetadata_(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+
+  var text = String(value || '').trim();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    return { raw: text };
+  }
+}
+
+function coreMailHubEnvelopeOfficialEmail_() {
+  var officialData = typeof coreMailRendererGetOfficialGroupData_ === 'function'
+    ? coreMailRendererGetOfficialGroupData_()
+    : null;
+  var officialEmail = officialData && officialData.email
+    ? core_extractEmailAddress_(officialData.email)
+    : '';
+  if (officialEmail) return officialEmail;
+
+  try {
+    var activeUserEmail = core_extractEmailAddress_(Session.getActiveUser().getEmail());
+    if (activeUserEmail) return activeUserEmail;
+  } catch (err) {}
+
+  return '';
+}
+
+function coreMailHubNormalizeOutgoingContract_(contract) {
+  contract = contract || {};
+
+  var moduleName = String(contract.moduleName || '').trim();
+  var templateKey = String(contract.templateKey || 'GEAPA_OPERACIONAL').trim();
+  var correlationKey = String(contract.correlationKey || '').trim().toUpperCase();
+  var subjectHuman = String(contract.subjectHuman || '').trim();
+  var toList = coreMailHubNormalizeEmailList_(contract.to);
+  var ccList = coreMailHubNormalizeEmailList_(contract.cc);
+  var bccList = coreMailHubNormalizeEmailList_(contract.bcc);
+  var finalSubject = coreMailBuildFinalSubject_(subjectHuman, correlationKey);
+  var metadata = coreMailHubParseOutboxMetadata_(contract.metadata);
+  var sendAfter = contract.sendAfter ? coreMailHubCoerceDate_(contract.sendAfter) : null;
+  var payload = contract.payload || {};
+  var entityType = String(contract.entityType || '').trim();
+  var entityId = String(contract.entityId || '').trim();
+  var flowCode = String(contract.flowCode || '').trim();
+  var stage = String(contract.stage || contract.flowCode || '').trim();
+  var name = String(contract.name || contract.recipientName || '').trim();
+  var replyTo = String(contract.replyTo || '').trim();
+  var attachmentRefs = Array.isArray(contract.attachments)
+    ? contract.attachments.slice()
+    : (Array.isArray(metadata.attachmentRefs) ? metadata.attachmentRefs.slice() : []);
+  var forceQueueDuplicate = contract.forceQueueDuplicate === true || metadata.forceQueueDuplicate === true;
+
+  core_assertRequired_(moduleName, 'contract.moduleName');
+  core_assertRequired_(correlationKey, 'contract.correlationKey');
+  core_assertRequired_(subjectHuman, 'contract.subjectHuman');
+
+  if (!toList.length && !bccList.length) {
+    throw new Error('coreMailQueueOutgoing_: informe ao menos um destinatario em "to" ou "bcc".');
+  }
+
+  if (!toList.length && bccList.length) {
+    toList = [coreMailHubEnvelopeOfficialEmail_()].filter(function(item) { return !!item; });
+    if (!toList.length) {
+      throw new Error(
+        'coreMailQueueOutgoing_: envio em BCC requer EMAIL_OFICIAL em DADOS_OFICIAIS_GEAPA ' +
+        'ou uma conta ativa disponivel para servir como envelope principal.'
+      );
+    }
+  }
+
+  if (!entityType || !entityId || !flowCode || !stage) {
+    var parsed = coreMailParseCorrelationKey_(correlationKey);
+    if (parsed && parsed.isValid) {
+      entityType = entityType || String(parsed.entityType || '').trim();
+      entityId = entityId || String(parsed.entityId || parsed.businessId || '').trim();
+      flowCode = flowCode || String(parsed.flowCode || '').trim();
+      stage = stage || String(parsed.stage || parsed.flowCode || '').trim();
+    }
+  }
+
+  return {
+    moduleName: moduleName,
+    templateKey: templateKey || 'GEAPA_OPERACIONAL',
+    correlationKey: correlationKey,
+    entityType: entityType,
+    entityId: entityId,
+    flowCode: flowCode,
+    stage: stage || flowCode,
+    to: toList,
+    cc: ccList,
+    bcc: bccList,
+    recipientName: name,
+    subjectHuman: subjectHuman,
+    finalSubject: finalSubject,
+    payload: payload,
+    priority: coreMailHubNormalizePriority_(contract.priority),
+    sendAfter: sendAfter,
+    replyTo: replyTo,
+    attachments: attachmentRefs,
+    forceQueueDuplicate: forceQueueDuplicate,
+    metadata: metadata
+  };
+}
+
+function coreMailHubSerializeOutboxContract_(normalizedContract) {
+  return JSON.stringify({
+    templateKey: normalizedContract.templateKey,
+    subjectHuman: normalizedContract.subjectHuman,
+    payload: normalizedContract.payload || {},
+    metadata: normalizedContract.metadata || {},
+    entityType: normalizedContract.entityType || '',
+    entityId: normalizedContract.entityId || '',
+    flowCode: normalizedContract.flowCode || '',
+    stage: normalizedContract.stage || '',
+    recipientName: normalizedContract.recipientName || '',
+    replyTo: normalizedContract.replyTo || '',
+    attachmentRefs: normalizedContract.attachments || [],
+    forceQueueDuplicate: normalizedContract.forceQueueDuplicate === true
+  });
+}
+
+function coreMailHubParseOutboxObservacoes_(value) {
+  var text = String(value || '').trim();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    return { raw: text };
+  }
+}
+
+function coreMailHubResolveOutgoingAttachments_(attachmentRefs) {
+  var refs = Array.isArray(attachmentRefs) ? attachmentRefs : [];
+  var blobs = [];
+
+  for (var i = 0; i < refs.length; i++) {
+    var ref = refs[i];
+    if (!ref) continue;
+    blobs.push(coreGetAssetBlob_(ref));
+  }
+
+  return blobs;
+}
+
+function coreMailHubNormalizeTemplateKey_(value) {
+  var normalized = coreMailHubNormalizeFlag_(value);
+  if (
+    normalized === 'GEAPA_COMEMORATIVO' ||
+    normalized === 'GEAPA_OPERACIONAL' ||
+    normalized === 'GEAPA_CONVITE'
+  ) {
+    return normalized;
+  }
+  return 'GEAPA_OPERACIONAL';
 }
 
 function coreMailEventExistsByMessageId_(messageId, eventosState) {
@@ -1003,6 +1230,404 @@ function coreMailUpsertIndex_(indiceSheet, eventPayload, indiceState) {
   }
 
   return coreMailHubRefreshIndexSummaryByCorrelationKey_(correlationKey, indiceSheet, indiceState);
+}
+
+function coreMailHubSendOutgoingMessage_(mailPayload) {
+  core_assertRequired_(mailPayload, 'mailPayload');
+
+  var subject = String(mailPayload.subject || '').trim();
+  var toList = coreMailHubNormalizeEmailList_(mailPayload.to);
+  var ccList = coreMailHubNormalizeEmailList_(mailPayload.cc);
+  var bccList = coreMailHubNormalizeEmailList_(mailPayload.bcc);
+  var newerThanDays = Number(mailPayload.newerThanDays || 7);
+  var maxThreads = Number(mailPayload.maxThreads || 10);
+  var sleepMs = Number(mailPayload.sleepMs || 1500);
+  var replyTo = String(mailPayload.replyTo || '').trim();
+  var attachments = Array.isArray(mailPayload.attachments) ? mailPayload.attachments : [];
+
+  if (!toList.length) {
+    throw new Error('coreMailHubSendOutgoingMessage_: destinatario principal ausente.');
+  }
+  if (!subject) {
+    throw new Error('coreMailHubSendOutgoingMessage_: assunto ausente.');
+  }
+
+  if (mailPayload.htmlBody) {
+    core_sendEmailHtmlWithDefaultInline_(Object.assign({}, mailPayload, {
+      to: toList.join(','),
+      cc: ccList.join(','),
+      bcc: bccList.join(','),
+      subject: subject,
+      replyTo: replyTo || undefined,
+      attachments: attachments.length ? attachments : undefined
+    }));
+  } else {
+    core_sendEmailText_(Object.assign({}, mailPayload, {
+      to: toList.join(','),
+      cc: ccList.join(','),
+      bcc: bccList.join(','),
+      subject: subject,
+      replyTo: replyTo || undefined,
+      attachments: attachments.length ? attachments : undefined
+    }));
+  }
+
+  if (sleepMs > 0) {
+    Utilities.sleep(sleepMs);
+  }
+
+  var safeSubject = subject.replace(/"/g, '\\"');
+  var query = 'subject:"' + safeSubject + '" newer_than:' + newerThanDays + 'd';
+  if (toList.length === 1) {
+    query = 'to:' + toList[0] + ' ' + query;
+  }
+
+  var threads = GmailApp.search(query, 0, maxThreads);
+  var threadId = '';
+  var messageId = '';
+
+  if (threads && threads.length) {
+    var thread = threads[0];
+    threadId = String(thread.getId() || '').trim();
+
+    var messages = thread.getMessages();
+    if (messages && messages.length) {
+      messageId = String(messages[messages.length - 1].getId() || '').trim();
+    }
+  }
+
+  return Object.freeze({
+    threadId: threadId,
+    messageId: messageId
+  });
+}
+
+function coreMailHubBuildOutboxRecord_(row, ctx, rowNumber) {
+  return {
+    saidaId: String(coreMailHubGetRowValue_(row, ctx, 'Id Saida', '') || '').trim(),
+    moduleName: String(coreMailHubGetRowValue_(row, ctx, 'Modulo Dono', '') || '').trim(),
+    entityType: String(coreMailHubGetRowValue_(row, ctx, 'Tipo Entidade', '') || '').trim(),
+    entityId: String(coreMailHubGetRowValue_(row, ctx, 'Id Entidade', '') || '').trim(),
+    correlationKey: String(coreMailHubGetRowValue_(row, ctx, 'Chave de Correlacao', '') || '').trim(),
+    flowStep: String(coreMailHubGetRowValue_(row, ctx, 'Etapa Fluxo', '') || '').trim(),
+    to: coreMailHubNormalizeEmailList_(coreMailHubGetRowValue_(row, ctx, 'Emails Destinatarios', '')),
+    cc: coreMailHubNormalizeEmailList_(coreMailHubGetRowValue_(row, ctx, 'Emails Cc', '')),
+    bcc: coreMailHubNormalizeEmailList_(coreMailHubGetRowValue_(row, ctx, 'Emails Cco', '')),
+    recipientName: String(coreMailHubGetRowValue_(row, ctx, 'Nome Destinatario', '') || '').trim(),
+    subject: String(coreMailHubGetRowValue_(row, ctx, 'Assunto', '') || '').trim(),
+    bodyText: String(coreMailHubGetRowValue_(row, ctx, 'Corpo Texto', '') || '').trim(),
+    htmlBody: String(coreMailHubGetRowValue_(row, ctx, 'Corpo Html', '') || '').trim(),
+    scheduledAt: coreMailHubGetRowValue_(row, ctx, 'Data Hora Agendada', ''),
+    priority: String(coreMailHubGetRowValue_(row, ctx, 'Prioridade', '') || '').trim(),
+    status: coreMailHubNormalizeFlag_(coreMailHubGetRowValue_(row, ctx, 'Status Envio', '')),
+    attempts: Number(coreMailHubGetRowValue_(row, ctx, 'Tentativas', 0) || 0),
+    lastError: String(coreMailHubGetRowValue_(row, ctx, 'Ultimo Erro', '') || '').trim(),
+    threadId: String(coreMailHubGetRowValue_(row, ctx, 'Id Thread Gmail', '') || '').trim(),
+    messageId: String(coreMailHubGetRowValue_(row, ctx, 'Id Mensagem Gmail', '') || '').trim(),
+    sentAt: coreMailHubGetRowValue_(row, ctx, 'Enviado Em', ''),
+    createdAt: coreMailHubGetRowValue_(row, ctx, 'Criado Em', ''),
+    updatedAt: coreMailHubGetRowValue_(row, ctx, 'Atualizado Em', ''),
+    observacoes: coreMailHubParseOutboxObservacoes_(coreMailHubGetRowValue_(row, ctx, 'Observacoes', '')),
+    rowNumber: rowNumber
+  };
+}
+
+function coreMailHubFindLatestOutboxByCorrelationKey_(correlationKey, saidaState) {
+  var target = core_normalizeText_(correlationKey, {
+    collapseWhitespace: true,
+    caseMode: 'upper'
+  });
+  if (!target) return null;
+
+  var ctx = saidaState.ctx;
+  for (var i = ctx.rows.length - 1; i >= 0; i--) {
+    var row = ctx.rows[i];
+    var rowKey = core_normalizeText_(coreMailHubGetRowValue_(row, ctx, 'Chave de Correlacao', ''), {
+      collapseWhitespace: true,
+      caseMode: 'upper'
+    });
+    if (rowKey !== target) continue;
+    return coreMailHubBuildOutboxRecord_(row, ctx, ctx.startRow + i);
+  }
+
+  return null;
+}
+
+function coreMailHubBuildOutgoingEventPayload_(outboxRecord, draft, sendResult, sentAt) {
+  var brand = typeof coreMailRendererGetBrandProfile_ === 'function'
+    ? coreMailRendererGetBrandProfile_(draft.templateKey || 'GEAPA_OPERACIONAL', sentAt)
+    : null;
+
+  return {
+    eventId: sendResult.messageId ? ('MEV-' + sendResult.messageId) : ('MEV-OUT-' + outboxRecord.saidaId),
+    messageId: sendResult.messageId || ('OUT-' + outboxRecord.saidaId),
+    threadId: sendResult.threadId || '',
+    messageDate: sentAt,
+    ingestedAt: sentAt,
+    direction: 'SAIDA',
+    eventType: 'EMAIL_ENVIADO',
+    flowStep: outboxRecord.flowStep || '',
+    routingStatus: 'ROTEADO',
+    subject: draft.subject,
+    fromRaw: brand && brand.officialEmail ? brand.officialEmail : '',
+    fromEmail: brand && brand.officialEmail ? brand.officialEmail : '',
+    fromName: brand && brand.orgName ? brand.orgName : '',
+    to: outboxRecord.to.join(', '),
+    cc: outboxRecord.cc.join(', '),
+    bcc: outboxRecord.bcc.join(', '),
+    replyTo: outboxRecord.observacoes && outboxRecord.observacoes.replyTo ? String(outboxRecord.observacoes.replyTo || '').trim() : '',
+    correlationKey: outboxRecord.correlationKey,
+    correlationPrefix: coreMailHubExtractCorrelationPrefix_(outboxRecord.correlationKey),
+    moduleName: outboxRecord.moduleName,
+    moduleCode: '',
+    entityType: outboxRecord.entityType,
+    entityId: outboxRecord.entityId,
+    routingReason: 'MAIL_SAIDA',
+    routingConfidence: 1,
+    processingStatus: CORE_MAIL_HUB_STATUS.PROCESSADO,
+    processorName: 'coreMailProcessOutbox',
+    processedAt: sentAt,
+    hasAttachments: outboxRecord.observacoes && outboxRecord.observacoes.attachmentRefs && outboxRecord.observacoes.attachmentRefs.length ? 'SIM' : 'NAO',
+    attachmentCount: outboxRecord.observacoes && outboxRecord.observacoes.attachmentRefs ? outboxRecord.observacoes.attachmentRefs.length : 0,
+    snippet: '',
+    plainBody: draft.bodyText || '',
+    labels: '',
+    attachments: []
+  };
+}
+
+function coreMailQueueOutgoing_(contract) {
+  return core_withLock_('CORE_MAIL_HUB_QUEUE_OUTGOING', function() {
+    coreMailHubAssertSchema_();
+
+    var normalizedContract = coreMailHubNormalizeOutgoingContract_(contract);
+    var saidaSheet = coreMailHubGetSaidaSheet_();
+    var saidaState = coreMailHubBuildSaidaState_(saidaSheet);
+    var now = new Date();
+    var existingOutbox = coreMailHubFindLatestOutboxByCorrelationKey_(normalizedContract.correlationKey, saidaState);
+
+    if (
+      !normalizedContract.forceQueueDuplicate &&
+      existingOutbox &&
+      (existingOutbox.status === 'PENDENTE' || existingOutbox.status === 'ENVIADO')
+    ) {
+      return Object.freeze({
+        ok: true,
+        queued: false,
+        duplicate: true,
+        saidaId: existingOutbox.saidaId,
+        status: existingOutbox.status,
+        subject: existingOutbox.subject,
+        correlationKey: normalizedContract.correlationKey
+      });
+    }
+
+    if (!normalizedContract.forceQueueDuplicate && existingOutbox && existingOutbox.status === 'ERRO') {
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Modulo Dono', normalizedContract.moduleName);
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Tipo Entidade', normalizedContract.entityType);
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Id Entidade', normalizedContract.entityId);
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Etapa Fluxo', normalizedContract.stage);
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Email Destinatario Principal', normalizedContract.to[0] || '');
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Emails Destinatarios', coreMailHubJoinEmails_(normalizedContract.to));
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Emails Cc', coreMailHubJoinEmails_(normalizedContract.cc));
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Emails Cco', coreMailHubJoinEmails_(normalizedContract.bcc));
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Nome Destinatario', normalizedContract.recipientName);
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Assunto', normalizedContract.finalSubject);
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Corpo Texto', '');
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Corpo Html', '');
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Data Hora Agendada', normalizedContract.sendAfter || '');
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Prioridade', normalizedContract.priority);
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Status Envio', 'PENDENTE');
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Ultimo Erro', '');
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Id Thread Gmail', '');
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Id Mensagem Gmail', '');
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Enviado Em', '');
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Atualizado Em', now);
+      coreMailHubWriteCell_(saidaSheet, existingOutbox.rowNumber, saidaState.ctx, 'Observacoes', coreMailHubSerializeOutboxContract_(normalizedContract));
+
+      return Object.freeze({
+        ok: true,
+        queued: true,
+        requeued: true,
+        saidaId: existingOutbox.saidaId,
+        status: 'PENDENTE',
+        subject: normalizedContract.finalSubject,
+        correlationKey: normalizedContract.correlationKey,
+        scheduledAt: normalizedContract.sendAfter || null
+      });
+    }
+
+    var saidaId = coreMailHubGenerateOutgoingId_();
+
+    coreMailHubAppendRow_(saidaSheet, saidaState.ctx, {
+      'Id Saida': saidaId,
+      'Modulo Dono': normalizedContract.moduleName,
+      'Tipo Entidade': normalizedContract.entityType,
+      'Id Entidade': normalizedContract.entityId,
+      'Chave de Correlacao': normalizedContract.correlationKey,
+      'Etapa Fluxo': normalizedContract.stage,
+      'Email Destinatario Principal': normalizedContract.to[0] || '',
+      'Emails Destinatarios': coreMailHubJoinEmails_(normalizedContract.to),
+      'Emails Cc': coreMailHubJoinEmails_(normalizedContract.cc),
+      'Emails Cco': coreMailHubJoinEmails_(normalizedContract.bcc),
+      'Nome Destinatario': normalizedContract.recipientName,
+      'Assunto': normalizedContract.finalSubject,
+      'Corpo Texto': '',
+      'Corpo Html': '',
+      'Data Hora Agendada': normalizedContract.sendAfter || '',
+      'Prioridade': normalizedContract.priority,
+      'Status Envio': 'PENDENTE',
+      'Tentativas': 0,
+      'Ultimo Erro': '',
+      'Id Thread Gmail': '',
+      'Id Mensagem Gmail': '',
+      'Enviado Em': '',
+      'Criado Em': now,
+      'Atualizado Em': now,
+      'Observacoes': coreMailHubSerializeOutboxContract_(normalizedContract)
+    });
+
+    return Object.freeze({
+      ok: true,
+      queued: true,
+      saidaId: saidaId,
+      status: 'PENDENTE',
+      subject: normalizedContract.finalSubject,
+      correlationKey: normalizedContract.correlationKey,
+      scheduledAt: normalizedContract.sendAfter || null
+    });
+  });
+}
+
+function coreMailProcessOutbox_() {
+  return core_withLock_('CORE_MAIL_HUB_PROCESS_OUTBOX', function() {
+    coreMailHubAssertSchema_();
+
+    var startedAt = new Date();
+    var runId = core_runId_();
+    var now = new Date();
+    var saidaSheet = coreMailHubGetSaidaSheet_();
+    var eventosSheet = coreMailHubGetEventosSheet_();
+    var indiceSheet = coreMailHubGetIndiceSheet_();
+    var saidaState = coreMailHubBuildSaidaState_(saidaSheet);
+    var eventosState = coreMailHubBuildEventosState_(eventosSheet);
+    var indiceState = coreMailHubBuildIndiceState_(indiceSheet);
+    var counters = {
+      scanned: 0,
+      pending: 0,
+      sent: 0,
+      skippedScheduled: 0,
+      skippedStatus: 0,
+      errors: 0,
+      eventLogs: 0,
+      indexUpserts: 0
+    };
+
+    for (var i = 0; i < saidaState.ctx.rows.length; i++) {
+      var row = saidaState.ctx.rows[i];
+      var rowNumber = saidaState.ctx.startRow + i;
+      var record = coreMailHubBuildOutboxRecord_(row, saidaState.ctx, rowNumber);
+      counters.scanned++;
+
+      if (record.status !== 'PENDENTE') {
+        counters.skippedStatus++;
+        continue;
+      }
+
+      counters.pending++;
+
+      var scheduledAt = coreMailHubCoerceDate_(record.scheduledAt);
+      if (scheduledAt && scheduledAt.getTime() > now.getTime()) {
+        counters.skippedScheduled++;
+        continue;
+      }
+
+      try {
+        var safeTemplateKey = coreMailHubNormalizeTemplateKey_(
+          record.observacoes && record.observacoes.templateKey
+            ? record.observacoes.templateKey
+            : ''
+        );
+        var draftContract = Object.assign({}, record.observacoes || {}, {
+          moduleName: record.moduleName,
+          correlationKey: record.correlationKey,
+          entityType: record.entityType,
+          entityId: record.entityId,
+          flowCode: record.observacoes && record.observacoes.flowCode ? record.observacoes.flowCode : '',
+          stage: record.flowStep || (record.observacoes && record.observacoes.stage) || '',
+          to: record.to,
+          cc: record.cc,
+          bcc: record.bcc,
+          subjectHuman: record.observacoes && record.observacoes.subjectHuman ? record.observacoes.subjectHuman : record.subject,
+          templateKey: safeTemplateKey,
+          payload: record.observacoes && record.observacoes.payload ? record.observacoes.payload : {},
+          metadata: record.observacoes && record.observacoes.metadata ? record.observacoes.metadata : {},
+          priority: record.priority,
+          name: record.recipientName,
+          replyTo: record.observacoes && record.observacoes.replyTo ? record.observacoes.replyTo : '',
+          attachments: record.observacoes && record.observacoes.attachmentRefs ? record.observacoes.attachmentRefs : []
+        });
+
+        var draft = coreMailBuildOutgoingDraft_(draftContract);
+        var resolvedAttachments = coreMailHubResolveOutgoingAttachments_(draftContract.attachments);
+        var sentAt = new Date();
+        var sendResult = coreMailHubSendOutgoingMessage_({
+          to: draft.toList,
+          cc: draft.ccList,
+          bcc: draft.bccList,
+          subject: draft.subject,
+          body: draft.bodyText,
+          htmlBody: draft.htmlBody,
+          replyTo: draftContract.replyTo || '',
+          attachments: resolvedAttachments
+        });
+
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Email Destinatario Principal', draft.toList[0] || '');
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Emails Destinatarios', coreMailHubJoinEmails_(draft.toList));
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Emails Cc', coreMailHubJoinEmails_(draft.ccList));
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Emails Cco', coreMailHubJoinEmails_(draft.bccList));
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Assunto', draft.subject);
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Corpo Texto', draft.bodyText || '');
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Corpo Html', draft.htmlBody || '');
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Status Envio', 'ENVIADO');
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Tentativas', record.attempts + 1);
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Ultimo Erro', '');
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Id Thread Gmail', sendResult.threadId || '');
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Id Mensagem Gmail', sendResult.messageId || '');
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Enviado Em', sentAt);
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Atualizado Em', sentAt);
+
+        var eventPayload = coreMailHubBuildOutgoingEventPayload_(record, draft, sendResult, sentAt);
+        coreMailRegisterEvent_(eventosSheet, eventPayload, eventosState);
+        counters.eventLogs++;
+
+        var upsertInfo = coreMailUpsertIndex_(indiceSheet, eventPayload, indiceState);
+        if (upsertInfo.updated) counters.indexUpserts++;
+
+        counters.sent++;
+      } catch (err) {
+        var failedAt = new Date();
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Status Envio', 'ERRO');
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Tentativas', record.attempts + 1);
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Ultimo Erro', err && err.message ? err.message : String(err || ''));
+        coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Atualizado Em', failedAt);
+        counters.errors++;
+        core_logError_(runId, 'coreMailProcessOutbox: erro ao processar saida', {
+          saidaId: record.saidaId,
+          correlationKey: record.correlationKey,
+          error: err && err.message ? err.message : String(err || '')
+        });
+      }
+    }
+
+    core_logSummarize_(runId, 'coreMailProcessOutbox_', startedAt, counters);
+
+    return Object.freeze({
+      ok: true,
+      processedAt: now,
+      counters: Object.freeze(counters)
+    });
+  });
 }
 
 function core_mailIngestInbox_(opts) {

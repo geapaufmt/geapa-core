@@ -12,9 +12,10 @@
  */
 
 var CORE_MAIL_RENDERER_BRAND = Object.freeze({
-  orgName: 'Grupo de Estudos de Apoio a Producao Agricola (GEAPA)',
+  orgName: 'Grupo de Estudos de Apoio \u00e0 Produ\u00e7\u00e3o Agr\u00edcola',
   shortName: 'GEAPA',
   quoteFallback: '"Cultivar o Conhecimento Para Colher Sabedoria"',
+  officialEmail: '',
   background: '#f5f8f5',
   cardBackground: '#ffffff',
   textColor: '#163226',
@@ -25,30 +26,26 @@ var CORE_MAIL_RENDERER_BRAND = Object.freeze({
   shadowColor: 'rgba(22,125,10,0.08)'
 });
 
+var CORE_MAIL_RENDERER_OFFICIAL_DATA_KEY = 'DADOS_OFICIAIS_GEAPA';
+
 var CORE_MAIL_RENDERER_TEMPLATES = Object.freeze({
   GEAPA_COMEMORATIVO: Object.freeze({
     templateKey: 'GEAPA_COMEMORATIVO',
     displayName: 'GEAPA Comemorativo',
     eyebrow: 'Mensagem Comemorativa',
-    accent: '#167d0a',
-    accentSoft: '#ecf8e8',
-    accentSurface: '#f4fbf1'
+    accentRole: 'GREEN'
   }),
   GEAPA_OPERACIONAL: Object.freeze({
     templateKey: 'GEAPA_OPERACIONAL',
     displayName: 'GEAPA Operacional',
     eyebrow: 'Comunicado Operacional',
-    accent: '#0f766e',
-    accentSoft: '#e9f8f6',
-    accentSurface: '#f3fbfa'
+    accentRole: 'GREEN'
   }),
   GEAPA_CONVITE: Object.freeze({
     templateKey: 'GEAPA_CONVITE',
     displayName: 'GEAPA Convite',
     eyebrow: 'Convite Institucional',
-    accent: '#9a6700',
-    accentSoft: '#fff3df',
-    accentSurface: '#fffaf2'
+    accentRole: 'BROWN'
   })
 });
 
@@ -59,7 +56,138 @@ function coreMailRendererNormalizeTemplateKey_(templateKey) {
   });
 }
 
-function coreMailRendererGetTemplate_(templateKey) {
+function coreMailRendererNormalizeHexColor_(value, fallback) {
+  var text = String(value || '').trim();
+  if (/^#([0-9a-fA-F]{6})$/.test(text)) return text;
+  if (/^#([0-9a-fA-F]{3})$/.test(text)) {
+    return '#' + text.substring(1).split('').map(function(ch) {
+      return ch + ch;
+    }).join('');
+  }
+  return fallback;
+}
+
+function coreMailRendererHexToRgb_(hex) {
+  var normalized = coreMailRendererNormalizeHexColor_(hex, '#000000');
+  return {
+    r: parseInt(normalized.substring(1, 3), 16),
+    g: parseInt(normalized.substring(3, 5), 16),
+    b: parseInt(normalized.substring(5, 7), 16)
+  };
+}
+
+function coreMailRendererRgbToHex_(rgb) {
+  function clamp(value) {
+    return Math.max(0, Math.min(255, Math.round(Number(value || 0))));
+  }
+
+  function toHex(value) {
+    var out = clamp(value).toString(16);
+    return out.length === 1 ? '0' + out : out;
+  }
+
+  return '#' + toHex(rgb.r) + toHex(rgb.g) + toHex(rgb.b);
+}
+
+function coreMailRendererMixHexColors_(baseHex, mixHex, ratio) {
+  var base = coreMailRendererHexToRgb_(baseHex);
+  var mix = coreMailRendererHexToRgb_(mixHex);
+  var weight = Math.max(0, Math.min(1, Number(ratio || 0)));
+
+  return coreMailRendererRgbToHex_({
+    r: base.r * (1 - weight) + mix.r * weight,
+    g: base.g * (1 - weight) + mix.g * weight,
+    b: base.b * (1 - weight) + mix.b * weight
+  });
+}
+
+function coreMailRendererBuildInstitutionLine_(officialData) {
+  var parts = [
+    String(officialData.courseName || '').trim(),
+    String(officialData.instituteShortName || officialData.instituteName || '').trim(),
+    String(officialData.universityShortName || officialData.universityName || '').trim()
+  ].filter(function(part) {
+    return !!part;
+  });
+
+  return parts.join(' - ');
+}
+
+function coreMailRendererShouldShowShortName_(brand) {
+  var shortName = String((brand && brand.shortName) || '').trim();
+  var orgName = String((brand && brand.orgName) || '').trim();
+  if (!shortName || !orgName) return false;
+
+  return orgName.toUpperCase().indexOf(shortName.toUpperCase()) === -1;
+}
+
+function coreMailRendererGetOfficialGroupData_() {
+  try {
+    var records = core_readRecordsByKey_(CORE_MAIL_RENDERER_OFFICIAL_DATA_KEY, {
+      skipBlankRows: true
+    });
+    var record = records && records.length ? records[0] : {};
+
+    return {
+      orgName: String(record.NOME_OFICIAL_GRUPO || CORE_MAIL_RENDERER_BRAND.orgName || '').trim() || CORE_MAIL_RENDERER_BRAND.orgName,
+      shortName: String(record.SIGLA_OFICIAL_GRUPO || CORE_MAIL_RENDERER_BRAND.shortName || '').trim() || CORE_MAIL_RENDERER_BRAND.shortName,
+      officialEmail: String(record.EMAIL_OFICIAL || '').trim(),
+      greenColor: coreMailRendererNormalizeHexColor_(record.VERDE_OFICIAL, CORE_MAIL_RENDERER_BRAND.borderColor),
+      brownColor: coreMailRendererNormalizeHexColor_(record.MARROM_OFICIAL, '#9a6700'),
+      blackColor: coreMailRendererNormalizeHexColor_(record.PRETO_OFICIAL, CORE_MAIL_RENDERER_BRAND.textColor),
+      universityName: String(record.UNIVERSIDADE_MAE || '').trim(),
+      universityShortName: String(record.SIGLA_UNIVERSIDADE_MAE || '').trim(),
+      instituteName: String(record['INSTITUTO MAE'] || '').trim(),
+      instituteShortName: String(record['SIGLA INSTITUTO MAE'] || '').trim(),
+      courseName: String(record['CURSO MAE'] || '').trim()
+    };
+  } catch (err) {
+    return {
+      orgName: CORE_MAIL_RENDERER_BRAND.orgName,
+      shortName: CORE_MAIL_RENDERER_BRAND.shortName,
+      officialEmail: CORE_MAIL_RENDERER_BRAND.officialEmail,
+      greenColor: CORE_MAIL_RENDERER_BRAND.borderColor,
+      brownColor: '#9a6700',
+      blackColor: CORE_MAIL_RENDERER_BRAND.textColor,
+      universityName: '',
+      universityShortName: '',
+      instituteName: '',
+      instituteShortName: '',
+      courseName: ''
+    };
+  }
+}
+
+function coreMailRendererGetBrandProfile_(templateKey, refDate) {
+  var officialData = coreMailRendererGetOfficialGroupData_();
+  var quote = coreMailRendererGetInstitutionalQuote_(refDate);
+  var accentSource = coreMailRendererNormalizeTemplateKey_(templateKey) === 'GEAPA_CONVITE'
+    ? officialData.brownColor
+    : officialData.greenColor;
+  var background = coreMailRendererMixHexColors_(officialData.greenColor, '#ffffff', 0.94);
+  var dividerColor = coreMailRendererMixHexColors_(accentSource, '#ffffff', 0.78);
+
+  return {
+    orgName: officialData.orgName,
+    shortName: officialData.shortName,
+    quote: quote,
+    officialEmail: officialData.officialEmail,
+    institutionLine: coreMailRendererBuildInstitutionLine_(officialData),
+    background: background,
+    cardBackground: CORE_MAIL_RENDERER_BRAND.cardBackground,
+    textColor: officialData.blackColor,
+    mutedTextColor: coreMailRendererMixHexColors_(officialData.blackColor, '#ffffff', 0.35),
+    borderColor: officialData.greenColor,
+    dividerColor: dividerColor,
+    buttonTextColor: CORE_MAIL_RENDERER_BRAND.buttonTextColor,
+    shadowColor: CORE_MAIL_RENDERER_BRAND.shadowColor,
+    accent: accentSource,
+    accentSoft: coreMailRendererMixHexColors_(accentSource, '#ffffff', 0.87),
+    accentSurface: coreMailRendererMixHexColors_(accentSource, '#ffffff', 0.93)
+  };
+}
+
+function coreMailRendererGetTemplate_(templateKey, brand) {
   var key = coreMailRendererNormalizeTemplateKey_(templateKey);
   var template = CORE_MAIL_RENDERER_TEMPLATES[key];
 
@@ -67,7 +195,17 @@ function coreMailRendererGetTemplate_(templateKey) {
     throw new Error('Template institucional de e-mail nao encontrado: ' + templateKey);
   }
 
-  return template;
+  brand = brand || coreMailRendererGetBrandProfile_(key, null);
+
+  return {
+    templateKey: template.templateKey,
+    displayName: template.displayName,
+    eyebrow: template.eyebrow,
+    accentRole: template.accentRole,
+    accent: brand.accent,
+    accentSoft: brand.accentSoft,
+    accentSurface: brand.accentSurface
+  };
 }
 
 function coreMailRendererGetInstitutionalQuote_(refDate) {
@@ -113,7 +251,8 @@ function coreMailRendererStripHtml_(value) {
   );
 }
 
-function coreMailRendererTextToHtml_(text) {
+function coreMailRendererTextToHtml_(text, brand) {
+  brand = brand || CORE_MAIL_RENDERER_BRAND;
   var paragraphs = String(text || '')
     .replace(/\r\n/g, '\n')
     .split(/\n\s*\n+/)
@@ -128,7 +267,7 @@ function coreMailRendererTextToHtml_(text) {
 
   return paragraphs.map(function(part) {
     return '<p style="margin:0 0 12px 0;font-size:14px;line-height:1.7;color:' +
-      CORE_MAIL_RENDERER_BRAND.textColor +
+      brand.textColor +
       ';">' +
       coreMailRendererEscapeHtml_(part).replace(/\n/g, '<br>') +
       '</p>';
@@ -248,28 +387,29 @@ function coreMailRendererRenderEyebrow_(text, template) {
     '</div>';
 }
 
-function coreMailRendererRenderItems_(items, template) {
+function coreMailRendererRenderItems_(items, template, brand) {
+  brand = brand || CORE_MAIL_RENDERER_BRAND;
   if (!items.length) return '';
 
   var content = items.map(function(item) {
     var line1 = item.label
-      ? '<div style="font-size:14px;font-weight:700;color:' + CORE_MAIL_RENDERER_BRAND.textColor + ';">' +
+      ? '<div style="font-size:14px;font-weight:700;color:' + brand.textColor + ';">' +
           coreMailRendererEscapeHtml_(item.label) +
         '</div>'
       : '';
     var line2 = item.value
-      ? '<div style="font-size:13px;line-height:1.6;color:' + CORE_MAIL_RENDERER_BRAND.mutedTextColor + ';margin-top:2px;">' +
+      ? '<div style="font-size:13px;line-height:1.6;color:' + brand.mutedTextColor + ';margin-top:2px;">' +
           coreMailRendererEscapeHtml_(item.value) +
         '</div>'
       : '';
     var hint = item.hint
-      ? '<div style="font-size:12px;line-height:1.5;color:' + CORE_MAIL_RENDERER_BRAND.mutedTextColor + ';margin-top:4px;">' +
+      ? '<div style="font-size:12px;line-height:1.5;color:' + brand.mutedTextColor + ';margin-top:4px;">' +
           coreMailRendererEscapeHtml_(item.hint) +
         '</div>'
       : '';
 
     return '<div style="padding:12px 0;border-bottom:1px solid ' +
-      CORE_MAIL_RENDERER_BRAND.dividerColor +
+      brand.dividerColor +
       ';">' +
       line1 +
       line2 +
@@ -280,11 +420,12 @@ function coreMailRendererRenderItems_(items, template) {
   return '<div style="margin-top:12px;">' + content + '</div>';
 }
 
-function coreMailRendererRenderCta_(cta, template) {
+function coreMailRendererRenderCta_(cta, template, brand) {
+  brand = brand || CORE_MAIL_RENDERER_BRAND;
   if (!cta || !cta.label) return '';
 
   var helper = cta.helper
-    ? '<div style="margin-top:10px;font-size:12px;line-height:1.5;color:' + CORE_MAIL_RENDERER_BRAND.mutedTextColor + ';">' +
+    ? '<div style="margin-top:10px;font-size:12px;line-height:1.5;color:' + brand.mutedTextColor + ';">' +
         coreMailRendererEscapeHtml_(cta.helper) +
       '</div>'
     : '';
@@ -305,7 +446,7 @@ function coreMailRendererRenderCta_(cta, template) {
     'style="display:inline-block;padding:12px 18px;border-radius:10px;background:' +
     template.accent +
     ';color:' +
-    CORE_MAIL_RENDERER_BRAND.buttonTextColor +
+    brand.buttonTextColor +
     ';font-size:14px;font-weight:700;text-decoration:none;">' +
     coreMailRendererEscapeHtml_(cta.label) +
     '</a>' +
@@ -313,20 +454,21 @@ function coreMailRendererRenderCta_(cta, template) {
     '</div>';
 }
 
-function coreMailRendererRenderBlock_(block, template) {
+function coreMailRendererRenderBlock_(block, template, brand) {
+  brand = brand || CORE_MAIL_RENDERER_BRAND;
   var blockBackground = block.tone === 'SOFT' ? template.accentSoft : template.accentSurface;
   var headerHtml = block.title
-    ? '<div style="font-size:16px;font-weight:700;color:' + CORE_MAIL_RENDERER_BRAND.textColor + ';margin-bottom:10px;">' +
+    ? '<div style="font-size:16px;font-weight:700;color:' + brand.textColor + ';margin-bottom:10px;">' +
         coreMailRendererEscapeHtml_(block.title) +
       '</div>'
     : '';
-  var textHtml = block.text ? coreMailRendererTextToHtml_(block.text) : '';
+  var textHtml = block.text ? coreMailRendererTextToHtml_(block.text, brand) : '';
   var rawHtml = block.html ? block.html : '';
-  var itemsHtml = coreMailRendererRenderItems_(block.items, template);
-  var ctaHtml = coreMailRendererRenderCta_(block.cta, template);
+  var itemsHtml = coreMailRendererRenderItems_(block.items, template, brand);
+  var ctaHtml = coreMailRendererRenderCta_(block.cta, template, brand);
 
   return '<div style="margin-top:16px;padding:18px 18px 6px 18px;border:1px solid ' +
-    CORE_MAIL_RENDERER_BRAND.dividerColor +
+    brand.dividerColor +
     ';border-radius:14px;background:' +
     blockBackground +
     ';">' +
@@ -338,21 +480,22 @@ function coreMailRendererRenderBlock_(block, template) {
     '</div>';
 }
 
-function coreMailRendererRenderHeader_(subjectHuman, payload, template) {
+function coreMailRendererRenderHeader_(subjectHuman, payload, template, brand) {
+  brand = brand || CORE_MAIL_RENDERER_BRAND;
   var subtitleHtml = payload.subtitle
-    ? '<div style="font-size:13px;line-height:1.6;color:' + CORE_MAIL_RENDERER_BRAND.mutedTextColor + ';margin:6px 0 0 0;">' +
+    ? '<div style="font-size:13px;line-height:1.6;color:' + brand.mutedTextColor + ';margin:6px 0 0 0;">' +
         coreMailRendererEscapeHtml_(payload.subtitle) +
       '</div>'
     : '';
-  var introHtml = payload.introHtml || coreMailRendererTextToHtml_(payload.introText);
+  var introHtml = payload.introHtml || coreMailRendererTextToHtml_(payload.introText, brand);
 
   return '<div style="padding:28px 28px 10px 28px;">' +
     '<div style="text-align:center;margin-bottom:14px;">' +
-      '<img src="cid:geapa_logo" alt="GEAPA" style="max-width:380px;width:100%;height:auto;">' +
+      '<img src="cid:geapa_logo" alt="' + coreMailRendererEscapeHtml_(brand.shortName || 'GEAPA') + '" style="max-width:380px;width:100%;height:auto;">' +
     '</div>' +
     '<div style="height:4px;background:' + template.accent + ';margin-bottom:22px;border-radius:999px;"></div>' +
     coreMailRendererRenderEyebrow_(payload.eyebrow, template) +
-    '<div style="font-size:28px;line-height:1.2;font-weight:700;color:' + CORE_MAIL_RENDERER_BRAND.textColor + ';margin:0;">' +
+    '<div style="font-size:28px;line-height:1.2;font-weight:700;color:' + brand.textColor + ';margin:0;">' +
       coreMailRendererEscapeHtml_(payload.title || subjectHuman) +
     '</div>' +
     subtitleHtml +
@@ -361,33 +504,53 @@ function coreMailRendererRenderHeader_(subjectHuman, payload, template) {
 }
 
 function coreMailRendererRenderFooter_(payload, template) {
-  var institutionalQuote = coreMailRendererGetInstitutionalQuote_(payload.refDate || null);
+  var brand = payload.brand || CORE_MAIL_RENDERER_BRAND;
+  var institutionalQuote = brand.quote || coreMailRendererGetInstitutionalQuote_(payload.refDate || null);
+  var contactHtml = brand.officialEmail
+    ? '<div style="margin-top:8px;font-size:12px;line-height:1.6;color:' + brand.mutedTextColor + ';">' +
+        'Contato oficial: ' + coreMailRendererEscapeHtml_(brand.officialEmail) +
+      '</div>'
+    : '';
+  var institutionHtml = brand.institutionLine
+    ? '<div style="margin-top:6px;font-size:12px;line-height:1.6;color:' + brand.mutedTextColor + ';">' +
+        coreMailRendererEscapeHtml_(brand.institutionLine) +
+      '</div>'
+    : '';
+  var shortNameHtml = coreMailRendererShouldShowShortName_(brand)
+    ? '<div style="margin-top:4px;font-size:12px;line-height:1.6;color:' + brand.mutedTextColor + ';font-weight:700;">' +
+        coreMailRendererEscapeHtml_(brand.shortName) +
+      '</div>'
+    : '';
   var footerNoteHtml = payload.footerNote
-    ? '<div style="margin-top:12px;font-size:12px;line-height:1.6;color:' + CORE_MAIL_RENDERER_BRAND.mutedTextColor + ';">' +
+    ? '<div style="margin-top:12px;font-size:12px;line-height:1.6;color:' + brand.mutedTextColor + ';">' +
         coreMailRendererEscapeHtml_(payload.footerNote) +
       '</div>'
     : '';
 
   return '<div style="padding:22px 28px 28px 28px;border-top:1px solid ' +
-    CORE_MAIL_RENDERER_BRAND.dividerColor +
+    brand.dividerColor +
     ';margin-top:24px;background:' +
     template.accentSoft +
     ';">' +
-    '<div style="font-size:14px;line-height:1.7;color:' + CORE_MAIL_RENDERER_BRAND.textColor + ';">' +
+    '<div style="font-size:14px;line-height:1.7;color:' + brand.textColor + ';">' +
       'Atenciosamente,<br>' +
-      '<strong>' + coreMailRendererEscapeHtml_(CORE_MAIL_RENDERER_BRAND.orgName) + '</strong>' +
+      '<strong>' + coreMailRendererEscapeHtml_(brand.orgName) + '</strong>' +
     '</div>' +
-    '<div style="margin-top:10px;font-size:12px;line-height:1.6;color:' + CORE_MAIL_RENDERER_BRAND.mutedTextColor + ';">' +
-      coreMailRendererEscapeHtml_(institutionalQuote) +
-    '</div>' +
-    footerNoteHtml +
-  '</div>';
+    shortNameHtml +
+    contactHtml +
+     institutionHtml +
+     '<div style="margin-top:10px;font-size:12px;line-height:1.6;color:' + brand.mutedTextColor + ';">' +
+      '<em>' + coreMailRendererEscapeHtml_(institutionalQuote) + '</em>' +
+     '</div>' +
+     footerNoteHtml +
+   '</div>';
 }
 
 function coreMailRendererBuildTextBody_(template, subjectHuman, payload) {
-  var institutionalQuote = coreMailRendererGetInstitutionalQuote_(payload.refDate || null);
+  var brand = payload.brand || CORE_MAIL_RENDERER_BRAND;
+  var institutionalQuote = brand.quote || coreMailRendererGetInstitutionalQuote_(payload.refDate || null);
   var lines = [];
-  lines.push(CORE_MAIL_RENDERER_BRAND.shortName + ' - ' + template.displayName);
+  lines.push(brand.shortName + ' - ' + template.displayName);
   lines.push(subjectHuman);
 
   if (payload.subtitle) lines.push(payload.subtitle);
@@ -422,7 +585,10 @@ function coreMailRendererBuildTextBody_(template, subjectHuman, payload) {
     if (payload.cta.helper) lines.push(payload.cta.helper);
   }
 
-  lines.push(CORE_MAIL_RENDERER_BRAND.orgName);
+  lines.push(brand.orgName);
+  if (coreMailRendererShouldShowShortName_(brand)) lines.push(brand.shortName);
+  if (brand.officialEmail) lines.push('Contato oficial: ' + brand.officialEmail);
+  if (brand.institutionLine) lines.push(brand.institutionLine);
   lines.push(institutionalQuote);
 
   if (payload.footerNote) lines.push(payload.footerNote);
@@ -451,19 +617,21 @@ function coreMailRenderEmailTemplate_(templateKey, subjectHuman, payload) {
   core_assertRequired_(templateKey, 'templateKey');
   core_assertRequired_(subjectHuman, 'subjectHuman');
 
-  var template = coreMailRendererGetTemplate_(templateKey);
   var normalizedPayload = coreMailRendererNormalizePayload_(subjectHuman, payload || {});
+  var brand = coreMailRendererGetBrandProfile_(templateKey, normalizedPayload.refDate || null);
+  normalizedPayload.brand = brand;
+  var template = coreMailRendererGetTemplate_(templateKey, brand);
   var blocksHtml = normalizedPayload.blocks.map(function(block) {
-    return coreMailRendererRenderBlock_(block, template);
+    return coreMailRendererRenderBlock_(block, template, brand);
   }).join('');
-  var rootCtaHtml = normalizedPayload.cta ? coreMailRendererRenderCta_(normalizedPayload.cta, template) : '';
+  var rootCtaHtml = normalizedPayload.cta ? coreMailRendererRenderCta_(normalizedPayload.cta, template, brand) : '';
 
   var htmlBody = ''
     + coreMailRendererRenderHiddenPreview_(normalizedPayload.preheader)
-    + '<div style="margin:0;padding:24px;background:' + CORE_MAIL_RENDERER_BRAND.background + ';">'
+    + '<div style="margin:0;padding:24px;background:' + brand.background + ';">'
     + '  <div style="max-width:700px;margin:0 auto;">'
-    + '    <div style="background:' + CORE_MAIL_RENDERER_BRAND.cardBackground + ';border:2px solid ' + template.accent + ';border-radius:18px;overflow:hidden;box-shadow:0 10px 30px ' + CORE_MAIL_RENDERER_BRAND.shadowColor + ';">'
-    +         coreMailRendererRenderHeader_(subjectHuman, normalizedPayload, template)
+    + '    <div style="background:' + brand.cardBackground + ';border:2px solid ' + template.accent + ';border-radius:18px;overflow:hidden;box-shadow:0 10px 30px ' + brand.shadowColor + ';">'
+    +         coreMailRendererRenderHeader_(subjectHuman, normalizedPayload, template, brand)
     + '      <div style="padding:0 28px 0 28px;">'
     +            blocksHtml
     +            rootCtaHtml
@@ -482,7 +650,10 @@ function coreMailRenderEmailTemplate_(templateKey, subjectHuman, payload) {
     inlineImagesMode: 'DEFAULT_GEAPA',
     meta: Object.freeze({
       preheader: normalizedPayload.preheader,
-      blockCount: normalizedPayload.blocks.length
+      blockCount: normalizedPayload.blocks.length,
+      orgName: brand.orgName,
+      shortName: brand.shortName,
+      officialEmail: brand.officialEmail
     })
   });
 }
@@ -536,8 +707,9 @@ function coreMailBuildOutgoingDraft_(contract) {
       subject: finalSubject,
       body: renderResult.bodyText,
       htmlBody: renderResult.htmlBody,
+      replyTo: contract.replyTo || undefined,
       useDefaultInlineImages: true,
-      name: CORE_MAIL_RENDERER_BRAND.shortName
+      name: renderResult.meta.shortName || CORE_MAIL_RENDERER_BRAND.shortName
     })
   });
 }

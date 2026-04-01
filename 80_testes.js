@@ -296,3 +296,35 @@ function test_core_mailRenderer_buildOutgoingDraft() {
 function test_core_governance_currentBoardSlogan() {
   Logger.log(core_getCurrentBoardSlogan_());
 }
+
+function test_core_mailOutbox_queue_operacional() {
+  Logger.log(JSON.stringify(coreMailQueueOutgoing_({
+    moduleName: 'COMEMORACOES',
+    templateKey: 'GEAPA_OPERACIONAL',
+    correlationKey: 'COM-2026-1-MAT-ABERTURA',
+    entityType: 'SEMESTRE',
+    entityId: '2026/1',
+    flowCode: 'MAT',
+    stage: 'ABERTURA',
+    to: coreMailHubEnvelopeOfficialEmail_() || Session.getActiveUser().getEmail(),
+    subjectHuman: 'Aviso institucional de teste',
+    payload: {
+      eyebrow: 'Aviso academico',
+      title: 'Teste da fila MAIL_SAIDA',
+      introText: 'Este teste valida a V1 minima da fila central de saida.',
+      blocks: [
+        {
+          title: 'Contexto',
+          text: 'A mensagem foi enfileirada pelo geapa-core para processamento posterior.'
+        }
+      ]
+    },
+    metadata: {
+      source: 'test_core_mailOutbox_queue_operacional'
+    }
+  }), null, 2));
+}
+
+function test_core_mailOutbox_process() {
+  Logger.log(JSON.stringify(coreMailProcessOutbox_(), null, 2));
+}

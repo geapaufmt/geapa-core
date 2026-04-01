@@ -279,6 +279,14 @@ function coreMailBuildOutgoingDraft(contract) {
   return coreMailBuildOutgoingDraft_(contract || {});
 }
 
+function coreMailQueueOutgoing(contract) {
+  return coreMailQueueOutgoing_(contract || {});
+}
+
+function coreMailProcessOutbox() {
+  return coreMailProcessOutbox_();
+}
+
 function coreMailGetLatestEvent(opts) {
   return core_mailGetLatestEvent_(opts || {});
 }

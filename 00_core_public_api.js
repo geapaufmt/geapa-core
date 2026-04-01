@@ -171,6 +171,8 @@ const GEAPA_CORE = Object.freeze({
     getConfig: coreMailHubGetConfig_,
     getConfigBoolean: coreMailHubGetConfigBooleanByKey_,
     getConfigList: coreMailHubGetConfigListByKey_,
+    queueOutgoing: coreMailQueueOutgoing_,
+    processOutbox: coreMailProcessOutbox_,
     listPendingByModule: core_mailListPendingByModule_,
     getLatestEvent: core_mailGetLatestEvent_,
     markLatestPendingByModule: core_mailMarkLatestPendingByModule_,
