@@ -141,8 +141,10 @@ Estrutura esperada de `payload`:
 Observacao:
 
 - os modulos continuam donos do conteudo de negocio;
-- o renderer devolve `htmlBody`, `bodyText` e `emailOptions`, deixando o caminho pronto para a futura `MAIL_SAIDA`;
+- o renderer devolve `htmlBody`, `bodyText` e `emailOptions`, e agora tambem alimenta a V1 da `MAIL_SAIDA`;
 - o slogan exibido no rodape nao e fixo: ele e buscado da coluna `Slogan` da diretoria vigente em `VIGENCIA_DIRETORIAS`, com fallback seguro quando estiver vazio.
+- a identidade oficial do grupo usada no renderer passa a ser lida de `DADOS_OFICIAIS_GEAPA`, incluindo nome oficial, sigla, e-mail oficial e cores institucionais;
+- nesta etapa, `LOGO_OFICIAL` fica reservado para evolucao posterior; o renderer continua usando a imagem institucional padrao ja servida pelo core.
 
 ### Mail Hub (V1)
 
@@ -170,6 +172,8 @@ Funcoes publicas:
 - `coreMailRenderEmailTemplate(templateKey, subjectHuman, payload)`
 - `coreMailBuildFinalSubject(subjectHuman, correlationKey)`
 - `coreMailBuildOutgoingDraft(contract)`
+- `coreMailQueueOutgoing(contract)`
+- `coreMailProcessOutbox()`
 - `coreMailIngestInbox(opts)`
 - `coreMailGetConfig(key, defaultValue)`
 - `coreMailGetConfigBoolean(key, defaultValue)`
@@ -195,9 +199,17 @@ Observacao de plataforma:
 Observacoes desta V1:
 
 - nao migra os modulos consumidores existentes;
-- nao implementa fila de saida;
+- nao implementa retry avancado da fila de saida;
 - nao salva anexos no Drive;
 - nao aplica roteamento avancado por regras.
+
+MAIL_SAIDA (V1 minima):
+
+- `coreMailQueueOutgoing(contract)` grava novas saidas com `Status Envio = PENDENTE`;
+- `coreMailProcessOutbox()` processa a fila central, monta o assunto final com `[GEAPA][CHAVE]`, renderiza o HTML institucional, envia tecnicamente e atualiza `Id Thread Gmail`, `Id Mensagem Gmail`, `Enviado Em`, `Tentativas`, `Ultimo Erro` e `Status Envio`;
+- ao enviar com sucesso, o core tambem registra `EMAIL_ENVIADO` em `MAIL_EVENTOS` e recompõe `MAIL_INDICE`;
+- nesta V1, o contrato do modulo pode incluir `moduleName`, `templateKey`, `correlationKey`, `entityType`, `entityId`, `flowCode`, `stage`, `to`, `cc`, `bcc`, `subjectHuman`, `payload`, `priority`, `sendAfter` e `metadata`;
+- quando o modulo optar por envio em massa via `bcc`, o core usa `EMAIL_OFICIAL` em `DADOS_OFICIAIS_GEAPA` como envelope principal de seguranca.
 
 Higiene de ingestao e consistencia semantica:
 
@@ -214,6 +226,7 @@ Schema minimo esperado na versao atual da planilha central:
 - `MAIL_INDICE`: `Chave de Correlacao`, `Modulo Dono`, `Tipo Entidade`, `Id Entidade`, `Etapa Atual`, `Id Thread Gmail`, `Id Ultima Mensagem`, `Ultima Direcao`, `Ultimo Tipo Evento`, `Ultimo Email Remetente`, `Ultimo Assunto`, `Data Hora Ultimo Evento`, `Ha Entrada Pendente`, `Ha Anexo Pendente`, `Quantidade Eventos`, `Quantidade Entradas`, `Quantidade Saidas`, `Quantidade Anexos`, `Criado Em`, `Atualizado Em`
 - `MAIL_ANEXOS`: `Id Anexo`, `Id Evento`, `Modulo Dono`, `Chave de Correlacao`, `Etapa Fluxo`, `Id Mensagem Gmail`, `Id Thread Gmail`, `Nome Arquivo`, `Tipo Mime`, `Tamanho Bytes`, `Status Anexo`, `Criado Em`, `Atualizado Em`
 - `MAIL_CONFIG`: `Chave`, `Valor`, `Ativo`
+- `MAIL_SAIDA`: `Id Saida`, `Modulo Dono`, `Tipo Entidade`, `Id Entidade`, `Chave de Correlacao`, `Etapa Fluxo`, `Email Destinatario Principal`, `Emails Destinatarios`, `Emails Cc`, `Emails Cco`, `Nome Destinatario`, `Assunto`, `Corpo Texto`, `Corpo Html`, `Data Hora Agendada`, `Prioridade`, `Status Envio`, `Tentativas`, `Ultimo Erro`, `Id Thread Gmail`, `Id Mensagem Gmail`, `Enviado Em`, `Criado Em`, `Atualizado Em`, `Observacoes`
 
 Configuracoes opcionais em `MAIL_CONFIG`:
 
@@ -253,6 +266,8 @@ Testes manuais no projeto:
 - `test_core_mailRenderer_render_convite()`
 - `test_core_mailRenderer_buildFinalSubject()`
 - `test_core_mailRenderer_buildOutgoingDraft()`
+- `test_core_mailOutbox_queue_operacional()`
+- `test_core_mailOutbox_process()`
 - `test_core_governance_currentBoardSlogan()`
 - `test_core_mailHub_assertSchema()`
 - `test_core_mailHub_config_read()`
@@ -338,6 +353,7 @@ O core depende do Registry e, conforme a funcao chamada, pode acessar chaves com
 - `MAIL_ANEXOS`
 - `MAIL_REGRAS`
 - `MAIL_CONFIG`
+- `DADOS_OFICIAIS_GEAPA`
 
 Modulos consumidores podem acessar outras `KEYS` via `coreGetSheetByKey`, desde que estejam cadastradas no Registry.
 
@@ -378,3 +394,5 @@ Fluxo manual sugerido para validar o Mail Hub:
 6. rode `test_core_mailHub_listPending_membros()` ou `test_core_mailHub_listPending_naoIdentificado()` para validar a consulta de pendencias.
 7. use `test_core_mailHub_getLatestEvent()` ou `test_core_mailHub_getLatestPending_membros()` para localizar rapidamente o ultimo evento de teste.
 8. use `test_core_mailHub_markLatestPending_membros_processed()` para marcar o ultimo pendente sem copiar `eventId` na mao.
+9. para validar a fila central, rode `test_core_mailOutbox_queue_operacional()` e confira a nova linha em `MAIL_SAIDA`.
+10. em seguida rode `test_core_mailOutbox_process()` e confirme `Status Envio = ENVIADO`, `Enviado Em`, `Id Thread Gmail`, `Id Mensagem Gmail` e o reflexo em `MAIL_EVENTOS` / `MAIL_INDICE`.

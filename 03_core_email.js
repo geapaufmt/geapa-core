@@ -79,10 +79,12 @@ function core_sendEmailText_(opts) {
     throw new Error('core_sendEmailText_: destinatario ausente.');
   }
 
+  var ccList = opts.cc ? core_resolveEmailRecipients_(opts.cc) : [];
   var bccList = opts.bcc ? core_resolveEmailRecipients_(opts.bcc) : [];
 
   MailApp.sendEmail({
     to: toList.join(','),
+    cc: ccList.join(','),
     bcc: bccList.join(','),
     subject: opts.subject || '',
     body: opts.body || '',
@@ -106,10 +108,12 @@ function core_sendHtmlEmail_(opts) {
     throw new Error('core_sendHtmlEmail_: destinatario ausente.');
   }
 
+  var ccList = opts.cc ? core_resolveEmailRecipients_(opts.cc) : [];
   var bccList = opts.bcc ? core_resolveEmailRecipients_(opts.bcc) : [];
 
   MailApp.sendEmail({
     to: toList.join(','),
+    cc: ccList.join(','),
     bcc: bccList.join(','),
     subject: opts.subject || '',
     body: opts.body || 'Mensagem em HTML',
