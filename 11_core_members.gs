@@ -44,12 +44,12 @@ const CORE_MEMBERS_CFG = Object.freeze({
    * Se os nomes reais forem diferentes, altere aqui.
    */
   headers: Object.freeze({
-    name: "Membro",
-    role: "Cargo/Função atual",
-    phone: "Telefone",
-    email: "Email",
-    status: "Status",
-    rga: "RGA"
+    name: Object.freeze(["Membro", "MEMBRO", "NOME_MEMBRO", "Nome"]),
+    role: Object.freeze(["Cargo/Fun\u00E7\u00E3o atual", "Cargo/fun\u00E7\u00E3o atual", "Cargo/funcao atual", "CARGO_FUNCAO_ATUAL"]),
+    phone: Object.freeze(["Telefone", "TELEFONE"]),
+    email: Object.freeze(["Email", "E-mail", "EMAIL"]),
+    status: Object.freeze(["Status", "STATUS_CADASTRAL"]),
+    rga: Object.freeze(["RGA"])
   }),
 
   /**
@@ -116,16 +116,27 @@ function core_getMembersSheet_() {
  * @param {string[]} headers
  * @return {Object}
  */
+function core_findMemberHeaderIndex_(normalizedHeaders, aliases) {
+  const names = Array.isArray(aliases) ? aliases : [aliases];
+
+  for (let i = 0; i < names.length; i++) {
+    const idx = normalizedHeaders.indexOf(core_normalizeMemberText_(names[i]));
+    if (idx !== -1) return idx;
+  }
+
+  return -1;
+}
+
 function core_getMembersHeaderIndexMap_(headers) {
   const normalized = headers.map(core_normalizeMemberText_);
 
   return {
-    name: normalized.indexOf(core_normalizeMemberText_(CORE_MEMBERS_CFG.headers.name)),
-    role: normalized.indexOf(core_normalizeMemberText_(CORE_MEMBERS_CFG.headers.role)),
-    phone: normalized.indexOf(core_normalizeMemberText_(CORE_MEMBERS_CFG.headers.phone)),
-    email: normalized.indexOf(core_normalizeMemberText_(CORE_MEMBERS_CFG.headers.email)),
-    status: normalized.indexOf(core_normalizeMemberText_(CORE_MEMBERS_CFG.headers.status)),
-    rga: normalized.indexOf(core_normalizeMemberText_(CORE_MEMBERS_CFG.headers.rga))
+    name: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.name),
+    role: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.role),
+    phone: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.phone),
+    email: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.email),
+    status: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.status),
+    rga: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.rga)
   };
 }
 

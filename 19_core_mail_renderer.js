@@ -46,6 +46,12 @@ var CORE_MAIL_RENDERER_TEMPLATES = Object.freeze({
     displayName: 'GEAPA Convite',
     eyebrow: 'Convite Institucional',
     accentRole: 'BROWN'
+  }),
+  GEAPA_CLASSICO: Object.freeze({
+    templateKey: 'GEAPA_CLASSICO',
+    displayName: 'GEAPA Classico',
+    eyebrow: '',
+    accentRole: 'GREEN'
   })
 });
 
@@ -164,7 +170,9 @@ function coreMailRendererGetBrandProfile_(templateKey, refDate) {
   var accentSource = coreMailRendererNormalizeTemplateKey_(templateKey) === 'GEAPA_CONVITE'
     ? officialData.brownColor
     : officialData.greenColor;
-  var background = coreMailRendererMixHexColors_(officialData.greenColor, '#ffffff', 0.94);
+  var background = coreMailRendererNormalizeTemplateKey_(templateKey) === 'GEAPA_CLASSICO'
+    ? '#ffffff'
+    : coreMailRendererMixHexColors_(officialData.greenColor, '#ffffff', 0.94);
   var dividerColor = coreMailRendererMixHexColors_(accentSource, '#ffffff', 0.78);
 
   return {
@@ -503,6 +511,157 @@ function coreMailRendererRenderHeader_(subjectHuman, payload, template, brand) {
   '</div>';
 }
 
+function coreMailRendererFlattenClassicRows_(payload) {
+  var rows = [];
+
+  payload.blocks.forEach(function(block) {
+    if (block.title && !block.text && !block.html && !block.items.length && !(block.cta && block.cta.label)) {
+      rows.push({
+        line1: block.title,
+        line2: ''
+      });
+    }
+
+    if (block.title && (block.items.length || block.text || block.html || (block.cta && block.cta.label))) {
+      rows.push({
+        line1: block.title,
+        line2: ''
+      });
+    }
+
+    if (block.text) {
+      rows.push({
+        line1: '',
+        line2: block.text
+      });
+    }
+
+    if (block.html) {
+      rows.push({
+        line1: '',
+        line2: coreMailRendererStripHtml_(block.html)
+      });
+    }
+
+    block.items.forEach(function(item) {
+      rows.push({
+        line1: item.label || item.value || '',
+        line2: item.label && item.value ? item.value : (item.hint || '')
+      });
+    });
+
+    if (block.cta && block.cta.label) {
+      rows.push({
+        line1: block.cta.label,
+        line2: block.cta.url || block.cta.helper || ''
+      });
+    }
+  });
+
+  if (payload.cta && payload.cta.label) {
+    rows.push({
+      line1: payload.cta.label,
+      line2: payload.cta.url || payload.cta.helper || ''
+    });
+  }
+
+  return rows.filter(function(row) {
+    return !!String(row.line1 || '').trim() || !!String(row.line2 || '').trim();
+  });
+}
+
+function coreMailRendererRenderClassicRows_(rows, brand) {
+  if (!rows.length) {
+    return '<div style="color:#555;">(sem itens)</div>';
+  }
+
+  return rows.map(function(row) {
+    var line1 = String(row.line1 || '').trim();
+    var line2 = String(row.line2 || '').trim();
+
+    return '<div style="padding:10px 0;border-bottom:1px solid #eee;">' +
+      (line1
+        ? '<div style="font-size:16px;font-weight:600;color:' + brand.textColor + ';">' +
+            coreMailRendererEscapeHtml_(line1) +
+          '</div>'
+        : '') +
+      (line2
+        ? '<div style="font-size:13px;color:#555;margin-top:2px;line-height:1.55;">' +
+            coreMailRendererEscapeHtml_(line2) +
+          '</div>'
+        : '') +
+      '</div>';
+  }).join('');
+}
+
+function coreMailRendererRenderClassicFooter_(payload, brand) {
+  var institutionalQuote = brand.quote || coreMailRendererGetInstitutionalQuote_(payload.refDate || null);
+  var shortNameHtml = coreMailRendererShouldShowShortName_(brand)
+    ? '<div style="margin-top:4px;font-size:12px;line-height:1.6;color:' + brand.mutedTextColor + ';font-weight:700;">' +
+        coreMailRendererEscapeHtml_(brand.shortName) +
+      '</div>'
+    : '';
+  var contactHtml = brand.officialEmail
+    ? '<div style="margin-top:6px;font-size:12px;line-height:1.6;color:' + brand.mutedTextColor + ';">' +
+        coreMailRendererEscapeHtml_(brand.officialEmail) +
+      '</div>'
+    : '';
+  var institutionHtml = brand.institutionLine
+    ? '<div style="margin-top:4px;font-size:12px;line-height:1.6;color:' + brand.mutedTextColor + ';">' +
+        coreMailRendererEscapeHtml_(brand.institutionLine) +
+      '</div>'
+    : '';
+  var quoteHtml = institutionalQuote
+    ? '<div style="margin-top:10px;font-size:12px;line-height:1.6;color:#666;"><em>' +
+        coreMailRendererEscapeHtml_(institutionalQuote) +
+      '</em></div>'
+    : '';
+  var footerNoteHtml = payload.footerNote
+    ? '<div style="margin-top:10px;font-size:12px;line-height:1.6;color:#666;">' +
+        coreMailRendererEscapeHtml_(payload.footerNote) +
+      '</div>'
+    : '';
+
+  return '<div style="margin-top:16px;font-size:13px;line-height:1.6;color:' + brand.textColor + ';">' +
+      'Atenciosamente,<br>' +
+      '<strong>' + coreMailRendererEscapeHtml_(brand.orgName) + '</strong>' +
+    '</div>' +
+    shortNameHtml +
+    contactHtml +
+    institutionHtml +
+    quoteHtml +
+    footerNoteHtml;
+}
+
+function coreMailRendererRenderClassicTemplate_(subjectHuman, payload, template, brand) {
+  var subtitleHtml = payload.subtitle
+    ? '<div style="font-size:13px;color:#555;margin-bottom:14px;">' +
+        coreMailRendererEscapeHtml_(payload.subtitle) +
+      '</div>'
+    : '';
+  var introHtml = payload.introHtml || coreMailRendererTextToHtml_(payload.introText, brand);
+  var rowsHtml = coreMailRendererRenderClassicRows_(coreMailRendererFlattenClassicRows_(payload), brand);
+  var logoHtml = '<div style="text-align:center;margin-bottom:15px;">' +
+      '<img src="cid:geapa_logo" alt="' + coreMailRendererEscapeHtml_(brand.shortName || 'GEAPA') + '" style="max-width:380px;width:100%;height:auto;">' +
+    '</div>' +
+    '<div style="height:4px;background:' + template.accent + ';margin-bottom:20px;border-radius:2px;"></div>';
+
+  return ''
+    + coreMailRendererRenderHiddenPreview_(payload.preheader)
+    + '<div style="font-family:Arial,sans-serif;background:#ffffff;color:' + brand.textColor + ';padding:16px;">'
+    + '  <div style="max-width:700px;margin:0 auto;border:2px solid ' + template.accent + ';border-radius:12px;padding:16px;background:#ffffff;">'
+    +       logoHtml
+    + '    <div style="font-size:20px;font-weight:700;margin-bottom:4px;color:' + brand.textColor + ';">' +
+              coreMailRendererEscapeHtml_(payload.title || subjectHuman) +
+            '</div>'
+    +       subtitleHtml
+    +       (introHtml ? '<div style="margin-bottom:18px;font-size:14px;line-height:1.6;">' + introHtml + '</div>' : '')
+    +       rowsHtml
+    +       coreMailRendererRenderClassicFooter_(payload, brand)
+    + '  </div>'
+    + '</div>';
+}
+
 function coreMailRendererRenderFooter_(payload, template) {
   var brand = payload.brand || CORE_MAIL_RENDERER_BRAND;
   var institutionalQuote = brand.quote || coreMailRendererGetInstitutionalQuote_(payload.refDate || null);
@@ -621,25 +780,31 @@ function coreMailRenderEmailTemplate_(templateKey, subjectHuman, payload) {
   var brand = coreMailRendererGetBrandProfile_(templateKey, normalizedPayload.refDate || null);
   normalizedPayload.brand = brand;
   var template = coreMailRendererGetTemplate_(templateKey, brand);
-  var blocksHtml = normalizedPayload.blocks.map(function(block) {
-    return coreMailRendererRenderBlock_(block, template, brand);
-  }).join('');
-  var rootCtaHtml = normalizedPayload.cta ? coreMailRendererRenderCta_(normalizedPayload.cta, template, brand) : '';
+  var htmlBody = '';
 
-  var htmlBody = ''
-    + coreMailRendererRenderHiddenPreview_(normalizedPayload.preheader)
-    + '<div style="margin:0;padding:24px;background:' + brand.background + ';">'
-    + '  <div style="max-width:700px;margin:0 auto;">'
-    + '    <div style="background:' + brand.cardBackground + ';border:2px solid ' + template.accent + ';border-radius:18px;overflow:hidden;box-shadow:0 10px 30px ' + brand.shadowColor + ';">'
-    +         coreMailRendererRenderHeader_(subjectHuman, normalizedPayload, template, brand)
-    + '      <div style="padding:0 28px 0 28px;">'
-    +            blocksHtml
-    +            rootCtaHtml
-    + '      </div>'
-    +         coreMailRendererRenderFooter_(normalizedPayload, template)
-    + '    </div>'
-    + '  </div>'
-    + '</div>';
+  if (template.templateKey === 'GEAPA_CLASSICO') {
+    htmlBody = coreMailRendererRenderClassicTemplate_(subjectHuman, normalizedPayload, template, brand);
+  } else {
+    var blocksHtml = normalizedPayload.blocks.map(function(block) {
+      return coreMailRendererRenderBlock_(block, template, brand);
+    }).join('');
+    var rootCtaHtml = normalizedPayload.cta ? coreMailRendererRenderCta_(normalizedPayload.cta, template, brand) : '';
+
+    htmlBody = ''
+      + coreMailRendererRenderHiddenPreview_(normalizedPayload.preheader)
+      + '<div style="margin:0;padding:24px;background:' + brand.background + ';">'
+      + '  <div style="max-width:700px;margin:0 auto;">'
+      + '    <div style="background:' + brand.cardBackground + ';border:2px solid ' + template.accent + ';border-radius:18px;overflow:hidden;box-shadow:0 10px 30px ' + brand.shadowColor + ';">'
+      +         coreMailRendererRenderHeader_(subjectHuman, normalizedPayload, template, brand)
+      + '      <div style="padding:0 28px 0 28px;">'
+      +            blocksHtml
+      +            rootCtaHtml
+      + '      </div>'
+      +         coreMailRendererRenderFooter_(normalizedPayload, template)
+      + '    </div>'
+      + '  </div>'
+      + '</div>';
+  }
 
   return Object.freeze({
     templateKey: template.templateKey,

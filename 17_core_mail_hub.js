@@ -677,7 +677,8 @@ function coreMailHubNormalizeTemplateKey_(value) {
   if (
     normalized === 'GEAPA_COMEMORATIVO' ||
     normalized === 'GEAPA_OPERACIONAL' ||
-    normalized === 'GEAPA_CONVITE'
+    normalized === 'GEAPA_CONVITE' ||
+    normalized === 'GEAPA_CLASSICO'
   ) {
     return normalized;
   }
@@ -1842,6 +1843,11 @@ function coreMailHubBuildEventRecord_(row, ctx, rowNumber) {
     subject: String(coreMailHubGetRowValue_(row, ctx, 'Assunto', '') || '').trim(),
     fromEmail: String(coreMailHubGetRowValue_(row, ctx, 'Email Remetente', '') || '').trim(),
     fromName: String(coreMailHubGetRowValue_(row, ctx, 'Nome Remetente', '') || '').trim(),
+    to: String(coreMailHubGetRowValue_(row, ctx, 'Emails Destinatarios', '') || '').trim(),
+    cc: String(coreMailHubGetRowValue_(row, ctx, 'Emails Cc', '') || '').trim(),
+    bcc: String(coreMailHubGetRowValue_(row, ctx, 'Emails Cco', '') || '').trim(),
+    snippet: String(coreMailHubGetRowValue_(row, ctx, 'Trecho Corpo', '') || '').trim(),
+    plainBody: String(coreMailHubGetRowValue_(row, ctx, 'Corpo Texto', '') || '').trim(),
     processingStatus: coreMailHubNormalizeFlag_(coreMailHubGetRowValue_(row, ctx, 'Status Processamento', '')),
     routingStatus: coreMailHubNormalizeFlag_(coreMailHubGetRowValue_(row, ctx, 'Status Roteamento', '')),
     receivedAt: coreMailHubGetRowValue_(row, ctx, 'Data Hora Evento', ''),
@@ -1851,6 +1857,8 @@ function coreMailHubBuildEventRecord_(row, ctx, rowNumber) {
     attachmentCount: Number(coreMailHubGetRowValue_(row, ctx, 'Quantidade Anexos', 0) || 0),
     processedBy: String(coreMailHubGetRowValue_(row, ctx, 'Processado Por', '') || '').trim(),
     processedAt: coreMailHubGetRowValue_(row, ctx, 'Data Hora Processamento', ''),
+    observations: String(coreMailHubGetRowValue_(row, ctx, 'Observacoes', '') || '').trim(),
+    rawJson: String(coreMailHubGetRowValue_(row, ctx, 'Json Bruto', '') || '').trim(),
     rowNumber: rowNumber
   };
 }

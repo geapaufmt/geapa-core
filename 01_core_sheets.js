@@ -251,6 +251,125 @@ function core_getCol_(headerMap, headerName) {
   return idx >= 0 ? idx : 0;
 }
 
+function core_freezeHeaderRow_(sheet, headerRow) {
+  core_assertRequired_(sheet, 'Sheet');
+  var row = Math.max(1, Number(headerRow || 1));
+  sheet.setFrozenRows(row);
+  return row;
+}
+
+function core_ensureFilter_(sheet, headerRow, opts) {
+  core_assertRequired_(sheet, 'Sheet');
+  var row = Math.max(1, Number(headerRow || 1));
+  var lastColumn = Math.max(sheet.getLastColumn(), 1);
+  var lastRow = Math.max(sheet.getLastRow(), row + 1);
+  var existingFilter = sheet.getFilter();
+
+  if (existingFilter && !(opts && opts.recreate === true)) {
+    return {
+      created: false,
+      rowCount: lastRow - row + 1,
+      columnCount: lastColumn
+    };
+  }
+
+  if (existingFilter) {
+    existingFilter.remove();
+  }
+
+  sheet.getRange(row, 1, lastRow - row + 1, lastColumn).createFilter();
+  return {
+    created: true,
+    rowCount: lastRow - row + 1,
+    columnCount: lastColumn
+  };
+}
+
+function core_applyHeaderNotes_(sheet, notesByHeader, headerRow) {
+  core_assertRequired_(sheet, 'Sheet');
+  var row = Math.max(1, Number(headerRow || 1));
+  var lastColumn = Math.max(sheet.getLastColumn(), 1);
+  var headerValues = sheet.getRange(row, 1, 1, lastColumn).getValues()[0];
+  var noteRow = [];
+
+  for (var i = 0; i < headerValues.length; i++) {
+    var header = String(headerValues[i] || '').trim();
+    noteRow.push(header ? String((notesByHeader || {})[header] || '') : '');
+  }
+
+  sheet.getRange(row, 1, 1, lastColumn).setNotes([noteRow]);
+  return headerValues.length;
+}
+
+function core_applyHeaderColors_(sheet, groups, headerRow, opts) {
+  core_assertRequired_(sheet, 'Sheet');
+  var row = Math.max(1, Number(headerRow || 1));
+  var lastColumn = Math.max(sheet.getLastColumn(), 1);
+  var range = sheet.getRange(row, 1, 1, lastColumn);
+  var headerValues = range.getValues()[0];
+  var backgrounds = [];
+  var defaultColor = opts && opts.defaultColor ? String(opts.defaultColor) : '#f3f3f3';
+  var fontColor = opts && opts.fontColor ? String(opts.fontColor) : '#202124';
+  var fontWeight = opts && opts.fontWeight ? String(opts.fontWeight) : 'bold';
+  var wrap = !(opts && opts.wrap === false);
+
+  for (var i = 0; i < headerValues.length; i++) {
+    backgrounds.push(core_findHeaderGroupColor_(String(headerValues[i] || '').trim(), groups, defaultColor));
+  }
+
+  range.setBackgrounds([backgrounds]).setFontColor(fontColor).setFontWeight(fontWeight);
+  if (wrap) {
+    range.setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  }
+
+  return backgrounds.length;
+}
+
+function core_findHeaderGroupColor_(header, groups, defaultColor) {
+  var colorGroups = Array.isArray(groups) ? groups : [];
+  for (var i = 0; i < colorGroups.length; i++) {
+    var group = colorGroups[i] || {};
+    if (Array.isArray(group.headers) && group.headers.indexOf(header) >= 0) {
+      return String(group.color || defaultColor || '#f3f3f3');
+    }
+  }
+  return defaultColor || '#f3f3f3';
+}
+
+function core_applyDropdownValidationByHeader_(sheet, rulesByHeader, headerRow, opts) {
+  core_assertRequired_(sheet, 'Sheet');
+  var row = Math.max(1, Number(headerRow || 1));
+  var headerMap = core_headerMap_(sheet, row);
+  var lastRow = Math.max(sheet.getMaxRows(), row + 1);
+  var ruleHeaders = Object.keys(rulesByHeader || {});
+  var applied = 0;
+
+  for (var i = 0; i < ruleHeaders.length; i++) {
+    var header = ruleHeaders[i];
+    var col = core_getCol_(headerMap, header);
+    if (!col) continue;
+
+    var rule = rulesByHeader[header] || {};
+    var values = Array.isArray(rule.values) ? rule.values.filter(function(item) {
+      return String(item || '').trim() !== '';
+    }) : [];
+    if (!values.length) continue;
+
+    var builder = SpreadsheetApp.newDataValidation()
+      .requireValueInList(values, true)
+      .setAllowInvalid(rule.allowInvalid !== false);
+
+    if (rule.helpText) {
+      builder.setHelpText(String(rule.helpText));
+    }
+
+    sheet.getRange(row + 1, col, Math.max(lastRow - row, 1), 1).setDataValidation(builder.build());
+    applied++;
+  }
+
+  return applied;
+}
+
 /**
  * ------------------------------------------------------------
  * Normaliza texto de cabecalho para comparacao robusta.

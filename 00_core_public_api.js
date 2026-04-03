@@ -67,6 +67,11 @@ const GEAPA_CORE = Object.freeze({
     findHeaderIndex: core_findHeaderIndex_,
     setRowValueByHeader: core_setRowValueByHeader_,
     writeCellByHeader: core_writeCellByHeader_,
+    freezeHeaderRow: core_freezeHeaderRow_,
+    ensureFilter: core_ensureFilter_,
+    applyHeaderNotes: core_applyHeaderNotes_,
+    applyHeaderColors: core_applyHeaderColors_,
+    applyDropdownValidationByHeader: core_applyDropdownValidationByHeader_,
   }),
 
   records: Object.freeze({

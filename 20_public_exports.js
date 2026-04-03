@@ -117,6 +117,26 @@ function coreWriteCellByHeader(sheet, rowNumber, headerMap, headerName, value, o
   return core_writeCellByHeader_(sheet, rowNumber, headerMap, headerName, value, opts || {});
 }
 
+function coreFreezeHeaderRow(sheet, headerRow) {
+  return core_freezeHeaderRow_(sheet, headerRow || 1);
+}
+
+function coreEnsureFilter(sheet, headerRow, opts) {
+  return core_ensureFilter_(sheet, headerRow || 1, opts || {});
+}
+
+function coreApplyHeaderNotes(sheet, notesByHeader, headerRow) {
+  return core_applyHeaderNotes_(sheet, notesByHeader || {}, headerRow || 1);
+}
+
+function coreApplyHeaderColors(sheet, groups, headerRow, opts) {
+  return core_applyHeaderColors_(sheet, groups || [], headerRow || 1, opts || {});
+}
+
+function coreApplyDropdownValidationByHeader(sheet, rulesByHeader, headerRow, opts) {
+  return core_applyDropdownValidationByHeader_(sheet, rulesByHeader || {}, headerRow || 1, opts || {});
+}
+
 /* ============================================================
  * DATES
  * ============================================================ */

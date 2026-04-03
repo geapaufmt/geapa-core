@@ -13,13 +13,17 @@ const CORE_ROLE_PROJECTION_VIGENCIA_KEYS = Object.freeze({
 });
 
 const CORE_ROLE_PROJECTION_HEADERS = Object.freeze({
-  memberName: 'MEMBRO',
-  memberNameAlt: 'Nome',
-  email: 'EMAIL',
-  emailAlt: 'E-mail',
-  rga: 'RGA',
-  currentRole: 'Cargo/função atual',
-  status: 'Status'
+  memberName: Object.freeze(['MEMBRO', 'Membro', 'NOME_MEMBRO', 'Nome']),
+  email: Object.freeze(['EMAIL', 'E-mail', 'Email']),
+  rga: Object.freeze(['RGA']),
+  phone: Object.freeze(['TELEFONE', 'Telefone']),
+  currentRole: Object.freeze(['Cargo/fun\u00E7\u00E3o atual', 'Cargo/funcao atual', 'CARGO_FUNCAO_ATUAL']),
+  status: Object.freeze(['Status', 'STATUS_CADASTRAL']),
+  integratedAt: Object.freeze(['Data integra\u00E7\u00E3o', 'Data integracao', 'DATA_INTEGRACAO']),
+  entrySemester: Object.freeze(['Semestre de Entrada', 'Semestre de entrada', 'SEMESTRE_ENTRADA']),
+  currentSemester: Object.freeze(['Semestre atual', 'SEMESTRE_ATUAL']),
+  groupSemesters: Object.freeze(['N\u00B0 de semestres no grupo', 'N\u00BA de semestres no grupo', 'NÂ° de semestres no grupo', 'NÂº de semestres no grupo', 'QTD_SEMESTRES_NO_GRUPO']),
+  effectiveGroupTime: Object.freeze(['TEMPO_EFETIVO_NO_GRUPO'])
 });
 
 function core_roleProjectionNormalizeKey_(value) {
@@ -48,6 +52,40 @@ function core_roleProjectionParseDate_(value) {
   if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value)) return value;
   var d = new Date(value);
   return isNaN(d) ? null : d;
+}
+
+function core_getCivilGroupTimeFromIntegrationDate_(integrationDate, refDate) {
+  var start = core_parseDateOrNull_(integrationDate);
+  var end = core_parseDateOrNull_(refDate) || new Date();
+
+  if (!start || !end) return null;
+
+  var totalMonths =
+    (end.getFullYear() - start.getFullYear()) * 12 +
+    (end.getMonth() - start.getMonth());
+
+  if (end.getDate() < start.getDate()) {
+    totalMonths -= 1;
+  }
+
+  if (totalMonths < 0) totalMonths = 0;
+
+  return Object.freeze({
+    totalMonths: totalMonths,
+    years: Math.floor(totalMonths / 12),
+    months: totalMonths % 12
+  });
+}
+
+function core_formatCivilGroupTime_(civilTime) {
+  if (!civilTime) return '';
+
+  var years = Number(civilTime.years || 0);
+  var months = Number(civilTime.months || 0);
+  var yearsLabel = years === 1 ? 'ano' : 'anos';
+  var monthsLabel = months === 1 ? 'mês' : 'meses';
+
+  return years + ' ' + yearsLabel + ' e ' + months + ' ' + monthsLabel;
 }
 
 function core_roleProjectionIsAssignmentActive_(startValue, endValue, refDate) {
@@ -274,15 +312,15 @@ function core_findCurrentMemberContactByIdentity_(person) {
   var headerMap = core_headerMap_(sh, 1);
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
-  var idxName = core_getCol_(headerMap, 'MEMBRO') || core_getCol_(headerMap, 'Nome');
-  var idxRga = core_getCol_(headerMap, 'RGA');
-  var idxEmail = core_getCol_(headerMap, 'EMAIL') || core_getCol_(headerMap, 'E-mail');
-  var idxPhone = core_getCol_(headerMap, 'TELEFONE') || core_getCol_(headerMap, 'Telefone');
+  var idxName = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.memberName);
+  var idxRga = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.rga);
+  var idxEmail = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.email);
+  var idxPhone = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.phone);
 
-  idxName = idxName ? idxName - 1 : -1;
-  idxRga = idxRga ? idxRga - 1 : -1;
-  idxEmail = idxEmail ? idxEmail - 1 : -1;
-  idxPhone = idxPhone ? idxPhone - 1 : -1;
+  idxName = idxName >= 0 ? idxName : -1;
+  idxRga = idxRga >= 0 ? idxRga : -1;
+  idxEmail = idxEmail >= 0 ? idxEmail : -1;
+  idxPhone = idxPhone >= 0 ? idxPhone : -1;
 
   var targetRga = core_roleProjectionNormalizeKey_(person.rga || '');
   var targetEmail = core_roleProjectionNormalizeKey_(person.email || '');
@@ -376,23 +414,11 @@ function core_syncMembersCurrentInstitutionalRoles_(refDate) {
   var headerMap = core_headerMap_(sh, 1);
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
-  var idxName = core_roleProjectionGuessColumnIndex_(headerMap, [
-    CORE_ROLE_PROJECTION_HEADERS.memberName,
-    CORE_ROLE_PROJECTION_HEADERS.memberNameAlt
-  ]);
-  var idxEmail = core_roleProjectionGuessColumnIndex_(headerMap, [
-    CORE_ROLE_PROJECTION_HEADERS.email,
-    CORE_ROLE_PROJECTION_HEADERS.emailAlt
-  ]);
-  var idxRga = core_roleProjectionGuessColumnIndex_(headerMap, [
-    CORE_ROLE_PROJECTION_HEADERS.rga
-  ]);
-  var idxCurrentRole = core_roleProjectionGuessColumnIndex_(headerMap, [
-    CORE_ROLE_PROJECTION_HEADERS.currentRole
-  ]);
-  var idxStatus = core_roleProjectionGuessColumnIndex_(headerMap, [
-    CORE_ROLE_PROJECTION_HEADERS.status
-  ]);
+  var idxName = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.memberName);
+  var idxEmail = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.email);
+  var idxRga = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.rga);
+  var idxCurrentRole = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.currentRole);
+  var idxStatus = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.status);
 
   if (idxCurrentRole < 0) {
     throw new Error('Cabeçalho "Cargo/função atual" não encontrado em MEMBERS_ATUAIS.');
@@ -453,18 +479,28 @@ function core_syncMembersCurrentDerivedFields_(refDate) {
     };
   }
 
-  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || '').trim());
-  const normalized = headers.map(core_normalizeGovernanceText_);
+  const headerMap = core_headerMap_(sh, 1);
+  const rgaCol = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.rga);
+  const entryCol = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.entrySemester);
+  const currentSemesterCol = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.currentSemester);
+  const groupSemestersCol = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.groupSemesters);
+  const integratedAtCol = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.integratedAt);
+  const effectiveGroupTimeCol = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.effectiveGroupTime);
 
-  const rgaIdx = normalized.indexOf('rga');
-  const entryIdx = normalized.indexOf('semestre de entrada');
-  const currentSemesterIdx = normalized.indexOf('semestre atual');
-  const groupSemestersIdx = normalized.indexOf('n° de semestres no grupo');
+  if (rgaCol < 0) throw new Error('core_syncMembersCurrentDerivedFields_: cabecalho "RGA" nao encontrado em MEMBERS_ATUAIS.');
+  if (entryCol < 0) throw new Error('core_syncMembersCurrentDerivedFields_: cabecalho "Semestre de Entrada" nao encontrado em MEMBERS_ATUAIS.');
+  if (currentSemesterCol < 0) throw new Error('core_syncMembersCurrentDerivedFields_: cabecalho "Semestre atual" nao encontrado em MEMBERS_ATUAIS.');
+  if (groupSemestersCol < 0) throw new Error('core_syncMembersCurrentDerivedFields_: cabecalho "QTD_SEMESTRES_NO_GRUPO" nao encontrado em MEMBERS_ATUAIS.');
+  if (effectiveGroupTimeCol >= 0 && integratedAtCol < 0) {
+    throw new Error('core_syncMembersCurrentDerivedFields_: cabecalho "DATA_INTEGRACAO" nao encontrado em MEMBERS_ATUAIS.');
+  }
 
-  if (rgaIdx === -1) throw new Error('core_syncMembersCurrentDerivedFields_: cabeçalho "RGA" não encontrado em MEMBERS_ATUAIS.');
-  if (entryIdx === -1) throw new Error('core_syncMembersCurrentDerivedFields_: cabeçalho "Semestre de Entrada" não encontrado em MEMBERS_ATUAIS.');
-  if (currentSemesterIdx === -1) throw new Error('core_syncMembersCurrentDerivedFields_: cabeçalho "Semestre atual" não encontrado em MEMBERS_ATUAIS.');
-  if (groupSemestersIdx === -1) throw new Error('core_syncMembersCurrentDerivedFields_: cabeçalho "N° de semestres no grupo" não encontrado em MEMBERS_ATUAIS.');
+  const rgaIdx = rgaCol;
+  const entryIdx = entryCol;
+  const currentSemesterIdx = currentSemesterCol;
+  const groupSemestersIdx = groupSemestersCol;
+  const integratedAtIdx = integratedAtCol >= 0 ? integratedAtCol : -1;
+  const effectiveGroupTimeIdx = effectiveGroupTimeCol >= 0 ? effectiveGroupTimeCol : -1;
 
   const values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
   let changedCells = 0;
@@ -476,14 +512,17 @@ function core_syncMembersCurrentDerivedFields_(refDate) {
 
     const rga = String(row[rgaIdx] || '').trim();
     const entrySemester = String(row[entryIdx] || '').trim();
+    const integratedAt = integratedAtIdx >= 0 ? row[integratedAtIdx] : null;
 
     const currentSemester = rga ? core_getStudentCurrentSemesterFromRga_(rga, refDate) : null;
     const completedGroupSemesterCount = entrySemester
       ? core_getCompletedGroupSemesterCountFromEntrySemester_(entrySemester, refDate)
       : null;
+    const civilGroupTime = integratedAt ? core_getCivilGroupTimeFromIntegrationDate_(integratedAt, refDate) : null;
 
-    const currentSemesterDisplay = currentSemester != null ? `${currentSemester}º semestre` : '';
+    const currentSemesterDisplay = currentSemester != null ? currentSemester + 'º semestre' : '';
     const groupSemesterDisplay = completedGroupSemesterCount != null ? completedGroupSemesterCount : '0';
+    const civilGroupTimeDisplay = integratedAt ? core_formatCivilGroupTime_(civilGroupTime) : '';
 
     if (String(row[currentSemesterIdx] || '').trim() !== String(currentSemesterDisplay).trim()) {
       row[currentSemesterIdx] = currentSemesterDisplay;
@@ -493,6 +532,15 @@ function core_syncMembersCurrentDerivedFields_(refDate) {
 
     if (String(row[groupSemestersIdx] || '').trim() !== String(groupSemesterDisplay).trim()) {
       row[groupSemestersIdx] = groupSemesterDisplay;
+      changedCells++;
+      rowChanged = true;
+    }
+
+    if (
+      effectiveGroupTimeIdx >= 0 &&
+      String(row[effectiveGroupTimeIdx] || '').trim() !== String(civilGroupTimeDisplay).trim()
+    ) {
+      row[effectiveGroupTimeIdx] = civilGroupTimeDisplay;
       changedCells++;
       rowChanged = true;
     }
