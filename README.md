@@ -46,12 +46,19 @@ Funcoes centrais:
 - `coreGetCellByHeader(row, headerMap, headerName, opts)`
 - `coreSetRowValueByHeader(row, headerMap, headerName, value, opts)`
 - `coreWriteCellByHeader(sheet, rowNumber, headerMap, headerName, value, opts)`
+- `coreFreezeHeaderRow(sheet, headerRow)`
+- `coreEnsureFilter(sheet, headerRow, opts)`
+- `coreApplyHeaderNotes(sheet, notesByHeader, headerRow)`
+- `coreApplyHeaderColors(sheet, groups, headerRow, opts)`
+- `coreApplyDropdownValidationByHeader(sheet, rulesByHeader, headerRow, opts)`
 - `coreAppendObjectByHeaders(sheet, payload, opts)`
 - `coreReadSheetRecords(sheet, opts)`
 - `coreReadRecordsByKey(key, opts)`
 - `coreFindFirstRecordByField(records, headerName, value, opts)`
 - `coreFindFirstRecordByAnyField(records, headerNames, value, opts)`
 - `coreGetNearestFilledValueUp(sheet, rowNumber, colNumber)`
+
+Esses helpers tambem passam a sustentar a UX reaplicavel de planilhas dos modulos, como notas operacionais, filtros e listas suspensas por cabecalho.
 
 ### Datas e semestre
 
@@ -112,6 +119,7 @@ Variantes disponiveis:
 - `GEAPA_COMEMORATIVO`
 - `GEAPA_OPERACIONAL`
 - `GEAPA_CONVITE`
+- `GEAPA_CLASSICO`
 
 Funcoes publicas:
 
@@ -145,6 +153,7 @@ Observacao:
 - o slogan exibido no rodape nao e fixo: ele e buscado da coluna `Slogan` da diretoria vigente em `VIGENCIA_DIRETORIAS`, com fallback seguro quando estiver vazio.
 - a identidade oficial do grupo usada no renderer passa a ser lida de `DADOS_OFICIAIS_GEAPA`, incluindo nome oficial, sigla, e-mail oficial e cores institucionais;
 - nesta etapa, `LOGO_OFICIAL` fica reservado para evolucao posterior; o renderer continua usando a imagem institucional padrao ja servida pelo core.
+- `GEAPA_CLASSICO` preserva a linguagem mais simples do template historico de aniversarios: card unico, borda verde, lista linear de itens e rodape mais leve.
 
 ### Mail Hub (V1)
 
@@ -374,6 +383,7 @@ Funcoes principais:
 Uso atual:
 
 - trigger temporal diario para sincronizar campos derivados em `MEMBERS_ATUAIS`.
+- entre os derivados sincronizados, o core atualiza o semestre atual, o numero de semestres no grupo e, quando a coluna existir, `TEMPO_EFETIVO_NO_GRUPO` com base em `Data integração`.
 
 ---
 

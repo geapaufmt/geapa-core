@@ -33,7 +33,7 @@ const CORE_GOVERNANCE_CFG = Object.freeze({
 
   boardMemberHeaders: Object.freeze({
     name: "Nome",
-    rga: "RGA",
+    rga: Object.freeze(["RGA"]),
     role: "Cargo/Função",
     boardId: "ID_Diretoria",
     start: "Data_Início",
@@ -42,11 +42,11 @@ const CORE_GOVERNANCE_CFG = Object.freeze({
   }),
 
   membersHeaders: Object.freeze({
-    name: "MEMBRO",
-    rga: "RGA",
-    phone: "TELEFONE",
-    email: "EMAIL",
-    currentRole: "Cargo/função atual"
+    name: Object.freeze(["MEMBRO", "Membro", "NOME_MEMBRO", "Nome"]),
+    rga: Object.freeze(["RGA"]),
+    phone: Object.freeze(["TELEFONE", "Telefone"]),
+    email: Object.freeze(["EMAIL", "Email", "E-mail"]),
+    currentRole: Object.freeze(["Cargo/fun\u00E7\u00E3o atual", "Cargo/funcao atual", "CARGO_FUNCAO_ATUAL"])
   })
 });
 
@@ -78,12 +78,23 @@ function core_isDateInRange_(targetDate, startDate, endDate) {
   return true;
 }
 
+function core_findGovernanceHeaderIndex_(normalizedHeaders, aliases) {
+  const names = Array.isArray(aliases) ? aliases : [aliases];
+
+  for (let i = 0; i < names.length; i++) {
+    const idx = normalizedHeaders.indexOf(core_normalizeGovernanceText_(names[i]));
+    if (idx !== -1) return idx;
+  }
+
+  return -1;
+}
+
 function core_getHeaderIndexMap_(headers, wantedMap) {
   const normalized = headers.map(core_normalizeGovernanceText_);
   const out = {};
 
   Object.keys(wantedMap).forEach(key => {
-    out[key] = normalized.indexOf(core_normalizeGovernanceText_(wantedMap[key]));
+    out[key] = core_findGovernanceHeaderIndex_(normalized, wantedMap[key]);
   });
 
   return out;

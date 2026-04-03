@@ -92,6 +92,16 @@ function test_sync_all_derived_fields() {
   Logger.log(JSON.stringify(core_syncMembersCurrentDerivedFields_(), null, 2));
 }
 
+function test_core_civil_group_time_from_integration_date() {
+  Logger.log(JSON.stringify({
+    sameMonth: core_getCivilGroupTimeFromIntegrationDate_(new Date(2026, 2, 15), new Date(2026, 3, 1)),
+    oneYearTwoMonths: core_getCivilGroupTimeFromIntegrationDate_(new Date(2025, 0, 15), new Date(2026, 2, 20)),
+    formatted: core_formatCivilGroupTime_(
+      core_getCivilGroupTimeFromIntegrationDate_(new Date(2024, 0, 10), new Date(2026, 3, 1))
+    )
+  }, null, 2));
+}
+
 function test_core_mailHub_assertSchema() {
   Logger.log(JSON.stringify(coreMailHubAssertSchema_(), null, 2));
 }
@@ -261,6 +271,26 @@ function test_core_mailRenderer_render_convite() {
         label: 'Confirmar presenca',
         url: 'https://example.com/confirmacao'
       }
+    }
+  ), null, 2));
+}
+
+function test_core_mailRenderer_render_classico() {
+  Logger.log(JSON.stringify(coreMailRenderEmailTemplate_(
+    'GEAPA_CLASSICO',
+    'Feliz aniversario, Luis!',
+    {
+      subtitle: '02/04/2026',
+      introText: 'O GEAPA deseja um dia especial, com saude, alegria e muitas realizacoes.',
+      blocks: [
+        {
+          items: [
+            { line1: 'Luis Putton', line2: 'Membro do GEAPA' },
+            { line1: '@luisputton', line2: 'Instagram' }
+          ]
+        }
+      ],
+      footerNote: 'Mensagem institucional automatica do GEAPA.'
     }
   ), null, 2));
 }

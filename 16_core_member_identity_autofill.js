@@ -39,10 +39,10 @@ function core_memberIdentityResolveIndexes_(headers) {
 
   return {
     headerMap: headerMap,
-    idxName: pick(['MEMBRO', 'Nome']),
+    idxName: pick(['MEMBRO', 'Membro', 'NOME_MEMBRO', 'Nome']),
     idxRga: pick(['RGA']),
-    idxEmail: pick(['EMAIL', 'E-mail']),
-    idxStatus: pick(['Status'])
+    idxEmail: pick(['EMAIL', 'E-mail', 'Email']),
+    idxStatus: pick(['Status', 'STATUS_CADASTRAL'])
   };
 }
 
