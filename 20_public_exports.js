@@ -323,6 +323,10 @@ function coreMailCleanupNoiseEvents() {
   return coreMailCleanupNoiseEvents_();
 }
 
+function coreMailApplyOperationalSheetUx(opts) {
+  return coreMailApplyOperationalSheetUx_(opts || {});
+}
+
 /* ============================================================
  * LOGS
  * ============================================================ */

@@ -179,6 +179,10 @@ function test_core_mailHub_cleanupNoiseEvents() {
   Logger.log(JSON.stringify(coreMailCleanupNoiseEvents_(), null, 2));
 }
 
+function test_core_mailHub_applyOperationalSheetUx() {
+  Logger.log(JSON.stringify(coreMailApplyOperationalSheetUx_(), null, 2));
+}
+
 function test_core_mailHub_extractCorrelationKey() {
   Logger.log(coreMailExtractCorrelationKey_('[GEAPA][MEM-2026-001] Assunto de teste'));
 }
