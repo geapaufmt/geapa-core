@@ -192,6 +192,7 @@ Funcoes publicas:
 - `coreMailMarkLatestPendingByModule(moduleName, processorName)`
 - `coreMailMarkEventProcessed(eventId, processorName)`
 - `coreMailCleanupNoiseEvents()`
+- `coreMailApplyOperationalSheetUx(opts)`
 
 Arquitetura de adapters:
 
@@ -225,8 +226,12 @@ Higiene de ingestao e consistencia semantica:
 - o hub le `MAIL_CONFIG` por chave e aplica regras de ingestao sem hardcode operacional;
 - remetentes, dominios e assuntos tecnicos podem ser ignorados antes do registro;
 - se `USAR_SOMENTE_ASSUNTOS_GEAPA = SIM`, o assunto precisa respeitar `ASSUNTO_PREFIXO_OBRIGATORIO`;
+- replies com prefixos como `Re:` e `Fwd:` continuam aceitos quando o assunto base respeita o prefixo institucional;
+- se o assunto ja trouxer uma `correlationKey` valida como `[GEAPA][CHAVE]`, a ingestao nao trata a mensagem como ruido por causa do prefixo;
 - ruido tecnico de GitHub, Codex e alertas similares e preferencialmente descartado;
 - se `MARCAR_RUIDO_COMO_IGNORADO = SIM`, o ruido passa a ser registrado com `Status Roteamento = IGNORADO` e `Status Processamento = IGNORADO`;
+- anexos inline de replies, como logos citados pelo proprio Gmail, passam a ser ignorados na contagem de anexos recebidos;
+- `coreMailApplyOperationalSheetUx(opts)` reaplica a UX operacional das abas centrais de e-mail, com notas nos cabecalhos, cores por grupo de coluna, filtros, congelamento da linha 1, validacoes por lista quando a aba permitir e visualizacao compacta nas colunas de texto longo;
 - o indice e recomposto por resumo da chave de correlacao, preenchendo entidade, etapa, contadores e flags pendentes.
 
 Schema minimo esperado na versao atual da planilha central:
@@ -290,6 +295,7 @@ Testes manuais no projeto:
 - `test_core_mailHub_markLatestPending_membros_processed()`
 - `test_core_mailHub_markLatestPending_naoIdentificado_processed()`
 - `test_core_mailHub_cleanupNoiseEvents()`
+- `test_core_mailHub_applyOperationalSheetUx()`
 
 Sugestoes de melhoria na planilha:
 

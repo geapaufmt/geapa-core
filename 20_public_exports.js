@@ -323,6 +323,10 @@ function coreMailCleanupNoiseEvents() {
   return coreMailCleanupNoiseEvents_();
 }
 
+function coreMailApplyOperationalSheetUx(opts) {
+  return coreMailApplyOperationalSheetUx_(opts || {});
+}
+
 /* ============================================================
  * LOGS
  * ============================================================ */
@@ -377,6 +381,18 @@ function coreDriveMoveFileToFolder(fileId, folderId) {
 
 function coreDriveListFiles(folderId, max) {
   return core_driveListFiles_(folderId, max || 200);
+}
+
+function coreAppendMemberLifecycleEvent(payload) {
+  return core_appendMemberLifecycleEvent_(payload || {});
+}
+
+function coreListMemberLifecycleEvents(filters, opts) {
+  return core_memberLifecycleListEvents_(filters || {}, opts || {});
+}
+
+function coreGetLatestMemberLifecycleEventByRga(rga, opts) {
+  return core_memberLifecycleGetLatestEventByRga_(rga, opts || {});
 }
 
 /* ============================================================

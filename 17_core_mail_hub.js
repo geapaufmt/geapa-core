@@ -42,6 +42,262 @@ var CORE_MAIL_HUB_DEFAULTS = Object.freeze({
   start: 0
 });
 
+var CORE_MAIL_HUB_UX = Object.freeze({
+  defaultDataRowHeight: 28,
+  cacheKey: 'CORE_MAIL_HUB_OPERATIONAL_SHEET_UX_V2',
+  cacheTtlSeconds: 21600,
+  colors: Object.freeze({
+    identity: '#d9ead3',
+    routing: '#fff2cc',
+    body: '#fce5cd',
+    status: '#ead1dc',
+    operational: '#d0e0e3',
+    neutralText: '#202124'
+  }),
+  sheetRules: Object.freeze({
+    MAIL_EVENTOS: Object.freeze({
+      notes: Object.freeze({
+        'Id Evento': 'Identificador unico do evento registrado no Mail Hub. Ex.: MEV-19d53c96101e99bd.',
+        'Data Hora Evento': 'Data e hora do evento no Gmail ou na fila central.',
+        'Direcao': 'Direcao da mensagem no ecossistema. Valores usuais: ENTRADA ou SAIDA.',
+        'Tipo Evento': 'Tipo tecnico do evento. Ex.: EMAIL_RECEBIDO ou EMAIL_ENVIADO.',
+        'Modulo Dono': 'Modulo de negocio responsavel pela conversa. Ex.: MEMBROS.',
+        'Tipo Entidade': 'Tipo da entidade de negocio associada. Ex.: MEMBRO.',
+        'Id Entidade': 'Identificador da entidade relacionada. Ex.: RGA ou ID interno.',
+        'Chave de Correlacao': 'Chave tecnica usada para ligar eventos, indice e assunto final. Ex.: MEM-2026-202311801013-CNV-CAND.',
+        'Etapa Fluxo': 'Etapa funcional da conversa quando conhecida. Ex.: CAND.',
+        'Id Thread Gmail': 'ID da thread do Gmail associada ao evento.',
+        'Id Mensagem Gmail': 'ID unico da mensagem no Gmail.',
+        'Id Mensagem Pai': 'ID da mensagem anterior, quando o fluxo conseguir inferir essa relacao.',
+        'Assunto': 'Assunto registrado no evento. Em saidas, ja vem com [GEAPA][CHAVE].',
+        'Email Remetente': 'Endereco principal de quem enviou a mensagem.',
+        'Nome Remetente': 'Nome legivel do remetente, quando disponivel.',
+        'Emails Destinatarios': 'Lista de destinatarios principais separados por virgula.',
+        'Emails Cc': 'Lista de emails em copia.',
+        'Emails Cco': 'Lista de emails em copia oculta.',
+        'Trecho Corpo': 'Trecho curto para leitura rapida no log. O conteudo completo pode estar em Corpo Texto.',
+        'Corpo Texto': 'Corpo textual completo salvo para auditoria. O valor continua inteiro mesmo quando a celula fica em modo compacto.',
+        'Possui Anexos': 'Indica se o evento registrou anexos relevantes. Valores usuais: SIM ou NAO.',
+        'Quantidade Anexos': 'Quantidade de anexos considerados no evento.',
+        'Nomes Anexos': 'Lista resumida dos nomes dos anexos associados ao evento.',
+        'Status Roteamento': 'Resultado do roteamento tecnico. Ex.: ROTEADO, NAO_IDENTIFICADO, IGNORADO ou ERRO.',
+        'Status Processamento': 'Estado do tratamento funcional do evento. Ex.: PENDENTE, PROCESSADO, IGNORADO ou ERRO.',
+        'Processado Por': 'Funcao ou modulo que marcou o evento como processado.',
+        'Data Hora Processamento': 'Momento em que o evento foi processado ou ignorado.',
+        'Observacoes': 'Campo tecnico para contexto adicional. Ex.: NOISE_REASON=ASSUNTO_TECNICO.',
+        'Json Bruto': 'Resumo serializado do contexto tecnico do evento para auditoria e debug.',
+        'Criado Em': 'Momento em que a linha foi criada na central.',
+        'Atualizado Em': 'Momento da ultima atualizacao da linha.'
+      }),
+      colorGroups: Object.freeze([
+        Object.freeze({ color: '#d9ead3', headers: ['Id Evento', 'Modulo Dono', 'Tipo Entidade', 'Id Entidade', 'Chave de Correlacao', 'Etapa Fluxo'] }),
+        Object.freeze({ color: '#d0e0e3', headers: ['Data Hora Evento', 'Id Thread Gmail', 'Id Mensagem Gmail', 'Id Mensagem Pai', 'Criado Em', 'Atualizado Em'] }),
+        Object.freeze({ color: '#fff2cc', headers: ['Direcao', 'Tipo Evento', 'Status Roteamento', 'Status Processamento', 'Processado Por', 'Data Hora Processamento'] }),
+        Object.freeze({ color: '#fce5cd', headers: ['Assunto', 'Email Remetente', 'Nome Remetente', 'Emails Destinatarios', 'Emails Cc', 'Emails Cco', 'Trecho Corpo', 'Corpo Texto', 'Observacoes', 'Json Bruto'] }),
+        Object.freeze({ color: '#ead1dc', headers: ['Possui Anexos', 'Quantidade Anexos', 'Nomes Anexos'] })
+      ]),
+      dropdownRules: Object.freeze({
+        'Direcao': Object.freeze({
+          values: Object.freeze(['ENTRADA', 'SAIDA']),
+          allowInvalid: true,
+          helpText: 'Use ENTRADA para mensagens recebidas e SAIDA para envios registrados.'
+        }),
+        'Tipo Evento': Object.freeze({
+          values: Object.freeze(['EMAIL_RECEBIDO', 'EMAIL_ENVIADO']),
+          allowInvalid: true,
+          helpText: 'Tipos principais de evento na central de e-mails.'
+        }),
+        'Possui Anexos': Object.freeze({
+          values: Object.freeze(['SIM', 'NAO']),
+          allowInvalid: true,
+          helpText: 'Indique se o evento possui anexos relevantes.'
+        }),
+        'Status Roteamento': Object.freeze({
+          values: Object.freeze(['PENDENTE', 'ROTEADO', 'NAO_IDENTIFICADO', 'IGNORADO', 'ERRO']),
+          allowInvalid: true,
+          helpText: 'Resultado do roteamento tecnico do evento.'
+        }),
+        'Status Processamento': Object.freeze({
+          values: Object.freeze(['PENDENTE', 'PROCESSADO', 'IGNORADO', 'ERRO']),
+          allowInvalid: true,
+          helpText: 'Estado do processamento funcional do evento.'
+        })
+      }),
+      clipHeaders: Object.freeze([
+        'Trecho Corpo',
+        'Corpo Texto',
+        'Json Bruto',
+        'Observacoes'
+      ]),
+      dataRowHeight: 28
+    }),
+    MAIL_INDICE: Object.freeze({
+      notes: Object.freeze({
+        'Chave de Correlacao': 'Chave tecnica que consolida a conversa inteira no indice.',
+        'Prefixo Correlacao': 'Prefixo ou familia da chave para agrupamentos operacionais. Ex.: MEM.',
+        'Modulo Dono': 'Modulo principal responsavel pela conversa.',
+        'Tipo Entidade': 'Tipo da entidade associada ao historico. Ex.: MEMBRO.',
+        'Id Entidade': 'Identificador da entidade resolvida para a conversa.',
+        'Etapa Atual': 'Etapa funcional mais recente inferida pelo Mail Hub.',
+        'Id Thread Gmail': 'Thread Gmail mais recente associada a esta correlacao.',
+        'Id Ultima Mensagem': 'Mensagem mais recente associada a esta correlacao.',
+        'Ultima Direcao': 'Direcao do ultimo evento da conversa. Ex.: ENTRADA ou SAIDA.',
+        'Ultimo Tipo Evento': 'Tipo do ultimo evento registrado.',
+        'Ultimo Email Remetente': 'Email remetente do ultimo evento da conversa.',
+        'Ultimo Assunto': 'Assunto mais recente conhecido para a conversacao.',
+        'Data Hora Ultimo Evento': 'Momento do evento mais recente desta chave.',
+        'Ha Entrada Pendente': 'Indica se ainda existe entrada aguardando tratamento. Valores usuais: SIM ou NAO.',
+        'Ha Anexo Pendente': 'Indica se ainda existe anexo pendente associado a essa chave.',
+        'Quantidade Eventos': 'Total de eventos registrados para a chave.',
+        'Quantidade Entradas': 'Quantidade de eventos de ENTRADA.',
+        'Quantidade Saidas': 'Quantidade de eventos de SAIDA.',
+        'Quantidade Anexos': 'Quantidade total de anexos associados a essa conversa.',
+        'Status Conversa': 'Resumo semantico da conversa. Ex.: PENDENTE, CONCLUIDA, IGNORADO ou ERRO.',
+        'Criado Em': 'Momento da primeira ocorrencia conhecida da chave.',
+        'Atualizado Em': 'Momento da ultima recomposicao do indice.'
+      }),
+      colorGroups: Object.freeze([
+        Object.freeze({ color: '#d9ead3', headers: ['Chave de Correlacao', 'Prefixo Correlacao', 'Modulo Dono', 'Tipo Entidade', 'Id Entidade', 'Etapa Atual'] }),
+        Object.freeze({ color: '#d0e0e3', headers: ['Id Thread Gmail', 'Id Ultima Mensagem', 'Ultima Direcao', 'Ultimo Tipo Evento', 'Ultimo Email Remetente', 'Ultimo Assunto', 'Data Hora Ultimo Evento'] }),
+        Object.freeze({ color: '#fff2cc', headers: ['Ha Entrada Pendente', 'Ha Anexo Pendente', 'Status Conversa'] }),
+        Object.freeze({ color: '#ead1dc', headers: ['Quantidade Eventos', 'Quantidade Entradas', 'Quantidade Saidas', 'Quantidade Anexos'] }),
+        Object.freeze({ color: '#fce5cd', headers: ['Criado Em', 'Atualizado Em'] })
+      ]),
+      dropdownRules: Object.freeze({
+        'Ha Entrada Pendente': Object.freeze({
+          values: Object.freeze(['SIM', 'NAO']),
+          allowInvalid: true,
+          helpText: 'Mostra se ainda existe mensagem de entrada pendente.'
+        }),
+        'Ha Anexo Pendente': Object.freeze({
+          values: Object.freeze(['SIM', 'NAO']),
+          allowInvalid: true,
+          helpText: 'Mostra se ainda existe anexo aguardando tratamento.'
+        }),
+        'Status Conversa': Object.freeze({
+          values: Object.freeze(['PENDENTE', 'CONCLUIDA', 'IGNORADO', 'ERRO']),
+          allowInvalid: true,
+          helpText: 'Resumo funcional da situacao da conversa.'
+        })
+      }),
+      clipHeaders: Object.freeze(['Ultimo Assunto']),
+      dataRowHeight: 28
+    }),
+    MAIL_ANEXOS: Object.freeze({
+      notes: Object.freeze({
+        'Id Anexo': 'Identificador unico do anexo registrado no Mail Hub.',
+        'Id Evento': 'Evento de e-mail ao qual este anexo pertence.',
+        'Modulo Dono': 'Modulo dono da conversa associada.',
+        'Tipo Entidade': 'Tipo da entidade relacionada ao anexo. Ex.: MEMBRO.',
+        'Id Entidade': 'Identificador da entidade associada ao anexo.',
+        'Chave de Correlacao': 'Chave tecnica da conversa que originou o anexo.',
+        'Etapa Fluxo': 'Etapa funcional associada ao anexo, quando conhecida.',
+        'Id Mensagem Gmail': 'Mensagem Gmail que carregou o anexo.',
+        'Id Thread Gmail': 'Thread Gmail relacionada.',
+        'Nome Arquivo': 'Nome original do arquivo.',
+        'Tipo Mime': 'Tipo MIME do arquivo. Ex.: application/pdf.',
+        'Tamanho Bytes': 'Tamanho aproximado do anexo em bytes.',
+        'Status Anexo': 'Estado operacional do anexo. Ex.: PENDENTE, PROCESSADO, SALVO_DRIVE, IGNORADO ou ERRO.',
+        'Data Hora Processamento': 'Momento em que o anexo foi tratado, quando aplicavel.',
+        'Observacoes': 'Campo tecnico para notas de processamento do anexo.',
+        'Criado Em': 'Momento do registro do anexo na central.',
+        'Atualizado Em': 'Momento da ultima atualizacao da linha.'
+      }),
+      colorGroups: Object.freeze([
+        Object.freeze({ color: '#d9ead3', headers: ['Id Anexo', 'Id Evento', 'Modulo Dono', 'Tipo Entidade', 'Id Entidade', 'Chave de Correlacao', 'Etapa Fluxo'] }),
+        Object.freeze({ color: '#d0e0e3', headers: ['Id Mensagem Gmail', 'Id Thread Gmail', 'Nome Arquivo', 'Tipo Mime', 'Tamanho Bytes'] }),
+        Object.freeze({ color: '#fff2cc', headers: ['Status Anexo', 'Data Hora Processamento'] }),
+        Object.freeze({ color: '#fce5cd', headers: ['Observacoes', 'Criado Em', 'Atualizado Em'] })
+      ]),
+      dropdownRules: Object.freeze({
+        'Status Anexo': Object.freeze({
+          values: Object.freeze(['PENDENTE', 'PROCESSADO', 'SALVO_DRIVE', 'IGNORADO', 'ERRO']),
+          allowInvalid: true,
+          helpText: 'Estado atual do anexo dentro do fluxo operacional.'
+        })
+      }),
+      clipHeaders: Object.freeze(['Observacoes']),
+      dataRowHeight: 28
+    }),
+    MAIL_CONFIG: Object.freeze({
+      notes: Object.freeze({
+        'Chave': 'Nome da configuracao operacional lida pelo Mail Hub. Ex.: USAR_SOMENTE_ASSUNTOS_GEAPA.',
+        'Valor': 'Valor bruto da configuracao. Pode ser texto, numero, regex ou lista separada por linha, virgula ou ponto e virgula.',
+        'Ativo': 'Se SIM, a configuracao entra em vigor. Se NAO, a linha e ignorada.'
+      }),
+      colorGroups: Object.freeze([
+        Object.freeze({ color: '#d9ead3', headers: ['Chave'] }),
+        Object.freeze({ color: '#fce5cd', headers: ['Valor'] }),
+        Object.freeze({ color: '#fff2cc', headers: ['Ativo'] })
+      ]),
+      dropdownRules: Object.freeze({
+        'Ativo': Object.freeze({
+          values: Object.freeze(['SIM', 'NAO']),
+          allowInvalid: true,
+          helpText: 'Ative ou desative a linha de configuracao.'
+        })
+      }),
+      clipHeaders: Object.freeze(['Valor']),
+      dataRowHeight: 28
+    }),
+    MAIL_SAIDA: Object.freeze({
+      notes: Object.freeze({
+        'Id Saida': 'Identificador unico da linha de outbox na central.',
+        'Modulo Dono': 'Modulo de negocio que solicitou o envio.',
+        'Tipo Entidade': 'Tipo da entidade associada ao envio. Ex.: MEMBRO.',
+        'Id Entidade': 'Identificador da entidade relacionada ao envio.',
+        'Chave de Correlacao': 'Chave tecnica usada no assunto final e na rastreabilidade.',
+        'Etapa Fluxo': 'Etapa funcional do envio. Ex.: CAND.',
+        'Email Destinatario Principal': 'Envelope principal usado no envio tecnico.',
+        'Emails Destinatarios': 'Lista de destinatarios principais separados por virgula.',
+        'Emails Cc': 'Lista de destinatarios em copia.',
+        'Emails Cco': 'Lista de destinatarios em copia oculta.',
+        'Nome Destinatario': 'Nome legivel do destinatario principal, quando houver.',
+        'Assunto': 'Assunto final ja montado, incluindo [GEAPA][CHAVE].',
+        'Corpo Texto': 'Versao textual do email enviada ou preparada para envio.',
+        'Corpo Html': 'HTML final institucional enviado ou pronto para envio.',
+        'Data Hora Agendada': 'Momento minimo para processamento da saida.',
+        'Prioridade': 'Prioridade operacional da fila. Ex.: BAIXA, MEDIA, NORMAL ou ALTA.',
+        'Status Envio': 'Estado tecnico da saida. Ex.: PENDENTE, ENVIADO ou ERRO.',
+        'Tentativas': 'Quantidade de tentativas de processamento da linha.',
+        'Ultimo Erro': 'Ultimo erro registrado no processamento da outbox.',
+        'Id Thread Gmail': 'Thread gerada ou reutilizada pelo envio.',
+        'Id Mensagem Gmail': 'Mensagem Gmail gerada pelo envio.',
+        'Enviado Em': 'Momento em que o envio tecnico foi concluido.',
+        'Criado Em': 'Momento em que a linha entrou na fila central.',
+        'Atualizado Em': 'Momento da ultima atualizacao da linha.',
+        'Observacoes': 'Contrato serializado e metadata operacional da saida.'
+      }),
+      colorGroups: Object.freeze([
+        Object.freeze({ color: '#d9ead3', headers: ['Id Saida', 'Modulo Dono', 'Tipo Entidade', 'Id Entidade', 'Chave de Correlacao', 'Etapa Fluxo'] }),
+        Object.freeze({ color: '#d0e0e3', headers: ['Email Destinatario Principal', 'Emails Destinatarios', 'Emails Cc', 'Emails Cco', 'Nome Destinatario'] }),
+        Object.freeze({ color: '#fce5cd', headers: ['Assunto', 'Corpo Texto', 'Corpo Html', 'Observacoes'] }),
+        Object.freeze({ color: '#fff2cc', headers: ['Data Hora Agendada', 'Prioridade', 'Status Envio', 'Tentativas', 'Ultimo Erro'] }),
+        Object.freeze({ color: '#ead1dc', headers: ['Id Thread Gmail', 'Id Mensagem Gmail', 'Enviado Em', 'Criado Em', 'Atualizado Em'] })
+      ]),
+      dropdownRules: Object.freeze({
+        'Prioridade': Object.freeze({
+          values: Object.freeze(['BAIXA', 'MEDIA', 'NORMAL', 'ALTA']),
+          allowInvalid: true,
+          helpText: 'Prioridade usada para organizacao operacional da fila.'
+        }),
+        'Status Envio': Object.freeze({
+          values: Object.freeze(['PENDENTE', 'ENVIADO', 'ERRO', 'CANCELADO']),
+          allowInvalid: true,
+          helpText: 'Estado tecnico atual da saida.'
+        })
+      }),
+      clipHeaders: Object.freeze([
+        'Corpo Texto',
+        'Corpo Html',
+        'Observacoes',
+        'Ultimo Erro'
+      ]),
+      dataRowHeight: 28
+    })
+  })
+});
+
 var CORE_MAIL_HUB_SCHEMA = Object.freeze({
   MAIL_EVENTOS: Object.freeze([
     'Id Evento',
@@ -208,6 +464,13 @@ function coreMailHubFindHeaderIndexZero_(ctx, headerName) {
   });
 }
 
+function coreMailHubFindHeaderIndexOne_(ctx, headerName) {
+  return core_findHeaderIndex_(ctx.headerMapOne, headerName, {
+    normalize: true,
+    notFoundValue: 0
+  });
+}
+
 function coreMailHubGetRowValue_(row, ctx, headerName, defaultValue) {
   var idx = coreMailHubFindHeaderIndexZero_(ctx, headerName);
   if (idx < 0) {
@@ -298,11 +561,202 @@ function coreMailHubAssertSchema_() {
     )
   ];
 
+  coreMailHubMaybeApplyOperationalSheetUx_();
+
   return Object.freeze({
     ok: true,
     validatedAt: new Date(),
     sheets: results
   });
+}
+
+function coreMailHubIsTypedColumnsRestrictionError_(err) {
+  var message = err && err.message ? String(err.message) : String(err || '');
+  return message.toLowerCase().indexOf('colunas com tipo') >= 0 ||
+    message.toLowerCase().indexOf('columns with type') >= 0;
+}
+
+function coreMailHubTryUxOperation_(sheet, operation, fn) {
+  try {
+    var result = fn();
+    return Object.freeze({
+      operation: operation,
+      status: 'APPLIED',
+      result: typeof result === 'undefined' ? null : result
+    });
+  } catch (err) {
+    if (!coreMailHubIsTypedColumnsRestrictionError_(err)) {
+      throw err;
+    }
+
+    return Object.freeze({
+      operation: operation,
+      status: 'SKIPPED_TYPED_COLUMNS',
+      reason: err && err.message ? err.message : String(err || 'Operacao nao permitida em colunas com tipo.')
+    });
+  }
+}
+
+function coreMailHubApplyHeaderNotesBySheet_(sheet, notesMap, headerRow) {
+  var row = Math.max(1, Number(headerRow || 1));
+  var lastColumn = Math.max(sheet.getLastColumn(), 1);
+  var headerValues = sheet.getRange(row, 1, 1, lastColumn).getValues()[0];
+  var resolvedNotes = {};
+
+  for (var i = 0; i < headerValues.length; i++) {
+    var header = String(headerValues[i] || '').trim();
+    if (!header) continue;
+    resolvedNotes[header] = String((notesMap || {})[header] || '').trim();
+  }
+
+  return core_applyHeaderNotes_(sheet, resolvedNotes, row);
+}
+
+function coreMailHubApplyHeaderStyles_(sheet, groups, headerRow) {
+  return core_applyHeaderColors_(sheet, groups || [], headerRow || 1, {
+    defaultColor: '#f3f3f3',
+    fontColor: CORE_MAIL_HUB_UX.colors.neutralText,
+    fontWeight: 'bold',
+    wrap: true
+  });
+}
+
+function coreMailHubApplyDropdowns_(sheet, rules, headerRow) {
+  return core_applyDropdownValidationByHeader_(sheet, rules || {}, headerRow || 1, {});
+}
+
+function coreMailHubApplyClipWrapByHeaders_(sheet, headers, headerRow) {
+  var ctx = coreMailHubGetSheetContext_(sheet, { headerRow: headerRow || 1 });
+  var applied = 0;
+  var wrapStrategy = SpreadsheetApp.WrapStrategy.CLIP;
+
+  for (var i = 0; i < headers.length; i++) {
+    var colNumber = coreMailHubFindHeaderIndexOne_(ctx, headers[i]);
+    if (!colNumber) continue;
+
+    sheet.getRange(1, colNumber, Math.max(sheet.getMaxRows(), 1), 1)
+      .setWrapStrategy(wrapStrategy)
+      .setVerticalAlignment('middle');
+    applied++;
+  }
+
+  return applied;
+}
+
+function coreMailHubApplyFixedDataRowHeights_(sheet, headerRow, rowHeight) {
+  var startRow = Math.max(2, Number(headerRow || 1) + 1);
+  var maxRows = Math.max(sheet.getMaxRows(), startRow);
+  var rowCount = Math.max(maxRows - startRow + 1, 0);
+
+  if (!rowCount) return 0;
+
+  if (typeof sheet.setRowHeightsForced === 'function') {
+    sheet.setRowHeightsForced(startRow, rowCount, rowHeight);
+  } else {
+    sheet.setRowHeights(startRow, rowCount, rowHeight);
+  }
+
+  return rowCount;
+}
+
+function coreMailHubApplySheetUx_(sheet, schemaKey, opts) {
+  opts = opts || {};
+  var rules = CORE_MAIL_HUB_UX.sheetRules[schemaKey] || {};
+  var headerRow = Number(opts.headerRow || 1);
+  var dataRowHeight = Number(opts.dataRowHeight || rules.dataRowHeight || CORE_MAIL_HUB_UX.defaultDataRowHeight);
+  var operations = [];
+
+  operations.push(coreMailHubTryUxOperation_(sheet, 'freezeHeaderRow', function() {
+    return core_freezeHeaderRow_(sheet, headerRow);
+  }));
+
+  operations.push(coreMailHubTryUxOperation_(sheet, 'headerNotes', function() {
+    return coreMailHubApplyHeaderNotesBySheet_(sheet, rules.notes || {}, headerRow);
+  }));
+
+  operations.push(coreMailHubTryUxOperation_(sheet, 'headerStyles', function() {
+    return coreMailHubApplyHeaderStyles_(sheet, rules.colorGroups || [], headerRow);
+  }));
+
+  operations.push(coreMailHubTryUxOperation_(sheet, 'filter', function() {
+    return core_ensureFilter_(sheet, headerRow, { recreate: false });
+  }));
+
+  operations.push(coreMailHubTryUxOperation_(sheet, 'clipColumns', function() {
+    return coreMailHubApplyClipWrapByHeaders_(sheet, rules.clipHeaders || [], headerRow);
+  }));
+
+  operations.push(coreMailHubTryUxOperation_(sheet, 'fixedRowHeights', function() {
+    return coreMailHubApplyFixedDataRowHeights_(sheet, headerRow, dataRowHeight);
+  }));
+
+  operations.push(coreMailHubTryUxOperation_(sheet, 'dropdownValidation', function() {
+    return coreMailHubApplyDropdowns_(sheet, rules.dropdownRules || {}, headerRow);
+  }));
+
+  return Object.freeze({
+    sheetName: sheet.getName(),
+    schemaKey: schemaKey,
+    dataRowHeight: dataRowHeight,
+    operations: Object.freeze(operations)
+  });
+}
+
+function coreMailApplyOperationalSheetUx_(opts) {
+  opts = opts || {};
+  coreMailHubAssertSchema_();
+
+  return Object.freeze({
+    ok: true,
+    eventos: coreMailHubApplySheetUx_(coreMailHubGetEventosSheet_(), 'MAIL_EVENTOS', opts),
+    indice: coreMailHubApplySheetUx_(coreMailHubGetIndiceSheet_(), 'MAIL_INDICE', opts),
+    anexos: coreMailHubApplySheetUx_(coreMailHubGetAnexosSheet_(), 'MAIL_ANEXOS', opts),
+    config: coreMailHubApplySheetUx_(coreMailHubGetConfigSheet_(), 'MAIL_CONFIG', opts),
+    saida: coreMailHubApplySheetUx_(coreMailHubGetSaidaSheet_(), 'MAIL_SAIDA', opts)
+  });
+}
+
+function coreMailHubMaybeApplyOperationalSheetUx_() {
+  var cache = null;
+
+  try {
+    cache = CacheService.getScriptCache();
+    if (cache && cache.get(CORE_MAIL_HUB_UX.cacheKey)) {
+      return Object.freeze({
+        ok: true,
+        applied: false,
+        reason: 'CACHE_HIT'
+      });
+    }
+  } catch (cacheErr) {
+    cache = null;
+  }
+
+  try {
+    var result = Object.freeze({
+      ok: true,
+      applied: true,
+      eventos: coreMailHubApplySheetUx_(coreMailHubGetEventosSheet_(), 'MAIL_EVENTOS', {}),
+      indice: coreMailHubApplySheetUx_(coreMailHubGetIndiceSheet_(), 'MAIL_INDICE', {}),
+      anexos: coreMailHubApplySheetUx_(coreMailHubGetAnexosSheet_(), 'MAIL_ANEXOS', {}),
+      config: coreMailHubApplySheetUx_(coreMailHubGetConfigSheet_(), 'MAIL_CONFIG', {}),
+      saida: coreMailHubApplySheetUx_(coreMailHubGetSaidaSheet_(), 'MAIL_SAIDA', {})
+    });
+
+    try {
+      if (cache) {
+        cache.put(CORE_MAIL_HUB_UX.cacheKey, '1', CORE_MAIL_HUB_UX.cacheTtlSeconds);
+      }
+    } catch (cachePutErr) {}
+
+    return result;
+  } catch (err) {
+    return Object.freeze({
+      ok: false,
+      applied: false,
+      reason: err && err.message ? err.message : String(err || 'UX_ERROR')
+    });
+  }
 }
 
 function coreMailHubNormalizeFlag_(value) {
@@ -735,13 +1189,21 @@ function coreMailHubGetEmailDomain_(email) {
 function coreMailHubSubjectHasRequiredPrefix_(subject, ingestConfig) {
   var prefix = String((ingestConfig && ingestConfig.requiredSubjectPrefix) || '[GEAPA]').trim();
   if (!prefix) return true;
-  return String(subject || '').trim().toUpperCase().indexOf(prefix.toUpperCase()) === 0;
+  var normalizedSubject = String(subject || '').trim();
+  var replyPrefixPattern = /^((re|fw|fwd)\s*:\s*)+/i;
+
+  while (replyPrefixPattern.test(normalizedSubject)) {
+    normalizedSubject = normalizedSubject.replace(replyPrefixPattern, '').trim();
+  }
+
+  return normalizedSubject.toUpperCase().indexOf(prefix.toUpperCase()) === 0;
 }
 
 function coreMailHubDetectNoise_(msgCtx, ingestConfig) {
   var fromEmail = core_extractEmailAddress_(msgCtx.fromEmail || msgCtx.fromRaw || '');
   var fromDomain = coreMailHubGetEmailDomain_(fromEmail);
   var subject = String(msgCtx.subject || '').trim();
+  var extractedCorrelationKey = String(coreMailExtractCorrelationKey_(subject) || '').trim();
   var lowerSubject = subject.toLowerCase();
   var lowerFrom = String(fromEmail || '').toLowerCase();
   var technicalPatterns = [
@@ -764,7 +1226,11 @@ function coreMailHubDetectNoise_(msgCtx, ingestConfig) {
     }
   }
 
-  if (ingestConfig.useOnlyTaggedSubjects && !coreMailHubSubjectHasRequiredPrefix_(subject, ingestConfig)) {
+  if (
+    ingestConfig.useOnlyTaggedSubjects &&
+    !coreMailHubSubjectHasRequiredPrefix_(subject, ingestConfig) &&
+    !extractedCorrelationKey
+  ) {
     return { isNoise: true, reason: 'ASSUNTO_SEM_PREFIXO_OBRIGATORIO' };
   }
 
@@ -789,6 +1255,21 @@ function coreMailHubDetectNoise_(msgCtx, ingestConfig) {
 function coreMailHubBuildMessageContext_(thread, message) {
   var subject = String(message.getSubject() || '').trim();
   var fromRaw = String(message.getFrom() || '').trim();
+  var attachments = [];
+
+  try {
+    attachments = message.getAttachments({
+      includeInlineImages: false,
+      includeAttachments: true
+    }) || [];
+  } catch (err) {
+    try {
+      attachments = message.getAttachments() || [];
+    } catch (fallbackErr) {
+      attachments = [];
+    }
+  }
+
   var msgCtx = {
     subject: subject,
     fromRaw: fromRaw,
@@ -804,7 +1285,7 @@ function coreMailHubBuildMessageContext_(thread, message) {
     snippet: coreMailHubBuildSnippet_(message),
     plainBody: '',
     labels: coreMailHubGetThreadLabels_(thread),
-    attachments: message.getAttachments() || []
+    attachments: attachments
   };
 
   try {
@@ -1142,7 +1623,7 @@ function coreMailHubCollectCorrelationStats_(correlationKey) {
   } else if (stats.hasPendingEntry || stats.hasPendingAttachment) {
     stats.statusConversa = CORE_MAIL_HUB_STATUS.PENDENTE;
   } else {
-    stats.statusConversa = CORE_MAIL_HUB_STATUS.PROCESSADO;
+    stats.statusConversa = 'CONCLUIDA';
   }
 
   return stats;
