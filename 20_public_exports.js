@@ -383,6 +383,18 @@ function coreDriveListFiles(folderId, max) {
   return core_driveListFiles_(folderId, max || 200);
 }
 
+function coreAppendMemberLifecycleEvent(payload) {
+  return core_appendMemberLifecycleEvent_(payload || {});
+}
+
+function coreListMemberLifecycleEvents(filters, opts) {
+  return core_memberLifecycleListEvents_(filters || {}, opts || {});
+}
+
+function coreGetLatestMemberLifecycleEventByRga(rga, opts) {
+  return core_memberLifecycleGetLatestEventByRga_(rga, opts || {});
+}
+
 /* ============================================================
  * HTTP
  * ============================================================ */
