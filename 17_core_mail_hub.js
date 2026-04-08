@@ -1758,29 +1758,37 @@ function coreMailHubSendOutgoingMessage_(mailPayload) {
     Utilities.sleep(sleepMs);
   }
 
-  var safeSubject = subject.replace(/"/g, '\\"');
-  var query = 'subject:"' + safeSubject + '" newer_than:' + newerThanDays + 'd';
-  if (toList.length === 1) {
-    query = 'to:' + toList[0] + ' ' + query;
-  }
-
-  var threads = GmailApp.search(query, 0, maxThreads);
   var threadId = '';
   var messageId = '';
+  var postSendWarning = '';
 
-  if (threads && threads.length) {
-    var thread = threads[0];
-    threadId = String(thread.getId() || '').trim();
-
-    var messages = thread.getMessages();
-    if (messages && messages.length) {
-      messageId = String(messages[messages.length - 1].getId() || '').trim();
+  try {
+    var safeSubject = subject.replace(/"/g, '\\"');
+    var query = 'subject:"' + safeSubject + '" newer_than:' + newerThanDays + 'd';
+    if (toList.length === 1) {
+      query = 'to:' + toList[0] + ' ' + query;
     }
+
+    var threads = GmailApp.search(query, 0, maxThreads);
+
+    if (threads && threads.length) {
+      var thread = threads[0];
+      threadId = String(thread.getId() || '').trim();
+
+      var messages = thread.getMessages();
+      if (messages && messages.length) {
+        messageId = String(messages[messages.length - 1].getId() || '').trim();
+      }
+    }
+  } catch (err) {
+    postSendWarning = err && err.message ? err.message : String(err || '');
   }
 
   return Object.freeze({
     threadId: threadId,
-    messageId: messageId
+    messageId: messageId,
+    sent: true,
+    postSendWarning: postSendWarning
   });
 }
 
@@ -2078,6 +2086,14 @@ function coreMailProcessOutbox_() {
         coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Id Mensagem Gmail', sendResult.messageId || '');
         coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Enviado Em', sentAt);
         coreMailHubWriteCell_(saidaSheet, rowNumber, saidaState.ctx, 'Atualizado Em', sentAt);
+
+        if (sendResult.postSendWarning) {
+          core_logWarn_(runId, 'coreMailProcessOutbox: envio concluido com falha no enriquecimento Gmail', {
+            saidaId: record.saidaId,
+            correlationKey: record.correlationKey,
+            warning: sendResult.postSendWarning
+          });
+        }
 
         var eventPayload = coreMailHubBuildOutgoingEventPayload_(record, draft, sendResult, sentAt);
         coreMailRegisterEvent_(eventosSheet, eventPayload, eventosState);

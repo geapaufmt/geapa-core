@@ -80,6 +80,36 @@ Funcoes centrais:
 - `coreGetStudentCurrentSemesterFromRga(rga, refDate)`
 - `coreGetCompletedGroupSemesterCountFromEntrySemester(entrySemesterShort, refDate)`
 
+### Identidade institucional
+
+O ecossistema GEAPA passa a adotar a seguinte regra de identificadores:
+
+- membros continuam usando `RGA` como identificador oficial;
+- professores usam `ID_PROFESSOR`;
+- participantes externos usam `ID_PARTICIPANTE_EXTERNO`.
+
+Regras de geracao:
+
+- `ID_PROFESSOR` segue o formato `PROF-0001`, `PROF-0002`, ...;
+- `ID_PARTICIPANTE_EXTERNO` segue o formato `EXT-0001`, `EXT-0002`, ...;
+- novos IDs sao criados apenas quando a celula estiver vazia;
+- IDs existentes nunca sao recalculados ou renumerados;
+- para externos, o core verifica duplicidade por e-mail antes de criar um novo ID.
+
+Funcoes publicas principais:
+
+- `coreFillMissingProfessorIds()`
+- `coreFillMissingExternalIds()`
+- `coreEnsureProfessorIdForRow(rowNumber)`
+- `coreEnsureExternalIdForRow(rowNumber)`
+- `coreFindExternalByEmail(email)`
+- `coreValidateExternalEmailDuplicates()`
+
+Observacao operacional:
+
+- as funcoes em lote saneiam bases ja existentes;
+- as funcoes por linha permitem que modulos ou projetos consumidores garantam IDs automaticamente em novos registros.
+
 ### E-mail e Gmail
 
 Camada compartilhada para envio HTML/texto, replies, labels e rastreamento.

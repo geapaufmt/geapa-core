@@ -85,6 +85,15 @@ const GEAPA_CORE = Object.freeze({
     findFirstRecordByKeyField: core_findFirstRecordByKeyField_,
   }),
 
+  identity: Object.freeze({
+    fillMissingProfessorIds: core_fillMissingProfessorIds_,
+    fillMissingExternalIds: core_fillMissingExternalIds_,
+    ensureProfessorIdForRow: core_ensureProfessorIdForRow_,
+    ensureExternalIdForRow: core_ensureExternalIdForRow_,
+    findExternalByEmail: core_identityFindExternalByEmail_,
+    validateExternalEmailDuplicates: core_identityValidateExternalEmailDuplicates_,
+  }),
+
   /**
    * ----------------------------------------------------------
    * dates (Datas / Tempo)
