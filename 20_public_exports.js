@@ -138,6 +138,34 @@ function coreApplyDropdownValidationByHeader(sheet, rulesByHeader, headerRow, op
 }
 
 /* ============================================================
+ * IDENTITY
+ * ============================================================ */
+
+function coreFillMissingProfessorIds() {
+  return core_fillMissingProfessorIds_();
+}
+
+function coreFillMissingExternalIds() {
+  return core_fillMissingExternalIds_();
+}
+
+function coreEnsureProfessorIdForRow(rowNumber) {
+  return core_ensureProfessorIdForRow_(rowNumber);
+}
+
+function coreEnsureExternalIdForRow(rowNumber) {
+  return core_ensureExternalIdForRow_(rowNumber);
+}
+
+function coreFindExternalByEmail(email) {
+  return core_identityFindExternalByEmail_(email);
+}
+
+function coreValidateExternalEmailDuplicates() {
+  return core_identityValidateExternalEmailDuplicates_();
+}
+
+/* ============================================================
  * DATES
  * ============================================================ */
 

@@ -362,3 +362,18 @@ function test_core_mailOutbox_queue_operacional() {
 function test_core_mailOutbox_process() {
   Logger.log(JSON.stringify(coreMailProcessOutbox_(), null, 2));
 }
+function test_core_identity_fillMissingProfessorIds() {
+  Logger.log(JSON.stringify(core_fillMissingProfessorIds_(), null, 2));
+}
+
+function test_core_identity_fillMissingExternalIds() {
+  Logger.log(JSON.stringify(core_fillMissingExternalIds_(), null, 2));
+}
+
+function test_core_identity_validateExternalEmailDuplicates() {
+  Logger.log(JSON.stringify(core_identityValidateExternalEmailDuplicates_(), null, 2));
+}
+
+function test_core_identity_findExternalByEmail_example() {
+  Logger.log(JSON.stringify(core_identityFindExternalByEmail_('email@exemplo.com'), null, 2));
+}
