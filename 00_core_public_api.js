@@ -94,6 +94,14 @@ const GEAPA_CORE = Object.freeze({
     validateExternalEmailDuplicates: core_identityValidateExternalEmailDuplicates_,
   }),
 
+  memberLifecycle: Object.freeze({
+    appendEvent: core_appendMemberLifecycleEvent_,
+    listEvents: core_memberLifecycleListEvents_,
+    getLatestEventByRga: core_memberLifecycleGetLatestEventByRga_,
+    updateEvent: core_updateMemberLifecycleEvent_,
+    updateEventStatus: core_updateMemberLifecycleEventStatus_,
+  }),
+
   /**
    * ----------------------------------------------------------
    * dates (Datas / Tempo)
@@ -189,8 +197,18 @@ const GEAPA_CORE = Object.freeze({
     processOutbox: coreMailProcessOutbox_,
     listPendingByModule: core_mailListPendingByModule_,
     getLatestEvent: core_mailGetLatestEvent_,
+    listAttachments: core_mailListAttachments_,
+    listPendingAttachments: core_mailListPendingAttachments_,
+    getLatestPendingEventWithAttachment: core_mailGetLatestPendingEventWithAttachment_,
+    listAttachmentsByEvent: core_mailListAttachmentsByEvent_,
+    getAttachmentById: core_mailGetAttachmentById_,
+    getAttachmentsByEvent: core_mailGetAttachmentsByEvent_,
     markLatestPendingByModule: core_mailMarkLatestPendingByModule_,
     markEventProcessed: core_mailMarkEventProcessed_,
+    markAttachmentProcessed: core_mailMarkAttachmentProcessed_,
+    markAttachmentSavedToDrive: core_mailMarkAttachmentSavedToDrive_,
+    markAttachmentIgnored: core_mailMarkAttachmentIgnored_,
+    markAttachmentError: core_mailMarkAttachmentError_,
     cleanupNoiseEvents: coreMailCleanupNoiseEvents_,
   }),
 

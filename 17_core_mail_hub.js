@@ -35,6 +35,14 @@ var CORE_MAIL_HUB_STATUS = Object.freeze({
   IGNORADO: 'IGNORADO'
 });
 
+var CORE_MAIL_ATTACHMENT_STATUS = Object.freeze({
+  PENDENTE: 'PENDENTE',
+  PROCESSADO: 'PROCESSADO',
+  SALVO_DRIVE: 'SALVO_DRIVE',
+  IGNORADO: 'IGNORADO',
+  ERRO: 'ERRO'
+});
+
 var CORE_MAIL_HUB_DEFAULTS = Object.freeze({
   query: 'in:inbox',
   maxThreads: 25,
@@ -194,10 +202,16 @@ var CORE_MAIL_HUB_UX = Object.freeze({
         'Etapa Fluxo': 'Etapa funcional associada ao anexo, quando conhecida.',
         'Id Mensagem Gmail': 'Mensagem Gmail que carregou o anexo.',
         'Id Thread Gmail': 'Thread Gmail relacionada.',
+        'Indice Anexo Mensagem': 'Posicao do anexo dentro da mensagem original, usada para reabrir o blob real sob demanda.',
         'Nome Arquivo': 'Nome original do arquivo.',
         'Tipo Mime': 'Tipo MIME do arquivo. Ex.: application/pdf.',
         'Tamanho Bytes': 'Tamanho aproximado do anexo em bytes.',
+        'Foi Salvo No Drive': 'Indica se o anexo ja foi persistido no Drive. Valores usuais: SIM ou NAO.',
+        'Id Arquivo Drive': 'ID do arquivo salvo no Drive, quando aplicavel.',
+        'Link Arquivo Drive': 'URL do arquivo salvo no Drive, quando aplicavel.',
+        'Pasta Destino Drive': 'Pasta de destino usada no Drive, quando aplicavel.',
         'Status Anexo': 'Estado operacional do anexo. Ex.: PENDENTE, PROCESSADO, SALVO_DRIVE, IGNORADO ou ERRO.',
+        'Processado Por': 'Funcao ou modulo que marcou o estado atual do anexo.',
         'Data Hora Processamento': 'Momento em que o anexo foi tratado, quando aplicavel.',
         'Observacoes': 'Campo tecnico para notas de processamento do anexo.',
         'Criado Em': 'Momento do registro do anexo na central.',
@@ -205,8 +219,9 @@ var CORE_MAIL_HUB_UX = Object.freeze({
       }),
       colorGroups: Object.freeze([
         Object.freeze({ color: '#d9ead3', headers: ['Id Anexo', 'Id Evento', 'Modulo Dono', 'Tipo Entidade', 'Id Entidade', 'Chave de Correlacao', 'Etapa Fluxo'] }),
-        Object.freeze({ color: '#d0e0e3', headers: ['Id Mensagem Gmail', 'Id Thread Gmail', 'Nome Arquivo', 'Tipo Mime', 'Tamanho Bytes'] }),
-        Object.freeze({ color: '#fff2cc', headers: ['Status Anexo', 'Data Hora Processamento'] }),
+        Object.freeze({ color: '#d0e0e3', headers: ['Id Mensagem Gmail', 'Id Thread Gmail', 'Indice Anexo Mensagem', 'Nome Arquivo', 'Tipo Mime', 'Tamanho Bytes'] }),
+        Object.freeze({ color: '#fff2cc', headers: ['Status Anexo', 'Foi Salvo No Drive', 'Processado Por', 'Data Hora Processamento'] }),
+        Object.freeze({ color: '#ead1dc', headers: ['Id Arquivo Drive', 'Link Arquivo Drive', 'Pasta Destino Drive'] }),
         Object.freeze({ color: '#fce5cd', headers: ['Observacoes', 'Criado Em', 'Atualizado Em'] })
       ]),
       dropdownRules: Object.freeze({
@@ -214,9 +229,14 @@ var CORE_MAIL_HUB_UX = Object.freeze({
           values: Object.freeze(['PENDENTE', 'PROCESSADO', 'SALVO_DRIVE', 'IGNORADO', 'ERRO']),
           allowInvalid: true,
           helpText: 'Estado atual do anexo dentro do fluxo operacional.'
+        }),
+        'Foi Salvo No Drive': Object.freeze({
+          values: Object.freeze(['SIM', 'NAO']),
+          allowInvalid: true,
+          helpText: 'Indique se o anexo ja foi salvo no Drive pelo modulo consumidor.'
         })
       }),
-      clipHeaders: Object.freeze(['Observacoes']),
+      clipHeaders: Object.freeze(['Link Arquivo Drive', 'Pasta Destino Drive', 'Observacoes']),
       dataRowHeight: 28
     }),
     MAIL_CONFIG: Object.freeze({
@@ -345,14 +365,24 @@ var CORE_MAIL_HUB_SCHEMA = Object.freeze({
     'Id Anexo',
     'Id Evento',
     'Modulo Dono',
+    'Tipo Entidade',
+    'Id Entidade',
     'Chave de Correlacao',
     'Etapa Fluxo',
     'Id Mensagem Gmail',
     'Id Thread Gmail',
+    'Indice Anexo Mensagem',
     'Nome Arquivo',
     'Tipo Mime',
     'Tamanho Bytes',
+    'Foi Salvo No Drive',
+    'Id Arquivo Drive',
+    'Link Arquivo Drive',
+    'Pasta Destino Drive',
     'Status Anexo',
+    'Processado Por',
+    'Data Hora Processamento',
+    'Observacoes',
     'Criado Em',
     'Atualizado Em'
   ]),
@@ -505,6 +535,31 @@ function coreMailHubWriteCell_(sheet, rowNumber, ctx, headerName, value) {
   });
 }
 
+function coreMailHubEnsureAnexosSchemaExtensions_() {
+  var sheet = coreMailHubGetAnexosSheet_();
+  var ctx = coreMailHubGetSheetContext_(sheet);
+  var missing = CORE_MAIL_HUB_SCHEMA.MAIL_ANEXOS.filter(function(headerName) {
+    return coreMailHubFindHeaderIndexZero_(ctx, headerName) < 0;
+  });
+
+  if (!missing.length) {
+    return Object.freeze({
+      ok: true,
+      sheetName: sheet.getName(),
+      addedHeaders: []
+    });
+  }
+
+  var startColumn = ctx.lastCol + 1;
+  sheet.getRange(1, startColumn, 1, missing.length).setValues([missing]);
+
+  return Object.freeze({
+    ok: true,
+    sheetName: sheet.getName(),
+    addedHeaders: missing
+  });
+}
+
 function coreMailHubAssertSheetSchema_(sheetKey, sheet, requiredHeaders) {
   var ctx = coreMailHubGetSheetContext_(sheet);
   if (!ctx.headers.length) {
@@ -533,6 +588,7 @@ function coreMailHubAssertSheetSchema_(sheetKey, sheet, requiredHeaders) {
 }
 
 function coreMailHubAssertSchema_() {
+  var anexosExtensions = coreMailHubEnsureAnexosSchemaExtensions_();
   var results = [
     coreMailHubAssertSheetSchema_(
       CORE_MAIL_HUB_KEYS.EVENTOS,
@@ -566,7 +622,10 @@ function coreMailHubAssertSchema_() {
   return Object.freeze({
     ok: true,
     validatedAt: new Date(),
-    sheets: results
+    sheets: results,
+    autoExtended: Object.freeze({
+      mailAnexos: anexosExtensions
+    })
   });
 }
 
@@ -1169,6 +1228,25 @@ function coreMailHubBuildSnippet_(message) {
   }
 }
 
+function coreMailHubGetMessageAttachments_(message) {
+  var attachments = [];
+
+  try {
+    attachments = message.getAttachments({
+      includeInlineImages: false,
+      includeAttachments: true
+    }) || [];
+  } catch (err) {
+    try {
+      attachments = message.getAttachments() || [];
+    } catch (fallbackErr) {
+      attachments = [];
+    }
+  }
+
+  return attachments;
+}
+
 function coreMailHubGetThreadLabels_(thread) {
   var labels = thread.getLabels();
   var out = [];
@@ -1255,20 +1333,7 @@ function coreMailHubDetectNoise_(msgCtx, ingestConfig) {
 function coreMailHubBuildMessageContext_(thread, message) {
   var subject = String(message.getSubject() || '').trim();
   var fromRaw = String(message.getFrom() || '').trim();
-  var attachments = [];
-
-  try {
-    attachments = message.getAttachments({
-      includeInlineImages: false,
-      includeAttachments: true
-    }) || [];
-  } catch (err) {
-    try {
-      attachments = message.getAttachments() || [];
-    } catch (fallbackErr) {
-      attachments = [];
-    }
-  }
+  var attachments = coreMailHubGetMessageAttachments_(message);
 
   var msgCtx = {
     subject: subject,
@@ -1434,6 +1499,7 @@ function coreMailRegisterAttachments_(anexosSheet, eventPayload, anexosCtx) {
       'Etapa Fluxo': eventPayload.flowStep,
       'Id Mensagem Gmail': eventPayload.messageId,
       'Id Thread Gmail': eventPayload.threadId,
+      'Indice Anexo Mensagem': i + 1,
       'Nome Arquivo': String(attachment.getName() || '').trim(),
       'Tipo Mime': String(attachment.getContentType() || '').trim(),
       'Tamanho Bytes': bytesLength,
@@ -1499,8 +1565,8 @@ function coreMailHubCollectAttachmentStatsByCorrelationKey_(correlationKey) {
 
     stats.totalAttachments++;
 
-    var statusAnexo = coreMailHubNormalizeFlag_(coreMailHubGetRowValue_(row, ctx, 'Status Anexo', 'PENDENTE'));
-    if (statusAnexo !== CORE_MAIL_HUB_STATUS.PROCESSADO && statusAnexo !== CORE_MAIL_HUB_STATUS.IGNORADO) {
+    var statusAnexo = coreMailHubNormalizeAttachmentStatus_(coreMailHubGetRowValue_(row, ctx, 'Status Anexo', 'PENDENTE'));
+    if (coreMailHubIsPendingAttachmentStatus_(statusAnexo)) {
       stats.hasPendingAttachment = true;
     }
   }
@@ -2360,6 +2426,291 @@ function coreMailHubBuildEventRecord_(row, ctx, rowNumber) {
   };
 }
 
+function coreMailHubNormalizeAttachmentStatus_(value) {
+  var normalized = coreMailHubNormalizeFlag_(value);
+  if (
+    normalized === CORE_MAIL_ATTACHMENT_STATUS.PENDENTE ||
+    normalized === CORE_MAIL_ATTACHMENT_STATUS.PROCESSADO ||
+    normalized === CORE_MAIL_ATTACHMENT_STATUS.SALVO_DRIVE ||
+    normalized === CORE_MAIL_ATTACHMENT_STATUS.IGNORADO ||
+    normalized === CORE_MAIL_ATTACHMENT_STATUS.ERRO
+  ) {
+    return normalized;
+  }
+  return CORE_MAIL_ATTACHMENT_STATUS.PENDENTE;
+}
+
+function coreMailHubIsPendingAttachmentStatus_(status) {
+  var normalized = coreMailHubNormalizeAttachmentStatus_(status);
+  return normalized !== CORE_MAIL_ATTACHMENT_STATUS.PROCESSADO &&
+    normalized !== CORE_MAIL_ATTACHMENT_STATUS.SALVO_DRIVE &&
+    normalized !== CORE_MAIL_ATTACHMENT_STATUS.IGNORADO;
+}
+
+function coreMailHubExtractAttachmentIndex_(record) {
+  var direct = Number(record.messageAttachmentIndex || 0);
+  if (!isNaN(direct) && direct > 0) return direct;
+
+  var match = String(record.observations || '').match(/Attachment Index\s*=\s*(\d+)/i);
+  return match ? (parseInt(match[1], 10) || 0) : 0;
+}
+
+function coreMailHubBuildAttachmentRecord_(row, ctx, rowNumber) {
+  return {
+    attachmentId: String(coreMailHubGetRowValue_(row, ctx, 'Id Anexo', '') || '').trim(),
+    eventId: String(coreMailHubGetRowValue_(row, ctx, 'Id Evento', '') || '').trim(),
+    moduleName: coreMailHubNormalizeOptionalFilter_(coreMailHubGetRowValue_(row, ctx, 'Modulo Dono', '')),
+    entityType: String(coreMailHubGetRowValue_(row, ctx, 'Tipo Entidade', '') || '').trim(),
+    entityId: String(coreMailHubGetRowValue_(row, ctx, 'Id Entidade', '') || '').trim(),
+    correlationKey: String(coreMailHubGetRowValue_(row, ctx, 'Chave de Correlacao', '') || '').trim(),
+    flowStep: String(coreMailHubGetRowValue_(row, ctx, 'Etapa Fluxo', '') || '').trim(),
+    messageId: String(coreMailHubGetRowValue_(row, ctx, 'Id Mensagem Gmail', '') || '').trim(),
+    threadId: String(coreMailHubGetRowValue_(row, ctx, 'Id Thread Gmail', '') || '').trim(),
+    messageAttachmentIndex: Number(coreMailHubGetRowValue_(row, ctx, 'Indice Anexo Mensagem', 0) || 0),
+    fileName: String(coreMailHubGetRowValue_(row, ctx, 'Nome Arquivo', '') || '').trim(),
+    mimeType: String(coreMailHubGetRowValue_(row, ctx, 'Tipo Mime', '') || '').trim(),
+    sizeBytes: Number(coreMailHubGetRowValue_(row, ctx, 'Tamanho Bytes', 0) || 0),
+    savedToDrive: coreMailHubNormalizeFlag_(coreMailHubGetRowValue_(row, ctx, 'Foi Salvo No Drive', 'NAO')),
+    driveFileId: String(coreMailHubGetRowValue_(row, ctx, 'Id Arquivo Drive', '') || '').trim(),
+    driveFileUrl: String(coreMailHubGetRowValue_(row, ctx, 'Link Arquivo Drive', '') || '').trim(),
+    driveFolder: String(coreMailHubGetRowValue_(row, ctx, 'Pasta Destino Drive', '') || '').trim(),
+    attachmentStatus: coreMailHubNormalizeAttachmentStatus_(coreMailHubGetRowValue_(row, ctx, 'Status Anexo', 'PENDENTE')),
+    processedBy: String(coreMailHubGetRowValue_(row, ctx, 'Processado Por', '') || '').trim(),
+    processedAt: coreMailHubGetRowValue_(row, ctx, 'Data Hora Processamento', ''),
+    observations: String(coreMailHubGetRowValue_(row, ctx, 'Observacoes', '') || '').trim(),
+    createdAt: coreMailHubGetRowValue_(row, ctx, 'Criado Em', ''),
+    updatedAt: coreMailHubGetRowValue_(row, ctx, 'Atualizado Em', ''),
+    rowNumber: rowNumber
+  };
+}
+
+function coreMailHubListAttachments_(opts) {
+  opts = opts || {};
+  coreMailHubAssertSchema_();
+
+  var sheet = coreMailHubGetAnexosSheet_();
+  var ctx = coreMailHubGetSheetContext_(sheet, { includeRows: true });
+  var out = [];
+  var targetModule = coreMailHubNormalizeOptionalFilter_(opts.moduleName);
+  var targetCorrelationKey = coreMailHubNormalizeOptionalFilter_(opts.correlationKey);
+  var targetEntityType = coreMailHubNormalizeOptionalFilter_(opts.entityType);
+  var targetEntityId = String(opts.entityId || '').trim();
+  var targetFlowStep = coreMailHubNormalizeOptionalFilter_(opts.flowStep);
+  var targetStatus = coreMailHubNormalizeOptionalFilter_(opts.statusAnexo || opts.attachmentStatus);
+  var targetEventId = String(opts.eventId || '').trim();
+  var targetMessageId = String(opts.messageId || '').trim();
+  var targetThreadId = String(opts.threadId || '').trim();
+  var targetAttachmentId = String(opts.attachmentId || '').trim();
+  var hasPendingAttachment = Object.prototype.hasOwnProperty.call(opts, 'hasPendingAttachment')
+    ? opts.hasPendingAttachment === true
+    : null;
+  var limit = Number(opts.limit || 0);
+
+  for (var i = 0; i < ctx.rows.length; i++) {
+    var record = coreMailHubBuildAttachmentRecord_(ctx.rows[i], ctx, ctx.startRow + i);
+
+    if (targetModule && record.moduleName !== targetModule) continue;
+    if (targetCorrelationKey && coreMailHubNormalizeOptionalFilter_(record.correlationKey) !== targetCorrelationKey) continue;
+    if (targetEntityType && coreMailHubNormalizeOptionalFilter_(record.entityType) !== targetEntityType) continue;
+    if (targetEntityId && record.entityId !== targetEntityId) continue;
+    if (targetFlowStep && coreMailHubNormalizeOptionalFilter_(record.flowStep) !== targetFlowStep) continue;
+    if (targetStatus && coreMailHubNormalizeOptionalFilter_(record.attachmentStatus) !== targetStatus) continue;
+    if (targetEventId && record.eventId !== targetEventId) continue;
+    if (targetMessageId && record.messageId !== targetMessageId) continue;
+    if (targetThreadId && record.threadId !== targetThreadId) continue;
+    if (targetAttachmentId && record.attachmentId !== targetAttachmentId) continue;
+    if (hasPendingAttachment === true && !coreMailHubIsPendingAttachmentStatus_(record.attachmentStatus)) continue;
+    if (hasPendingAttachment === false && coreMailHubIsPendingAttachmentStatus_(record.attachmentStatus)) continue;
+
+    out.push(record);
+  }
+
+  out.sort(function(a, b) {
+    var aDate = coreMailHubCoerceDate_(a.updatedAt) || coreMailHubCoerceDate_(a.createdAt) || coreMailHubCoerceDate_(a.processedAt);
+    var bDate = coreMailHubCoerceDate_(b.updatedAt) || coreMailHubCoerceDate_(b.createdAt) || coreMailHubCoerceDate_(b.processedAt);
+    var aTime = aDate ? aDate.getTime() : 0;
+    var bTime = bDate ? bDate.getTime() : 0;
+    return bTime - aTime;
+  });
+
+  if (limit > 0) {
+    return out.slice(0, limit);
+  }
+
+  return out;
+}
+
+function coreMailHubGetLatestPendingEventWithAttachment_(opts) {
+  var attachments = coreMailHubListAttachments_(Object.assign({}, opts || {}, {
+    hasPendingAttachment: true,
+    limit: 50
+  }));
+
+  if (!attachments.length) return null;
+
+  var seenEvent = Object.create(null);
+  for (var i = 0; i < attachments.length; i++) {
+    var attachment = attachments[i];
+    if (!attachment.eventId || seenEvent[attachment.eventId]) continue;
+    seenEvent[attachment.eventId] = true;
+
+    var eventRecord = core_mailGetLatestEvent_({
+      messageId: attachment.messageId
+    });
+    if (!eventRecord) continue;
+
+    return Object.freeze({
+      event: eventRecord,
+      attachments: attachments.filter(function(item) {
+        return item.eventId === attachment.eventId;
+      })
+    });
+  }
+
+  return null;
+}
+
+function coreMailHubGetThreadById_(threadId) {
+  var normalized = String(threadId || '').trim();
+  if (!normalized) throw new Error('threadId obrigatorio para recuperar anexos do Gmail.');
+  return GmailApp.getThreadById(normalized);
+}
+
+function coreMailHubGetMessageByIds_(threadId, messageId) {
+  var normalizedMessageId = String(messageId || '').trim();
+  var thread = coreMailHubGetThreadById_(threadId);
+  var messages = thread.getMessages() || [];
+
+  for (var i = 0; i < messages.length; i++) {
+    var candidate = messages[i];
+    if (String(candidate.getId() || '').trim() === normalizedMessageId) {
+      return candidate;
+    }
+  }
+
+  throw new Error('Mensagem nao encontrada na thread informada: ' + normalizedMessageId);
+}
+
+function coreMailHubFindRealAttachmentByRecord_(record) {
+  if (!record || !record.threadId || !record.messageId) {
+    throw new Error('Registro de anexo sem threadId/messageId suficiente para reabrir o Gmail.');
+  }
+
+  var message = coreMailHubGetMessageByIds_(record.threadId, record.messageId);
+  var attachments = coreMailHubGetMessageAttachments_(message);
+  var attachmentIndex = coreMailHubExtractAttachmentIndex_(record);
+  var selected = null;
+
+  if (attachmentIndex > 0 && attachmentIndex <= attachments.length) {
+    selected = attachments[attachmentIndex - 1];
+  }
+
+  if (!selected) {
+    for (var i = 0; i < attachments.length; i++) {
+      var candidate = attachments[i];
+      var sameName = String(candidate.getName() || '').trim() === record.fileName;
+      var sameType = String(candidate.getContentType() || '').trim() === record.mimeType;
+      if (!sameName) continue;
+      if (record.mimeType && !sameType) continue;
+      selected = candidate;
+      attachmentIndex = i + 1;
+      break;
+    }
+  }
+
+  if (!selected) {
+    throw new Error('Anexo real nao encontrado no Gmail para o registro ' + record.attachmentId + '.');
+  }
+
+  return Object.freeze({
+    attachmentId: record.attachmentId,
+    eventId: record.eventId,
+    moduleName: record.moduleName,
+    entityType: record.entityType,
+    entityId: record.entityId,
+    correlationKey: record.correlationKey,
+    flowStep: record.flowStep,
+    messageId: record.messageId,
+    threadId: record.threadId,
+    fileName: String(selected.getName() || '').trim(),
+    mimeType: String(selected.getContentType() || '').trim(),
+    sizeBytes: record.sizeBytes,
+    messageAttachmentIndex: attachmentIndex,
+    attachment: selected,
+    blob: selected.copyBlob()
+  });
+}
+
+function coreMailHubUpdateAttachmentStatus_(attachmentId, processorName, patch) {
+  core_assertRequired_(attachmentId, 'attachmentId');
+  core_assertRequired_(processorName, 'processorName');
+  patch = patch || {};
+
+  return core_withLock_('CORE_MAIL_HUB_MARK_ATTACHMENT', function() {
+    coreMailHubAssertSchema_();
+
+    var sheet = coreMailHubGetAnexosSheet_();
+    var ctx = coreMailHubGetSheetContext_(sheet, { includeRows: true });
+    var normalizedAttachmentId = String(attachmentId || '').trim();
+    var rowNumber = 0;
+    var record = null;
+
+    for (var i = 0; i < ctx.rows.length; i++) {
+      var candidate = coreMailHubBuildAttachmentRecord_(ctx.rows[i], ctx, ctx.startRow + i);
+      if (candidate.attachmentId === normalizedAttachmentId) {
+        rowNumber = candidate.rowNumber;
+        record = candidate;
+        break;
+      }
+    }
+
+    if (!rowNumber || !record) {
+      throw new Error('Anexo nao encontrado em MAIL_ANEXOS: ' + attachmentId);
+    }
+
+    var processedAt = patch.processedAt || new Date();
+    var nextStatus = coreMailHubNormalizeAttachmentStatus_(patch.statusAnexo || patch.attachmentStatus || record.attachmentStatus);
+    var nextSavedFlag = Object.prototype.hasOwnProperty.call(patch, 'savedToDrive')
+      ? (patch.savedToDrive === true ? 'SIM' : 'NAO')
+      : (nextStatus === CORE_MAIL_ATTACHMENT_STATUS.SALVO_DRIVE ? 'SIM' : record.savedToDrive || 'NAO');
+    var nextObservations = Object.prototype.hasOwnProperty.call(patch, 'observations')
+      ? String(patch.observations || '').trim()
+      : record.observations;
+
+    coreMailHubWriteCell_(sheet, rowNumber, ctx, 'Status Anexo', nextStatus);
+    coreMailHubWriteCell_(sheet, rowNumber, ctx, 'Foi Salvo No Drive', nextSavedFlag);
+    coreMailHubWriteCell_(sheet, rowNumber, ctx, 'Processado Por', String(processorName || '').trim());
+    coreMailHubWriteCell_(sheet, rowNumber, ctx, 'Data Hora Processamento', processedAt);
+    coreMailHubWriteCell_(sheet, rowNumber, ctx, 'Observacoes', nextObservations);
+    coreMailHubWriteCell_(sheet, rowNumber, ctx, 'Atualizado Em', processedAt);
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'driveFileId')) {
+      coreMailHubWriteCell_(sheet, rowNumber, ctx, 'Id Arquivo Drive', String(patch.driveFileId || '').trim());
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'driveFileUrl')) {
+      coreMailHubWriteCell_(sheet, rowNumber, ctx, 'Link Arquivo Drive', String(patch.driveFileUrl || '').trim());
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'driveFolder')) {
+      coreMailHubWriteCell_(sheet, rowNumber, ctx, 'Pasta Destino Drive', String(patch.driveFolder || '').trim());
+    }
+
+    if (record.correlationKey) {
+      coreMailHubRefreshIndexSummaryByCorrelationKey_(record.correlationKey);
+    }
+
+    return Object.freeze({
+      ok: true,
+      attachmentId: normalizedAttachmentId,
+      rowNumber: rowNumber,
+      statusAnexo: nextStatus,
+      savedToDrive: nextSavedFlag,
+      processedBy: String(processorName || '').trim(),
+      processedAt: processedAt,
+      correlationKey: record.correlationKey
+    });
+  });
+}
+
 function coreMailHubListEvents_(opts) {
   opts = opts || {};
   coreMailHubAssertSchema_();
@@ -2405,6 +2756,94 @@ function coreMailHubListEvents_(opts) {
 function core_mailGetLatestEvent_(opts) {
   var events = coreMailHubListEvents_(Object.assign({}, opts || {}, { limit: 1 }));
   return events.length ? events[0] : null;
+}
+
+function core_mailListAttachments_(opts) {
+  return coreMailHubListAttachments_(opts || {});
+}
+
+function core_mailListPendingAttachments_(opts) {
+  return coreMailHubListAttachments_(Object.assign({}, opts || {}, {
+    hasPendingAttachment: true
+  }));
+}
+
+function core_mailGetLatestPendingEventWithAttachment_(opts) {
+  return coreMailHubGetLatestPendingEventWithAttachment_(opts || {});
+}
+
+function core_mailListAttachmentsByEvent_(eventId, opts) {
+  core_assertRequired_(eventId, 'eventId');
+  return coreMailHubListAttachments_(Object.assign({}, opts || {}, {
+    eventId: eventId
+  }));
+}
+
+function core_mailGetAttachmentById_(attachmentId, opts) {
+  core_assertRequired_(attachmentId, 'attachmentId');
+  opts = opts || {};
+
+  var records = coreMailHubListAttachments_({
+    attachmentId: attachmentId,
+    limit: 1
+  });
+  if (!records.length) return null;
+
+  var record = records[0];
+  if (opts.includeAttachment !== true && opts.includeBlob !== true) {
+    return record;
+  }
+
+  return coreMailHubFindRealAttachmentByRecord_(record);
+}
+
+function core_mailGetAttachmentsByEvent_(eventId, opts) {
+  core_assertRequired_(eventId, 'eventId');
+  opts = opts || {};
+
+  var records = coreMailHubListAttachments_({
+    eventId: eventId
+  });
+  if (opts.includeAttachment !== true && opts.includeBlob !== true) {
+    return records;
+  }
+
+  return records.map(function(record) {
+    return coreMailHubFindRealAttachmentByRecord_(record);
+  });
+}
+
+function core_mailMarkAttachmentProcessed_(attachmentId, processorName, observations) {
+  return coreMailHubUpdateAttachmentStatus_(attachmentId, processorName, {
+    statusAnexo: CORE_MAIL_ATTACHMENT_STATUS.PROCESSADO,
+    observations: observations
+  });
+}
+
+function core_mailMarkAttachmentSavedToDrive_(attachmentId, processorName, driveInfo) {
+  driveInfo = driveInfo || {};
+  return coreMailHubUpdateAttachmentStatus_(attachmentId, processorName, {
+    statusAnexo: CORE_MAIL_ATTACHMENT_STATUS.SALVO_DRIVE,
+    savedToDrive: true,
+    driveFileId: driveInfo.driveFileId || driveInfo.fileId || '',
+    driveFileUrl: driveInfo.driveFileUrl || driveInfo.fileUrl || '',
+    driveFolder: driveInfo.driveFolder || driveInfo.folder || '',
+    observations: driveInfo.observations
+  });
+}
+
+function core_mailMarkAttachmentIgnored_(attachmentId, processorName, observations) {
+  return coreMailHubUpdateAttachmentStatus_(attachmentId, processorName, {
+    statusAnexo: CORE_MAIL_ATTACHMENT_STATUS.IGNORADO,
+    observations: observations
+  });
+}
+
+function core_mailMarkAttachmentError_(attachmentId, processorName, observations) {
+  return coreMailHubUpdateAttachmentStatus_(attachmentId, processorName, {
+    statusAnexo: CORE_MAIL_ATTACHMENT_STATUS.ERRO,
+    observations: observations
+  });
 }
 
 function core_mailMarkLatestPendingByModule_(moduleName, processorName) {

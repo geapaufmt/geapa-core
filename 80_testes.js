@@ -377,3 +377,229 @@ function test_core_identity_validateExternalEmailDuplicates() {
 function test_core_identity_findExternalByEmail_example() {
   Logger.log(JSON.stringify(core_identityFindExternalByEmail_('email@exemplo.com'), null, 2));
 }
+
+function test_core_mailHub_listPendingAttachments() {
+  Logger.log(JSON.stringify(core_mailListPendingAttachments_({ limit: 20 }), null, 2));
+}
+
+function test_core_mailHub_getLatestPendingEventWithAttachment() {
+  Logger.log(JSON.stringify(core_mailGetLatestPendingEventWithAttachment_({}), null, 2));
+}
+
+function test_core_mailHub_getAttachmentById_example(attachmentId) {
+  Logger.log(JSON.stringify(core_mailGetAttachmentById_(attachmentId, { includeBlob: false }), null, 2));
+}
+
+function test_core_mailHub_markAttachmentProcessed_example(attachmentId) {
+  Logger.log(JSON.stringify(core_mailMarkAttachmentProcessed_(attachmentId, 'test_core_mailHub_markAttachmentProcessed_example', 'Marcado manualmente em teste.'), null, 2));
+}
+
+function test_core_mailHub_markAttachmentSavedToDrive_example(attachmentId) {
+  Logger.log(JSON.stringify(core_mailMarkAttachmentSavedToDrive_(attachmentId, 'test_core_mailHub_markAttachmentSavedToDrive_example', {
+    driveFileId: 'DRIVE_FILE_ID_EXEMPLO',
+    driveFileUrl: 'https://drive.google.com/file/d/DRIVE_FILE_ID_EXEMPLO/view',
+    driveFolder: 'PASTA_DESTINO_EXEMPLO',
+    observations: 'Salvo no Drive em teste manual.'
+  }), null, 2));
+}
+
+function test_core_mailHub_markAttachmentError_example(attachmentId) {
+  Logger.log(JSON.stringify(core_mailMarkAttachmentError_(attachmentId, 'test_core_mailHub_markAttachmentError_example', 'Erro simulado para validacao operacional.'), null, 2));
+}
+
+function test_assert_(condition, message) {
+  if (!condition) {
+    throw new Error(message || 'Assercao falhou.');
+  }
+}
+
+function test_createFakeSheet_(matrix, sheetName) {
+  var data = (matrix || []).map(function(row) {
+    return row.slice();
+  });
+
+  function ensureCell_(rowNumber, colNumber) {
+    while (data.length < rowNumber) data.push([]);
+    while (data[rowNumber - 1].length < colNumber) data[rowNumber - 1].push('');
+  }
+
+  return {
+    getName: function() {
+      return sheetName || 'FAKE_SHEET';
+    },
+    getLastColumn: function() {
+      return data.length ? data[0].length : 0;
+    },
+    getLastRow: function() {
+      return data.length;
+    },
+    appendRow: function(row) {
+      data.push((row || []).slice());
+    },
+    getRange: function(row, col, numRows, numCols) {
+      var startRow = Number(row);
+      var startCol = Number(col);
+      var rowCount = Number(numRows || 1);
+      var colCount = Number(numCols || 1);
+
+      return {
+        getValues: function() {
+          var values = [];
+          for (var r = 0; r < rowCount; r++) {
+            var line = [];
+            for (var c = 0; c < colCount; c++) {
+              var sourceRow = data[startRow + r - 1] || [];
+              line.push(typeof sourceRow[startCol + c - 1] === 'undefined' ? '' : sourceRow[startCol + c - 1]);
+            }
+            values.push(line);
+          }
+          return values;
+        },
+        setValues: function(values) {
+          for (var r = 0; r < rowCount; r++) {
+            for (var c = 0; c < colCount; c++) {
+              ensureCell_(startRow + r, startCol + c);
+              data[startRow + r - 1][startCol + c - 1] = values[r][c];
+            }
+          }
+        },
+        setValue: function(value) {
+          ensureCell_(startRow, startCol);
+          data[startRow - 1][startCol - 1] = value;
+        }
+      };
+    }
+  };
+}
+
+function test_core_memberLifecycle_updateEvent_patch_fakeSheet() {
+  var baseUpdatedAt = new Date(2026, 3, 12, 8, 0, 0);
+  var processingDate = new Date(2026, 3, 18, 9, 30, 0);
+  var sheet = test_createFakeSheet_([
+    [
+      'ID_EVENTO_MEMBRO',
+      'RGA',
+      'TIPO_EVENTO',
+      'DATA_EVENTO',
+      'STATUS_EVENTO',
+      'MOTIVO_EVENTO',
+      'ORIGEM_MODULO',
+      'ORIGEM_CHAVE',
+      'ORIGEM_ROW',
+      'NOME_MEMBRO',
+      'EMAIL',
+      'OBSERVACOES',
+      'CRIADO_EM',
+      'ATUALIZADO_EM'
+    ],
+    [
+      'MEV-000001',
+      '2023001',
+      'DESLIGAMENTO_POR_FALTAS',
+      new Date(2026, 3, 10, 0, 0, 0),
+      'HOMOLOGADO',
+      'Faltas recorrentes',
+      'geapa-atividades',
+      'ATV-2026-001',
+      '17',
+      'Membro Teste',
+      'membro@exemplo.com',
+      'Aguardando processamento em membros.',
+      new Date(2026, 3, 10, 8, 0, 0),
+      baseUpdatedAt
+    ]
+  ], 'MEMBER_EVENTOS_VINCULO_FAKE');
+
+  var first = core_memberLifecycleApplyPatchToSheet_(sheet, 'MEV-000001', {
+    eventStatus: 'PROCESSADO_MEMBROS',
+    observacoes: 'Processado efetivamente pelo modulo de membros.',
+    processedByModule: 'geapa-membros',
+    processingDate: processingDate,
+    processingError: ''
+  });
+
+  test_assert_(first.updated === true, 'O primeiro patch deveria atualizar o evento.');
+  test_assert_(first.event.eventStatus === 'PROCESSADO_MEMBROS', 'STATUS_EVENTO nao foi atualizado.');
+  test_assert_(first.event.notes === 'Processado efetivamente pelo modulo de membros.', 'OBSERVACOES nao foi atualizada.');
+  test_assert_(first.event.processedByModule === 'geapa-membros', 'PROCESSADO_POR_MODULO nao foi atualizado.');
+  test_assert_(first.event.processingDate && first.event.processingDate.getTime() === processingDate.getTime(), 'DATA_PROCESSAMENTO nao foi atualizada.');
+  test_assert_(first.event.processingError === '', 'ERRO_PROCESSAMENTO deveria estar vazio.');
+  test_assert_(first.event.updatedAt && first.event.updatedAt.getTime() !== baseUpdatedAt.getTime(), 'ATUALIZADO_EM deveria refletir a atualizacao.');
+
+  var headersAfterExtension = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  test_assert_(headersAfterExtension.indexOf('PROCESSADO_POR_MODULO') >= 0, 'Cabecalho PROCESSADO_POR_MODULO nao foi criado.');
+  test_assert_(headersAfterExtension.indexOf('DATA_PROCESSAMENTO') >= 0, 'Cabecalho DATA_PROCESSAMENTO nao foi criado.');
+  test_assert_(headersAfterExtension.indexOf('ERRO_PROCESSAMENTO') >= 0, 'Cabecalho ERRO_PROCESSAMENTO nao foi criado.');
+
+  var firstUpdatedAt = first.event.updatedAt;
+  var second = core_memberLifecycleApplyPatchToSheet_(sheet, 'MEV-000001', {
+    eventStatus: 'PROCESSADO_MEMBROS',
+    observacoes: 'Processado efetivamente pelo modulo de membros.',
+    processedByModule: 'geapa-membros',
+    processingDate: processingDate,
+    processingError: ''
+  });
+
+  test_assert_(second.updated === false, 'Retry identico deveria ser idempotente.');
+  test_assert_(second.event.updatedAt && second.event.updatedAt.getTime() === firstUpdatedAt.getTime(), 'ATUALIZADO_EM nao deveria mudar em retry idempotente.');
+
+  Logger.log(JSON.stringify({
+    ok: true,
+    first: first,
+    second: second
+  }, null, 2));
+}
+
+function test_core_memberLifecycle_updateEvent_invalidStatus_fakeSheet() {
+  var sheet = test_createFakeSheet_([
+    [
+      'ID_EVENTO_MEMBRO',
+      'RGA',
+      'TIPO_EVENTO',
+      'DATA_EVENTO',
+      'STATUS_EVENTO',
+      'MOTIVO_EVENTO',
+      'ORIGEM_MODULO',
+      'ORIGEM_CHAVE',
+      'ORIGEM_ROW',
+      'NOME_MEMBRO',
+      'EMAIL',
+      'OBSERVACOES',
+      'CRIADO_EM',
+      'ATUALIZADO_EM'
+    ],
+    [
+      'MEV-000002',
+      '2023002',
+      'DESLIGAMENTO_POR_FALTAS',
+      new Date(2026, 3, 11, 0, 0, 0),
+      'REGISTRADO',
+      'Teste',
+      'geapa-atividades',
+      'ATV-2026-002',
+      '18',
+      'Outro Membro',
+      'outro@exemplo.com',
+      '',
+      new Date(2026, 3, 11, 8, 0, 0),
+      new Date(2026, 3, 11, 8, 0, 0)
+    ]
+  ], 'MEMBER_EVENTOS_VINCULO_FAKE');
+
+  var failed = false;
+
+  try {
+    core_memberLifecycleApplyPatchToSheet_(sheet, 'MEV-000002', {
+      eventStatus: 'STATUS_INVALIDO'
+    });
+  } catch (err) {
+    failed = true;
+    test_assert_(
+      String(err && err.message || '').indexOf('nao suportado') >= 0,
+      'A validacao deveria rejeitar status invalido com mensagem clara.'
+    );
+  }
+
+  test_assert_(failed === true, 'Era esperado erro para status invalido.');
+  Logger.log(JSON.stringify({ ok: true, failed: failed }, null, 2));
+}
