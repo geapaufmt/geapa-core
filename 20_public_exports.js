@@ -339,12 +339,52 @@ function coreMailGetLatestEvent(opts) {
   return core_mailGetLatestEvent_(opts || {});
 }
 
+function coreMailListAttachments(opts) {
+  return core_mailListAttachments_(opts || {});
+}
+
+function coreMailListPendingAttachments(opts) {
+  return core_mailListPendingAttachments_(opts || {});
+}
+
+function coreMailGetLatestPendingEventWithAttachment(opts) {
+  return core_mailGetLatestPendingEventWithAttachment_(opts || {});
+}
+
+function coreMailListAttachmentsByEvent(eventId, opts) {
+  return core_mailListAttachmentsByEvent_(eventId, opts || {});
+}
+
+function coreMailGetAttachmentById(attachmentId, opts) {
+  return core_mailGetAttachmentById_(attachmentId, opts || {});
+}
+
+function coreMailGetAttachmentsByEvent(eventId, opts) {
+  return core_mailGetAttachmentsByEvent_(eventId, opts || {});
+}
+
 function coreMailMarkLatestPendingByModule(moduleName, processorName) {
   return core_mailMarkLatestPendingByModule_(moduleName, processorName);
 }
 
 function coreMailMarkEventProcessed(eventId, processorName) {
   return core_mailMarkEventProcessed_(eventId, processorName);
+}
+
+function coreMailMarkAttachmentProcessed(attachmentId, processorName, observations) {
+  return core_mailMarkAttachmentProcessed_(attachmentId, processorName, observations || '');
+}
+
+function coreMailMarkAttachmentSavedToDrive(attachmentId, processorName, driveInfo) {
+  return core_mailMarkAttachmentSavedToDrive_(attachmentId, processorName, driveInfo || {});
+}
+
+function coreMailMarkAttachmentIgnored(attachmentId, processorName, observations) {
+  return core_mailMarkAttachmentIgnored_(attachmentId, processorName, observations || '');
+}
+
+function coreMailMarkAttachmentError(attachmentId, processorName, observations) {
+  return core_mailMarkAttachmentError_(attachmentId, processorName, observations || '');
 }
 
 function coreMailCleanupNoiseEvents() {
@@ -421,6 +461,14 @@ function coreListMemberLifecycleEvents(filters, opts) {
 
 function coreGetLatestMemberLifecycleEventByRga(rga, opts) {
   return core_memberLifecycleGetLatestEventByRga_(rga, opts || {});
+}
+
+function coreUpdateMemberLifecycleEvent(eventId, patch) {
+  return core_updateMemberLifecycleEvent_(eventId, patch || {});
+}
+
+function coreUpdateMemberLifecycleEventStatus(eventId, nextStatus, opts) {
+  return core_updateMemberLifecycleEventStatus_(eventId, nextStatus, opts || {});
 }
 
 /* ============================================================

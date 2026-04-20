@@ -110,6 +110,92 @@ Observacao operacional:
 - as funcoes em lote saneiam bases ja existentes;
 - as funcoes por linha permitem que modulos ou projetos consumidores garantam IDs automaticamente em novos registros.
 
+### Eventos de ciclo de vida de membros
+
+Camada compartilhada para registrar, listar, consultar o evento mais recente e atualizar eventos ja existentes em `MEMBER_EVENTOS_VINCULO` com escrita controlada pelo core.
+
+Funcoes publicas:
+
+- `coreAppendMemberLifecycleEvent(payload)`
+- `coreListMemberLifecycleEvents(filters, opts)`
+- `coreGetLatestMemberLifecycleEventByRga(rga, opts)`
+- `coreUpdateMemberLifecycleEvent(eventId, patch)`
+- `coreUpdateMemberLifecycleEventStatus(eventId, nextStatus, opts)`
+
+Contrato atual de tipos e status:
+
+- tipos suportados: `INGRESSO`, `DESLIGAMENTO_VOLUNTARIO`, `DESLIGAMENTO_POR_FALTAS`, `DESLIGAMENTO_ADMINISTRATIVO`, `SUSPENSAO`, `RETORNO`
+- status suportados: `REGISTRADO`, `HOMOLOGADO`, `CANCELADO`, `PROCESSADO_ATIVIDADES`, `PROCESSADO_MEMBROS`
+
+Campos atualizaveis via patch:
+
+- `STATUS_EVENTO`
+- `OBSERVACOES`
+- `ATUALIZADO_EM`
+- `PROCESSADO_POR_MODULO`
+- `DATA_PROCESSAMENTO`
+- `ERRO_PROCESSAMENTO`
+
+Regras da API de update:
+
+- localiza o registro por `ID_EVENTO_MEMBRO`
+- valida o status contra o enum oficial do core
+- rejeita campos fora da allowlist do contrato
+- so altera colunas explicitamente permitidas
+- e idempotente para retry: se o patch nao muda nada, o evento nao e regravado
+- quando o patch muda algum campo e `ATUALIZADO_EM` nao e informado, o core grava automaticamente o timestamp da atualizacao
+
+Observacao de schema:
+
+- para manter compatibilidade com planilhas ja existentes, o core continua lendo o contrato atual sem exigir migracao previa;
+- se `PROCESSADO_POR_MODULO`, `DATA_PROCESSAMENTO` ou `ERRO_PROCESSAMENTO` ainda nao existirem, o update pode autoestender a linha de cabecalho com essas colunas opcionais;
+- se o modulo consumidor nao precisar desses metadados estruturados, pode continuar concentrando contexto tecnico em `OBSERVACOES`.
+
+Exemplo de registro:
+
+```javascript
+GEAPA_CORE.coreAppendMemberLifecycleEvent({
+  rga: '2023001',
+  eventType: 'DESLIGAMENTO_POR_FALTAS',
+  eventDate: new Date(),
+  eventStatus: 'REGISTRADO',
+  sourceModule: 'geapa-atividades',
+  sourceKey: 'ATV-2026-001',
+  notes: 'Evento aberto para homologacao.'
+});
+```
+
+Exemplo de listagem:
+
+```javascript
+var events = GEAPA_CORE.coreListMemberLifecycleEvents({
+  rga: '2023001',
+  eventType: 'DESLIGAMENTO_POR_FALTAS'
+}, {
+  limit: 10
+});
+```
+
+Exemplo de update generico:
+
+```javascript
+GEAPA_CORE.coreUpdateMemberLifecycleEvent('MEV-000001', {
+  eventStatus: 'PROCESSADO_MEMBROS',
+  observacoes: 'Desligamento efetivado no modulo de membros.',
+  processedByModule: 'geapa-membros',
+  processingDate: new Date(),
+  processingError: ''
+});
+```
+
+Exemplo de update focado em status:
+
+```javascript
+GEAPA_CORE.coreUpdateMemberLifecycleEventStatus('MEV-000001', 'HOMOLOGADO', {
+  observacoes: 'Homologado pela gestao.'
+});
+```
+
 ### E-mail e Gmail
 
 Camada compartilhada para envio HTML/texto, replies, labels e rastreamento.
@@ -197,7 +283,10 @@ Escopo atual:
 - registrar eventos em `MAIL_EVENTOS`;
 - manter upsert de indice em `MAIL_INDICE`;
 - registrar metadados de anexos em `MAIL_ANEXOS`;
-- consultar pendencias por modulo e marcar evento como processado.
+- consultar pendencias por modulo e marcar evento como processado;
+- listar anexos operacionais por filtros reutilizaveis;
+- reabrir o anexo real no Gmail sob demanda a partir de `MAIL_ANEXOS`;
+- marcar o resultado operacional do anexo sem acoplar regra de negocio ao core.
 
 Funcoes publicas:
 
@@ -219,8 +308,18 @@ Funcoes publicas:
 - `coreMailGetConfigList(key)`
 - `coreMailListPendingByModule(moduleName)`
 - `coreMailGetLatestEvent(opts)`
+- `coreMailListAttachments(opts)`
+- `coreMailListPendingAttachments(opts)`
+- `coreMailGetLatestPendingEventWithAttachment(opts)`
+- `coreMailListAttachmentsByEvent(eventId, opts)`
+- `coreMailGetAttachmentById(attachmentId, opts)`
+- `coreMailGetAttachmentsByEvent(eventId, opts)`
 - `coreMailMarkLatestPendingByModule(moduleName, processorName)`
 - `coreMailMarkEventProcessed(eventId, processorName)`
+- `coreMailMarkAttachmentProcessed(attachmentId, processorName, observations)`
+- `coreMailMarkAttachmentSavedToDrive(attachmentId, processorName, driveInfo)`
+- `coreMailMarkAttachmentIgnored(attachmentId, processorName, observations)`
+- `coreMailMarkAttachmentError(attachmentId, processorName, observations)`
 - `coreMailCleanupNoiseEvents()`
 - `coreMailApplyOperationalSheetUx(opts)`
 
@@ -240,8 +339,17 @@ Observacoes desta V1:
 
 - nao migra os modulos consumidores existentes;
 - nao implementa retry avancado da fila de saida;
-- nao salva anexos no Drive;
+- nao decide qual anexo pertence a qual regra de negocio;
 - nao aplica roteamento avancado por regras.
+
+Tratamento operacional de anexos (V1):
+
+- o core continua registrando anexos em `MAIL_ANEXOS` no momento da ingestao;
+- o modulo consumidor pode listar anexos pendentes por `moduleName`, `correlationKey`, `entityType`, `entityId`, `flowStep`, `statusAnexo`, `eventId`, `messageId`, `threadId` ou `attachmentId`;
+- o core consegue reabrir a mensagem original no Gmail e devolver o anexo real sob demanda usando `Id Thread Gmail`, `Id Mensagem Gmail` e `Indice Anexo Mensagem`;
+- o modulo consumidor continua responsavel por validar o arquivo, escolher o anexo correto e salvar no Drive;
+- depois do processamento, o modulo pode marcar o anexo como `PROCESSADO`, `SALVO_DRIVE`, `IGNORADO` ou `ERRO`, incluindo `Processado Por`, `Data Hora Processamento`, `Observacoes`, `Id Arquivo Drive`, `Link Arquivo Drive` e `Pasta Destino Drive`;
+- o indice central passa a considerar `SALVO_DRIVE` como anexo resolvido para a flag `Ha Anexo Pendente`.
 
 MAIL_SAIDA (V1 minima):
 
@@ -268,7 +376,7 @@ Schema minimo esperado na versao atual da planilha central:
 
 - `MAIL_EVENTOS`: `Id Evento`, `Data Hora Evento`, `Direcao`, `Tipo Evento`, `Modulo Dono`, `Chave de Correlacao`, `Id Thread Gmail`, `Id Mensagem Gmail`, `Assunto`, `Email Remetente`, `Emails Destinatarios`, `Status Processamento`, `Processado Por`, `Data Hora Processamento`, `Possui Anexos`, `Quantidade Anexos`, `Criado Em`, `Atualizado Em`
 - `MAIL_INDICE`: `Chave de Correlacao`, `Modulo Dono`, `Tipo Entidade`, `Id Entidade`, `Etapa Atual`, `Id Thread Gmail`, `Id Ultima Mensagem`, `Ultima Direcao`, `Ultimo Tipo Evento`, `Ultimo Email Remetente`, `Ultimo Assunto`, `Data Hora Ultimo Evento`, `Ha Entrada Pendente`, `Ha Anexo Pendente`, `Quantidade Eventos`, `Quantidade Entradas`, `Quantidade Saidas`, `Quantidade Anexos`, `Criado Em`, `Atualizado Em`
-- `MAIL_ANEXOS`: `Id Anexo`, `Id Evento`, `Modulo Dono`, `Chave de Correlacao`, `Etapa Fluxo`, `Id Mensagem Gmail`, `Id Thread Gmail`, `Nome Arquivo`, `Tipo Mime`, `Tamanho Bytes`, `Status Anexo`, `Criado Em`, `Atualizado Em`
+- `MAIL_ANEXOS`: `Id Anexo`, `Id Evento`, `Modulo Dono`, `Tipo Entidade`, `Id Entidade`, `Chave de Correlacao`, `Etapa Fluxo`, `Id Mensagem Gmail`, `Id Thread Gmail`, `Indice Anexo Mensagem`, `Nome Arquivo`, `Tipo Mime`, `Tamanho Bytes`, `Foi Salvo No Drive`, `Id Arquivo Drive`, `Link Arquivo Drive`, `Pasta Destino Drive`, `Status Anexo`, `Processado Por`, `Data Hora Processamento`, `Observacoes`, `Criado Em`, `Atualizado Em`
 - `MAIL_CONFIG`: `Chave`, `Valor`, `Ativo`
 - `MAIL_SAIDA`: `Id Saida`, `Modulo Dono`, `Tipo Entidade`, `Id Entidade`, `Chave de Correlacao`, `Etapa Fluxo`, `Email Destinatario Principal`, `Emails Destinatarios`, `Emails Cc`, `Emails Cco`, `Nome Destinatario`, `Assunto`, `Corpo Texto`, `Corpo Html`, `Data Hora Agendada`, `Prioridade`, `Status Envio`, `Tentativas`, `Ultimo Erro`, `Id Thread Gmail`, `Id Mensagem Gmail`, `Enviado Em`, `Criado Em`, `Atualizado Em`, `Observacoes`
 
@@ -297,6 +405,7 @@ Semantica pratica dessas configuracoes:
 - `MAX_EVENTOS_POR_EXECUCAO`: limite maximo de novos eventos registrados por execucao
 - `SALVAR_CORPO_COMPLETO`: quando `SIM`, preenche `Corpo Texto`; quando `NAO`, salva apenas `Trecho Corpo`
 - `MARCAR_RUIDO_COMO_IGNORADO`: quando `SIM`, registra ruido como `IGNORADO`; quando `NAO`, simplesmente nao registra
+- `MAIL_ANEXOS` agora pode ser autoestendida pelo core quando os novos cabecalhos operacionais ainda nao existirem na planilha.
 
 Testes manuais no projeto:
 
@@ -322,6 +431,14 @@ Testes manuais no projeto:
 - `test_core_mailHub_listPending_membros()`
 - `test_core_mailHub_getLatestEvent()`
 - `test_core_mailHub_getLatestPending_membros()`
+- `test_core_memberLifecycle_updateEvent_patch_fakeSheet()`
+- `test_core_memberLifecycle_updateEvent_invalidStatus_fakeSheet()`
+- `test_core_mailHub_listPendingAttachments()`
+- `test_core_mailHub_getLatestPendingEventWithAttachment()`
+- `test_core_mailHub_getAttachmentById_example(attachmentId)`
+- `test_core_mailHub_markAttachmentProcessed_example(attachmentId)`
+- `test_core_mailHub_markAttachmentSavedToDrive_example(attachmentId)`
+- `test_core_mailHub_markAttachmentError_example(attachmentId)`
 - `test_core_mailHub_markLatestPending_membros_processed()`
 - `test_core_mailHub_markLatestPending_naoIdentificado_processed()`
 - `test_core_mailHub_cleanupNoiseEvents()`
@@ -413,13 +530,22 @@ Arquivo de trigger:
 Funcoes principais:
 
 - `core_installTriggers()`
+- `core_reinstallTriggers()`
 - `core_uninstallTriggers()`
+- `core_listTriggers()`
+- `core_validateTriggers()`
 - `coreSyncMembersCurrentDerivedFields()`
+- `coreMailProcessOutbox()`
+- `coreMailIngestInbox(opts)`
+- `coreMailCleanupNoiseEvents()`
 
 Uso atual:
 
 - trigger temporal diario para sincronizar campos derivados em `MEMBERS_ATUAIS`.
 - entre os derivados sincronizados, o core atualiza o semestre atual, o numero de semestres no grupo e, quando a coluna existir, `TEMPO_EFETIVO_NO_GRUPO` com base em `Data integração`.
+- trigger horario para processar a `MAIL_SAIDA`.
+- trigger horario para ingestao automatica da caixa de entrada do Mail Hub.
+- trigger diario para limpeza de eventos ignorados/ruido no Mail Hub.
 
 ---
 
