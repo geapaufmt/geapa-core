@@ -34,7 +34,7 @@ const CORE_GOVERNANCE_CFG = Object.freeze({
   boardMemberHeaders: Object.freeze({
     name: "Nome",
     rga: Object.freeze(["RGA"]),
-    role: "Cargo/Função",
+    occupation: core_getOccupationHeaderAliases_('occupation'),
     boardId: "ID_Diretoria",
     start: "Data_Início",
     end: "Data_Fim",
@@ -46,7 +46,7 @@ const CORE_GOVERNANCE_CFG = Object.freeze({
     rga: Object.freeze(["RGA"]),
     phone: Object.freeze(["TELEFONE", "Telefone"]),
     email: Object.freeze(["EMAIL", "Email", "E-mail"]),
-    currentRole: Object.freeze(["Cargo/fun\u00E7\u00E3o atual", "Cargo/funcao atual", "CARGO_FUNCAO_ATUAL"])
+    currentOccupation: core_getOccupationHeaderAliases_('currentOccupation')
   })
 });
 
@@ -56,7 +56,12 @@ const CORE_GOVERNANCE_CFG = Object.freeze({
  * ====================================================================== */
 
 function core_normalizeGovernanceText_(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 function core_parseDateOrNull_(value) {
@@ -124,13 +129,23 @@ function core_buildMembersCurrentMapByRga_() {
   data.rows.forEach(row => {
     const rga = String(row[idx.rga] || "").trim();
     if (!rga) return;
+    const currentOccupationCell = core_getOccupationValueFromRowByHeaders_(
+      row,
+      data.headers,
+      'currentOccupation',
+      core_normalizeGovernanceText_
+    );
+    const currentOccupation = currentOccupationCell.found
+      ? String(currentOccupationCell.value || "").trim()
+      : "";
 
     map[rga] = Object.freeze({
       name: idx.name >= 0 ? String(row[idx.name] || "").trim() : "",
       rga,
       phone: idx.phone >= 0 ? String(row[idx.phone] || "").trim() : "",
       email: idx.email >= 0 ? String(row[idx.email] || "").trim() : "",
-      currentRole: idx.currentRole >= 0 ? String(row[idx.currentRole] || "").trim() : ""
+      currentOccupation: currentOccupation,
+      currentRole: currentOccupation
     });
   });
 
@@ -197,7 +212,7 @@ function core_getCurrentBoardMembers_(refDate) {
   const data = core_getRowsFromSheetByKey_(CORE_GOVERNANCE_CFG.boardMembersKey);
   const idx = core_getHeaderIndexMap_(data.headers, CORE_GOVERNANCE_CFG.boardMemberHeaders);
 
-  if (idx.name < 0 || idx.rga < 0 || idx.role < 0 || idx.boardId < 0) {
+  if (idx.name < 0 || idx.rga < 0 || idx.occupation < 0 || idx.boardId < 0) {
     throw new Error("core_getCurrentBoardMembers_: cabeçalhos obrigatórios não encontrados em VIGENCIA_MEMBROS_DIRETORIAS.");
   }
 
@@ -207,7 +222,7 @@ function core_getCurrentBoardMembers_(refDate) {
     const boardId = String(row[idx.boardId] || "").trim();
     if (boardId !== board.id) return;
 
-    const role = String(row[idx.role] || "").trim();
+    const occupation = String(row[idx.occupation] || "").trim();
     const name = String(row[idx.name] || "").trim();
     const rga = String(row[idx.rga] || "").trim();
     const start = idx.start >= 0 ? core_parseDateOrNull_(row[idx.start]) : null;
@@ -225,10 +240,12 @@ function core_getCurrentBoardMembers_(refDate) {
       boardId,
       name: memberBase.name || name,
       rga,
-      role,
+      occupation,
+      role: occupation,
       phone: memberBase.phone || "",
       email: memberBase.email || "",
-      currentRoleInMembersSheet: memberBase.currentRole || "",
+      currentOccupationInMembersSheet: memberBase.currentOccupation || "",
+      currentRoleInMembersSheet: memberBase.currentOccupation || memberBase.currentRole || "",
       startDate: start,
       endDate: end,
       expectedEndDate: expectedEnd
@@ -247,13 +264,17 @@ function core_getCurrentBoardMembers_(refDate) {
  * @param {Date=} refDate
  * @return {Object[]}
  */
-function core_getCurrentBoardMembersByRole_(role, refDate) {
-  const wanted = core_normalizeGovernanceText_(role);
+function core_getCurrentBoardMembersByOccupation_(occupation, refDate) {
+  const wanted = core_normalizeGovernanceText_(occupation);
   if (!wanted) return [];
 
   return core_getCurrentBoardMembers_(refDate).filter(member => {
-    return core_normalizeGovernanceText_(member.role) === wanted;
+    return core_normalizeGovernanceText_(member.occupation || member.role) === wanted;
   });
+}
+
+function core_getCurrentBoardMembersByRole_(role, refDate) {
+  return core_getCurrentBoardMembersByOccupation_(role, refDate);
 }
 
 /**
@@ -263,9 +284,13 @@ function core_getCurrentBoardMembersByRole_(role, refDate) {
  * @param {Date=} refDate
  * @return {Object|null}
  */
-function core_getCurrentBoardMemberByRole_(role, refDate) {
-  const found = core_getCurrentBoardMembersByRole_(role, refDate);
+function core_getCurrentBoardMemberByOccupation_(occupation, refDate) {
+  const found = core_getCurrentBoardMembersByOccupation_(occupation, refDate);
   return found.length ? found[0] : null;
+}
+
+function core_getCurrentBoardMemberByRole_(role, refDate) {
+  return core_getCurrentBoardMemberByOccupation_(role, refDate);
 }
 
 /**
@@ -276,11 +301,11 @@ function core_getCurrentBoardMemberByRole_(role, refDate) {
  */
 function core_getCurrentLeadership_(refDate) {
   return Object.freeze({
-    presidente: core_getCurrentBoardMemberByRole_("Presidente", refDate),
-    vicePresidente: core_getCurrentBoardMemberByRole_("Vice Presidente", refDate),
-    secretarioGeral: core_getCurrentBoardMemberByRole_("Secretário(a) Geral", refDate),
-    secretarioExecutivo: core_getCurrentBoardMemberByRole_("Secretário(a) Executivo", refDate),
-    coordenadorComunicacao: core_getCurrentBoardMemberByRole_("Coordenador(a) de Comunicação", refDate)
+    presidente: core_getCurrentBoardMemberByOccupation_("Presidente", refDate),
+    vicePresidente: core_getCurrentBoardMemberByOccupation_("Vice Presidente", refDate),
+    secretarioGeral: core_getCurrentBoardMemberByOccupation_("Secretário(a) Geral", refDate),
+    secretarioExecutivo: core_getCurrentBoardMemberByOccupation_("Secretário(a) Executivo", refDate),
+    coordenadorComunicacao: core_getCurrentBoardMemberByOccupation_("Coordenador(a) de Comunicação", refDate)
   });
 }
 

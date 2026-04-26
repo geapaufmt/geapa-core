@@ -17,7 +17,8 @@ const CORE_ROLE_PROJECTION_HEADERS = Object.freeze({
   email: Object.freeze(['EMAIL', 'E-mail', 'Email']),
   rga: Object.freeze(['RGA']),
   phone: Object.freeze(['TELEFONE', 'Telefone']),
-  currentRole: Object.freeze(['Cargo/fun\u00E7\u00E3o atual', 'Cargo/funcao atual', 'CARGO_FUNCAO_ATUAL']),
+  currentOccupation: core_getOccupationHeaderAliases_('currentOccupation'),
+  institutionalOccupation: core_getOccupationHeaderAliases_('occupation'),
   status: Object.freeze(['Status', 'STATUS_CADASTRAL']),
   integratedAt: Object.freeze(['Data integra\u00E7\u00E3o', 'Data integracao', 'DATA_INTEGRACAO']),
   entrySemester: Object.freeze(['Semestre de Entrada', 'Semestre de entrada', 'SEMESTRE_ENTRADA']),
@@ -109,12 +110,14 @@ function core_roleProjectionReadAssignmentsFromSheet_(sheetKey, sourceType, refD
   if (lastRow < 2 || lastCol < 1) return [];
 
   var headerMap = core_headerMap_(sh, 1);
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function(value) {
+    return String(value || '').trim();
+  });
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
   var idxName = core_roleProjectionGuessColumnIndex_(headerMap, ['Nome', 'MEMBRO']);
   var idxEmail = core_roleProjectionGuessColumnIndex_(headerMap, ['E-mail', 'EMAIL']);
   var idxRga = core_roleProjectionGuessColumnIndex_(headerMap, ['RGA']);
-  var idxRole = core_roleProjectionGuessColumnIndex_(headerMap, ['Cargo/Função', 'Cargo', 'FUNCAO', 'Função']);
   var idxStart = core_roleProjectionGuessColumnIndex_(headerMap, ['Data_Início', 'Data início', 'Data de início', 'INICIO', 'Início']);
   var idxEndReal = core_roleProjectionGuessColumnIndex_(headerMap, ['Data_Fim', 'Data fim', 'Data de fim', 'FIM', 'Fim']);
   var idxEndPlanned = core_roleProjectionGuessColumnIndex_(headerMap, ['Data_Fim_previsto', 'Data fim previsto', 'Data de fim prevista', 'Fim previsto']);
@@ -126,10 +129,16 @@ function core_roleProjectionReadAssignmentsFromSheet_(sheetKey, sourceType, refD
     var memberName = idxName >= 0 ? String(row[idxName] || '').trim() : '';
     var email = idxEmail >= 0 ? String(row[idxEmail] || '').trim() : '';
     var rga = idxRga >= 0 ? String(row[idxRga] || '').trim() : '';
-    var rawRole = idxRole >= 0 ? String(row[idxRole] || '').trim() : '';
+    var occupationCell = core_getOccupationValueFromRowByHeaders_(
+      row,
+      headers,
+      'occupation',
+      core_roleProjectionNormalizeKey_
+    );
+    var rawOccupation = occupationCell.found ? String(occupationCell.value || '').trim() : '';
 
     if (!memberName && !email && !rga) return;
-    if (!rawRole) return;
+    if (!rawOccupation) return;
 
     if (idxAtivo >= 0) {
       var ativo = core_rolesParseYesNo_(row[idxAtivo]);
@@ -143,14 +152,17 @@ function core_roleProjectionReadAssignmentsFromSheet_(sheetKey, sourceType, refD
 
     if (!core_roleProjectionIsAssignmentActive_(startValue, effectiveEndValue, refDate)) return;
 
-    var roleConfig = core_findInstitutionalRoleByAnyName_(rawRole);
+    var roleConfig = core_findInstitutionalRoleByAnyName_(rawOccupation);
 
     out.push(Object.freeze({
       sourceType: sourceType,
-      rawRole: rawRole,
+      rawOccupation: rawOccupation,
+      rawRole: rawOccupation,
       roleConfig: roleConfig,
       roleKey: roleConfig ? roleConfig.roleKey : null,
-      publicName: roleConfig ? roleConfig.publicName : rawRole,
+      occupation: roleConfig ? roleConfig.publicName : rawOccupation,
+      occupationName: roleConfig ? roleConfig.publicName : rawOccupation,
+      publicName: roleConfig ? roleConfig.publicName : rawOccupation,
       displayOrder: roleConfig ? roleConfig.displayOrder : 999999,
       receivesEmails: roleConfig ? roleConfig.receivesEmails : false,
       emailGroups: roleConfig ? roleConfig.emailGroups : Object.freeze([]),
@@ -241,7 +253,7 @@ function core_groupCurrentInstitutionalAssignmentsByMember_(refDate) {
   return Object.freeze(grouped);
 }
 
-function core_buildCurrentRoleCellValue_(roles) {
+function core_buildCurrentOccupationCellValue_(roles) {
   if (!roles || !roles.length) return 'Membro';
 
   var uniqueNames = [];
@@ -256,6 +268,10 @@ function core_buildCurrentRoleCellValue_(roles) {
   });
 
   return uniqueNames.join(' | ');
+}
+
+function core_buildCurrentRoleCellValue_(roles) {
+  return core_buildCurrentOccupationCellValue_(roles);
 }
 
 function core_getCurrentAssignmentsByEmailGroup_(groupName, refDate) {
@@ -310,6 +326,9 @@ function core_findCurrentMemberContactByIdentity_(person) {
   if (lastRow < 2 || lastCol < 1) return null;
 
   var headerMap = core_headerMap_(sh, 1);
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function(value) {
+    return String(value || '').trim();
+  });
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
   var idxName = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.memberName);
@@ -389,11 +408,11 @@ function core_getCurrentEmailsByEmailGroup_(groupName, refDate) {
     .filter(Boolean);
 }
 
-function core_getCurrentEmailsByRole_(roleName, refDate) {
+function core_getCurrentEmailsByOccupation_(occupationName, refDate) {
   var assignments = core_getCurrentInstitutionalAssignments_(refDate);
   var emails = assignments
     .filter(function(item) {
-      return core_rolesNormalizeText_(item.publicName) === core_rolesNormalizeText_(roleName);
+      return core_rolesNormalizeText_(item.publicName) === core_rolesNormalizeText_(occupationName);
     })
     .map(function(item) {
       return String(item.email || '').trim();
@@ -401,6 +420,10 @@ function core_getCurrentEmailsByRole_(roleName, refDate) {
     .filter(Boolean);
 
   return Array.from(new Set(emails));
+}
+
+function core_getCurrentEmailsByRole_(roleName, refDate) {
+  return core_getCurrentEmailsByOccupation_(roleName, refDate);
 }
 
 function core_syncMembersCurrentInstitutionalRoles_(refDate) {
@@ -417,11 +440,11 @@ function core_syncMembersCurrentInstitutionalRoles_(refDate) {
   var idxName = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.memberName);
   var idxEmail = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.email);
   var idxRga = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.rga);
-  var idxCurrentRole = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.currentRole);
+  var idxCurrentOccupation = core_getPreferredOccupationColumnIndexFromHeaderMap_(headerMap, 'currentOccupation');
   var idxStatus = core_roleProjectionGuessColumnIndex_(headerMap, CORE_ROLE_PROJECTION_HEADERS.status);
 
-  if (idxCurrentRole < 0) {
-    throw new Error('Cabeçalho "Cargo/função atual" não encontrado em MEMBERS_ATUAIS.');
+  if (idxCurrentOccupation < 0) {
+    throw new Error('Cabecalho de ocupacao atual nao encontrado em MEMBERS_ATUAIS.');
   }
 
   var grouped = core_groupCurrentInstitutionalAssignmentsByMember_(refDate);
@@ -439,14 +462,20 @@ function core_syncMembersCurrentInstitutionalRoles_(refDate) {
     else identityKey = 'NOME::' + core_roleProjectionNormalizeKey_(memberName);
 
     var memberAssignments = grouped[identityKey];
-    var newValue = core_buildCurrentRoleCellValue_(memberAssignments ? memberAssignments.roles : []);
+    var newValue = core_buildCurrentOccupationCellValue_(memberAssignments ? memberAssignments.roles : []);
 
     if (status && core_roleProjectionNormalizeKey_(status) !== 'ATIVO') {
-      newValue = row[idxCurrentRole] || newValue;
+      var currentCell = core_getOccupationValueFromRowByHeaders_(
+        row,
+        headers,
+        'currentOccupation',
+        core_roleProjectionNormalizeKey_
+      );
+      newValue = currentCell.found ? currentCell.value || newValue : newValue;
     }
 
-    if (String(row[idxCurrentRole] || '').trim() !== newValue) {
-      sh.getRange(i + 2, idxCurrentRole + 1).setValue(newValue);
+    if (String(row[idxCurrentOccupation] || '').trim() !== newValue) {
+      core_writeOccupationValueByHeaderMap_(sh, i + 2, headerMap, 'currentOccupation', newValue);
       updated++;
     }
   });
@@ -560,6 +589,10 @@ function core_syncMembersCurrentDerivedFields_(refDate) {
       changedCells: changedCells
     }
   };
+}
+
+function core_syncMembersCurrentInstitutionalOccupations_(refDate) {
+  return core_syncMembersCurrentInstitutionalRoles_(refDate);
 }
 
 function core_debugCurrentInstitutionalProjection_(refDate) {

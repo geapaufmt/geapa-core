@@ -12,7 +12,7 @@ O core existe para:
 - expor uma API publica estavel para os modulos consumidores;
 - centralizar leitura/escrita por cabecalho e por registros;
 - unificar envio de e-mails, replies e rastreamento de threads;
-- projetar ocupantes atuais de cargos/funcoes institucionais;
+- projetar ocupantes atuais de ocupacoes institucionais;
 - sincronizar campos derivados em `MEMBERS_ATUAIS`;
 - oferecer utilitarios comuns de texto, datas, identidade e logs.
 
@@ -431,6 +431,8 @@ Testes manuais no projeto:
 - `test_core_mailHub_listPending_membros()`
 - `test_core_mailHub_getLatestEvent()`
 - `test_core_mailHub_getLatestPending_membros()`
+- `test_core_occupationCompat_headerAliases()`
+- `test_core_occupationCompat_writePrefersOccupation_fakeSheet()`
 - `test_core_memberLifecycle_updateEvent_patch_fakeSheet()`
 - `test_core_memberLifecycle_updateEvent_invalidStatus_fakeSheet()`
 - `test_core_mailHub_listPendingAttachments()`
@@ -454,14 +456,16 @@ Sugestoes de melhoria na planilha:
 
 ### Governanca institucional
 
-Projecao de ocupantes atuais por cargo/funcao e por grupo de e-mails.
+Projecao de ocupantes atuais por ocupacao e por grupo de e-mails, com compatibilidade retroativa para bases que ainda usam `Cargo/Função` / `Cargo/Funcao`.
 
 Funcoes centrais:
 
 - `coreGetCurrentBoard(refDate)`
 - `coreGetCurrentBoardSlogan(refDate)`
 - `coreGetCurrentBoardMembers(refDate)`
+- `coreGetCurrentBoardMembersByOccupation(occupation, refDate)`
 - `coreGetCurrentBoardMemberByRole(role, refDate)`
+- `coreGetCurrentBoardMemberByOccupation(occupation, refDate)`
 - `coreGetCurrentLeadership(refDate)`
 - `coreGetInstitutionalRolesActive()`
 - `coreFindInstitutionalRoleByAnyName(text)`
@@ -470,6 +474,15 @@ Funcoes centrais:
 - `coreGetCurrentContactsHtmlByEmailGroup(groupName, refDate)`
 - `coreGetCurrentEmailsByEmailGroup(groupName, refDate)`
 - `coreGetCurrentEmailsByRole(roleName, refDate)`
+- `coreGetCurrentEmailsByOccupation(occupationName, refDate)`
+- `coreSyncMembersCurrentInstitutionalOccupations(refDate)`
+
+Compatibilidade semantica de ocupacao nesta etapa:
+
+- o core aceita leitura de colunas `Ocupação`, `Ocupacao`, `Cargo/Função` e `Cargo/Funcao` para ocupacoes institucionais;
+- para o campo atual em `MEMBERS_ATUAIS`, o core aceita `Ocupação atual`, `Ocupacao atual`, `Ocupação`, `Ocupacao`, `Cargo/Função atual` e aliases legados equivalentes;
+- nas escritas, o core passa a preferir a coluna `Ocupação atual` quando ela existir, mantendo fallback automatico para os cabeçalhos legados;
+- os nomes antigos de API com `Role` continuam funcionando para preservar compatibilidade, mas os aliases novos com `Occupation` passam a ser o caminho preferencial em integracoes novas.
 
 ### Identidade de membros
 

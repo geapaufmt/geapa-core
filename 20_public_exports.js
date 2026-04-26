@@ -521,8 +521,20 @@ function coreGetCurrentBoardMembers(refDate) {
   return core_getCurrentBoardMembers_(refDate);
 }
 
+function coreGetCurrentBoardMembersByOccupation(occupation, refDate) {
+  return core_getCurrentBoardMembersByOccupation_(occupation, refDate);
+}
+
 function coreGetCurrentBoardMembersByRole(role, refDate) {
   return core_getCurrentBoardMembersByRole_(role, refDate);
+}
+
+function coreGetCurrentBoardMemberByOccupation(occupation, refDate) {
+  return core_getCurrentBoardMemberByOccupation_(occupation, refDate);
+}
+
+function coreGetCurrentBoardMemberByRole(role, refDate) {
+  return core_getCurrentBoardMemberByRole_(role, refDate);
 }
 
 function coreGetCurrentLeadership(refDate) {
@@ -620,6 +632,10 @@ function coreSyncMembersCurrentInstitutionalRoles(refDate) {
   return core_syncMembersCurrentInstitutionalRoles_(refDate);
 }
 
+function coreSyncMembersCurrentInstitutionalOccupations(refDate) {
+  return core_syncMembersCurrentInstitutionalOccupations_(refDate);
+}
+
 function coreDebugCurrentInstitutionalProjection(refDate) {
   return core_debugCurrentInstitutionalProjection_(refDate);
 }
@@ -630,6 +646,10 @@ function coreGetCurrentEmailsByEmailGroup(groupName, refDate) {
 
 function coreGetCurrentEmailsByRole(roleName, refDate) {
   return core_getCurrentEmailsByRole_(roleName, refDate);
+}
+
+function coreGetCurrentEmailsByOccupation(occupationName, refDate) {
+  return core_getCurrentEmailsByOccupation_(occupationName, refDate);
 }
 
 /* ============================================================

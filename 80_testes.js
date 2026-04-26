@@ -603,3 +603,45 @@ function test_core_memberLifecycle_updateEvent_invalidStatus_fakeSheet() {
   test_assert_(failed === true, 'Era esperado erro para status invalido.');
   Logger.log(JSON.stringify({ ok: true, failed: failed }, null, 2));
 }
+
+function test_core_occupationCompat_headerAliases() {
+  test_assert_(
+    core_findOccupationHeaderIndexInHeaders_(['Nome', 'Cargo/Fun\u00E7\u00E3o'], 'occupation') === 1,
+    'Alias legado de ocupacao deveria ser reconhecido.'
+  );
+  test_assert_(
+    core_findOccupationHeaderIndexInHeaders_(['Nome', 'Ocupa\u00E7\u00E3o'], 'occupation') === 1,
+    'Alias novo de ocupacao deveria ser reconhecido.'
+  );
+  test_assert_(
+    core_findOccupationHeaderIndexInHeaders_(['Cargo/fun\u00E7\u00E3o atual'], 'currentOccupation') === 0,
+    'Alias legado de ocupacao atual deveria ser reconhecido.'
+  );
+  test_assert_(
+    core_findOccupationHeaderIndexInHeaders_(['Ocupa\u00E7\u00E3o atual'], 'currentOccupation') === 0,
+    'Alias novo de ocupacao atual deveria ser reconhecido.'
+  );
+
+  Logger.log(JSON.stringify({ ok: true }, null, 2));
+}
+
+function test_core_occupationCompat_writePrefersOccupation_fakeSheet() {
+  var sheet = test_createFakeSheet_([
+    ['Cargo/fun\u00E7\u00E3o atual', 'Ocupa\u00E7\u00E3o atual'],
+    ['Legado', 'Atual']
+  ], 'MEMBERS_ATUAIS_FAKE');
+  var headers = sheet.getRange(1, 1, 1, 2).getValues()[0];
+  var headerMap = core_buildHeaderIndexMap_(headers, {
+    normalize: true,
+    oneBased: true,
+    keepFirst: true
+  });
+  var wrote = core_writeOccupationValueByHeaderMap_(sheet, 2, headerMap, 'currentOccupation', 'Presidente');
+  var row = sheet.getRange(2, 1, 1, 2).getValues()[0];
+
+  test_assert_(wrote === true, 'A escrita de ocupacao atual deveria encontrar uma coluna compativel.');
+  test_assert_(row[0] === 'Legado', 'A coluna legada nao deveria ser sobrescrita quando a nova existe.');
+  test_assert_(row[1] === 'Presidente', 'A coluna nova de ocupacao atual deveria receber o valor.');
+
+  Logger.log(JSON.stringify({ ok: true, row: row }, null, 2));
+}
