@@ -45,7 +45,7 @@ const CORE_MEMBERS_CFG = Object.freeze({
    */
   headers: Object.freeze({
     name: Object.freeze(["Membro", "MEMBRO", "NOME_MEMBRO", "Nome"]),
-    role: Object.freeze(["Cargo/Fun\u00E7\u00E3o atual", "Cargo/fun\u00E7\u00E3o atual", "Cargo/funcao atual", "CARGO_FUNCAO_ATUAL"]),
+    occupation: core_getOccupationHeaderAliases_('currentOccupation'),
     phone: Object.freeze(["Telefone", "TELEFONE"]),
     email: Object.freeze(["Email", "E-mail", "EMAIL"]),
     status: Object.freeze(["Status", "STATUS_CADASTRAL"]),
@@ -86,7 +86,12 @@ const CORE_MEMBERS_CFG = Object.freeze({
  * @return {string}
  */
 function core_normalizeMemberText_(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 /**
@@ -104,7 +109,7 @@ function core_getMembersSheet_() {
  * Exemplo de retorno:
  * {
  *   name: 0,
- *   role: 1,
+ *   occupation: 1,
  *   phone: 2,
  *   email: 3,
  *   status: 4,
@@ -132,7 +137,7 @@ function core_getMembersHeaderIndexMap_(headers) {
 
   return {
     name: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.name),
-    role: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.role),
+    occupation: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.occupation),
     phone: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.phone),
     email: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.email),
     status: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.status),
@@ -168,10 +173,16 @@ function core_isActiveMemberRow_(row, idx) {
  * @param {Object} idx
  * @return {Object}
  */
-function core_mapMemberRow_(row, idx) {
+function core_mapMemberRow_(row, idx, headers) {
+  const occupationCell = headers
+    ? core_getOccupationValueFromRowByHeaders_(row, headers, 'currentOccupation', core_normalizeMemberText_)
+    : { found: idx.occupation >= 0, value: idx.occupation >= 0 ? row[idx.occupation] : '' };
+  const occupation = occupationCell.found ? String(occupationCell.value || "").trim() : "";
+
   return Object.freeze({
     name: idx.name >= 0 ? String(row[idx.name] || "").trim() : "",
-    role: idx.role >= 0 ? String(row[idx.role] || "").trim() : "",
+    occupation: occupation,
+    role: occupation,
     phone: idx.phone >= 0 ? String(row[idx.phone] || "").trim() : "",
     email: idx.email >= 0 ? String(row[idx.email] || "").trim() : "",
     status: idx.status >= 0 ? String(row[idx.status] || "").trim() : "",
@@ -217,7 +228,7 @@ function core_getMembers_() {
       if (!name) return false;
       return core_isActiveMemberRow_(row, idx);
     })
-    .map(row => core_mapMemberRow_(row, idx));
+    .map(row => core_mapMemberRow_(row, idx, headers));
 }
 
 /**
@@ -230,13 +241,17 @@ function core_getMembers_() {
  * @param {string} role
  * @return {Object[]}
  */
-function core_getMembersByRole_(role) {
-  const wanted = core_normalizeMemberText_(role);
+function core_getMembersByOccupation_(occupation) {
+  const wanted = core_normalizeMemberText_(occupation);
   if (!wanted) return [];
 
   return core_getMembers_().filter(member => {
-    return core_normalizeMemberText_(member.role) === wanted;
+    return core_normalizeMemberText_(member.occupation) === wanted;
   });
+}
+
+function core_getMembersByRole_(role) {
+  return core_getMembersByOccupation_(role);
 }
 
 /**
@@ -247,9 +262,13 @@ function core_getMembersByRole_(role) {
  * @param {string} role
  * @return {Object|null}
  */
-function core_getFirstMemberByRole_(role) {
-  const found = core_getMembersByRole_(role);
+function core_getFirstMemberByOccupation_(occupation) {
+  const found = core_getMembersByOccupation_(occupation);
   return found.length ? found[0] : null;
+}
+
+function core_getFirstMemberByRole_(role) {
+  return core_getFirstMemberByOccupation_(role);
 }
 
 /**
@@ -268,10 +287,10 @@ function core_getFirstMemberByRole_(role) {
  */
 function core_getLeadership_() {
   return Object.freeze({
-    presidente: core_getFirstMemberByRole_(CORE_MEMBERS_CFG.leadershipRoles.presidente),
-    vicePresidente: core_getFirstMemberByRole_(CORE_MEMBERS_CFG.leadershipRoles.vicePresidente),
-    secretarioGeral: core_getFirstMemberByRole_(CORE_MEMBERS_CFG.leadershipRoles.secretarioGeral),
-    secretarioExecutivo: core_getFirstMemberByRole_(CORE_MEMBERS_CFG.leadershipRoles.secretarioExecutivo),
-    diretorComunicacao: core_getFirstMemberByRole_(CORE_MEMBERS_CFG.leadershipRoles.diretorComunicacao)
+    presidente: core_getFirstMemberByOccupation_(CORE_MEMBERS_CFG.leadershipRoles.presidente),
+    vicePresidente: core_getFirstMemberByOccupation_(CORE_MEMBERS_CFG.leadershipRoles.vicePresidente),
+    secretarioGeral: core_getFirstMemberByOccupation_(CORE_MEMBERS_CFG.leadershipRoles.secretarioGeral),
+    secretarioExecutivo: core_getFirstMemberByOccupation_(CORE_MEMBERS_CFG.leadershipRoles.secretarioExecutivo),
+    diretorComunicacao: core_getFirstMemberByOccupation_(CORE_MEMBERS_CFG.leadershipRoles.diretorComunicacao)
   });
 }
