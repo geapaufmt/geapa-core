@@ -34,6 +34,167 @@ Funcoes centrais:
 - `coreGetRegistryMetaByKey(key)`
 - `coreClearRegistryCache()`
 
+### MODULOS_CONFIG e controle operacional
+
+Camada central para decidir se um modulo/fluxo pode executar em determinado ambiente.
+
+Esta camada nao substitui o Registry:
+
+- Registry resolve recursos institucionais: `KEY -> spreadsheet/sheet/folder/etc`;
+- `MODULOS_CONFIG` controla comportamento operacional: modulo, fluxo, modo, ambiente e capabilities.
+
+A aba `MODULOS_CONFIG` fica na mesma planilha geral do Registry e usa os cabecalhos:
+
+- `MODULO`
+- `FLUXO`
+- `ATIVO`
+- `MODO`
+- `AMBIENTE`
+- `PERMITE_TRIGGER`
+- `PERMITE_EMAIL`
+- `PERMITE_INBOX`
+- `PERMITE_SYNC`
+- `PERMITE_DRIVE`
+- `JANELA_MINUTOS`
+- `ULTIMA_ALTERACAO`
+- `ALTERADO_POR`
+- `OBS`
+
+Ordem de resolucao:
+
+1. `MODULO + FLUXO + AMBIENTE`
+2. `MODULO + GERAL + AMBIENTE`
+3. fallback para `MODULO + FLUXO + PROD`, quando o ambiente atual nao for `PROD`
+4. fallback para `MODULO + GERAL + PROD`, quando o ambiente atual nao for `PROD`
+
+Semantica operacional:
+
+- `ATIVO = NAO` bloqueia a execucao;
+- `MODO = OFF` bloqueia a execucao;
+- `MODO = MANUAL` bloqueia execucao automatica por trigger, mas permite execucao manual;
+- `MODO = DRY_RUN` permite leitura, log e diagnostico; o consumidor deve evitar escrita destrutiva e envio real;
+- capabilities validas: `TRIGGER`, `EMAIL`, `INBOX`, `SYNC`, `DRIVE`.
+
+Funcoes publicas:
+
+- `coreGetModuleConfig(moduleName, flowName, opts)`
+- `coreIsModuleEnabled(moduleName, flowName, opts)`
+- `coreGetModuleMode(moduleName, flowName, opts)`
+- `coreCanModuleUseCapability(moduleName, flowName, capability, opts)`
+- `coreAssertModuleExecutionAllowed(moduleName, flowName, capability, opts)`
+- `coreGetModulesConfigDebug()`
+- `coreClearModulesConfigCache()`
+- `coreApplyModulesConfigSheetUx(opts)`
+
+Exemplo em modulo consumidor:
+
+```javascript
+var decision = GEAPA_CORE.coreAssertModuleExecutionAllowed(
+  'ATIVIDADES',
+  'APRESENTACOES',
+  'TRIGGER',
+  { executionType: 'TRIGGER' }
+);
+
+if (decision.dryRun) {
+  // executar apenas leitura, log e diagnostico
+}
+```
+
+Observacoes desta etapa:
+
+- o modelo e SOFT OFF: os triggers podem continuar instalados, mas a funcao sai cedo quando a configuracao bloquear;
+- o core vira a fonte unica de decisao sobre `MODULOS_CONFIG`;
+- nesta fase, os modulos consumidores ainda nao foram migrados para chamar essa API;
+- a instalacao/remocao automatica de triggers nao e alterada.
+
+UX operacional da aba:
+
+- `coreApplyModulesConfigSheetUx()` aplica congelamento da linha 1, filtro, notas nos cabecalhos, cores por grupo, larguras de coluna, formatacao de data/numero e listas suspensas;
+- listas suspensas restritivas: `ATIVO`, `MODO`, `AMBIENTE` e capabilities `PERMITE_*`;
+- listas suspensas orientativas, aceitando novos valores quando necessario: `MODULO` e `FLUXO`;
+- valores sugeridos de `MODULO`: `CORE`, `MEMBROS`, `SELETIVO`, `COMUNICACOES`, `ATIVIDADES`, `DESLIGAMENTOS`, `APRESENTACOES`;
+- `EVENTOS` nao entra como modulo sugerido nesta fase.
+
+### MODULOS_STATUS e observabilidade operacional
+
+Camada central leve para registrar status operacional dos modulos por `MODULO + FLUXO`.
+
+Separacao de responsabilidades:
+
+- `MODULOS_CONFIG` decide se um modulo/fluxo pode executar;
+- `MODULOS_STATUS` registra o que aconteceu: execucao, sucesso, erro ou bloqueio por config;
+- Registry continua responsavel apenas por resolver recursos institucionais.
+
+A aba `MODULOS_STATUS` fica na mesma planilha geral do Registry e usa os cabecalhos:
+
+- `MODULO`
+- `FLUXO`
+- `ULTIMA_EXECUCAO`
+- `ULTIMO_SUCESSO`
+- `ULTIMO_ERRO`
+- `MENSAGEM_ULTIMO_ERRO`
+- `ULTIMO_BLOQUEIO_CONFIG`
+- `MOTIVO_ULTIMO_BLOQUEIO`
+- `ULTIMO_MODO_LIDO`
+- `ULTIMA_CAPABILITY`
+- `EXECUCOES_24H`
+- `BLOQUEIOS_24H`
+- `SUCESSOS_24H`
+- `ERROS_24H`
+- `OBS`
+
+Funcoes publicas:
+
+- `coreModuleStatusGet(moduleName, flowName, opts)`
+- `coreModuleStatusEnsureRow(moduleName, flowName, opts)`
+- `coreModuleStatusMarkExecution(moduleName, flowName, capability, opts)`
+- `coreModuleStatusMarkSuccess(moduleName, flowName, capability, opts)`
+- `coreModuleStatusMarkError(moduleName, flowName, errorOrMessage, capability, opts)`
+- `coreModuleStatusMarkBlocked(moduleName, flowName, reasonCode, reasonMessage, capability, modeRead, opts)`
+- `coreGetModulesStatusDebug()`
+
+Exemplo de uso por modulo consumidor:
+
+```javascript
+GEAPA_CORE.coreModuleStatusMarkExecution('ATIVIDADES', 'PERIODO_VIGENTE', 'SYNC', {
+  modeRead: 'ON'
+});
+
+try {
+  // rotina operacional do modulo
+  GEAPA_CORE.coreModuleStatusMarkSuccess('ATIVIDADES', 'PERIODO_VIGENTE', 'SYNC', {
+    modeRead: 'ON'
+  });
+} catch (err) {
+  GEAPA_CORE.coreModuleStatusMarkError('ATIVIDADES', 'PERIODO_VIGENTE', err, 'SYNC', {
+    modeRead: 'ON'
+  });
+  throw err;
+}
+```
+
+Exemplo de bloqueio por config:
+
+```javascript
+GEAPA_CORE.coreModuleStatusMarkBlocked(
+  'APRESENTACOES',
+  'GERAL',
+  'MODO_OFF',
+  'Fluxo bloqueado por MODULOS_CONFIG',
+  'TRIGGER',
+  'OFF'
+);
+```
+
+Observacoes desta V1:
+
+- se a linha `MODULO + FLUXO` nao existir, as funcoes de marcacao criam a linha automaticamente;
+- `coreModuleStatusGet()` nao cria linha por padrao, mas aceita `opts.createIfMissing = true`;
+- os contadores `EXECUCOES_24H`, `BLOQUEIOS_24H`, `SUCESSOS_24H` e `ERROS_24H` sao incrementais brutos nesta fase;
+- ainda nao ha janela deslizante real de 24 horas;
+- a escrita e feita por cabecalho, sem depender de indice fixo de coluna.
+
 ### Sheets e records
 
 Camada reutilizavel para leitura e escrita sem depender de colunas fixas.
@@ -279,7 +440,7 @@ Escopo atual:
 
 - ler mensagens do Gmail com deduplicacao por `Id Mensagem Gmail`;
 - extrair `Chave de Correlacao` do assunto no padrao `[GEAPA][CHAVE]`;
-- resolver `Modulo Dono` e metadados de roteamento via adapters por modulo;
+- resolver `Modulo Dono` e metadados de roteamento via `MAIL_REGRAS` e, quando nenhuma regra bater, via adapters por modulo;
 - registrar eventos em `MAIL_EVENTOS`;
 - manter upsert de indice em `MAIL_INDICE`;
 - registrar metadados de anexos em `MAIL_ANEXOS`;
@@ -327,9 +488,19 @@ Arquitetura de adapters:
 
 - o Mail Hub nao conhece regra de negocio de `APRESENTACOES`, `SELETIVO`, `MEMBROS` ou outros modulos;
 - cada adapter declara apenas um contrato minimo comum: construcao de chave, parsing, match, resolucao de roteamento e normalizacao opcional de assunto;
-- o core faz registry dos adapters e escolhe o melhor roteamento com base em `correlationKey` ou heuristicas do proprio adapter;
+- antes dos adapters, o core aplica regras ativas da aba `MAIL_REGRAS`, em ordem crescente de `Ordem`;
+- o core faz registry dos adapters e escolhe o melhor roteamento com base em `correlationKey` ou heuristicas do proprio adapter quando nenhuma regra de planilha casar;
 - adapters iniciais incluidos no core: `APR / APRESENTACOES`, `SEL / SELETIVO`, `MEM / MEMBROS`;
 - o contrato permite formatos diferentes de chave entre modulos, desde que o proprio adapter saiba construir e interpretar a sua chave.
+
+MAIL_REGRAS:
+
+- permite roteamento configuravel sem alterar codigo para casos simples;
+- cabecalhos esperados: `Id Regra`, `Ativa`, `Ordem`, `Campo Analise`, `Tipo Comparacao`, `Valor Comparacao`, `Modulo Dono`, `Tipo Entidade`, `Etapa Fluxo`, `Acao Quando Bater`, `Observacoes`, `Criado Em`, `Atualizado Em`;
+- V1 operacional: `Acao Quando Bater = ROTEAR`;
+- campos de analise suportados: `ASSUNTO`, `REMETENTE`, `DESTINATARIO`, `CORPO`, `TUDO`;
+- comparacoes suportadas: `CONTEM`, `IGUAL`, `COMECA_COM`, `TERMINA_COM`, `REGEX`;
+- exemplo: uma regra com `Campo Analise = ASSUNTO`, `Tipo Comparacao = CONTEM`, `Valor Comparacao = [GEAPA][APR-` e `Modulo Dono = APRESENTACOES` roteia replies de apresentacoes antes do fallback por adapter.
 
 Observacao de plataforma:
 
@@ -340,7 +511,7 @@ Observacoes desta V1:
 - nao migra os modulos consumidores existentes;
 - nao implementa retry avancado da fila de saida;
 - nao decide qual anexo pertence a qual regra de negocio;
-- nao aplica roteamento avancado por regras.
+- o roteamento por regras nesta V1 e propositalmente simples: escolhe a primeira regra ativa que bater e nao executa acoes complexas alem de `ROTEAR`.
 
 Tratamento operacional de anexos (V1):
 
@@ -377,6 +548,7 @@ Schema minimo esperado na versao atual da planilha central:
 - `MAIL_EVENTOS`: `Id Evento`, `Data Hora Evento`, `Direcao`, `Tipo Evento`, `Modulo Dono`, `Chave de Correlacao`, `Id Thread Gmail`, `Id Mensagem Gmail`, `Assunto`, `Email Remetente`, `Emails Destinatarios`, `Status Processamento`, `Processado Por`, `Data Hora Processamento`, `Possui Anexos`, `Quantidade Anexos`, `Criado Em`, `Atualizado Em`
 - `MAIL_INDICE`: `Chave de Correlacao`, `Modulo Dono`, `Tipo Entidade`, `Id Entidade`, `Etapa Atual`, `Id Thread Gmail`, `Id Ultima Mensagem`, `Ultima Direcao`, `Ultimo Tipo Evento`, `Ultimo Email Remetente`, `Ultimo Assunto`, `Data Hora Ultimo Evento`, `Ha Entrada Pendente`, `Ha Anexo Pendente`, `Quantidade Eventos`, `Quantidade Entradas`, `Quantidade Saidas`, `Quantidade Anexos`, `Criado Em`, `Atualizado Em`
 - `MAIL_ANEXOS`: `Id Anexo`, `Id Evento`, `Modulo Dono`, `Tipo Entidade`, `Id Entidade`, `Chave de Correlacao`, `Etapa Fluxo`, `Id Mensagem Gmail`, `Id Thread Gmail`, `Indice Anexo Mensagem`, `Nome Arquivo`, `Tipo Mime`, `Tamanho Bytes`, `Foi Salvo No Drive`, `Id Arquivo Drive`, `Link Arquivo Drive`, `Pasta Destino Drive`, `Status Anexo`, `Processado Por`, `Data Hora Processamento`, `Observacoes`, `Criado Em`, `Atualizado Em`
+- `MAIL_REGRAS`: `Id Regra`, `Ativa`, `Ordem`, `Campo Analise`, `Tipo Comparacao`, `Valor Comparacao`, `Modulo Dono`, `Tipo Entidade`, `Etapa Fluxo`, `Acao Quando Bater`, `Observacoes`, `Criado Em`, `Atualizado Em`
 - `MAIL_CONFIG`: `Chave`, `Valor`, `Ativo`
 - `MAIL_SAIDA`: `Id Saida`, `Modulo Dono`, `Tipo Entidade`, `Id Entidade`, `Chave de Correlacao`, `Etapa Fluxo`, `Email Destinatario Principal`, `Emails Destinatarios`, `Emails Cc`, `Emails Cco`, `Nome Destinatario`, `Assunto`, `Corpo Texto`, `Corpo Html`, `Data Hora Agendada`, `Prioridade`, `Status Envio`, `Tentativas`, `Ultimo Erro`, `Id Thread Gmail`, `Id Mensagem Gmail`, `Enviado Em`, `Criado Em`, `Atualizado Em`, `Observacoes`
 
@@ -409,11 +581,28 @@ Semantica pratica dessas configuracoes:
 
 Testes manuais no projeto:
 
+- `test_core_modulesConfig_debug()`
+- `test_core_modulesConfig_clearCacheAndDebug()`
+- `test_core_modulesConfig_applySheetUx()`
+- `test_core_modulesConfig_atividades_geral()`
+- `test_core_modulesConfig_apresentacoes_geral()`
+- `test_core_modulesConfig_canTrigger_atividades()`
+- `test_core_modulesConfig_assertTrigger_atividades()`
+- `test_core_modulesConfig_canEmail_apresentacoes()`
+- `test_core_modulesStatus_debug()`
+- `test_core_modulesStatus_get_atividades_geral()`
+- `test_core_modulesStatus_ensure_atividades_geral()`
+- `test_core_modulesStatus_markExecution_atividades_geral()`
+- `test_core_modulesStatus_markSuccess_atividades_geral()`
+- `test_core_modulesStatus_markError_atividades_geral()`
+- `test_core_modulesStatus_markBlocked_apresentacoes_geral()`
 - `test_core_mailAdapters_list()`
 - `test_core_mailAdapters_get_mem()`
 - `test_core_mailAdapters_build_mem()`
 - `test_core_mailAdapters_parse_mem()`
 - `test_core_mailAdapters_resolveRouting_mem()`
+- `test_core_mailRoutingRules_resolve_apresentacoes()`
+- `test_core_mailRoutingRules_resolve_seletivo()`
 - `test_core_mailAdapters_normalizeOutgoingSubject_mem()`
 - `test_core_mailRenderer_render_operacional()`
 - `test_core_mailRenderer_render_convite()`
@@ -482,6 +671,7 @@ Compatibilidade semantica de ocupacao nesta etapa:
 - o core aceita leitura de colunas `Ocupação`, `Ocupacao`, `Cargo/Função` e `Cargo/Funcao` para ocupacoes institucionais;
 - para o campo atual em `MEMBERS_ATUAIS`, o core aceita `Ocupação atual`, `Ocupacao atual`, `Ocupação`, `Ocupacao`, `Cargo/Função atual` e aliases legados equivalentes;
 - nas escritas, o core passa a preferir a coluna `Ocupação atual` quando ela existir, mantendo fallback automatico para os cabeçalhos legados;
+- para renomeacoes institucionais catalogadas, o core resolve aliases historicos pelo `CARGOS_INSTITUCIONAIS_CONFIG`; nesta etapa, `Diretor(a) de Comunicação` passa a ser o nome principal e continua aceitando `Coordenador(a) de Comunicação`, `Coordenador de Comunicação` e `COORDENADOR_COMUNICACAO`;
 - os nomes antigos de API com `Role` continuam funcionando para preservar compatibilidade, mas os aliases novos com `Occupation` passam a ser o caminho preferencial em integracoes novas.
 
 ### Identidade de membros

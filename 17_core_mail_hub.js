@@ -260,6 +260,58 @@ var CORE_MAIL_HUB_UX = Object.freeze({
       clipHeaders: Object.freeze(['Valor']),
       dataRowHeight: 28
     }),
+    MAIL_REGRAS: Object.freeze({
+      notes: Object.freeze({
+        'Id Regra': 'Identificador unico da regra de roteamento. Ex.: REG-0001.',
+        'Ativa': 'Se SIM, a regra pode ser aplicada. Se NAO, a linha e ignorada.',
+        'Ordem': 'Prioridade numerica. Menor numero e avaliado primeiro.',
+        'Campo Analise': 'Campo da mensagem analisado. V1: ASSUNTO, REMETENTE, DESTINATARIO, CORPO ou TUDO.',
+        'Tipo Comparacao': 'Comparacao aplicada. V1: CONTEM, IGUAL, COMECA_COM, TERMINA_COM ou REGEX.',
+        'Valor Comparacao': 'Texto ou regex comparado contra o campo escolhido.',
+        'Modulo Dono': 'Modulo que deve receber a mensagem quando a regra bater.',
+        'Tipo Entidade': 'Tipo de entidade associada ao roteamento.',
+        'Etapa Fluxo': 'Etapa funcional opcional registrada em MAIL_EVENTOS e MAIL_INDICE.',
+        'Acao Quando Bater': 'Acao executada quando a regra casar. V1 operacional: ROTEAR.',
+        'Observacoes': 'Contexto humano da regra.',
+        'Criado Em': 'Data/hora de criacao da regra.',
+        'Atualizado Em': 'Data/hora da ultima atualizacao da regra.'
+      }),
+      colorGroups: Object.freeze([
+        Object.freeze({ color: '#d9ead3', headers: ['Id Regra', 'Ativa', 'Ordem'] }),
+        Object.freeze({ color: '#fff2cc', headers: ['Campo Analise', 'Tipo Comparacao', 'Valor Comparacao', 'Acao Quando Bater'] }),
+        Object.freeze({ color: '#d0e0e3', headers: ['Modulo Dono', 'Tipo Entidade', 'Etapa Fluxo'] }),
+        Object.freeze({ color: '#fce5cd', headers: ['Observacoes', 'Criado Em', 'Atualizado Em'] })
+      ]),
+      dropdownRules: Object.freeze({
+        'Ativa': Object.freeze({
+          values: Object.freeze(['SIM', 'NAO']),
+          allowInvalid: true,
+          helpText: 'Se SIM, a regra entra em vigor.'
+        }),
+        'Campo Analise': Object.freeze({
+          values: Object.freeze(['ASSUNTO', 'REMETENTE', 'DESTINATARIO', 'CORPO', 'TUDO']),
+          allowInvalid: true,
+          helpText: 'Campo da mensagem analisado.'
+        }),
+        'Tipo Comparacao': Object.freeze({
+          values: Object.freeze(['CONTEM', 'IGUAL', 'COMECA_COM', 'TERMINA_COM', 'REGEX']),
+          allowInvalid: true,
+          helpText: 'Tipo de comparacao aplicada.'
+        }),
+        'Modulo Dono': Object.freeze({
+          values: Object.freeze(['APRESENTACOES', 'ATIVIDADES', 'SELETIVO', 'MEMBROS', 'COMUNICACOES', 'DESLIGAMENTOS']),
+          allowInvalid: true,
+          helpText: 'Modulo dono quando a regra bater.'
+        }),
+        'Acao Quando Bater': Object.freeze({
+          values: Object.freeze(['ROTEAR']),
+          allowInvalid: true,
+          helpText: 'V1: use ROTEAR.'
+        })
+      }),
+      clipHeaders: Object.freeze(['Valor Comparacao', 'Observacoes']),
+      dataRowHeight: 28
+    }),
     MAIL_SAIDA: Object.freeze({
       notes: Object.freeze({
         'Id Saida': 'Identificador unico da linha de outbox na central.',
@@ -390,6 +442,21 @@ var CORE_MAIL_HUB_SCHEMA = Object.freeze({
     'Chave',
     'Valor',
     'Ativo'
+  ]),
+  MAIL_REGRAS: Object.freeze([
+    'Id Regra',
+    'Ativa',
+    'Ordem',
+    'Campo Analise',
+    'Tipo Comparacao',
+    'Valor Comparacao',
+    'Modulo Dono',
+    'Tipo Entidade',
+    'Etapa Fluxo',
+    'Acao Quando Bater',
+    'Observacoes',
+    'Criado Em',
+    'Atualizado Em'
   ]),
   MAIL_SAIDA: Object.freeze([
     'Id Saida',
@@ -611,6 +678,11 @@ function coreMailHubAssertSchema_() {
       CORE_MAIL_HUB_SCHEMA.MAIL_CONFIG
     ),
     coreMailHubAssertSheetSchema_(
+      CORE_MAIL_HUB_KEYS.REGRAS,
+      coreMailHubGetRegrasSheet_(),
+      CORE_MAIL_HUB_SCHEMA.MAIL_REGRAS
+    ),
+    coreMailHubAssertSheetSchema_(
       CORE_MAIL_HUB_KEYS.SAIDA,
       coreMailHubGetSaidaSheet_(),
       CORE_MAIL_HUB_SCHEMA.MAIL_SAIDA
@@ -770,6 +842,7 @@ function coreMailApplyOperationalSheetUx_(opts) {
     eventos: coreMailHubApplySheetUx_(coreMailHubGetEventosSheet_(), 'MAIL_EVENTOS', opts),
     indice: coreMailHubApplySheetUx_(coreMailHubGetIndiceSheet_(), 'MAIL_INDICE', opts),
     anexos: coreMailHubApplySheetUx_(coreMailHubGetAnexosSheet_(), 'MAIL_ANEXOS', opts),
+    regras: coreMailHubApplySheetUx_(coreMailHubGetRegrasSheet_(), 'MAIL_REGRAS', opts),
     config: coreMailHubApplySheetUx_(coreMailHubGetConfigSheet_(), 'MAIL_CONFIG', opts),
     saida: coreMailHubApplySheetUx_(coreMailHubGetSaidaSheet_(), 'MAIL_SAIDA', opts)
   });
@@ -798,6 +871,7 @@ function coreMailHubMaybeApplyOperationalSheetUx_() {
       eventos: coreMailHubApplySheetUx_(coreMailHubGetEventosSheet_(), 'MAIL_EVENTOS', {}),
       indice: coreMailHubApplySheetUx_(coreMailHubGetIndiceSheet_(), 'MAIL_INDICE', {}),
       anexos: coreMailHubApplySheetUx_(coreMailHubGetAnexosSheet_(), 'MAIL_ANEXOS', {}),
+      regras: coreMailHubApplySheetUx_(coreMailHubGetRegrasSheet_(), 'MAIL_REGRAS', {}),
       config: coreMailHubApplySheetUx_(coreMailHubGetConfigSheet_(), 'MAIL_CONFIG', {}),
       saida: coreMailHubApplySheetUx_(coreMailHubGetSaidaSheet_(), 'MAIL_SAIDA', {})
     });

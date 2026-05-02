@@ -291,6 +291,50 @@ const GEAPA_CORE = Object.freeze({
 
   /**
    * ----------------------------------------------------------
+   * modulesConfig (Controle operacional)
+   * ----------------------------------------------------------
+   * Quando usar:
+   * - decidir se um modulo/fluxo pode executar
+   * - respeitar modo operacional e capabilities
+   *
+   * Regra:
+   * - MODULOS_CONFIG controla comportamento operacional.
+   * - Registry continua sendo apenas resolucao de recursos.
+   */
+  modulesConfig: Object.freeze({
+    get: core_getModuleConfig_,
+    isEnabled: core_isModuleEnabled_,
+    getMode: core_getModuleMode_,
+    canUseCapability: core_canModuleUseCapability_,
+    assertExecutionAllowed: core_assertModuleExecutionAllowed_,
+    debug: core_debugModulesConfig_,
+    applySheetUx: core_applyModulesConfigSheetUx_,
+  }),
+
+  /**
+   * ----------------------------------------------------------
+   * modulesStatus (Observabilidade operacional)
+   * ----------------------------------------------------------
+   * Quando usar:
+   * - registrar inicio, sucesso, erro e bloqueio de fluxos
+   * - consultar status operacional central por modulo/fluxo
+   *
+   * Regra:
+   * - MODULOS_CONFIG decide permissao.
+   * - MODULOS_STATUS registra o resultado operacional.
+   */
+  modulesStatus: Object.freeze({
+    get: core_moduleStatusGet_,
+    ensureRow: core_moduleStatusEnsureRow_,
+    markExecution: core_moduleStatusMarkExecution_,
+    markSuccess: core_moduleStatusMarkSuccess_,
+    markError: core_moduleStatusMarkError_,
+    markBlocked: core_moduleStatusMarkBlocked_,
+    debug: core_debugModulesStatus_,
+  }),
+
+  /**
+   * ----------------------------------------------------------
    * drive (Drive: arquivos/pastas)
    * ----------------------------------------------------------
    * Quando usar:

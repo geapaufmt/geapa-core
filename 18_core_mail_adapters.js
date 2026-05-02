@@ -115,6 +115,26 @@ function coreMailEnsureDefaultAdaptersRegistered_() {
   }
 
   registerIfMissing(coreMailCreateExampleModuleAdapter_({
+    moduleName: 'ATIVIDADES',
+    moduleCode: 'ATV',
+    entityTypeDefault: 'ATIVIDADE',
+    keywordHints: [
+      'atividade',
+      'atividades',
+      'presenca',
+      'presencas',
+      'falta',
+      'faltas',
+      'justificativa',
+      'justificativas',
+      'ata',
+      'material',
+      'convocacao',
+      'lembrete'
+    ]
+  }));
+
+  registerIfMissing(coreMailCreateExampleModuleAdapter_({
     moduleName: 'APRESENTACOES',
     moduleCode: 'APR',
     entityTypeDefault: 'APRESENTACAO',
@@ -246,6 +266,11 @@ function coreMailResolveRouting_(msgCtx) {
   coreMailEnsureDefaultAdaptersRegistered_();
   msgCtx = msgCtx || {};
 
+  var ruleRouting = coreMailResolveRoutingByRules_(msgCtx);
+  if (ruleRouting && ruleRouting.matched) {
+    return ruleRouting;
+  }
+
   var subjectKey = coreMailExtractCorrelationKey_(msgCtx.subject || '');
   if (subjectKey) {
     var parsed = coreMailParseCorrelationKey_(subjectKey);
@@ -367,6 +392,130 @@ function coreMailBuildMessageTextForMatching_(msgCtx) {
     String(msgCtx.snippet || ''),
     String(msgCtx.plainBody || '')
   ].join(' ');
+}
+
+function coreMailNormalizeRoutingRuleText_(value) {
+  return core_normalizeText_(value, {
+    removeAccents: true,
+    collapseWhitespace: true,
+    caseMode: 'lower'
+  });
+}
+
+function coreMailNormalizeRoutingRuleToken_(value) {
+  return core_normalizeText_(value, {
+    removeAccents: true,
+    collapseWhitespace: true,
+    caseMode: 'upper'
+  }).replace(/\s+/g, '_');
+}
+
+function coreMailReadRoutingRules_() {
+  var sheet = coreMailHubGetRegrasSheet_();
+  var ctx = coreMailHubGetSheetContext_(sheet, { includeRows: true });
+  var rules = [];
+
+  for (var i = 0; i < ctx.rows.length; i++) {
+    var row = ctx.rows[i];
+    var active = coreMailNormalizeRoutingRuleToken_(coreMailHubGetRowValue_(row, ctx, 'Ativa', ''));
+    var id = String(coreMailHubGetRowValue_(row, ctx, 'Id Regra', '') || '').trim();
+    var field = coreMailNormalizeRoutingRuleToken_(coreMailHubGetRowValue_(row, ctx, 'Campo Analise', ''));
+    var comparison = coreMailNormalizeRoutingRuleToken_(coreMailHubGetRowValue_(row, ctx, 'Tipo Comparacao', ''));
+    var value = String(coreMailHubGetRowValue_(row, ctx, 'Valor Comparacao', '') || '').trim();
+    var moduleName = coreMailNormalizeRoutingRuleToken_(coreMailHubGetRowValue_(row, ctx, 'Modulo Dono', ''));
+    var action = coreMailNormalizeRoutingRuleToken_(coreMailHubGetRowValue_(row, ctx, 'Acao Quando Bater', 'ROTEAR'));
+
+    if (active !== 'SIM') continue;
+    if (!field || !comparison || !value || !moduleName) continue;
+    if (action && action !== 'ROTEAR') continue;
+
+    rules.push(Object.freeze({
+      id: id || ('REG_ROW_' + String(i + 2)),
+      rowNumber: i + 2,
+      order: Number(coreMailHubGetRowValue_(row, ctx, 'Ordem', 999999) || 999999),
+      field: field,
+      comparison: comparison,
+      value: value,
+      moduleName: moduleName,
+      entityType: coreMailNormalizeRoutingRuleToken_(coreMailHubGetRowValue_(row, ctx, 'Tipo Entidade', '')),
+      flowStep: coreMailNormalizeRoutingRuleToken_(coreMailHubGetRowValue_(row, ctx, 'Etapa Fluxo', '')),
+      action: action || 'ROTEAR',
+      observations: String(coreMailHubGetRowValue_(row, ctx, 'Observacoes', '') || '').trim()
+    }));
+  }
+
+  return rules.sort(function(a, b) {
+    if (a.order !== b.order) return a.order - b.order;
+    return a.rowNumber - b.rowNumber;
+  });
+}
+
+function coreMailGetRoutingRuleFieldValue_(msgCtx, field) {
+  msgCtx = msgCtx || {};
+  var normalizedField = coreMailNormalizeRoutingRuleToken_(field);
+
+  if (normalizedField === 'ASSUNTO') return String(msgCtx.subject || '');
+  if (normalizedField === 'REMETENTE') return [msgCtx.fromRaw, msgCtx.fromEmail, msgCtx.fromName].join(' ');
+  if (normalizedField === 'DESTINATARIO') return [msgCtx.to, msgCtx.cc, msgCtx.bcc].join(' ');
+  if (normalizedField === 'CORPO') return [msgCtx.snippet, msgCtx.plainBody].join(' ');
+  if (normalizedField === 'TUDO') return coreMailBuildMessageTextForMatching_(msgCtx);
+
+  return '';
+}
+
+function coreMailRoutingRuleMatches_(rule, msgCtx) {
+  var rawHaystack = coreMailGetRoutingRuleFieldValue_(msgCtx, rule.field);
+  var rawNeedle = String(rule.value || '');
+  var comparison = coreMailNormalizeRoutingRuleToken_(rule.comparison || 'CONTEM');
+
+  if (!rawHaystack || !rawNeedle) return false;
+
+  if (comparison === 'REGEX') {
+    try {
+      return new RegExp(rawNeedle, 'i').test(rawHaystack);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  var haystack = coreMailNormalizeRoutingRuleText_(rawHaystack);
+  var needle = coreMailNormalizeRoutingRuleText_(rawNeedle);
+
+  if (comparison === 'IGUAL') return haystack === needle;
+  if (comparison === 'COMECA_COM') return haystack.indexOf(needle) === 0;
+  if (comparison === 'TERMINA_COM') return haystack.slice(-needle.length) === needle;
+  return haystack.indexOf(needle) !== -1;
+}
+
+function coreMailResolveRoutingByRules_(msgCtx) {
+  var rules = coreMailReadRoutingRules_();
+  for (var i = 0; i < rules.length; i++) {
+    var rule = rules[i];
+    if (!coreMailRoutingRuleMatches_(rule, msgCtx)) continue;
+
+    var adapter = coreMailGetModuleAdapter_(rule.moduleName);
+    var correlationKey = String(coreMailExtractCorrelationKey_(msgCtx && msgCtx.subject ? msgCtx.subject : '') || '').trim();
+    var parsed = correlationKey ? coreMailParseCorrelationKey_(correlationKey) : { isValid: false };
+
+    return Object.freeze({
+      matched: true,
+      moduleName: rule.moduleName,
+      moduleCode: adapter ? adapter.moduleCode : (parsed.moduleCode || ''),
+      correlationKey: correlationKey,
+      entityType: rule.entityType || parsed.entityType || '',
+      entityId: parsed.entityId || parsed.businessId || '',
+      stage: rule.flowStep || parsed.stage || '',
+      flowCode: parsed.flowCode || '',
+      confidence: 0.95,
+      reason: 'MAIL_REGRAS:' + rule.id
+    });
+  }
+
+  return Object.freeze({
+    matched: false,
+    confidence: 0,
+    reason: 'NO_MAIL_RULE_MATCH'
+  });
 }
 
 function coreMailCreateExampleModuleAdapter_(opts) {

@@ -2,6 +2,91 @@ function test_core_rolesConfig_debug() {
   Logger.log(JSON.stringify(core_debugInstitutionalRolesConfig_(), null, 2));
 }
 
+function test_core_modulesConfig_debug() {
+  Logger.log(JSON.stringify(core_debugModulesConfig_(), null, 2));
+}
+
+function test_core_modulesConfig_clearCacheAndDebug() {
+  core_modulesConfigCacheClear_();
+  Logger.log(JSON.stringify(core_debugModulesConfig_(), null, 2));
+}
+
+function test_core_modulesConfig_applySheetUx() {
+  Logger.log(JSON.stringify(core_applyModulesConfigSheetUx_(), null, 2));
+}
+
+function test_core_modulesConfig_atividades_geral() {
+  Logger.log(JSON.stringify(core_getModuleConfig_('ATIVIDADES', 'GERAL'), null, 2));
+}
+
+function test_core_modulesConfig_apresentacoes_geral() {
+  Logger.log(JSON.stringify(core_getModuleConfig_('APRESENTACOES', 'GERAL'), null, 2));
+}
+
+function test_core_modulesConfig_canTrigger_atividades() {
+  Logger.log(JSON.stringify({
+    canTrigger: core_canModuleUseCapability_('ATIVIDADES', 'GERAL', 'TRIGGER', {
+      executionType: 'TRIGGER'
+    })
+  }, null, 2));
+}
+
+function test_core_modulesConfig_assertTrigger_atividades() {
+  Logger.log(JSON.stringify(core_assertModuleExecutionAllowed_('ATIVIDADES', 'GERAL', 'TRIGGER', {
+    executionType: 'TRIGGER'
+  }), null, 2));
+}
+
+function test_core_modulesConfig_canEmail_apresentacoes() {
+  Logger.log(JSON.stringify({
+    canEmail: core_canModuleUseCapability_('APRESENTACOES', 'GERAL', 'EMAIL', {
+      executionType: 'MANUAL'
+    })
+  }, null, 2));
+}
+
+function test_core_modulesStatus_debug() {
+  Logger.log(JSON.stringify(core_debugModulesStatus_(), null, 2));
+}
+
+function test_core_modulesStatus_get_atividades_geral() {
+  Logger.log(JSON.stringify(core_moduleStatusGet_('ATIVIDADES', 'GERAL'), null, 2));
+}
+
+function test_core_modulesStatus_ensure_atividades_geral() {
+  Logger.log(JSON.stringify(core_moduleStatusEnsureRow_('ATIVIDADES', 'GERAL'), null, 2));
+}
+
+function test_core_modulesStatus_markExecution_atividades_geral() {
+  Logger.log(JSON.stringify(core_moduleStatusMarkExecution_('ATIVIDADES', 'GERAL', 'SYNC', {
+    modeRead: 'ON',
+    obs: 'Teste manual de registro de execucao.'
+  }), null, 2));
+}
+
+function test_core_modulesStatus_markSuccess_atividades_geral() {
+  Logger.log(JSON.stringify(core_moduleStatusMarkSuccess_('ATIVIDADES', 'GERAL', 'SYNC', {
+    modeRead: 'ON'
+  }), null, 2));
+}
+
+function test_core_modulesStatus_markError_atividades_geral() {
+  Logger.log(JSON.stringify(core_moduleStatusMarkError_('ATIVIDADES', 'GERAL', 'Erro manual de teste', 'SYNC', {
+    modeRead: 'ON'
+  }), null, 2));
+}
+
+function test_core_modulesStatus_markBlocked_apresentacoes_geral() {
+  Logger.log(JSON.stringify(core_moduleStatusMarkBlocked_(
+    'APRESENTACOES',
+    'GERAL',
+    'MODO_OFF',
+    'Teste manual de bloqueio por MODULOS_CONFIG',
+    'TRIGGER',
+    'OFF'
+  ), null, 2));
+}
+
 function test_core_rolesConfig_byKey() {
   Logger.log(JSON.stringify(
     core_findInstitutionalRoleByKey_('SECRETARIO_GERAL'),
@@ -214,6 +299,22 @@ function test_core_mailAdapters_resolveRouting_mem() {
     subject: '[GEAPA][MEM-2026-001-ENTRADA-CONFIRMACAO] Confirmacao de ingresso',
     fromEmail: 'teste@exemplo.com',
     snippet: 'aceito ingressar no geapa'
+  }), null, 2));
+}
+
+function test_core_mailRoutingRules_resolve_apresentacoes() {
+  Logger.log(JSON.stringify(coreMailResolveRouting_({
+    subject: '[GEAPA][APR-2026-001] Resposta de apresentacao',
+    fromEmail: 'teste@exemplo.com',
+    snippet: 'Mensagem de teste para regra de apresentacoes.'
+  }), null, 2));
+}
+
+function test_core_mailRoutingRules_resolve_seletivo() {
+  Logger.log(JSON.stringify(coreMailResolveRouting_({
+    subject: '[GEAPA][SEL-2026-001] Resposta de processo seletivo',
+    fromEmail: 'teste@exemplo.com',
+    snippet: 'Mensagem de teste para regra de seletivo.'
   }), null, 2));
 }
 
@@ -644,4 +745,20 @@ function test_core_occupationCompat_writePrefersOccupation_fakeSheet() {
   test_assert_(row[1] === 'Presidente', 'A coluna nova de ocupacao atual deveria receber o valor.');
 
   Logger.log(JSON.stringify({ ok: true, row: row }, null, 2));
+}
+
+function test_core_rolesConfig_diretorComunicacao_legacyAliases() {
+  var role = core_findInstitutionalRoleByAnyName_('Coordenador(a) de Comunicação');
+  test_assert_(!!role, 'Alias legado da comunicação deveria resolver um cargo institucional.');
+  test_assert_(role.roleKey === 'DIRETOR_COMUNICACAO', 'Alias legado deveria apontar para DIRETOR_COMUNICACAO.');
+
+  var byLegacyKey = core_findInstitutionalRoleByAnyName_('COORDENADOR_COMUNICACAO');
+  test_assert_(!!byLegacyKey, 'Cargo key legado da comunicação deveria ser aceito.');
+  test_assert_(byLegacyKey.roleKey === 'DIRETOR_COMUNICACAO', 'Cargo key legado deveria apontar para DIRETOR_COMUNICACAO.');
+
+  Logger.log(JSON.stringify({
+    ok: true,
+    publicName: role.publicName,
+    roleKey: role.roleKey
+  }, null, 2));
 }
