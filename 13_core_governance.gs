@@ -265,11 +265,11 @@ function core_getCurrentBoardMembers_(refDate) {
  * @return {Object[]}
  */
 function core_getCurrentBoardMembersByOccupation_(occupation, refDate) {
-  const wanted = core_normalizeGovernanceText_(occupation);
+  const wanted = core_resolveGovernanceOccupationMatchKey_(occupation);
   if (!wanted) return [];
 
   return core_getCurrentBoardMembers_(refDate).filter(member => {
-    return core_normalizeGovernanceText_(member.occupation || member.role) === wanted;
+    return core_resolveGovernanceOccupationMatchKey_(member.occupation || member.role) === wanted;
   });
 }
 
@@ -293,6 +293,16 @@ function core_getCurrentBoardMemberByRole_(role, refDate) {
   return core_getCurrentBoardMemberByOccupation_(role, refDate);
 }
 
+function core_resolveGovernanceOccupationMatchKey_(occupation) {
+  var raw = String(occupation == null ? '' : occupation).trim();
+  if (!raw) return '';
+
+  var roleConfig = core_findInstitutionalRoleByAnyName_(raw);
+  if (roleConfig && roleConfig.roleKeyNorm) return roleConfig.roleKeyNorm;
+
+  return core_normalizeGovernanceText_(raw);
+}
+
 /**
  * Retorna a liderança principal da diretoria vigente.
  *
@@ -300,12 +310,18 @@ function core_getCurrentBoardMemberByRole_(role, refDate) {
  * @return {Object}
  */
 function core_getCurrentLeadership_(refDate) {
+  const diretorComunicacao =
+    core_getCurrentBoardMemberByOccupation_("DIRETOR_COMUNICACAO", refDate) ||
+    core_getCurrentBoardMemberByOccupation_("Diretor(a) de Comunicação", refDate) ||
+    core_getCurrentBoardMemberByOccupation_("Coordenador(a) de Comunicação", refDate);
+
   return Object.freeze({
     presidente: core_getCurrentBoardMemberByOccupation_("Presidente", refDate),
     vicePresidente: core_getCurrentBoardMemberByOccupation_("Vice Presidente", refDate),
     secretarioGeral: core_getCurrentBoardMemberByOccupation_("Secretário(a) Geral", refDate),
     secretarioExecutivo: core_getCurrentBoardMemberByOccupation_("Secretário(a) Executivo", refDate),
-    coordenadorComunicacao: core_getCurrentBoardMemberByOccupation_("Coordenador(a) de Comunicação", refDate)
+    diretorComunicacao: diretorComunicacao,
+    coordenadorComunicacao: diretorComunicacao
   });
 }
 

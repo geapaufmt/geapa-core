@@ -409,10 +409,13 @@ function core_getCurrentEmailsByEmailGroup_(groupName, refDate) {
 }
 
 function core_getCurrentEmailsByOccupation_(occupationName, refDate) {
+  var wanted = core_roleProjectionResolveOccupationMatchKey_(occupationName);
+  if (!wanted) return [];
+
   var assignments = core_getCurrentInstitutionalAssignments_(refDate);
   var emails = assignments
     .filter(function(item) {
-      return core_rolesNormalizeText_(item.publicName) === core_rolesNormalizeText_(occupationName);
+      return core_roleProjectionResolveAssignmentOccupationMatchKey_(item) === wanted;
     })
     .map(function(item) {
       return String(item.email || '').trim();
@@ -424,6 +427,26 @@ function core_getCurrentEmailsByOccupation_(occupationName, refDate) {
 
 function core_getCurrentEmailsByRole_(roleName, refDate) {
   return core_getCurrentEmailsByOccupation_(roleName, refDate);
+}
+
+function core_roleProjectionResolveOccupationMatchKey_(occupationName) {
+  var raw = String(occupationName == null ? '' : occupationName).trim();
+  if (!raw) return '';
+
+  var roleConfig = core_findInstitutionalRoleByAnyName_(raw);
+  if (roleConfig && roleConfig.roleKeyNorm) return roleConfig.roleKeyNorm;
+
+  return core_rolesNormalizeText_(raw);
+}
+
+function core_roleProjectionResolveAssignmentOccupationMatchKey_(assignment) {
+  if (assignment && assignment.roleKey) {
+    return core_rolesNormalizeText_(assignment.roleKey);
+  }
+
+  return core_roleProjectionResolveOccupationMatchKey_(
+    assignment && (assignment.publicName || assignment.occupation || assignment.rawOccupation || assignment.rawRole)
+  );
 }
 
 function core_syncMembersCurrentInstitutionalRoles_(refDate) {

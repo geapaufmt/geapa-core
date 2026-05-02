@@ -54,6 +54,74 @@ function coreGetRegistryMetaByKey(key) {
 }
 
 /* ============================================================
+ * MODULOS_CONFIG
+ * ============================================================ */
+
+function coreGetModuleConfig(moduleName, flowName, opts) {
+  return core_getModuleConfig_(moduleName, flowName, opts || {});
+}
+
+function coreIsModuleEnabled(moduleName, flowName, opts) {
+  return core_isModuleEnabled_(moduleName, flowName, opts || {});
+}
+
+function coreGetModuleMode(moduleName, flowName, opts) {
+  return core_getModuleMode_(moduleName, flowName, opts || {});
+}
+
+function coreCanModuleUseCapability(moduleName, flowName, capability, opts) {
+  return core_canModuleUseCapability_(moduleName, flowName, capability, opts || {});
+}
+
+function coreAssertModuleExecutionAllowed(moduleName, flowName, capability, opts) {
+  return core_assertModuleExecutionAllowed_(moduleName, flowName, capability, opts || {});
+}
+
+function coreGetModulesConfigDebug() {
+  return core_debugModulesConfig_();
+}
+
+function coreClearModulesConfigCache() {
+  return core_modulesConfigCacheClear_();
+}
+
+function coreApplyModulesConfigSheetUx(opts) {
+  return core_applyModulesConfigSheetUx_(opts || {});
+}
+
+/* ============================================================
+ * MODULOS_STATUS
+ * ============================================================ */
+
+function coreModuleStatusGet(moduleName, flowName, opts) {
+  return core_moduleStatusGet_(moduleName, flowName, opts || {});
+}
+
+function coreModuleStatusEnsureRow(moduleName, flowName, opts) {
+  return core_moduleStatusEnsureRow_(moduleName, flowName, opts || {});
+}
+
+function coreModuleStatusMarkExecution(moduleName, flowName, capability, opts) {
+  return core_moduleStatusMarkExecution_(moduleName, flowName, capability, opts || {});
+}
+
+function coreModuleStatusMarkSuccess(moduleName, flowName, capability, opts) {
+  return core_moduleStatusMarkSuccess_(moduleName, flowName, capability, opts || {});
+}
+
+function coreModuleStatusMarkError(moduleName, flowName, errorOrMessage, capability, opts) {
+  return core_moduleStatusMarkError_(moduleName, flowName, errorOrMessage, capability, opts || {});
+}
+
+function coreModuleStatusMarkBlocked(moduleName, flowName, reasonCode, reasonMessage, capability, modeRead, opts) {
+  return core_moduleStatusMarkBlocked_(moduleName, flowName, reasonCode, reasonMessage, capability, modeRead, opts || {});
+}
+
+function coreGetModulesStatusDebug() {
+  return core_debugModulesStatus_();
+}
+
+/* ============================================================
  * REGISTRY / DEBUG
  * ============================================================ */
 

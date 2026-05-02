@@ -8,6 +8,13 @@
 const CORE_ROLES_CONFIG_KEY = 'CARGOS_INSTITUCIONAIS_CONFIG';
 const CORE_ROLES_CONFIG_CACHE_KEY = 'GEAPA_CORE_ROLES_CONFIG_V1';
 const CORE_ROLES_CONFIG_CACHE_TTL_SECONDS = 15 * 60;
+const CORE_ROLE_COMPATIBILITY_ALIASES_BY_KEY = Object.freeze({
+  DIRETOR_COMUNICACAO: Object.freeze([
+    'Coordenador(a) de Comunicação',
+    'Coordenador de Comunicação',
+    'COORDENADOR_COMUNICACAO'
+  ])
+});
 
 function core_getInstitutionalRolesConfigSheet_() {
   return core_getSheetByKey_(CORE_ROLES_CONFIG_KEY);
@@ -43,6 +50,25 @@ function core_rolesParseCsvList_(value) {
 
 function core_rolesParseAliases_(value) {
   return core_rolesParseCsvList_(value);
+}
+
+function core_getInstitutionalRoleCompatibilityAliases_(publicName, roleKey) {
+  var aliases = [];
+  var roleKeyNorm = core_rolesNormalizeText_(roleKey);
+  var publicNameNorm = core_rolesNormalizeText_(publicName);
+
+  if (roleKeyNorm && CORE_ROLE_COMPATIBILITY_ALIASES_BY_KEY[roleKeyNorm]) {
+    aliases = aliases.concat(CORE_ROLE_COMPATIBILITY_ALIASES_BY_KEY[roleKeyNorm]);
+  }
+
+  if (publicNameNorm === core_rolesNormalizeText_('Diretor(a) de Comunicação')) {
+    aliases = aliases.concat(CORE_ROLE_COMPATIBILITY_ALIASES_BY_KEY.DIRETOR_COMUNICACAO || []);
+  }
+
+  return aliases
+    .map(function(alias) { return core_rolesNormalizeText_(alias); })
+    .filter(Boolean)
+    .filter(function(alias, idx, arr) { return arr.indexOf(alias) === idx; });
 }
 
 function core_getInstitutionalRolesConfigRows_() {
@@ -98,7 +124,9 @@ function core_getInstitutionalRolesConfigRows_() {
 
     if (!publicName || !group || !roleKey) return null;
 
-    const aliases = core_rolesParseAliases_(row[colVariacao - 1]);
+    const aliases = core_rolesParseAliases_(row[colVariacao - 1])
+      .concat(core_getInstitutionalRoleCompatibilityAliases_(publicName, roleKey))
+      .filter((alias, index, arr) => arr.indexOf(alias) === index);
 
     return Object.freeze({
       lineNo: lineNo,
