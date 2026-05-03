@@ -766,6 +766,13 @@ Contrato da tela "Minha situacao":
         quantidadeRealizadas: number
       }
     },
+    diretoria: {
+      statusElegibilidade: string,
+      diasComputados: number,
+      limiteDias: number,
+      saldoDias: number,
+      dataLimiteEstimada: string
+    },
     certificados: [],
     avisos: []
   }
@@ -800,6 +807,18 @@ Bloco de participacao por apresentacoes:
 - periodos vazios retornam string vazia;
 - quantidades vazias, invalidas ou nao numericas retornam `0`.
 
+Bloco orientativo de elegibilidade para Diretoria:
+
+- `minhaSituacao.diretoria.statusElegibilidade` vem de `STATUS_ELEGIBILIDADE_DIRETORIA`;
+- `minhaSituacao.diretoria.diasComputados` vem de `QTD_DIAS_QUE_CONTAM_PARA_LIMITE_DIRETORIA`;
+- `minhaSituacao.diretoria.limiteDias` vem de `LIMITE_DIAS_DIRETORIA`;
+- `minhaSituacao.diretoria.saldoDias` vem de `SALDO_DIAS_DIRETORIA`;
+- `minhaSituacao.diretoria.dataLimiteEstimada` vem de `DATA_LIMITE_ESTIMADA_DIRETORIA`;
+- status vazio retorna string vazia, sem inventar valor;
+- numeros vazios, invalidos, nao numericos ou negativos retornam `0`;
+- a data e retornada como texto exibido na planilha, sem conversao para `Date`;
+- essa informacao e orientativa; decisoes finais continuam sendo da Diretoria.
+
 Fora de escopo nesta etapa:
 
 - pendencias disciplinares;
@@ -808,6 +827,7 @@ Fora de escopo nesta etapa:
 - avaliacoes subjetivas;
 - documentos obrigatorios sem fonte oficial objetiva e nao sensivel no Core.
 - frequencia detalhada, lista de presenca e observacoes internas.
+- historico de cargos, justificativas internas e detalhes sensiveis de elegibilidade.
 
 Teste manual pelo editor do Apps Script:
 

@@ -68,7 +68,12 @@ const CORE_MEMBERS_CFG = Object.freeze({
       "TIPO_VINCULO"
     ]),
     periodoUltimaApresentacao: Object.freeze(["PERIODO_ULTIMA_APRESENTACAO"]),
-    qtdApresentacoesRealizadas: Object.freeze(["QTD_APRESENTACOES_REALIZADAS"])
+    qtdApresentacoesRealizadas: Object.freeze(["QTD_APRESENTACOES_REALIZADAS"]),
+    qtdDiasQueContamParaLimiteDiretoria: Object.freeze(["QTD_DIAS_QUE_CONTAM_PARA_LIMITE_DIRETORIA"]),
+    limiteDiasDiretoria: Object.freeze(["LIMITE_DIAS_DIRETORIA"]),
+    saldoDiasDiretoria: Object.freeze(["SALDO_DIAS_DIRETORIA"]),
+    statusElegibilidadeDiretoria: Object.freeze(["STATUS_ELEGIBILIDADE_DIRETORIA"]),
+    dataLimiteEstimadaDiretoria: Object.freeze(["DATA_LIMITE_ESTIMADA_DIRETORIA"])
   }),
 
   /**
@@ -225,7 +230,12 @@ function core_getPortalMemberHeaderIndexMap_(headers) {
       CORE_MEMBERS_CFG.headers.vinculo.concat(occupationAliases)
     ),
     periodoUltimaApresentacao: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.periodoUltimaApresentacao),
-    qtdApresentacoesRealizadas: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.qtdApresentacoesRealizadas)
+    qtdApresentacoesRealizadas: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.qtdApresentacoesRealizadas),
+    qtdDiasQueContamParaLimiteDiretoria: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.qtdDiasQueContamParaLimiteDiretoria),
+    limiteDiasDiretoria: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.limiteDiasDiretoria),
+    saldoDiasDiretoria: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.saldoDiasDiretoria),
+    statusElegibilidadeDiretoria: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.statusElegibilidadeDiretoria),
+    dataLimiteEstimadaDiretoria: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.dataLimiteEstimadaDiretoria)
   };
 }
 
@@ -284,11 +294,38 @@ function core_buildPortalApresentacoesFromRow_(row, idx) {
   });
 }
 
+function core_buildPortalDiretoriaVazio_() {
+  return Object.freeze({
+    statusElegibilidade: "",
+    diasComputados: 0,
+    limiteDias: 0,
+    saldoDias: 0,
+    dataLimiteEstimada: ""
+  });
+}
+
+function core_buildPortalDiretoriaFromRow_(row, idx) {
+  return Object.freeze({
+    statusElegibilidade: core_getPortalMemberCell_(row, idx.statusElegibilidadeDiretoria, ""),
+    diasComputados: core_parsePortalNonNegativeNumber_(
+      core_getPortalMemberCell_(row, idx.qtdDiasQueContamParaLimiteDiretoria, "")
+    ),
+    limiteDias: core_parsePortalNonNegativeNumber_(
+      core_getPortalMemberCell_(row, idx.limiteDiasDiretoria, "")
+    ),
+    saldoDias: core_parsePortalNonNegativeNumber_(
+      core_getPortalMemberCell_(row, idx.saldoDiasDiretoria, "")
+    ),
+    dataLimiteEstimada: core_getPortalMemberCell_(row, idx.dataLimiteEstimadaDiretoria, "")
+  });
+}
+
 function core_mapPortalMemberRow_(row, idx, opts) {
   opts = opts || {};
   const requireValidEmail = opts.requireValidEmail !== false;
   const useDefaultLabels = opts.useDefaultLabels !== false;
   const includePresentationData = opts.includePresentationData === true;
+  const includeBoardEligibilityData = opts.includeBoardEligibilityData === true;
   const emailCadastrado = idx.email >= 0 && core_isValidEmail_(row[idx.email])
     ? core_extractEmailAddress_(row[idx.email])
     : "";
@@ -319,6 +356,10 @@ function core_mapPortalMemberRow_(row, idx, opts) {
     member._portalApresentacoes = core_buildPortalApresentacoesFromRow_(row, idx);
   }
 
+  if (includeBoardEligibilityData) {
+    member._portalDiretoria = core_buildPortalDiretoriaFromRow_(row, idx);
+  }
+
   return Object.freeze(member);
 }
 
@@ -345,7 +386,11 @@ function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, opts) {
   }
 
   const startRow = CORE_MEMBERS_CFG.headerRow + 1;
-  const values = sheet.getRange(startRow, 1, lastRow - startRow + 1, lastCol).getValues();
+  const range = sheet.getRange(startRow, 1, lastRow - startRow + 1, lastCol);
+  const values = range.getValues();
+  const displayValues = typeof range.getDisplayValues === "function"
+    ? range.getDisplayValues()
+    : values;
 
   for (let i = 0; i < values.length; i++) {
     const row = values[i];
@@ -356,7 +401,7 @@ function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, opts) {
 
     if (!foundByEmail && !foundByRga) continue;
 
-    return core_mapPortalMemberRow_(row, idx, opts);
+    return core_mapPortalMemberRow_(displayValues[i] || row, idx, opts);
   }
 
   return null;
@@ -388,12 +433,17 @@ function core_buildPortalError_(code, message) {
 }
 
 function core_buildMinhaSituacaoPortalVazia_() {
-  return core_buildMinhaSituacaoPortal_(Object.freeze([]), core_buildPortalApresentacoesVazio_());
+  return core_buildMinhaSituacaoPortal_(
+    Object.freeze([]),
+    core_buildPortalApresentacoesVazio_(),
+    core_buildPortalDiretoriaVazio_()
+  );
 }
 
-function core_buildMinhaSituacaoPortal_(pendencias, apresentacoes) {
+function core_buildMinhaSituacaoPortal_(pendencias, apresentacoes, diretoria) {
   const pending = Object.freeze((pendencias || []).slice());
   const presentationSummary = apresentacoes || core_buildPortalApresentacoesVazio_();
+  const boardEligibility = diretoria || core_buildPortalDiretoriaVazio_();
 
   return Object.freeze({
     resumo: Object.freeze({
@@ -409,6 +459,13 @@ function core_buildMinhaSituacaoPortal_(pendencias, apresentacoes) {
         periodoUltimaApresentacao: String(presentationSummary.periodoUltimaApresentacao || "").trim(),
         quantidadeRealizadas: core_parsePortalNonNegativeNumber_(presentationSummary.quantidadeRealizadas)
       })
+    }),
+    diretoria: Object.freeze({
+      statusElegibilidade: String(boardEligibility.statusElegibilidade || "").trim(),
+      diasComputados: core_parsePortalNonNegativeNumber_(boardEligibility.diasComputados),
+      limiteDias: core_parsePortalNonNegativeNumber_(boardEligibility.limiteDias),
+      saldoDias: core_parsePortalNonNegativeNumber_(boardEligibility.saldoDias),
+      dataLimiteEstimada: String(boardEligibility.dataLimiteEstimada || "").trim()
     }),
     certificados: Object.freeze([]),
     avisos: Object.freeze([])
@@ -494,6 +551,7 @@ function core_getPortalPendenciasCadastro_(membro) {
 function core_buildMinhaSituacaoPortalResponse_(membro) {
   const pendencias = core_getPortalPendenciasCadastro_(membro);
   const apresentacoes = membro._portalApresentacoes || core_buildPortalApresentacoesVazio_();
+  const diretoria = membro._portalDiretoria || core_buildPortalDiretoriaVazio_();
 
   return Object.freeze({
     ok: true,
@@ -505,7 +563,7 @@ function core_buildMinhaSituacaoPortalResponse_(membro) {
       vinculo: String(membro.vinculo || "").trim(),
       situacaoGeral: String(membro.situacaoGeral || "").trim()
     }),
-    minhaSituacao: core_buildMinhaSituacaoPortal_(pendencias, apresentacoes)
+    minhaSituacao: core_buildMinhaSituacaoPortal_(pendencias, apresentacoes, diretoria)
   });
 }
 
@@ -513,7 +571,8 @@ function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
   const membro = core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, {
     requireValidEmail: false,
     useDefaultLabels: false,
-    includePresentationData: true
+    includePresentationData: true,
+    includeBoardEligibilityData: true
   });
 
   if (!membro) {

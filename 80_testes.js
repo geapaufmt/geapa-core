@@ -218,13 +218,18 @@ function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
       'Cargo/fun\u00E7\u00E3o atual',
       'Telefone',
       'PERIODO_ULTIMA_APRESENTACAO',
-      'QTD_APRESENTACOES_REALIZADAS'
+      'QTD_APRESENTACOES_REALIZADAS',
+      'QTD_DIAS_QUE_CONTAM_PARA_LIMITE_DIRETORIA',
+      'LIMITE_DIAS_DIRETORIA',
+      'SALDO_DIAS_DIRETORIA',
+      'STATUS_ELEGIBILIDADE_DIRETORIA',
+      'DATA_LIMITE_ESTIMADA_DIRETORIA'
     ],
-    ['MEM-TESTE-001', 'Membro Sem Pendencia', 'sem-pendencia@exemplo.com', 'RGA-TESTE-001', 'Ativo', 'Membro', '(00) 0000-0000', 'GEAPA_2025', '2'],
-    ['MEM-TESTE-002', 'Membro Sem RGA', 'sem-rga@exemplo.com', '', 'Ativo', 'Membro', '(00) 0000-0001', '', ''],
-    ['MEM-TESTE-003', '', 'sem-nome@exemplo.com', 'RGA-TESTE-003', 'Ativo', 'Membro', '(00) 0000-0002', 'GEAPA_2024', '1'],
-    ['MEM-TESTE-004', 'Membro Indefinido', 'indefinido@exemplo.com', 'RGA-TESTE-004', 'Indefinido', 'Indefinido', '(00) 0000-0003', 'GEAPA_2025', 'invalido'],
-    ['MEM-TESTE-005', 'Membro Email Invalido', 'email-invalido', 'RGA-TESTE-005', 'Ativo', 'Membro', '(00) 0000-0004', '', '']
+    ['MEM-TESTE-001', 'Membro Sem Pendencia', 'sem-pendencia@exemplo.com', 'RGA-TESTE-001', 'Ativo', 'Membro', '(00) 0000-0000', 'GEAPA_2025', '2', '0', '549', '549', 'APTO', '18/05/2027'],
+    ['MEM-TESTE-002', 'Membro Sem RGA', 'sem-rga@exemplo.com', '', 'Ativo', 'Membro', '(00) 0000-0001', '', '', '120', '549', '429', 'APTO_COM_LIMITE', '01/01/2027'],
+    ['MEM-TESTE-003', '', 'sem-nome@exemplo.com', 'RGA-TESTE-003', 'Ativo', 'Membro', '(00) 0000-0002', 'GEAPA_2024', '1', '', '', '', '', ''],
+    ['MEM-TESTE-004', 'Membro Indefinido', 'indefinido@exemplo.com', 'RGA-TESTE-004', 'Indefinido', 'Indefinido', '(00) 0000-0003', 'GEAPA_2025', 'invalido', 'abc', '-10', 'nao-numero', 'APTO_COM_LIMITE', ''],
+    ['MEM-TESTE-005', 'Membro Email Invalido', 'email-invalido', 'RGA-TESTE-005', 'Ativo', 'Membro', '(00) 0000-0004', '', '', '', '', '', '', '']
   ], 'MEMBERS_ATUAIS_FAKE');
 
   var result = core_buscarMinhaSituacaoParaPortalInSheet_(sheet, 'RGA-TESTE-001');
@@ -249,6 +254,11 @@ function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
   test_assert_(result.minhaSituacao.participacao.apresentacoes.quantidadeRealizadas === 2, 'Quantidade atual de apresentacoes deveria ser numero.');
   test_assert_(!Object.prototype.hasOwnProperty.call(result.minhaSituacao.participacao.apresentacoes, 'quantidadeRealizadasBaseLegado'), 'Quantidade legado nao deve ser exposta no portal.');
   test_assert_(!Object.prototype.hasOwnProperty.call(result.minhaSituacao.participacao.apresentacoes, 'periodoUltimaApresentacaoBaseLegado'), 'Periodo legado nao deve ser exposto no portal.');
+  test_assert_(result.minhaSituacao.diretoria.statusElegibilidade === 'APTO', 'Status de elegibilidade APTO incorreto.');
+  test_assert_(result.minhaSituacao.diretoria.diasComputados === 0, 'Dias computados APTO deveriam ser 0.');
+  test_assert_(result.minhaSituacao.diretoria.limiteDias === 549, 'Limite de dias APTO incorreto.');
+  test_assert_(result.minhaSituacao.diretoria.saldoDias === 549, 'Saldo de dias APTO incorreto.');
+  test_assert_(result.minhaSituacao.diretoria.dataLimiteEstimada === '18/05/2027', 'Data limite estimada deveria preservar o texto da planilha.');
   test_assert_(Array.isArray(result.minhaSituacao.certificados) && result.minhaSituacao.certificados.length === 0, 'certificados deve iniciar vazio.');
   test_assert_(Array.isArray(result.minhaSituacao.avisos) && result.minhaSituacao.avisos.length === 0, 'avisos deve iniciar vazio.');
   test_assert_(semRga.minhaSituacao.pendencias.length === 1, 'Membro sem RGA deveria ter uma pendencia.');
@@ -256,16 +266,29 @@ function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
   test_assert_(semRga.minhaSituacao.resumo.pendenciasAbertas === semRga.minhaSituacao.pendencias.length, 'Contagem de pendencias sem RGA incorreta.');
   test_assert_(semRga.minhaSituacao.participacao.apresentacoes.quantidadeRealizadas === 0, 'Membro sem apresentacoes atuais deveria retornar quantidade 0.');
   test_assert_(semRga.minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacao === '', 'Membro sem apresentacoes atuais deveria retornar periodo vazio.');
+  test_assert_(semRga.minhaSituacao.diretoria.statusElegibilidade === 'APTO_COM_LIMITE', 'Status APTO_COM_LIMITE incorreto.');
+  test_assert_(semRga.minhaSituacao.diretoria.diasComputados === 120, 'Dias computados APTO_COM_LIMITE incorretos.');
+  test_assert_(semRga.minhaSituacao.diretoria.limiteDias === 549, 'Limite APTO_COM_LIMITE incorreto.');
+  test_assert_(semRga.minhaSituacao.diretoria.saldoDias === 429, 'Saldo APTO_COM_LIMITE incorreto.');
   test_assert_(semNome.minhaSituacao.pendencias.length === 1, 'Membro sem nome deveria ter uma pendencia.');
   test_assert_(semNome.minhaSituacao.pendencias[0].titulo === 'Nome de exibicao nao informado', 'Pendencia de nome incorreta.');
   test_assert_(semNome.minhaSituacao.resumo.pendenciasAbertas === semNome.minhaSituacao.pendencias.length, 'Contagem de pendencias sem nome incorreta.');
   test_assert_(semNome.minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacao === 'GEAPA_2024', 'Periodo consolidado incorreto.');
   test_assert_(semNome.minhaSituacao.participacao.apresentacoes.quantidadeRealizadas === 1, 'Quantidade consolidada deveria ser numero.');
+  test_assert_(semNome.minhaSituacao.diretoria.statusElegibilidade === '', 'Status vazio deveria retornar string vazia.');
+  test_assert_(semNome.minhaSituacao.diretoria.diasComputados === 0, 'Dias vazios deveriam retornar 0.');
+  test_assert_(semNome.minhaSituacao.diretoria.limiteDias === 0, 'Limite vazio deveria retornar 0.');
+  test_assert_(semNome.minhaSituacao.diretoria.saldoDias === 0, 'Saldo vazio deveria retornar 0.');
+  test_assert_(semNome.minhaSituacao.diretoria.dataLimiteEstimada === '', 'Data vazia deveria retornar string vazia.');
   test_assert_(indefinido.minhaSituacao.pendencias.length === 2, 'Membro com situacao/vinculo indefinido deveria ter duas pendencias.');
   test_assert_(indefinido.minhaSituacao.pendencias[0].titulo === 'Vinculo cadastral indefinido', 'Pendencia de vinculo incorreta.');
   test_assert_(indefinido.minhaSituacao.pendencias[1].titulo === 'Situacao geral indefinida', 'Pendencia de situacao geral incorreta.');
   test_assert_(indefinido.minhaSituacao.resumo.pendenciasAbertas === indefinido.minhaSituacao.pendencias.length, 'Contagem de pendencias indefinidas incorreta.');
   test_assert_(indefinido.minhaSituacao.participacao.apresentacoes.quantidadeRealizadas === 0, 'Quantidade atual invalida deveria virar 0.');
+  test_assert_(indefinido.minhaSituacao.diretoria.diasComputados === 0, 'Dias invalidos deveriam retornar 0.');
+  test_assert_(indefinido.minhaSituacao.diretoria.limiteDias === 0, 'Limite negativo deveria retornar 0.');
+  test_assert_(indefinido.minhaSituacao.diretoria.saldoDias === 0, 'Saldo invalido deveria retornar 0.');
+  test_assert_(indefinido.minhaSituacao.diretoria.dataLimiteEstimada === '', 'Data vazia em diretoria deveria retornar string vazia.');
   test_assert_(emailInvalido.minhaSituacao.pendencias.length === 1, 'Membro com email invalido deveria ter uma pendencia.');
   test_assert_(emailInvalido.membro.emailCadastrado === '', 'Email invalido nao deve ser retornado como emailCadastrado.');
   test_assert_(emailInvalido.minhaSituacao.pendencias[0].titulo === 'E-mail cadastrado ausente ou invalido', 'Pendencia de email invalido incorreta.');
