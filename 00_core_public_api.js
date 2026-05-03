@@ -102,6 +102,11 @@ const GEAPA_CORE = Object.freeze({
     updateEventStatus: core_updateMemberLifecycleEventStatus_,
   }),
 
+  portal: Object.freeze({
+    buscarMembroParaPortal: core_buscarMembroParaPortal_,
+    buscarMinhaSituacaoParaPortal: core_buscarMinhaSituacaoParaPortal_,
+  }),
+
   /**
    * ----------------------------------------------------------
    * dates (Datas / Tempo)

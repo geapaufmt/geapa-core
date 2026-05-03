@@ -173,6 +173,70 @@ function test_memberIdentity_byEmail() {
   Logger.log(JSON.stringify(core_memberIdentityFindByAny_('email@exemplo.com'), null, 2));
 }
 
+function test_core_portalBuscarMembroParaPortal_fakeSheet() {
+  var sheet = test_createFakeSheet_([
+    ['ID_MEMBRO', 'Membro', 'EMAIL', 'RGA', 'Status', 'Cargo/fun\u00E7\u00E3o atual', 'Telefone'],
+    ['MEM-TESTE-001', 'Membro Teste', 'Membro@Exemplo.com', 'RGA-TESTE-001', 'Ativo', 'Membro', '(00) 0000-0000'],
+    ['MEM-TESTE-002', 'Outro Membro', 'outro@exemplo.com', 'RGA-TESTE-002', 'Suspenso', 'Membro', '(00) 0000-0001']
+  ], 'MEMBERS_ATUAIS_FAKE');
+
+  var byEmail = core_buscarMembroParaPortalInSheet_(sheet, '  MEMBRO@EXEMPLO.COM  ');
+  var byRga = core_buscarMembroParaPortalInSheet_(sheet, 'rga-teste-002');
+  var missing = core_buscarMembroParaPortalInSheet_(sheet, 'nao-encontrado@example.com');
+  var keys = Object.keys(byEmail || {}).sort();
+
+  test_assert_(!!byEmail, 'Busca por email deveria encontrar membro.');
+  test_assert_(byEmail.id === 'RGA-TESTE-001', 'id publico deve usar RGA, nao ID_MEMBRO.');
+  test_assert_(byEmail.nomeExibicao === 'Membro Teste', 'nomeExibicao incorreto.');
+  test_assert_(byEmail.emailCadastrado === 'membro@exemplo.com', 'emailCadastrado deveria ser normalizado em lowercase.');
+  test_assert_(byEmail.rga === 'RGA-TESTE-001', 'rga incorreto.');
+  test_assert_(byEmail.situacaoGeral === 'Ativo', 'situacaoGeral deveria vir de Status.');
+  test_assert_(byEmail.vinculo === 'Membro', 'vinculo deveria vir da ocupacao atual.');
+  test_assert_(keys.join(',') === 'emailCadastrado,id,nomeExibicao,rga,situacaoGeral,vinculo', 'Contrato retornou campos fora do esperado.');
+
+  test_assert_(!!byRga, 'Busca por RGA deveria encontrar membro.');
+  test_assert_(byRga.emailCadastrado === 'outro@exemplo.com', 'Busca por RGA deve devolver o email cadastrado oficial.');
+  test_assert_(byRga.situacaoGeral === 'Suspenso', 'Status nao ativo tambem deve ser preservado para o portal.');
+  test_assert_(missing === null, 'Membro inexistente deveria retornar null.');
+
+  Logger.log(JSON.stringify({
+    ok: true,
+    byEmail: byEmail,
+    byRga: byRga,
+    missing: missing
+  }, null, 2));
+}
+
+function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
+  var sheet = test_createFakeSheet_([
+    ['ID_MEMBRO', 'Membro', 'EMAIL', 'RGA', 'Status', 'Cargo/fun\u00E7\u00E3o atual', 'Telefone'],
+    ['MEM-TESTE-001', 'Membro Teste', 'Membro@Exemplo.com', 'RGA-TESTE-001', 'Ativo', 'Membro', '(00) 0000-0000']
+  ], 'MEMBERS_ATUAIS_FAKE');
+
+  var result = core_buscarMinhaSituacaoParaPortalInSheet_(sheet, 'RGA-TESTE-001');
+  var missing = core_buscarMinhaSituacaoParaPortalInSheet_(sheet, 'ausente@example.com');
+  var memberKeys = Object.keys(result.membro || {}).sort();
+
+  test_assert_(result.ok === true, 'Minha situacao deveria retornar ok=true.');
+  test_assert_(memberKeys.join(',') === 'emailCadastrado,id,nomeExibicao,rga,situacaoGeral,vinculo', 'membro retornou campos fora do contrato.');
+  test_assert_(result.membro.id === 'RGA-TESTE-001', 'id nao deve expor ID_MEMBRO.');
+  test_assert_(result.membro.emailCadastrado === 'membro@exemplo.com', 'email cadastrado incorreto.');
+  test_assert_(result.minhaSituacao.resumo.frequencia === '', 'frequencia deve ficar vazia enquanto nao houver fonte oficial integrada.');
+  test_assert_(result.minhaSituacao.resumo.pendenciasAbertas === 0, 'pendenciasAbertas deve iniciar zerado.');
+  test_assert_(result.minhaSituacao.resumo.certificadosDisponiveis === 0, 'certificadosDisponiveis deve iniciar zerado.');
+  test_assert_(Array.isArray(result.minhaSituacao.pendencias) && result.minhaSituacao.pendencias.length === 0, 'pendencias deve ser lista vazia do proprio membro.');
+  test_assert_(Array.isArray(result.minhaSituacao.participacao.atividadesRecentes) && result.minhaSituacao.participacao.atividadesRecentes.length === 0, 'atividadesRecentes deve iniciar vazia.');
+  test_assert_(Array.isArray(result.minhaSituacao.certificados) && result.minhaSituacao.certificados.length === 0, 'certificados deve iniciar vazio.');
+  test_assert_(Array.isArray(result.minhaSituacao.avisos) && result.minhaSituacao.avisos.length === 0, 'avisos deve iniciar vazio.');
+  test_assert_(missing.ok === false && missing.code === 'MEMBRO_NAO_ENCONTRADO', 'Membro ausente deveria retornar erro controlado.');
+
+  Logger.log(JSON.stringify({
+    ok: true,
+    result: result,
+    missing: missing
+  }, null, 2));
+}
+
 function test_sync_all_derived_fields() {
   Logger.log(JSON.stringify(core_syncMembersCurrentDerivedFields_(), null, 2));
 }

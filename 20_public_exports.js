@@ -234,6 +234,54 @@ function coreValidateExternalEmailDuplicates() {
 }
 
 /* ============================================================
+ * PORTAL GEAPA
+ * ============================================================ */
+
+function geapaCoreBuscarMembroParaPortal(emailOuRga) {
+  try {
+    return core_buscarMembroParaPortal_(emailOuRga);
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreBuscarMembroParaPortal: falha interna ao consultar membro para portal.');
+    return null;
+  }
+}
+
+function geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga) {
+  try {
+    return core_buscarMinhaSituacaoParaPortal_(emailOuRga);
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreBuscarMinhaSituacaoParaPortal: falha interna ao consultar situacao do membro para portal.');
+    return core_buildPortalError_(
+      'ERRO_BUSCAR_MINHA_SITUACAO',
+      'Nao foi possivel buscar a situacao do membro.'
+    );
+  }
+}
+
+function geapaCoreRunTesteMinhaSituacaoParaPortal() {
+  try {
+    var identificador = PropertiesService
+      .getScriptProperties()
+      .getProperty('GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR');
+
+    if (!String(identificador || '').trim()) {
+      return core_buildPortalError_(
+        'CONFIG_TESTE_AUSENTE',
+        'Configure a Script Property GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR para executar este teste.'
+      );
+    }
+
+    return geapaCoreBuscarMinhaSituacaoParaPortal(identificador);
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreRunTesteMinhaSituacaoParaPortal: falha interna no teste manual do portal.');
+    return core_buildPortalError_(
+      'ERRO_TESTE_MINHA_SITUACAO',
+      'Nao foi possivel executar o teste de Minha situacao do portal.'
+    );
+  }
+}
+
+/* ============================================================
  * DATES
  * ============================================================ */
 

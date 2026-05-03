@@ -49,7 +49,24 @@ const CORE_MEMBERS_CFG = Object.freeze({
     phone: Object.freeze(["Telefone", "TELEFONE"]),
     email: Object.freeze(["Email", "E-mail", "EMAIL"]),
     status: Object.freeze(["Status", "STATUS_CADASTRAL"]),
-    rga: Object.freeze(["RGA"])
+    rga: Object.freeze(["RGA"]),
+    situacaoGeral: Object.freeze([
+      "SITUACAO_GERAL",
+      "SITUA\u00C7\u00C3O_GERAL",
+      "Situacao geral",
+      "Situa\u00E7\u00E3o geral",
+      "Status geral",
+      "Status",
+      "STATUS_CADASTRAL"
+    ]),
+    vinculo: Object.freeze([
+      "VINCULO",
+      "V\u00CDNCULO",
+      "Vinculo",
+      "V\u00EDnculo",
+      "STATUS_VINCULO",
+      "TIPO_VINCULO"
+    ])
   }),
 
   /**
@@ -188,6 +205,213 @@ function core_mapMemberRow_(row, idx, headers) {
     status: idx.status >= 0 ? String(row[idx.status] || "").trim() : "",
     rga: idx.rga >= 0 ? String(row[idx.rga] || "").trim() : ""
   });
+}
+
+function core_getPortalMemberHeaderIndexMap_(headers) {
+  const normalized = headers.map(core_normalizeMemberText_);
+  const occupationAliases = core_getOccupationHeaderAliases_('currentOccupation');
+
+  return {
+    name: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.name),
+    email: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.email),
+    rga: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.rga),
+    status: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.status),
+    occupation: core_findMemberHeaderIndex_(normalized, occupationAliases),
+    situacaoGeral: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.situacaoGeral),
+    vinculo: core_findMemberHeaderIndex_(
+      normalized,
+      CORE_MEMBERS_CFG.headers.vinculo.concat(occupationAliases)
+    )
+  };
+}
+
+function core_normalizePortalMemberLookup_(emailOuRga) {
+  const raw = String(emailOuRga == null ? "" : emailOuRga).trim();
+  if (!raw) {
+    return Object.freeze({
+      raw: "",
+      email: "",
+      rgaKey: ""
+    });
+  }
+
+  if (raw.indexOf("@") >= 0) {
+    return Object.freeze({
+      raw: raw,
+      email: core_extractEmailAddress_(raw),
+      rgaKey: ""
+    });
+  }
+
+  return Object.freeze({
+    raw: raw,
+    email: "",
+    rgaKey: core_normalizeIdentityKey_(raw)
+  });
+}
+
+function core_getPortalMemberCell_(row, idx, fallbackValue) {
+  if (idx == null || idx < 0) return fallbackValue || "";
+  const value = String(row[idx] || "").trim();
+  return value || fallbackValue || "";
+}
+
+function core_mapPortalMemberRow_(row, idx) {
+  const emailCadastrado = idx.email >= 0
+    ? core_extractEmailAddress_(row[idx.email])
+    : "";
+  const rga = core_getPortalMemberCell_(row, idx.rga, "");
+  const situacaoGeral =
+    core_getPortalMemberCell_(row, idx.situacaoGeral, "") ||
+    core_getPortalMemberCell_(row, idx.status, "") ||
+    "Ativo";
+  const vinculo =
+    core_getPortalMemberCell_(row, idx.vinculo, "") ||
+    core_getPortalMemberCell_(row, idx.occupation, "") ||
+    "Membro";
+
+  if (!emailCadastrado || !core_isValidEmail_(emailCadastrado)) {
+    return null;
+  }
+
+  return Object.freeze({
+    id: rga || "",
+    nomeExibicao: core_getPortalMemberCell_(row, idx.name, ""),
+    emailCadastrado: emailCadastrado,
+    rga: rga,
+    situacaoGeral: situacaoGeral,
+    vinculo: vinculo
+  });
+}
+
+function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga) {
+  const lookup = core_normalizePortalMemberLookup_(emailOuRga);
+  if (!lookup.raw) return null;
+  if (!sheet) return null;
+
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  if (lastRow <= CORE_MEMBERS_CFG.headerRow || lastCol < 1) return null;
+
+  const headers = sheet
+    .getRange(CORE_MEMBERS_CFG.headerRow, 1, 1, lastCol)
+    .getValues()[0]
+    .map(function(header) {
+      return String(header || "").trim();
+    });
+  const idx = core_getPortalMemberHeaderIndexMap_(headers);
+
+  if (idx.email < 0 || idx.rga < 0) {
+    throw new Error("Schema de MEMBERS_ATUAIS invalido para consulta do Portal.");
+  }
+
+  const startRow = CORE_MEMBERS_CFG.headerRow + 1;
+  const values = sheet.getRange(startRow, 1, lastRow - startRow + 1, lastCol).getValues();
+
+  for (let i = 0; i < values.length; i++) {
+    const row = values[i];
+    const rowEmail = idx.email >= 0 ? core_extractEmailAddress_(row[idx.email]) : "";
+    const rowRgaKey = idx.rga >= 0 ? core_normalizeIdentityKey_(row[idx.rga]) : "";
+    const foundByEmail = lookup.email && rowEmail && lookup.email === rowEmail;
+    const foundByRga = lookup.rgaKey && rowRgaKey && lookup.rgaKey === rowRgaKey;
+
+    if (!foundByEmail && !foundByRga) continue;
+
+    return core_mapPortalMemberRow_(row, idx);
+  }
+
+  return null;
+}
+
+/**
+ * Contrato inicial com o geapa-portal.
+ *
+ * O backend Apps Script do portal usa esta consulta para localizar um unico
+ * membro por e-mail ou RGA e decidir o e-mail cadastrado que recebera o codigo
+ * de acesso. O navegador nunca deve chamar esta funcao diretamente.
+ *
+ * Retorna somente:
+ * id, nomeExibicao, emailCadastrado, rga, situacaoGeral, vinculo.
+ *
+ * @param {string} emailOuRga
+ * @return {Object|null}
+ */
+function core_buscarMembroParaPortal_(emailOuRga) {
+  return core_buscarMembroParaPortalInSheet_(core_getMembersSheet_(), emailOuRga);
+}
+
+function core_buildPortalError_(code, message) {
+  return Object.freeze({
+    ok: false,
+    code: String(code || "ERRO_PORTAL").trim(),
+    message: String(message || "Nao foi possivel concluir a consulta.").trim()
+  });
+}
+
+function core_buildMinhaSituacaoPortalVazia_() {
+  return Object.freeze({
+    resumo: Object.freeze({
+      frequencia: "",
+      pendenciasAbertas: 0,
+      certificadosDisponiveis: 0
+    }),
+    pendencias: Object.freeze([]),
+    participacao: Object.freeze({
+      frequenciaGeral: "",
+      atividadesRecentes: Object.freeze([])
+    }),
+    certificados: Object.freeze([]),
+    avisos: Object.freeze([])
+  });
+}
+
+function core_buildMinhaSituacaoPortalResponse_(membro) {
+  return Object.freeze({
+    ok: true,
+    membro: Object.freeze({
+      id: String(membro.id || "").trim(),
+      nomeExibicao: String(membro.nomeExibicao || "").trim(),
+      emailCadastrado: String(membro.emailCadastrado || "").trim(),
+      rga: String(membro.rga || "").trim(),
+      vinculo: String(membro.vinculo || "").trim(),
+      situacaoGeral: String(membro.situacaoGeral || "").trim()
+    }),
+    minhaSituacao: core_buildMinhaSituacaoPortalVazia_()
+  });
+}
+
+function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
+  const membro = core_buscarMembroParaPortalInSheet_(sheet, emailOuRga);
+
+  if (!membro) {
+    return core_buildPortalError_(
+      "MEMBRO_NAO_ENCONTRADO",
+      "Membro nao encontrado para o e-mail ou RGA informado."
+    );
+  }
+
+  return core_buildMinhaSituacaoPortalResponse_(membro);
+}
+
+/**
+ * Contrato inicial da tela "Minha situacao" do geapa-portal.
+ *
+ * Esta V1 usa somente fontes oficiais ja centralizadas no Core para localizar
+ * o proprio membro. Enquanto frequencia, pendencias, certificados e atividades
+ * recentes nao tiverem uma fonte confiavel integrada ao Core, esses blocos
+ * ficam vazios ou zerados. Nao inventar dados nesta funcao.
+ *
+ * Regras de seguranca para futuras diretorias:
+ * - retornar apenas dados do membro localizado;
+ * - nunca retornar listas completas de membros;
+ * - nao expor IDs internos de planilhas, tokens, chaves ou dados de terceiros;
+ * - manter a filtragem no backend Apps Script, nunca no front-end.
+ *
+ * @param {string} emailOuRga
+ * @return {Object}
+ */
+function core_buscarMinhaSituacaoParaPortal_(emailOuRga) {
+  return core_buscarMinhaSituacaoParaPortalInSheet_(core_getMembersSheet_(), emailOuRga);
 }
 
 

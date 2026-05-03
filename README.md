@@ -624,6 +624,8 @@ Testes manuais no projeto:
 - `test_core_occupationCompat_writePrefersOccupation_fakeSheet()`
 - `test_core_memberLifecycle_updateEvent_patch_fakeSheet()`
 - `test_core_memberLifecycle_updateEvent_invalidStatus_fakeSheet()`
+- `test_core_portalBuscarMembroParaPortal_fakeSheet()`
+- `test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet()`
 - `test_core_mailHub_listPendingAttachments()`
 - `test_core_mailHub_getLatestPendingEventWithAttachment()`
 - `test_core_mailHub_getAttachmentById_example(attachmentId)`
@@ -688,6 +690,97 @@ Funcoes centrais:
 Observacao:
 
 - `coreAutofillIdentityRowInSheet` aceita `opts.nameHeaders`, `opts.rgaHeaders` e `opts.emailHeaders` para modulos com cabecalhos especificos, preservando o comportamento padrao quando `opts` nao e informado.
+
+### Portal GEAPA
+
+Contrato inicial entre `geapa-core` e `geapa-portal` para login por codigo e para a tela "Minha situacao".
+
+Funcao publica exportada pela Library:
+
+- `geapaCoreBuscarMembroParaPortal(emailOuRga)`
+- `geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga)`
+- `geapaCoreRunTesteMinhaSituacaoParaPortal()`
+
+Regras do contrato:
+
+- aceita e-mail ou RGA;
+- normaliza entrada com `trim` e, para e-mail, `lowercase`;
+- consulta `MEMBERS_ATUAIS` via Registry;
+- a consulta cadastral retorna um unico membro ou `null`;
+- a consulta de "Minha situacao" retorna `ok: true` ou erro controlado com `ok: false`;
+- nao retorna listas, dados sensiveis, frequencia detalhada, pendencias, certificados ou historico;
+- em caso de erro interno, nao expoe identificadores ou detalhes da planilha ao chamador.
+
+Retorno em caso de sucesso:
+
+```javascript
+{
+  id: string,
+  nomeExibicao: string,
+  emailCadastrado: string,
+  rga: string,
+  situacaoGeral: string,
+  vinculo: string
+}
+```
+
+Observacao de seguranca:
+
+- o navegador nunca deve chamar essa funcao diretamente;
+- quem chama e o backend Apps Script do `geapa-portal`;
+- o codigo de acesso deve ser enviado sempre para `emailCadastrado` retornado pelo core, nunca para o e-mail digitado pelo usuario quando houver divergencia.
+
+Contrato da tela "Minha situacao":
+
+```javascript
+{
+  ok: true,
+  membro: {
+    id: string,
+    nomeExibicao: string,
+    emailCadastrado: string,
+    rga: string,
+    vinculo: string,
+    situacaoGeral: string
+  },
+  minhaSituacao: {
+    resumo: {
+      frequencia: string,
+      pendenciasAbertas: number,
+      certificadosDisponiveis: number
+    },
+    pendencias: [],
+    participacao: {
+      frequenciaGeral: string,
+      atividadesRecentes: []
+    },
+    certificados: [],
+    avisos: []
+  }
+}
+```
+
+Retornos controlados:
+
+- membro nao encontrado: `{ ok: false, code: "MEMBRO_NAO_ENCONTRADO", message: "Membro nao encontrado para o e-mail ou RGA informado." }`
+- erro inesperado: `{ ok: false, code: "ERRO_BUSCAR_MINHA_SITUACAO", message: "Nao foi possivel buscar a situacao do membro." }`
+
+Teste manual pelo editor do Apps Script:
+
+1. configure a Script Property `GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR` com um e-mail ou RGA de teste;
+2. execute `geapaCoreRunTesteMinhaSituacaoParaPortal()`;
+3. confira o retorno no log/execucao sem adicionar e-mail real fixo ao codigo.
+
+Campos ainda vazios nesta V1:
+
+- `minhaSituacao.resumo.frequencia`;
+- `minhaSituacao.pendencias`;
+- `minhaSituacao.participacao.frequenciaGeral`;
+- `minhaSituacao.participacao.atividadesRecentes`;
+- `minhaSituacao.certificados`;
+- `minhaSituacao.avisos`.
+
+Esses blocos permanecem vazios ou zerados ate haver fonte oficial confiavel integrada ao Core para frequencia, pendencias, certificados e atividades recentes.
 
 ### Logs e utilidades
 
