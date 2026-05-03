@@ -66,7 +66,11 @@ const CORE_MEMBERS_CFG = Object.freeze({
       "V\u00EDnculo",
       "STATUS_VINCULO",
       "TIPO_VINCULO"
-    ])
+    ]),
+    periodoUltimaApresentacaoBaseLegado: Object.freeze(["PERIODO_ULTIMA_APRESENTACAO_BASE_LEGADO"]),
+    qtdApresentacoesRealizadasBaseLegado: Object.freeze(["QTD_APRESENTACOES_REALIZADAS_BASE_LEGADO"]),
+    periodoUltimaApresentacao: Object.freeze(["PERIODO_ULTIMA_APRESENTACAO"]),
+    qtdApresentacoesRealizadas: Object.freeze(["QTD_APRESENTACOES_REALIZADAS"])
   }),
 
   /**
@@ -221,7 +225,11 @@ function core_getPortalMemberHeaderIndexMap_(headers) {
     vinculo: core_findMemberHeaderIndex_(
       normalized,
       CORE_MEMBERS_CFG.headers.vinculo.concat(occupationAliases)
-    )
+    ),
+    periodoUltimaApresentacaoBaseLegado: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.periodoUltimaApresentacaoBaseLegado),
+    qtdApresentacoesRealizadasBaseLegado: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.qtdApresentacoesRealizadasBaseLegado),
+    periodoUltimaApresentacao: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.periodoUltimaApresentacao),
+    qtdApresentacoesRealizadas: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.qtdApresentacoesRealizadas)
   };
 }
 
@@ -256,10 +264,41 @@ function core_getPortalMemberCell_(row, idx, fallbackValue) {
   return value || fallbackValue || "";
 }
 
+function core_parsePortalNonNegativeNumber_(value) {
+  if (value == null || String(value).trim() === "") return 0;
+  const normalized = String(value).trim().replace(",", ".");
+  const parsed = Number(normalized);
+  if (!isFinite(parsed) || isNaN(parsed) || parsed < 0) return 0;
+  return parsed;
+}
+
+function core_buildPortalApresentacoesVazio_() {
+  return Object.freeze({
+    periodoUltimaApresentacao: "",
+    quantidadeRealizadas: 0,
+    periodoUltimaApresentacaoBaseLegado: "",
+    quantidadeRealizadasBaseLegado: 0
+  });
+}
+
+function core_buildPortalApresentacoesFromRow_(row, idx) {
+  return Object.freeze({
+    periodoUltimaApresentacao: core_getPortalMemberCell_(row, idx.periodoUltimaApresentacao, ""),
+    quantidadeRealizadas: core_parsePortalNonNegativeNumber_(
+      core_getPortalMemberCell_(row, idx.qtdApresentacoesRealizadas, "")
+    ),
+    periodoUltimaApresentacaoBaseLegado: core_getPortalMemberCell_(row, idx.periodoUltimaApresentacaoBaseLegado, ""),
+    quantidadeRealizadasBaseLegado: core_parsePortalNonNegativeNumber_(
+      core_getPortalMemberCell_(row, idx.qtdApresentacoesRealizadasBaseLegado, "")
+    )
+  });
+}
+
 function core_mapPortalMemberRow_(row, idx, opts) {
   opts = opts || {};
   const requireValidEmail = opts.requireValidEmail !== false;
   const useDefaultLabels = opts.useDefaultLabels !== false;
+  const includePresentationData = opts.includePresentationData === true;
   const emailCadastrado = idx.email >= 0 && core_isValidEmail_(row[idx.email])
     ? core_extractEmailAddress_(row[idx.email])
     : "";
@@ -277,14 +316,20 @@ function core_mapPortalMemberRow_(row, idx, opts) {
     return null;
   }
 
-  return Object.freeze({
+  const member = {
     id: rga || "",
     nomeExibicao: core_getPortalMemberCell_(row, idx.name, ""),
     emailCadastrado: emailCadastrado,
     rga: rga,
     situacaoGeral: situacaoGeral,
     vinculo: vinculo
-  });
+  };
+
+  if (includePresentationData) {
+    member._portalApresentacoes = core_buildPortalApresentacoesFromRow_(row, idx);
+  }
+
+  return Object.freeze(member);
 }
 
 function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, opts) {
@@ -353,11 +398,12 @@ function core_buildPortalError_(code, message) {
 }
 
 function core_buildMinhaSituacaoPortalVazia_() {
-  return core_buildMinhaSituacaoPortal_(Object.freeze([]));
+  return core_buildMinhaSituacaoPortal_(Object.freeze([]), core_buildPortalApresentacoesVazio_());
 }
 
-function core_buildMinhaSituacaoPortal_(pendencias) {
+function core_buildMinhaSituacaoPortal_(pendencias, apresentacoes) {
   const pending = Object.freeze((pendencias || []).slice());
+  const presentationSummary = apresentacoes || core_buildPortalApresentacoesVazio_();
 
   return Object.freeze({
     resumo: Object.freeze({
@@ -368,7 +414,13 @@ function core_buildMinhaSituacaoPortal_(pendencias) {
     pendencias: pending,
     participacao: Object.freeze({
       frequenciaGeral: "",
-      atividadesRecentes: Object.freeze([])
+      atividadesRecentes: Object.freeze([]),
+      apresentacoes: Object.freeze({
+        periodoUltimaApresentacao: String(presentationSummary.periodoUltimaApresentacao || "").trim(),
+        quantidadeRealizadas: core_parsePortalNonNegativeNumber_(presentationSummary.quantidadeRealizadas),
+        periodoUltimaApresentacaoBaseLegado: String(presentationSummary.periodoUltimaApresentacaoBaseLegado || "").trim(),
+        quantidadeRealizadasBaseLegado: core_parsePortalNonNegativeNumber_(presentationSummary.quantidadeRealizadasBaseLegado)
+      })
     }),
     certificados: Object.freeze([]),
     avisos: Object.freeze([])
@@ -453,6 +505,7 @@ function core_getPortalPendenciasCadastro_(membro) {
 
 function core_buildMinhaSituacaoPortalResponse_(membro) {
   const pendencias = core_getPortalPendenciasCadastro_(membro);
+  const apresentacoes = membro._portalApresentacoes || core_buildPortalApresentacoesVazio_();
 
   return Object.freeze({
     ok: true,
@@ -464,14 +517,15 @@ function core_buildMinhaSituacaoPortalResponse_(membro) {
       vinculo: String(membro.vinculo || "").trim(),
       situacaoGeral: String(membro.situacaoGeral || "").trim()
     }),
-    minhaSituacao: core_buildMinhaSituacaoPortal_(pendencias)
+    minhaSituacao: core_buildMinhaSituacaoPortal_(pendencias, apresentacoes)
   });
 }
 
 function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
   const membro = core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, {
     requireValidEmail: false,
-    useDefaultLabels: false
+    useDefaultLabels: false,
+    includePresentationData: true
   });
 
   if (!membro) {

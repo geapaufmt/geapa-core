@@ -708,7 +708,7 @@ Regras do contrato:
 - consulta `MEMBERS_ATUAIS` via Registry;
 - a consulta cadastral retorna um unico membro ou `null`;
 - a consulta de "Minha situacao" retorna `ok: true` ou erro controlado com `ok: false`;
-- nao retorna listas, dados sensiveis, frequencia detalhada, pendencias, certificados ou historico;
+- nao retorna listas completas, dados sensiveis, frequencia detalhada, pendencias sensiveis, certificados ou historico;
 - em caso de erro interno, nao expoe identificadores ou detalhes da planilha ao chamador.
 
 Retorno em caso de sucesso:
@@ -760,7 +760,13 @@ Contrato da tela "Minha situacao":
     ],
     participacao: {
       frequenciaGeral: string,
-      atividadesRecentes: []
+      atividadesRecentes: [],
+      apresentacoes: {
+        periodoUltimaApresentacao: string,
+        quantidadeRealizadas: number,
+        periodoUltimaApresentacaoBaseLegado: string,
+        quantidadeRealizadasBaseLegado: number
+      }
     },
     certificados: [],
     avisos: []
@@ -787,6 +793,15 @@ Regras das pendencias:
 - as mensagens sao amigaveis e nao incluem valores brutos ausentes ou invalidos;
 - a funcao continua retornando apenas dados do proprio membro localizado.
 
+Bloco de participacao por apresentacoes:
+
+- `minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacao` vem de `PERIODO_ULTIMA_APRESENTACAO`;
+- `minhaSituacao.participacao.apresentacoes.quantidadeRealizadas` vem de `QTD_APRESENTACOES_REALIZADAS`;
+- `minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacaoBaseLegado` vem de `PERIODO_ULTIMA_APRESENTACAO_BASE_LEGADO`;
+- `minhaSituacao.participacao.apresentacoes.quantidadeRealizadasBaseLegado` vem de `QTD_APRESENTACOES_REALIZADAS_BASE_LEGADO`;
+- periodos vazios retornam string vazia;
+- quantidades vazias, invalidas ou nao numericas retornam `0`.
+
 Fora de escopo nesta etapa:
 
 - pendencias disciplinares;
@@ -794,6 +809,7 @@ Fora de escopo nesta etapa:
 - motivos de suspensao ou desligamento;
 - avaliacoes subjetivas;
 - documentos obrigatorios sem fonte oficial objetiva e nao sensivel no Core.
+- frequencia detalhada, lista de presenca e observacoes internas.
 
 Teste manual pelo editor do Apps Script:
 
