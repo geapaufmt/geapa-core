@@ -763,9 +763,7 @@ Contrato da tela "Minha situacao":
       atividadesRecentes: [],
       apresentacoes: {
         periodoUltimaApresentacao: string,
-        quantidadeRealizadas: number,
-        periodoUltimaApresentacaoBaseLegado: string,
-        quantidadeRealizadasBaseLegado: number
+        quantidadeRealizadas: number
       }
     },
     certificados: [],
@@ -797,8 +795,8 @@ Bloco de participacao por apresentacoes:
 
 - `minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacao` vem de `PERIODO_ULTIMA_APRESENTACAO`;
 - `minhaSituacao.participacao.apresentacoes.quantidadeRealizadas` vem de `QTD_APRESENTACOES_REALIZADAS`;
-- `minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacaoBaseLegado` vem de `PERIODO_ULTIMA_APRESENTACAO_BASE_LEGADO`;
-- `minhaSituacao.participacao.apresentacoes.quantidadeRealizadasBaseLegado` vem de `QTD_APRESENTACOES_REALIZADAS_BASE_LEGADO`;
+- `QTD_APRESENTACOES_REALIZADAS` ja e o total consolidado entre a base legado e as apresentacoes atuais;
+- os campos `*_BASE_LEGADO` nao sao expostos ao portal para evitar dupla contagem ou interpretacao ambigua;
 - periodos vazios retornam string vazia;
 - quantidades vazias, invalidas ou nao numericas retornam `0`.
 

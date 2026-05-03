@@ -67,8 +67,6 @@ const CORE_MEMBERS_CFG = Object.freeze({
       "STATUS_VINCULO",
       "TIPO_VINCULO"
     ]),
-    periodoUltimaApresentacaoBaseLegado: Object.freeze(["PERIODO_ULTIMA_APRESENTACAO_BASE_LEGADO"]),
-    qtdApresentacoesRealizadasBaseLegado: Object.freeze(["QTD_APRESENTACOES_REALIZADAS_BASE_LEGADO"]),
     periodoUltimaApresentacao: Object.freeze(["PERIODO_ULTIMA_APRESENTACAO"]),
     qtdApresentacoesRealizadas: Object.freeze(["QTD_APRESENTACOES_REALIZADAS"])
   }),
@@ -226,8 +224,6 @@ function core_getPortalMemberHeaderIndexMap_(headers) {
       normalized,
       CORE_MEMBERS_CFG.headers.vinculo.concat(occupationAliases)
     ),
-    periodoUltimaApresentacaoBaseLegado: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.periodoUltimaApresentacaoBaseLegado),
-    qtdApresentacoesRealizadasBaseLegado: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.qtdApresentacoesRealizadasBaseLegado),
     periodoUltimaApresentacao: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.periodoUltimaApresentacao),
     qtdApresentacoesRealizadas: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.qtdApresentacoesRealizadas)
   };
@@ -275,9 +271,7 @@ function core_parsePortalNonNegativeNumber_(value) {
 function core_buildPortalApresentacoesVazio_() {
   return Object.freeze({
     periodoUltimaApresentacao: "",
-    quantidadeRealizadas: 0,
-    periodoUltimaApresentacaoBaseLegado: "",
-    quantidadeRealizadasBaseLegado: 0
+    quantidadeRealizadas: 0
   });
 }
 
@@ -286,10 +280,6 @@ function core_buildPortalApresentacoesFromRow_(row, idx) {
     periodoUltimaApresentacao: core_getPortalMemberCell_(row, idx.periodoUltimaApresentacao, ""),
     quantidadeRealizadas: core_parsePortalNonNegativeNumber_(
       core_getPortalMemberCell_(row, idx.qtdApresentacoesRealizadas, "")
-    ),
-    periodoUltimaApresentacaoBaseLegado: core_getPortalMemberCell_(row, idx.periodoUltimaApresentacaoBaseLegado, ""),
-    quantidadeRealizadasBaseLegado: core_parsePortalNonNegativeNumber_(
-      core_getPortalMemberCell_(row, idx.qtdApresentacoesRealizadasBaseLegado, "")
     )
   });
 }
@@ -417,9 +407,7 @@ function core_buildMinhaSituacaoPortal_(pendencias, apresentacoes) {
       atividadesRecentes: Object.freeze([]),
       apresentacoes: Object.freeze({
         periodoUltimaApresentacao: String(presentationSummary.periodoUltimaApresentacao || "").trim(),
-        quantidadeRealizadas: core_parsePortalNonNegativeNumber_(presentationSummary.quantidadeRealizadas),
-        periodoUltimaApresentacaoBaseLegado: String(presentationSummary.periodoUltimaApresentacaoBaseLegado || "").trim(),
-        quantidadeRealizadasBaseLegado: core_parsePortalNonNegativeNumber_(presentationSummary.quantidadeRealizadasBaseLegado)
+        quantidadeRealizadas: core_parsePortalNonNegativeNumber_(presentationSummary.quantidadeRealizadas)
       })
     }),
     certificados: Object.freeze([]),
