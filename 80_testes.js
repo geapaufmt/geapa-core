@@ -210,17 +210,25 @@ function test_core_portalBuscarMembroParaPortal_fakeSheet() {
 function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
   var sheet = test_createFakeSheet_([
     ['ID_MEMBRO', 'Membro', 'EMAIL', 'RGA', 'Status', 'Cargo/fun\u00E7\u00E3o atual', 'Telefone'],
-    ['MEM-TESTE-001', 'Membro Teste', 'Membro@Exemplo.com', 'RGA-TESTE-001', 'Ativo', 'Membro', '(00) 0000-0000']
+    ['MEM-TESTE-001', 'Membro Sem Pendencia', 'sem-pendencia@exemplo.com', 'RGA-TESTE-001', 'Ativo', 'Membro', '(00) 0000-0000'],
+    ['MEM-TESTE-002', 'Membro Sem RGA', 'sem-rga@exemplo.com', '', 'Ativo', 'Membro', '(00) 0000-0001'],
+    ['MEM-TESTE-003', '', 'sem-nome@exemplo.com', 'RGA-TESTE-003', 'Ativo', 'Membro', '(00) 0000-0002'],
+    ['MEM-TESTE-004', 'Membro Indefinido', 'indefinido@exemplo.com', 'RGA-TESTE-004', 'Indefinido', 'Indefinido', '(00) 0000-0003'],
+    ['MEM-TESTE-005', 'Membro Email Invalido', 'email-invalido', 'RGA-TESTE-005', 'Ativo', 'Membro', '(00) 0000-0004']
   ], 'MEMBERS_ATUAIS_FAKE');
 
   var result = core_buscarMinhaSituacaoParaPortalInSheet_(sheet, 'RGA-TESTE-001');
+  var semRga = core_buscarMinhaSituacaoParaPortalInSheet_(sheet, 'sem-rga@exemplo.com');
+  var semNome = core_buscarMinhaSituacaoParaPortalInSheet_(sheet, 'RGA-TESTE-003');
+  var indefinido = core_buscarMinhaSituacaoParaPortalInSheet_(sheet, 'RGA-TESTE-004');
+  var emailInvalido = core_buscarMinhaSituacaoParaPortalInSheet_(sheet, 'RGA-TESTE-005');
   var missing = core_buscarMinhaSituacaoParaPortalInSheet_(sheet, 'ausente@example.com');
   var memberKeys = Object.keys(result.membro || {}).sort();
 
   test_assert_(result.ok === true, 'Minha situacao deveria retornar ok=true.');
   test_assert_(memberKeys.join(',') === 'emailCadastrado,id,nomeExibicao,rga,situacaoGeral,vinculo', 'membro retornou campos fora do contrato.');
   test_assert_(result.membro.id === 'RGA-TESTE-001', 'id nao deve expor ID_MEMBRO.');
-  test_assert_(result.membro.emailCadastrado === 'membro@exemplo.com', 'email cadastrado incorreto.');
+  test_assert_(result.membro.emailCadastrado === 'sem-pendencia@exemplo.com', 'email cadastrado incorreto.');
   test_assert_(result.minhaSituacao.resumo.frequencia === '', 'frequencia deve ficar vazia enquanto nao houver fonte oficial integrada.');
   test_assert_(result.minhaSituacao.resumo.pendenciasAbertas === 0, 'pendenciasAbertas deve iniciar zerado.');
   test_assert_(result.minhaSituacao.resumo.certificadosDisponiveis === 0, 'certificadosDisponiveis deve iniciar zerado.');
@@ -228,11 +236,29 @@ function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
   test_assert_(Array.isArray(result.minhaSituacao.participacao.atividadesRecentes) && result.minhaSituacao.participacao.atividadesRecentes.length === 0, 'atividadesRecentes deve iniciar vazia.');
   test_assert_(Array.isArray(result.minhaSituacao.certificados) && result.minhaSituacao.certificados.length === 0, 'certificados deve iniciar vazio.');
   test_assert_(Array.isArray(result.minhaSituacao.avisos) && result.minhaSituacao.avisos.length === 0, 'avisos deve iniciar vazio.');
+  test_assert_(semRga.minhaSituacao.pendencias.length === 1, 'Membro sem RGA deveria ter uma pendencia.');
+  test_assert_(semRga.minhaSituacao.pendencias[0].titulo === 'RGA nao informado', 'Pendencia de RGA incorreta.');
+  test_assert_(semRga.minhaSituacao.resumo.pendenciasAbertas === semRga.minhaSituacao.pendencias.length, 'Contagem de pendencias sem RGA incorreta.');
+  test_assert_(semNome.minhaSituacao.pendencias.length === 1, 'Membro sem nome deveria ter uma pendencia.');
+  test_assert_(semNome.minhaSituacao.pendencias[0].titulo === 'Nome de exibicao nao informado', 'Pendencia de nome incorreta.');
+  test_assert_(semNome.minhaSituacao.resumo.pendenciasAbertas === semNome.minhaSituacao.pendencias.length, 'Contagem de pendencias sem nome incorreta.');
+  test_assert_(indefinido.minhaSituacao.pendencias.length === 2, 'Membro com situacao/vinculo indefinido deveria ter duas pendencias.');
+  test_assert_(indefinido.minhaSituacao.pendencias[0].titulo === 'Vinculo cadastral indefinido', 'Pendencia de vinculo incorreta.');
+  test_assert_(indefinido.minhaSituacao.pendencias[1].titulo === 'Situacao geral indefinida', 'Pendencia de situacao geral incorreta.');
+  test_assert_(indefinido.minhaSituacao.resumo.pendenciasAbertas === indefinido.minhaSituacao.pendencias.length, 'Contagem de pendencias indefinidas incorreta.');
+  test_assert_(emailInvalido.minhaSituacao.pendencias.length === 1, 'Membro com email invalido deveria ter uma pendencia.');
+  test_assert_(emailInvalido.membro.emailCadastrado === '', 'Email invalido nao deve ser retornado como emailCadastrado.');
+  test_assert_(emailInvalido.minhaSituacao.pendencias[0].titulo === 'E-mail cadastrado ausente ou invalido', 'Pendencia de email invalido incorreta.');
+  test_assert_(emailInvalido.minhaSituacao.resumo.pendenciasAbertas === emailInvalido.minhaSituacao.pendencias.length, 'Contagem de pendencias de email invalido incorreta.');
   test_assert_(missing.ok === false && missing.code === 'MEMBRO_NAO_ENCONTRADO', 'Membro ausente deveria retornar erro controlado.');
 
   Logger.log(JSON.stringify({
     ok: true,
     result: result,
+    semRga: semRga,
+    semNome: semNome,
+    indefinido: indefinido,
+    emailInvalido: emailInvalido,
     missing: missing
   }, null, 2));
 }

@@ -256,21 +256,24 @@ function core_getPortalMemberCell_(row, idx, fallbackValue) {
   return value || fallbackValue || "";
 }
 
-function core_mapPortalMemberRow_(row, idx) {
-  const emailCadastrado = idx.email >= 0
+function core_mapPortalMemberRow_(row, idx, opts) {
+  opts = opts || {};
+  const requireValidEmail = opts.requireValidEmail !== false;
+  const useDefaultLabels = opts.useDefaultLabels !== false;
+  const emailCadastrado = idx.email >= 0 && core_isValidEmail_(row[idx.email])
     ? core_extractEmailAddress_(row[idx.email])
     : "";
   const rga = core_getPortalMemberCell_(row, idx.rga, "");
   const situacaoGeral =
     core_getPortalMemberCell_(row, idx.situacaoGeral, "") ||
     core_getPortalMemberCell_(row, idx.status, "") ||
-    "Ativo";
+    (useDefaultLabels ? "Ativo" : "");
   const vinculo =
     core_getPortalMemberCell_(row, idx.vinculo, "") ||
     core_getPortalMemberCell_(row, idx.occupation, "") ||
-    "Membro";
+    (useDefaultLabels ? "Membro" : "");
 
-  if (!emailCadastrado || !core_isValidEmail_(emailCadastrado)) {
+  if (requireValidEmail && !emailCadastrado) {
     return null;
   }
 
@@ -284,7 +287,8 @@ function core_mapPortalMemberRow_(row, idx) {
   });
 }
 
-function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga) {
+function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, opts) {
+  opts = opts || {};
   const lookup = core_normalizePortalMemberLookup_(emailOuRga);
   if (!lookup.raw) return null;
   if (!sheet) return null;
@@ -317,7 +321,7 @@ function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga) {
 
     if (!foundByEmail && !foundByRga) continue;
 
-    return core_mapPortalMemberRow_(row, idx);
+    return core_mapPortalMemberRow_(row, idx, opts);
   }
 
   return null;
@@ -349,13 +353,19 @@ function core_buildPortalError_(code, message) {
 }
 
 function core_buildMinhaSituacaoPortalVazia_() {
+  return core_buildMinhaSituacaoPortal_(Object.freeze([]));
+}
+
+function core_buildMinhaSituacaoPortal_(pendencias) {
+  const pending = Object.freeze((pendencias || []).slice());
+
   return Object.freeze({
     resumo: Object.freeze({
       frequencia: "",
-      pendenciasAbertas: 0,
+      pendenciasAbertas: pending.length,
       certificadosDisponiveis: 0
     }),
-    pendencias: Object.freeze([]),
+    pendencias: pending,
     participacao: Object.freeze({
       frequenciaGeral: "",
       atividadesRecentes: Object.freeze([])
@@ -365,7 +375,85 @@ function core_buildMinhaSituacaoPortalVazia_() {
   });
 }
 
+function core_isPortalUndefinedValue_(value) {
+  const normalized = core_normalizeMemberText_(value);
+  if (!normalized) return true;
+
+  return [
+    "indefinido",
+    "indefinida",
+    "nao informado",
+    "nao informada",
+    "nao consta",
+    "sem informacao",
+    "a definir"
+  ].indexOf(normalized) !== -1;
+}
+
+function core_buildPortalPendencia_(tipo, titulo, descricao, severidade) {
+  return Object.freeze({
+    tipo: tipo,
+    titulo: titulo,
+    descricao: descricao,
+    severidade: severidade,
+    status: "pendente"
+  });
+}
+
+function core_getPortalPendenciasCadastro_(membro) {
+  const pendencias = [];
+
+  if (!membro.emailCadastrado || !core_isValidEmail_(membro.emailCadastrado)) {
+    pendencias.push(core_buildPortalPendencia_(
+      "cadastro",
+      "E-mail cadastrado ausente ou invalido",
+      "Procure a Diretoria para atualizar seu e-mail de contato no cadastro do GEAPA.",
+      "alta"
+    ));
+  }
+
+  if (!String(membro.rga || "").trim()) {
+    pendencias.push(core_buildPortalPendencia_(
+      "cadastro",
+      "RGA nao informado",
+      "Procure a Diretoria para atualizar seu RGA no cadastro do GEAPA.",
+      "media"
+    ));
+  }
+
+  if (!String(membro.nomeExibicao || "").trim()) {
+    pendencias.push(core_buildPortalPendencia_(
+      "cadastro",
+      "Nome de exibicao nao informado",
+      "Procure a Diretoria para atualizar seu nome no cadastro do GEAPA.",
+      "media"
+    ));
+  }
+
+  if (core_isPortalUndefinedValue_(membro.vinculo)) {
+    pendencias.push(core_buildPortalPendencia_(
+      "cadastro",
+      "Vinculo cadastral indefinido",
+      "Procure a Diretoria para confirmar seu vinculo cadastral no GEAPA.",
+      "baixa"
+    ));
+  }
+
+  if (core_isPortalUndefinedValue_(membro.situacaoGeral)) {
+    pendencias.push(core_buildPortalPendencia_(
+      "administrativo",
+      "Situacao geral indefinida",
+      "Procure a Diretoria para confirmar sua situacao cadastral no GEAPA.",
+      "baixa"
+    ));
+  }
+
+  return Object.freeze(pendencias);
+}
+
 function core_buildMinhaSituacaoPortalResponse_(membro) {
+  const pendencias = core_getPortalPendenciasCadastro_(membro);
+
   return Object.freeze({
     ok: true,
     membro: Object.freeze({
@@ -376,12 +464,15 @@ function core_buildMinhaSituacaoPortalResponse_(membro) {
       vinculo: String(membro.vinculo || "").trim(),
       situacaoGeral: String(membro.situacaoGeral || "").trim()
     }),
-    minhaSituacao: core_buildMinhaSituacaoPortalVazia_()
+    minhaSituacao: core_buildMinhaSituacaoPortal_(pendencias)
   });
 }
 
 function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
-  const membro = core_buscarMembroParaPortalInSheet_(sheet, emailOuRga);
+  const membro = core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, {
+    requireValidEmail: false,
+    useDefaultLabels: false
+  });
 
   if (!membro) {
     return core_buildPortalError_(
@@ -397,9 +488,10 @@ function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
  * Contrato inicial da tela "Minha situacao" do geapa-portal.
  *
  * Esta V1 usa somente fontes oficiais ja centralizadas no Core para localizar
- * o proprio membro. Enquanto frequencia, pendencias, certificados e atividades
- * recentes nao tiverem uma fonte confiavel integrada ao Core, esses blocos
- * ficam vazios ou zerados. Nao inventar dados nesta funcao.
+ * o proprio membro. As pendencias retornadas sao apenas cadastrais objetivas
+ * derivadas desse proprio registro. Enquanto frequencia, certificados e
+ * atividades recentes nao tiverem uma fonte confiavel integrada ao Core, esses
+ * blocos ficam vazios ou zerados. Nao inventar dados nesta funcao.
  *
  * Regras de seguranca para futuras diretorias:
  * - retornar apenas dados do membro localizado;

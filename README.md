@@ -749,7 +749,15 @@ Contrato da tela "Minha situacao":
       pendenciasAbertas: number,
       certificadosDisponiveis: number
     },
-    pendencias: [],
+    pendencias: [
+      {
+        tipo: "cadastro" | "administrativo",
+        titulo: string,
+        descricao: string,
+        severidade: "baixa" | "media" | "alta",
+        status: "pendente"
+      }
+    ],
     participacao: {
       frequenciaGeral: string,
       atividadesRecentes: []
@@ -765,6 +773,28 @@ Retornos controlados:
 - membro nao encontrado: `{ ok: false, code: "MEMBRO_NAO_ENCONTRADO", message: "Membro nao encontrado para o e-mail ou RGA informado." }`
 - erro inesperado: `{ ok: false, code: "ERRO_BUSCAR_MINHA_SITUACAO", message: "Nao foi possivel buscar a situacao do membro." }`
 
+Pendencias retornadas nesta etapa:
+
+- e-mail cadastrado ausente ou invalido;
+- RGA nao informado;
+- nome de exibicao nao informado;
+- vinculo cadastral indefinido;
+- situacao geral indefinida.
+
+Regras das pendencias:
+
+- `resumo.pendenciasAbertas` sempre acompanha o tamanho de `minhaSituacao.pendencias`;
+- as mensagens sao amigaveis e nao incluem valores brutos ausentes ou invalidos;
+- a funcao continua retornando apenas dados do proprio membro localizado.
+
+Fora de escopo nesta etapa:
+
+- pendencias disciplinares;
+- observacoes internas;
+- motivos de suspensao ou desligamento;
+- avaliacoes subjetivas;
+- documentos obrigatorios sem fonte oficial objetiva e nao sensivel no Core.
+
 Teste manual pelo editor do Apps Script:
 
 1. configure a Script Property `GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR` com um e-mail ou RGA de teste;
@@ -774,7 +804,6 @@ Teste manual pelo editor do Apps Script:
 Campos ainda vazios nesta V1:
 
 - `minhaSituacao.resumo.frequencia`;
-- `minhaSituacao.pendencias`;
 - `minhaSituacao.participacao.frequenciaGeral`;
 - `minhaSituacao.participacao.atividadesRecentes`;
 - `minhaSituacao.certificados`;
