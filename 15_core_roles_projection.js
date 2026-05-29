@@ -122,6 +122,7 @@ function core_roleProjectionReadAssignmentsFromSheet_(sheetKey, sourceType, refD
   var idxEndReal = core_roleProjectionGuessColumnIndex_(headerMap, ['Data_Fim', 'Data fim', 'Data de fim', 'FIM', 'Fim']);
   var idxEndPlanned = core_roleProjectionGuessColumnIndex_(headerMap, ['Data_Fim_previsto', 'Data fim previsto', 'Data de fim prevista', 'Fim previsto']);
   var idxAtivo = core_roleProjectionGuessColumnIndex_(headerMap, ['ATIVO', 'Ativo']);
+  var idxBoardId = core_roleProjectionGuessColumnIndex_(headerMap, ['ID_Diretoria', 'ID_DIRETORIA', 'Diretoria', 'ID Diretoria']);
 
   var out = [];
 
@@ -173,6 +174,8 @@ function core_roleProjectionReadAssignmentsFromSheet_(sheetKey, sourceType, refD
       emailNorm: core_roleProjectionNormalizeKey_(email),
       rga: rga,
       rgaNorm: core_roleProjectionNormalizeKey_(rga),
+      boardId: idxBoardId >= 0 ? String(row[idxBoardId] || '').trim() : '',
+      idDiretoria: idxBoardId >= 0 ? String(row[idxBoardId] || '').trim() : '',
       startDate: core_roleProjectionParseDate_(startValue),
       endDateReal: core_roleProjectionParseDate_(endRealValue),
       endDatePlanned: core_roleProjectionParseDate_(endPlannedValue),

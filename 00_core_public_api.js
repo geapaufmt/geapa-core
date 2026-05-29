@@ -94,6 +94,11 @@ const GEAPA_CORE = Object.freeze({
     validateExternalEmailDuplicates: core_identityValidateExternalEmailDuplicates_,
   }),
 
+  audiences: Object.freeze({
+    getExMembersCommunicationRecipients: core_getExMembersCommunicationRecipients_,
+    debugExMembersCommunicationRecipients: core_debugExMembersCommunicationRecipients_,
+  }),
+
   memberLifecycle: Object.freeze({
     appendEvent: core_appendMemberLifecycleEvent_,
     listEvents: core_memberLifecycleListEvents_,
@@ -104,7 +109,9 @@ const GEAPA_CORE = Object.freeze({
 
   portal: Object.freeze({
     buscarMembroParaPortal: core_buscarMembroParaPortal_,
+    buscarUsuarioPortal: core_buscarUsuarioPortal_,
     buscarMinhaSituacaoParaPortal: core_buscarMinhaSituacaoParaPortal_,
+    listarMembrosParaChamada: core_listarMembrosParaChamada_,
   }),
 
   /**

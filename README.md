@@ -271,6 +271,62 @@ Observacao operacional:
 - as funcoes em lote saneiam bases ja existentes;
 - as funcoes por linha permitem que modulos ou projetos consumidores garantam IDs automaticamente em novos registros.
 
+### Ex-membros para comunicacoes abertas
+
+API oficial para consultar destinatarios de ex-membros com consentimento ativo de comunicacao.
+
+Fonte de verdade:
+
+- planilha `PESSOAS`;
+- aba oficial `Ex-Membros`;
+- nunca usar fila administrativa de pedidos como fonte de destinatarios futuros.
+
+Funcao publica:
+
+- `coreGetExMembersCommunicationRecipients(options)`
+
+Funcao de diagnostico:
+
+- `coreDebugExMembersCommunicationRecipients(options)`
+
+Filtros obrigatorios aplicados pelo core:
+
+- `EMAIL` preenchido e valido;
+- `RECEBE_COMUNICACOES_GEAPA = SIM`;
+- `STATUS_COMUNICACAO = ATIVO`;
+- `STATUS_REGISTRO` com valor institucional valido, como `ATIVO`, `OK`, `VALIDO`, `REGULAR` ou `HOMOLOGADO`.
+
+Filtro opcional por eixos:
+
+```javascript
+var recipients = coreGetExMembersCommunicationRecipients({
+  eixos: ['EIXO_I', 'EIXO_III']
+});
+```
+
+O filtro por eixos usa:
+
+- preferencialmente `INTERESSE_EIXO_I` ate `INTERESSE_EIXO_VIII`;
+- fallback/complemento em `EIXOS_INTERESSE`, aceitando lista separada por virgula, ponto e virgula, quebra de linha ou `|`.
+
+Formato retornado:
+
+```javascript
+{
+  nome: 'Nome da pessoa',
+  rga: '202000000000',
+  email: 'pessoa@email.com',
+  eixosInteresse: ['EIXO_I', 'EIXO_III'],
+  origem: 'EX_MEMBROS'
+}
+```
+
+Regras de seguranca:
+
+- o core deduplica por e-mail normalizado;
+- este publico deve ser usado apenas para comunicacoes abertas, convites e divulgacoes compativeis com o consentimento;
+- nao usar esta API para mensagens internas de membros ativos, comunicacoes administrativas restritas ou fluxos que dependam de vinculo atual.
+
 ### Eventos de ciclo de vida de membros
 
 Camada compartilhada para registrar, listar, consultar o evento mais recente e atualizar eventos ja existentes em `MEMBER_EVENTOS_VINCULO` com escrita controlada pelo core.
@@ -698,7 +754,11 @@ Contrato inicial entre `geapa-core` e `geapa-portal` para login por codigo e par
 Funcao publica exportada pela Library:
 
 - `geapaCoreBuscarMembroParaPortal(emailOuRga)`
+- `geapaCoreBuscarUsuarioPortal(emailOuRga)`
 - `geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga)`
+- `geapaCoreListarMembrosParaChamada(dataAtividade, contexto)`
+- `geapaCoreRunTesteUsuarioPortal()`
+- `geapaCoreRunTesteListarMembrosParaChamada()`
 - `geapaCoreRunTesteMinhaSituacaoParaPortal()`
 
 Regras do contrato:
@@ -707,6 +767,7 @@ Regras do contrato:
 - normaliza entrada com `trim` e, para e-mail, `lowercase`;
 - consulta `MEMBERS_ATUAIS` via Registry;
 - a consulta cadastral retorna um unico membro ou `null`;
+- a consulta de usuario retorna dados basicos seguros, cargos atuais do proprio usuario, perfis e permissoes iniciais;
 - a consulta de "Minha situacao" retorna `ok: true` ou erro controlado com `ok: false`;
 - nao retorna listas completas, dados sensiveis, frequencia detalhada, pendencias sensiveis, certificados ou historico;
 - em caso de erro interno, nao expoe identificadores ou detalhes da planilha ao chamador.
@@ -723,6 +784,128 @@ Retorno em caso de sucesso:
   vinculo: string
 }
 ```
+
+Contrato de usuario autenticado:
+
+```javascript
+{
+  ok: true,
+  usuario: {
+    id: string,
+    nomeExibicao: string,
+    rga: string,
+    emailCadastrado: string,
+    perfilPrincipal: "MEMBRO" | "DIRETORIA" | "PRESIDENCIA" | "SECRETARIA" | "COMUNICACAO" | "CONSELHO" | "ASSESSORIA",
+    perfis: [
+      "MEMBRO",
+      "DIRETORIA",
+      "PRESIDENCIA",
+      "SECRETARIA",
+      "COMUNICACAO",
+      "CONSELHO",
+      "ASSESSORIA"
+    ],
+    cargosAtuais: [
+      {
+        cargoKey: string,
+        cargoNome: string,
+        grupoCargo: string,
+        fonte: "VIGENCIAS_DIRETORES" | "VIGENCIAS_ASSESSORES" | "VIGENCIAS_CONSELHEIROS",
+        idDiretoria: string,
+        dataInicio: "yyyy-MM-dd",
+        dataFimPrevista: "yyyy-MM-dd"
+      }
+    ],
+    permissoes: {
+      podeVerAreaDiretoria: boolean,
+      podeGerenciarAtividades: boolean,
+      podeRegistrarChamada: boolean,
+      podeEditarAtividade: boolean,
+      podeAnalisarJustificativas: boolean,
+      podeGerenciarCertificados: boolean,
+      podeGerenciarComunicacao: boolean,
+      podeGerenciarConfiguracoes: boolean
+    }
+  }
+}
+```
+
+Regras de perfis do usuario:
+
+- todo usuario autenticado recebe `MEMBRO`;
+- cargo vigente em Diretores recebe `DIRETORIA`;
+- `PRESIDENTE` e `VICE_PRESIDENTE` recebem `PRESIDENCIA`;
+- `SECRETARIO_GERAL` e `SECRETARIO_EXECUTIVO` recebem `SECRETARIA`;
+- `DIRETOR_COMUNICACAO` e `ASSESSOR_COMUNICACAO` recebem `COMUNICACAO`;
+- `CONSELHEIRO_CONSULTIVO` recebe `CONSELHO`;
+- cargos em Assessores recebem `ASSESSORIA` e perfis especificos quando o cargo indicar area;
+- `ADMIN_TECNICO` nao e derivado automaticamente de vigencias.
+
+Regras de permissoes iniciais:
+
+- `MEMBRO` inicia com todas as permissoes falsas;
+- `DIRETORIA` pode ver area da diretoria, gerenciar atividades, registrar chamada, editar atividade e analisar justificativas;
+- `SECRETARIA` pode ver area da diretoria, gerenciar atividades, registrar chamada e analisar justificativas;
+- `PRESIDENCIA` pode ver area da diretoria e gerenciar atividades;
+- `COMUNICACAO` pode gerenciar comunicacao;
+- `CONSELHO` fica sem acesso a area da diretoria nesta etapa, salvo se tambem tiver outro perfil que conceda essa permissao;
+- nenhuma permissao critica deve ser validada somente no front-end.
+
+Contrato de membros para chamada por atividade:
+
+```javascript
+geapaCoreListarMembrosParaChamada("2026-04-16", {
+  perfil: "DIRETORIA",
+  rga: "202311801000",
+  email: "usuario@exemplo.com"
+})
+```
+
+Retorno de sucesso:
+
+```javascript
+{
+  ok: true,
+  data: [
+    {
+      tipoParticipante: "MEMBRO",
+      rga: string,
+      nomeExibicao: string,
+      situacao: "ATIVO" | "SUSPENSO" | "LICENCA" | "AFASTADO",
+      vinculo: string,
+      aplicavelNaData: true,
+      contaPresenca: boolean,
+      contaFalta: boolean,
+      motivoNaoAplicavel: string
+    }
+  ],
+  meta: {
+    total: number,
+    dataReferencia: "yyyy-MM-dd",
+    origemDados: "GEAPA_CORE",
+    observacoes: []
+  }
+}
+```
+
+Regras da chamada:
+
+- funcao somente leitura, segura para uso indireto pelo Portal via Apps Script/backend, como `geapa-atividades`;
+- nao escreve em planilhas e nao altera producao;
+- usa `MEMBERS_ATUAIS` como base principal de membros e, quando disponivel, `MEMBER_EVENTOS_VINCULO` para historico de ingresso, desligamento, suspensao e retorno;
+- retorna apenas campos seguros: `tipoParticipante`, `rga`, `nomeExibicao`, `situacao`, `vinculo`, `aplicavelNaData`, `contaPresenca`, `contaFalta` e `motivoNaoAplicavel`;
+- nao retorna e-mail completo, CPF, telefone, endereco, documentos, observacoes internas, dados disciplinares, logs ou IDs privados de planilhas;
+- exclui pessoas que ingressaram depois da data da atividade ou que tiveram vinculo encerrado antes da data;
+- quando situacao confiavel indicar suspensao, licenca ou afastamento, a pessoa pode retornar como N/A seguro, com `contaPresenca: false`, `contaFalta: false` e motivo padronizado, sem expor motivo sensivel;
+- se o contexto trouxer perfil sem permissao operacional, retorna `PERMISSAO_NEGADA`;
+- se `MEMBER_EVENTOS_VINCULO` ou campos oficiais de datas ainda nao estiverem disponiveis, a resposta inclui limitacoes em `meta.observacoes` e nao inventa dados ausentes.
+
+Erros controlados da chamada:
+
+- data ausente ou invalida: `{ ok: false, errorCode: "DATA_ATIVIDADE_OBRIGATORIA", message: "Informe a data da atividade." }`
+- perfil sem permissao: `{ ok: false, errorCode: "PERMISSAO_NEGADA", message: "Usuario sem permissao para listar membros para chamada." }`
+- schema invalido: `{ ok: false, errorCode: "SCHEMA_MEMBROS_INVALIDO", message: "Base de membros sem cabecalhos obrigatorios para chamada." }`
+- erro inesperado: `{ ok: false, errorCode: "ERRO_LISTAR_MEMBROS_CHAMADA", message: "Nao foi possivel listar membros para chamada." }`
 
 Observacao de seguranca:
 
@@ -775,13 +958,15 @@ Contrato da tela "Minha situacao":
     },
     certificados: [],
     avisos: []
-  }
+  },
+  usuario: { ... } // mesmo contrato de geapaCoreBuscarUsuarioPortal(emailOuRga), quando disponivel
 }
 ```
 
 Retornos controlados:
 
 - membro nao encontrado: `{ ok: false, code: "MEMBRO_NAO_ENCONTRADO", message: "Membro nao encontrado para o e-mail ou RGA informado." }`
+- erro inesperado em usuario: `{ ok: false, code: "ERRO_BUSCAR_USUARIO_PORTAL", message: "Nao foi possivel buscar o usuario do portal." }`
 - erro inesperado: `{ ok: false, code: "ERRO_BUSCAR_MINHA_SITUACAO", message: "Nao foi possivel buscar a situacao do membro." }`
 
 Pendencias retornadas nesta etapa:
@@ -832,7 +1017,7 @@ Fora de escopo nesta etapa:
 Teste manual pelo editor do Apps Script:
 
 1. configure a Script Property `GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR` com um e-mail ou RGA de teste;
-2. execute `geapaCoreRunTesteMinhaSituacaoParaPortal()`;
+2. execute `geapaCoreRunTesteUsuarioPortal()`, `geapaCoreRunTesteListarMembrosParaChamada()` ou `geapaCoreRunTesteMinhaSituacaoParaPortal()`;
 3. confira o retorno no log/execucao sem adicionar e-mail real fixo ao codigo.
 
 Campos ainda vazios nesta V1:

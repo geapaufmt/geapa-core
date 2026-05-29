@@ -2,6 +2,16 @@ function test_core_rolesConfig_debug() {
   Logger.log(JSON.stringify(core_debugInstitutionalRolesConfig_(), null, 2));
 }
 
+function test_core_exMembersCommunicationRecipients_debug() {
+  Logger.log(JSON.stringify(core_debugExMembersCommunicationRecipients_(), null, 2));
+}
+
+function test_core_exMembersCommunicationRecipients_eixoI() {
+  Logger.log(JSON.stringify(core_getExMembersCommunicationRecipients_({
+    eixos: ['EIXO_I']
+  }), null, 2));
+}
+
 function test_core_modulesConfig_debug() {
   Logger.log(JSON.stringify(core_debugModulesConfig_(), null, 2));
 }
@@ -205,6 +215,149 @@ function test_core_portalBuscarMembroParaPortal_fakeSheet() {
     byRga: byRga,
     missing: missing
   }, null, 2));
+}
+
+function test_core_portalBuscarUsuario_buildProfilesAndPermissions() {
+  var membro = Object.freeze({
+    id: 'RGA-TESTE-001',
+    nomeExibicao: 'Membro Teste',
+    emailCadastrado: 'membro@exemplo.com',
+    rga: 'RGA-TESTE-001'
+  });
+
+  var comum = core_buildUsuarioPortal_(membro, []);
+
+  test_assert_(comum.ok !== false, 'Usuario comum nao deve retornar erro.');
+  test_assert_(comum.perfilPrincipal === 'MEMBRO', 'Perfil principal de membro comum incorreto.');
+  test_assert_(comum.perfis.join(',') === 'MEMBRO', 'Membro comum deve ter apenas perfil MEMBRO.');
+  test_assert_(comum.cargosAtuais.length === 0, 'Membro comum nao deveria ter cargos atuais.');
+  test_assert_(comum.permissoes.podeVerAreaDiretoria === false, 'Membro comum nao deve ver area da diretoria.');
+  test_assert_(comum.permissoes.podeGerenciarAtividades === false, 'Membro comum nao deve gerenciar atividades.');
+
+  var diretorSecretario = core_buildUsuarioPortal_(membro, [
+    Object.freeze({
+      sourceType: 'DIRETORIA',
+      roleKey: 'SECRETARIO_GERAL',
+      publicName: 'Secret\u00E1rio(a) Geral',
+      roleConfig: Object.freeze({
+        group: 'SECRETARIA'
+      }),
+      boardId: '2026-2027'
+    })
+  ]);
+
+  test_assert_(diretorSecretario.perfilPrincipal === 'DIRETORIA', 'Secretaria em diretoria deve ter DIRETORIA como perfil principal operacional.');
+  test_assert_(diretorSecretario.perfis.join(',') === 'MEMBRO,DIRETORIA,SECRETARIA', 'Perfis de secretario geral incorretos.');
+  test_assert_(diretorSecretario.cargosAtuais.length === 1, 'Secretario deveria preservar um cargo atual.');
+  test_assert_(diretorSecretario.cargosAtuais[0].cargoKey === 'SECRETARIO_GERAL', 'cargoKey do secretario incorreto.');
+  test_assert_(diretorSecretario.cargosAtuais[0].grupoCargo === 'SECRETARIA', 'grupoCargo do secretario incorreto.');
+  test_assert_(diretorSecretario.cargosAtuais[0].fonte === 'VIGENCIAS_DIRETORES', 'fonte do secretario incorreta.');
+  test_assert_(diretorSecretario.cargosAtuais[0].idDiretoria === '2026-2027', 'idDiretoria deveria ser preservado.');
+  test_assert_(diretorSecretario.permissoes.podeVerAreaDiretoria === true, 'Diretoria deve ver area da diretoria.');
+  test_assert_(diretorSecretario.permissoes.podeGerenciarAtividades === true, 'Diretoria deve gerenciar atividades.');
+  test_assert_(diretorSecretario.permissoes.podeRegistrarChamada === true, 'Diretoria deve registrar chamada.');
+  test_assert_(diretorSecretario.permissoes.podeEditarAtividade === true, 'Diretoria deve editar atividade.');
+  test_assert_(diretorSecretario.permissoes.podeAnalisarJustificativas === true, 'Diretoria deve analisar justificativas.');
+  test_assert_(diretorSecretario.permissoes.podeGerenciarConfiguracoes === false, 'ADMIN_TECNICO nao deve ser derivado automaticamente.');
+
+  var assessorComunicacao = core_buildUsuarioPortal_(membro, [
+    Object.freeze({
+      sourceType: 'ASSESSORIA',
+      roleKey: 'ASSESSOR_COMUNICACAO',
+      publicName: 'Assessor(a) de Comunica\u00E7\u00E3o'
+    })
+  ]);
+
+  test_assert_(assessorComunicacao.perfis.join(',') === 'MEMBRO,ASSESSORIA,COMUNICACAO', 'Assessor de comunicacao deveria receber ASSESSORIA e COMUNICACAO.');
+  test_assert_(assessorComunicacao.permissoes.podeGerenciarComunicacao === true, 'Comunicacao deve poder gerenciar comunicacao.');
+  test_assert_(assessorComunicacao.permissoes.podeVerAreaDiretoria === false, 'Assessoria de comunicacao nao deve herdar area da diretoria sem DIRETORIA.');
+
+  var conselheiro = core_buildUsuarioPortal_(membro, [
+    Object.freeze({
+      sourceType: 'CONSELHO',
+      roleKey: 'CONSELHEIRO_CONSULTIVO',
+      publicName: 'Conselheiro(a) Consultivo(a)'
+    })
+  ]);
+
+  test_assert_(conselheiro.perfis.join(',') === 'MEMBRO,CONSELHO', 'Conselheiro consultivo deveria receber CONSELHO.');
+  test_assert_(conselheiro.permissoes.podeVerAreaDiretoria === false, 'CONSELHO fica sem area da diretoria nesta etapa.');
+}
+
+function test_core_listarMembrosParaChamada_fakeSheet() {
+  var sheet = test_createFakeSheet_([
+    ['Membro', 'RGA', 'Status', 'Cargo/fun\u00E7\u00E3o atual', 'DATA_INTEGRACAO', 'DATA_DESLIGAMENTO', 'EMAIL', 'Telefone'],
+    ['Membro Ativo', 'RGA-001', 'Ativo', 'Membro', '2026-01-10', '', 'ativo@example.com', '(00) 0000-0000'],
+    ['Membro Futuro', 'RGA-002', 'Ativo', 'Membro', '2026-05-01', '', 'futuro@example.com', '(00) 0000-0001'],
+    ['Membro Desligado', 'RGA-003', 'Ativo', 'Membro', '2025-01-01', '2026-03-01', 'desligado@example.com', '(00) 0000-0002'],
+    ['Membro Suspenso', 'RGA-004', 'Suspenso', 'Membro', '2025-01-01', '', 'suspenso@example.com', '(00) 0000-0003']
+  ], 'MEMBERS_ATUAIS_FAKE');
+
+  var result = core_listarMembrosParaChamadaInSheet_(sheet, '2026-04-16', {
+    perfil: 'DIRETORIA'
+  }, {
+    lifecycleByRga: {
+      'RGA-005': [
+        {
+          eventId: 'MEV-000001',
+          rga: 'RGA-005',
+          eventType: 'INGRESSO',
+          eventDate: new Date(2025, 0, 1),
+          eventStatus: 'HOMOLOGADO',
+          memberName: 'Membro Historico'
+        },
+        {
+          eventId: 'MEV-000002',
+          rga: 'RGA-005',
+          eventType: 'DESLIGAMENTO_VOLUNTARIO',
+          eventDate: new Date(2026, 5, 1),
+          eventStatus: 'HOMOLOGADO',
+          memberName: 'Membro Historico'
+        }
+      ]
+    }
+  });
+  var denied = core_listarMembrosParaChamadaInSheet_(sheet, '2026-04-16', {
+    perfil: 'MEMBRO'
+  }, {
+    lifecycleByRga: {}
+  });
+  var missingDate = core_listarMembrosParaChamadaInSheet_(sheet, '', {
+    perfil: 'DIRETORIA'
+  }, {
+    lifecycleByRga: {}
+  });
+  var safeKeys = [
+    'aplicavelNaData',
+    'contaFalta',
+    'contaPresenca',
+    'motivoNaoAplicavel',
+    'nomeExibicao',
+    'rga',
+    'situacao',
+    'tipoParticipante',
+    'vinculo'
+  ].sort().join(',');
+
+  test_assert_(result.ok === true, 'Lista de membros para chamada deveria retornar ok=true.');
+  test_assert_(result.meta.total === 3, 'A chamada deveria incluir ativo, historico e suspenso/N/A, excluindo futuro e desligado.');
+  test_assert_(result.meta.dataReferencia === '2026-04-16', 'Data de referencia deveria ser ISO local.');
+  test_assert_(result.data[0].nomeExibicao === 'Membro Ativo', 'Ordenacao por nome incorreta.');
+  test_assert_(result.data[0].situacao === 'ATIVO', 'Situacao ativa deveria ser normalizada.');
+  test_assert_(result.data[0].contaPresenca === true, 'Membro ativo deve contar presenca.');
+  test_assert_(result.data[0].contaFalta === true, 'Membro ativo deve contar falta.');
+  test_assert_(result.data[1].nomeExibicao === 'Membro Historico', 'Membro historico deveria ser reconstruido pelo lifecycle.');
+  test_assert_(result.data[1].situacao === 'ATIVO', 'Membro historico deveria estar ativo na data.');
+  test_assert_(result.data[2].nomeExibicao === 'Membro Suspenso', 'Membro suspenso deveria aparecer como N/A seguro.');
+  test_assert_(result.data[2].situacao === 'SUSPENSO', 'Situacao suspensa deveria ser normalizada.');
+  test_assert_(result.data[2].contaPresenca === false, 'Suspenso nao deve contar presenca.');
+  test_assert_(result.data[2].contaFalta === false, 'Suspenso nao deve contar falta.');
+  test_assert_(result.data[2].motivoNaoAplicavel === 'SITUACAO_NAO_CONTABILIZA_CHAMADA', 'Motivo seguro de suspensao incorreto.');
+  test_assert_(Object.keys(result.data[0]).sort().join(',') === safeKeys, 'Contrato retornou campos nao seguros.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(result.data[0], 'EMAIL'), 'Nao deve expor email.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(result.data[0], 'Telefone'), 'Nao deve expor telefone.');
+  test_assert_(denied.ok === false && denied.errorCode === 'PERMISSAO_NEGADA', 'Perfil MEMBRO nao deve listar chamada quando contexto e informado.');
+  test_assert_(missingDate.ok === false && missingDate.errorCode === 'DATA_ATIVIDADE_OBRIGATORIA', 'Data ausente deveria retornar erro controlado.');
 }
 
 function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
