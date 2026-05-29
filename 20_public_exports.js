@@ -234,6 +234,127 @@ function coreValidateExternalEmailDuplicates() {
 }
 
 /* ============================================================
+ * EX-MEMBROS / COMUNICACOES ABERTAS
+ * ============================================================ */
+
+function coreGetExMembersCommunicationRecipients(options) {
+  return core_getExMembersCommunicationRecipients_(options || {});
+}
+
+function coreDebugExMembersCommunicationRecipients(options) {
+  return core_debugExMembersCommunicationRecipients_(options || {});
+}
+
+/* ============================================================
+ * PORTAL GEAPA
+ * ============================================================ */
+
+function geapaCoreBuscarMembroParaPortal(emailOuRga) {
+  try {
+    return core_buscarMembroParaPortal_(emailOuRga);
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreBuscarMembroParaPortal: falha interna ao consultar membro para portal.');
+    return null;
+  }
+}
+
+function geapaCoreBuscarUsuarioPortal(emailOuRga) {
+  try {
+    return core_buscarUsuarioPortal_(emailOuRga);
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreBuscarUsuarioPortal: falha interna ao consultar usuario para portal.');
+    return core_buildPortalError_(
+      'ERRO_BUSCAR_USUARIO_PORTAL',
+      'Nao foi possivel buscar o usuario do portal.'
+    );
+  }
+}
+
+function geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga) {
+  try {
+    return core_buscarMinhaSituacaoParaPortal_(emailOuRga);
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreBuscarMinhaSituacaoParaPortal: falha interna ao consultar situacao do membro para portal.');
+    return core_buildPortalError_(
+      'ERRO_BUSCAR_MINHA_SITUACAO',
+      'Nao foi possivel buscar a situacao do membro.'
+    );
+  }
+}
+
+function geapaCoreListarMembrosParaChamada(dataAtividade, contexto) {
+  try {
+    return core_listarMembrosParaChamada_(dataAtividade, contexto || {});
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreListarMembrosParaChamada: falha interna ao listar membros para chamada.');
+    return core_buildChamadaError_(
+      'ERRO_LISTAR_MEMBROS_CHAMADA',
+      'Nao foi possivel listar membros para chamada.'
+    );
+  }
+}
+
+function geapaCoreRunTesteUsuarioPortal() {
+  try {
+    var identificador = PropertiesService
+      .getScriptProperties()
+      .getProperty('GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR');
+
+    if (!String(identificador || '').trim()) {
+      return core_buildPortalError_(
+        'CONFIG_TESTE_AUSENTE',
+        'Configure a Script Property GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR para executar este teste.'
+      );
+    }
+
+    return core_buildUsuarioPortalTesteResumo_(
+      geapaCoreBuscarUsuarioPortal(identificador)
+    );
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreRunTesteUsuarioPortal: falha interna no teste manual de usuario do portal.');
+    return core_buildPortalError_(
+      'ERRO_TESTE_USUARIO_PORTAL',
+      'Nao foi possivel executar o teste de usuario do portal.'
+    );
+  }
+}
+
+function geapaCoreRunTesteListarMembrosParaChamada() {
+  try {
+    return core_runTesteListarMembrosParaChamada_();
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreRunTesteListarMembrosParaChamada: falha interna no teste manual de chamada.');
+    return core_buildChamadaError_(
+      'ERRO_TESTE_MEMBROS_CHAMADA',
+      'Nao foi possivel executar o teste de membros para chamada.'
+    );
+  }
+}
+
+function geapaCoreRunTesteMinhaSituacaoParaPortal() {
+  try {
+    var identificador = PropertiesService
+      .getScriptProperties()
+      .getProperty('GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR');
+
+    if (!String(identificador || '').trim()) {
+      return core_buildPortalError_(
+        'CONFIG_TESTE_AUSENTE',
+        'Configure a Script Property GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR para executar este teste.'
+      );
+    }
+
+    return geapaCoreBuscarMinhaSituacaoParaPortal(identificador);
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreRunTesteMinhaSituacaoParaPortal: falha interna no teste manual do portal.');
+    return core_buildPortalError_(
+      'ERRO_TESTE_MINHA_SITUACAO',
+      'Nao foi possivel executar o teste de Minha situacao do portal.'
+    );
+  }
+}
+
+/* ============================================================
  * DATES
  * ============================================================ */
 
