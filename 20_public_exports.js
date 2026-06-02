@@ -54,6 +54,118 @@ function coreGetRegistryMetaByKey(key) {
 }
 
 /* ============================================================
+ * CONFIG_GEAPA
+ * ============================================================ */
+
+function coreGetGeapaConfigValue(key, opts) {
+  return core_getGeapaConfigValue_(key, arguments.length >= 2 ? opts : {});
+}
+
+function coreGetGeapaConfigMap(opts) {
+  return core_getGeapaConfigMap_(opts || {});
+}
+
+function coreGetGeapaConfigObject(opts) {
+  return core_getGeapaConfigObject_(opts || {});
+}
+
+function coreDebugGeapaConfig(opts) {
+  return core_debugGeapaConfig_(opts || {});
+}
+
+/* ============================================================
+ * DOMINIOS CENTRAIS V2
+ * ============================================================ */
+
+function coreGetDomainsV2Schemas() {
+  return core_getDomainsV2Schemas_();
+}
+
+function coreGetDomainsV2ContractKeys() {
+  return core_getDomainsV2ContractKeys_();
+}
+
+function coreAuditarPessoasV2() {
+  return coreAuditarPessoasV2_();
+}
+
+function coreAuditarVigenciasV2() {
+  return coreAuditarVigenciasV2_();
+}
+
+function coreAuditarDominiosCentraisV2() {
+  return coreAuditarDominiosCentraisV2_();
+}
+
+function coreCompararLegadoComV2(opts) {
+  return coreCompararLegadoComV2_(opts || {});
+}
+
+function coreRecalcularVigenciasResumoAtualV2(options) {
+  return coreRecalcularVigenciasResumoAtualV2_(options || {});
+}
+
+function coreRecalcularPessoasResumoOperacionalV2(options) {
+  return coreRecalcularPessoasResumoOperacionalV2_(options || {});
+}
+
+function coreRecalcularMembrosDetalhesSemestreAtualV2(options) {
+  return coreRecalcularMembrosDetalhesSemestreAtualV2_(options || {});
+}
+
+function coreDiagnosticarPessoasResumoOperacionalV2(options) {
+  return coreDiagnosticarPessoasResumoOperacionalV2_(options || {});
+}
+
+function corePessoasGetById(idPessoa) {
+  return corePessoasGetById_(idPessoa);
+}
+
+function corePessoasFindByEmail(email) {
+  return corePessoasFindByEmail_(email);
+}
+
+function corePessoasFindByRga(rga) {
+  return corePessoasFindByRga_(rga);
+}
+
+function corePessoasGetOperationalSummary(idPessoa) {
+  return corePessoasGetOperationalSummary_(idPessoa);
+}
+
+function corePessoasListCurrentMembers(opts) {
+  return corePessoasListCurrentMembers_(opts || {});
+}
+
+function corePessoasListExMembers(opts) {
+  return corePessoasListExMembers_(opts || {});
+}
+
+function corePessoasListWaitingMembers(opts) {
+  return corePessoasListWaitingMembers_(opts || {});
+}
+
+function corePessoasListAcademicCollaborators(opts) {
+  return corePessoasListAcademicCollaborators_(opts || {});
+}
+
+function corePessoasListExternalParticipants(opts) {
+  return corePessoasListExternalParticipants_(opts || {});
+}
+
+function coreVigenciasGetCurrentFunctionByPessoa(idPessoa) {
+  return coreVigenciasGetCurrentFunctionByPessoa_(idPessoa);
+}
+
+function coreVigenciasListCurrentFunctions(opts) {
+  return coreVigenciasListCurrentFunctions_(opts || {});
+}
+
+function coreVigenciasGetPortalPermissionsByPessoa(idPessoa) {
+  return coreVigenciasGetPortalPermissionsByPessoa_(idPessoa);
+}
+
+/* ============================================================
  * MODULOS_CONFIG
  * ============================================================ */
 
@@ -294,6 +406,14 @@ function geapaCoreListarMembrosParaChamada(dataAtividade, contexto) {
   }
 }
 
+function coreListarMembrosParaChamada(dataAtividade, contexto) {
+  return geapaCoreListarMembrosParaChamada(dataAtividade, contexto || {});
+}
+
+function listarMembrosParaChamada(dataAtividade, contexto) {
+  return geapaCoreListarMembrosParaChamada(dataAtividade, contexto || {});
+}
+
 function geapaCoreRunTesteUsuarioPortal() {
   try {
     var identificador = PropertiesService
@@ -352,6 +472,38 @@ function geapaCoreRunTesteMinhaSituacaoParaPortal() {
       'Nao foi possivel executar o teste de Minha situacao do portal.'
     );
   }
+}
+
+/* ============================================================
+ * PORTAL GEAPA / ACESSO, PERFIS E PERMISSOES
+ * ============================================================ */
+
+function corePortalGetConfig() {
+  return corePortalReadConfig_();
+}
+
+function corePortalGetProfiles() {
+  return corePortalReadProfiles_();
+}
+
+function corePortalGetPermissionsByProfile(perfilPortal) {
+  return corePortalBuildPermissionsForProfile_(perfilPortal);
+}
+
+function corePortalAuthorizeEmail(email, opts) {
+  return corePortalAuthorizeEmail_(email, opts || {});
+}
+
+function corePortalHasPermission(sessionOrEmail, permission, opts) {
+  return corePortalHasPermission_(sessionOrEmail, permission, opts || {});
+}
+
+function corePortalLogAccess(payload) {
+  return corePortalAppendAccessLog_(payload || {});
+}
+
+function corePortalDiagnostics() {
+  return corePortalDiagnostics_();
 }
 
 /* ============================================================

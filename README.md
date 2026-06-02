@@ -271,14 +271,225 @@ Observacao operacional:
 - as funcoes em lote saneiam bases ja existentes;
 - as funcoes por linha permitem que modulos ou projetos consumidores garantam IDs automaticamente em novos registros.
 
-### Ex-membros para comunicacoes abertas
+### Config_GEAPA
 
-API oficial para consultar destinatarios de ex-membros com consentimento ativo de comunicacao.
+A aba `Config_GEAPA` da PLANILHA GERAL passa a ser lida pelo core no formato vertical, uma configuracao por linha.
+
+Colunas esperadas:
+
+- `KEY`
+- `VALOR`
+- `TIPO`
+- `GRUPO`
+- `ATIVO`
+- `DESCRICAO`
+- `OBSERVACOES`
+
+Funcoes publicas:
+
+- `coreGetGeapaConfigValue(key, opts)`
+- `coreGetGeapaConfigMap(opts)`
+- `coreGetGeapaConfigObject(opts)`
+- `coreDebugGeapaConfig(opts)`
+
+Exemplo:
+
+```javascript
+var emailOficial = coreGetGeapaConfigValue('EMAIL_OFICIAL', {
+  required: true
+});
+```
+
+Regras da V1:
+
+- a aba e resolvida pelo Registry, preferencialmente por `CONFIG_GEAPA`, mantendo compatibilidade com a chave legada `DADOS_OFICIAIS_GEAPA`;
+- por padrao, apenas linhas com `ATIVO = SIM` entram no mapa;
+- chaves sao normalizadas para caixa alta, sem acentos e com `_`, como `CURSO_MAE` e `LOCAL_PADRAO_REUNIOES`;
+- `TIPO` preserva o valor como texto, mas aplica validacoes simples para `EMAIL`, `URL`, `DATA` e `COR_HEX`;
+- o modelo horizontal antigo, com chaves na linha 1 e valores na linha 2, ainda e aceito temporariamente como fallback legado, mas esta depreciado.
+
+### Dominios centrais v2 em DEV
+
+O core trata `PESSOAS v2 - DEV` e `VIGENCIAS v2 - DEV` como contratos operacionais consumiveis em DEV. A migracao inicial e a conferencia manual ja foram concluidas; as funcoes permanentes agora devem ler, auditar e recalcular caches v2 sem refazer migracao legado -> v2.
+
+Planilhas DEV preparadas:
+
+- `PESSOAS v2 - DEV`
+- `VIGENCIAS v2 - DEV`
+
+Funcoes publicas:
+
+- `coreGetDomainsV2Schemas()`
+- `coreGetDomainsV2ContractKeys()`
+- `coreAuditarPessoasV2()`
+- `coreAuditarVigenciasV2()`
+- `coreAuditarDominiosCentraisV2()`
+- `coreCompararLegadoComV2(opts)`
+- `coreRecalcularVigenciasResumoAtualV2(options)`
+- `coreRecalcularPessoasResumoOperacionalV2(options)`
+- `coreRecalcularMembrosDetalhesSemestreAtualV2(options)`
+- `coreDiagnosticarPessoasResumoOperacionalV2(options)`
+- `corePessoasGetById(idPessoa)`
+- `corePessoasFindByEmail(email)`
+- `corePessoasFindByRga(rga)`
+- `corePessoasGetOperationalSummary(idPessoa)`
+- `corePessoasListCurrentMembers(opts)`
+- `corePessoasListExMembers(opts)`
+- `corePessoasListWaitingMembers(opts)`
+- `corePessoasListAcademicCollaborators(opts)`
+- `corePessoasListExternalParticipants(opts)`
+- `coreVigenciasGetCurrentFunctionByPessoa(idPessoa)`
+- `coreVigenciasListCurrentFunctions(opts)`
+- `coreVigenciasGetPortalPermissionsByPessoa(idPessoa)`
+
+Comportamento permanente:
+
+- expoe contratos/schemas v2;
+- executa auditorias somente leitura;
+- executa recalculos controlados de caches v2;
+- expoe APIs publicas de leitura para Pessoas v2 e Vigencias v2;
+- as funcoes temporarias de setup/migracao inicial foram removidas da API publica e documentadas em `docs/MIGRACAO_V2_HISTORICO.md`.
+
+- as auditorias v2 sao somente leitura e retornam `ok`, `totalErros`, `totalAvisos`, `erros`, `avisos`, `recomendacoes` e `resumoQuantitativo`.
+- `coreCompararLegadoComV2(opts)` e apenas diagnostico de cobertura entre fontes legadas e v2; nao altera dados e nao reabre a migracao.
+
+Abas de `PESSOAS v2`:
+
+- `PESSOAS_BASE`
+- `PESSOAS_IDENTIFICADORES`
+- `MEMBROS_DETALHES`
+- `COLABORADORES_ACADEMICOS`
+- `PARTICIPANTES_EXTERNOS_DETALHES`
+- `VINCULOS_GEAPA`
+- `MEMBROS_EVENTOS_VINCULO`
+- `PESSOAS_COMUNICACAO_CONSENTIMENTOS`
+- `PORTAL_ACESSOS_EXCECOES`
+- `PESSOAS_RESUMO_OPERACIONAL`
+
+Abas de `VIGENCIAS v2`:
+
+- `SEMESTRES`
+- `PERIODOS`
+- `DIRETORIAS`
+- `SEMESTRES_DIRETORIA`
+- `CARGOS_CONFIG`
+- `VIGENCIAS_FUNCOES`
+- `VIGENCIAS_RESUMO_ATUAL`
+
+Observacoes normativas:
+
+- `PESSOAS_RESUMO_OPERACIONAL` e cache/visao, nao fonte normativa;
+- `COLABORADORES_ACADEMICOS` preserva `EIXO_ASSOCIADO` como dado cadastral academico, nao como fonte de destinatarios/divulgacao;
+- `PESSOAS_COMUNICACAO_CONSENTIMENTOS` e a fonte de comunicacao segmentada; professores/tecnicos, externos e egressos devem registrar ali consentimento, status de comunicacao e interesses por eixo;
+- `PESSOAS` nao passa a decidir presenca, falta, justificativa ou apresentacao;
+- `VIGENCIAS_FUNCOES` registra funcao temporal e nao cria nova categoria de membro;
+- `VIGENCIAS_RESUMO_ATUAL` e cache calculado: deve ser reconstruido por `coreRecalcularVigenciasResumoAtualV2`, nao editado manualmente como fonte normativa;
+- permissao e perfil de portal devem continuar derivados de contratos oficiais, nao de edicao manual isolada em cache.
+
+Leituras operacionais:
+
+- buscas de pessoa retornam o cadastro base e, quando existir, identificadores, detalhes de membro, vinculos, resumo operacional, consentimentos e excecoes de portal;
+- listas de membros atuais, egressos e membros em espera usam `VINCULOS_GEAPA` e, por padrao, apenas vinculos ativos;
+- colaboradores academicos e participantes externos sao listados pelas abas de detalhe correspondentes, sem usa-las como base de comunicacao;
+- funcoes vigentes usam `VIGENCIAS_FUNCOES` e agregam a configuracao correspondente em `CARGOS_CONFIG`;
+- permissoes de portal por pessoa sao calculadas a partir de cargos vigentes e campos de permissao em `CARGOS_CONFIG`.
+
+Recalculo seguro de `VIGENCIAS_RESUMO_ATUAL`:
+
+```javascript
+var previa = coreRecalcularVigenciasResumoAtualV2({
+  dryRun: true
+});
+```
+
+Se a amostra estiver correta e a auditoria estrutural estiver aceitavel:
+
+```javascript
+var resultado = coreRecalcularVigenciasResumoAtualV2({
+  dryRun: false,
+  confirmacao: 'RECALCULAR_RESUMO_ATUAL_V2'
+});
+```
+
+O recalculo usa `VIGENCIAS_FUNCOES`, `CARGOS_CONFIG`, `PESSOAS_BASE` e `MEMBROS_DETALHES`; ele limpa apenas as linhas de dados do cache `VIGENCIAS_RESUMO_ATUAL` e reescreve o resumo atual por cabecalho.
+
+Recalculo seguro de `PESSOAS_RESUMO_OPERACIONAL`:
+
+```javascript
+var previaPessoas = coreRecalcularPessoasResumoOperacionalV2({
+  dryRun: true
+});
+```
+
+Se a amostra estiver correta:
+
+```javascript
+var resultadoPessoas = coreRecalcularPessoasResumoOperacionalV2({
+  dryRun: false,
+  confirmacao: 'RECALCULAR_PESSOAS_RESUMO_V2'
+});
+```
+
+O recalculo usa `PESSOAS_BASE`, `PESSOAS_IDENTIFICADORES`, `MEMBROS_DETALHES`, `VINCULOS_GEAPA`, `MEMBROS_EVENTOS_VINCULO`, `PORTAL_ACESSOS_EXCECOES`, `VIGENCIAS_RESUMO_ATUAL`, `SEMESTRES`/`PERIODOS` e, quando disponiveis via Registry, as views de Atividades v2:
+
+- `ATIVIDADES_V2_APRESENTACOES`
+- `ATIVIDADES_V2_PORTAL_APRESENTACOES`
+- `ATIVIDADES_V2_PRESENCAS_REGISTROS`
+- `ATIVIDADES_V2_PORTAL_FREQUENCIA_MEMBROS`
+
+Campos recalculados:
+
+- vinculo atual por prioridade operacional: membro efetivo ativo, membro em espera ativo, egresso, outros vinculos;
+- cargo atual e perfil portal a partir de Vigencias, com fallback `Membro` para membro efetivo ativo sem funcao vigente;
+- `PORTAL_ATIVO` a partir de vinculo, perfil e excecoes explicitas;
+- tempo efetivo e quantidade de semestres considerando apenas vinculos `MEMBRO_EFETIVO`;
+- apresentacoes realizadas, periodo da ultima apresentacao e frequencia resumida quando Atividades v2 tiver dados/views acessiveis;
+- pendencias iniciais, flag de suspensao e elegibilidade basica para diretoria.
+
+O recalc real faz upsert por `ID_PESSOA`: atualiza linhas existentes e adiciona ausentes, preservando cabecalhos e sem limpar a aba inteira. `DATA_LIMITE_ESTIMADA_DIRETORIA` fica vazia nesta V1 quando a regra de limite nao estiver suficientemente segura; o relatorio retorna `camposNaoCalculaveis` e um resumo `divergenciasLegado` somente leitura quando a comparacao for possivel.
+
+Diagnostico somente leitura:
+
+```javascript
+var diagnostico = coreDiagnosticarPessoasResumoOperacionalV2();
+```
+
+O diagnostico verifica pessoas sem resumo, resumos sem pessoa, membro ativo sem portal/RGA/e-mail, egresso com portal ativo, divergencias contra `VIGENCIAS_RESUMO_ATUAL` e campos operacionais vazios.
+
+Recalculo seguro de `MEMBROS_DETALHES.SEMESTRE_ATUAL`:
+
+```javascript
+var previaSemestreAtual = coreRecalcularMembrosDetalhesSemestreAtualV2({
+  dryRun: true
+});
+```
+
+Se a amostra estiver correta:
+
+```javascript
+var resultadoSemestreAtual = coreRecalcularMembrosDetalhesSemestreAtualV2({
+  dryRun: false,
+  confirmacao: 'RECALCULAR_MEMBROS_DETALHES_SEMESTRE_ATUAL_V2'
+});
+```
+
+Esse recalc preenche somente `SEMESTRE_ATUAL` em `MEMBROS_DETALHES`, interpretando o ingresso no curso pelo RGA e o semestre vigente pela aba `SEMESTRES` de Vigencias v2. Ele nao altera `SEMESTRE_ENTRADA`, que representa o semestre de entrada do membro no GEAPA.
+
+Historico da migracao inicial v2:
+
+- a migracao legado -> v2 foi concluida e revisada manualmente;
+- as funcoes temporarias de criacao, dry-run, migracao e reset foram removidas da API publica;
+- o registro historico da fase fica em `docs/MIGRACAO_V2_HISTORICO.md`;
+- o arquivo `29_core_domains_v2_migration.js` fica apenas como referencia interna temporaria e nao deve ser chamado em producao.
+
+### Egressos para comunicacoes abertas
+
+API oficial para consultar destinatarios egressos com consentimento ativo de comunicacao. O nome historico de funcao ainda usa `ExMembers` por compatibilidade temporaria.
 
 Fonte de verdade:
 
 - planilha `PESSOAS`;
-- aba oficial `Ex-Membros`;
+- aba oficial legada `Ex-Membros`;
 - nunca usar fila administrativa de pedidos como fonte de destinatarios futuros.
 
 Funcao publica:
@@ -317,7 +528,7 @@ Formato retornado:
   rga: '202000000000',
   email: 'pessoa@email.com',
   eixosInteresse: ['EIXO_I', 'EIXO_III'],
-  origem: 'EX_MEMBROS'
+  origem: 'EX_MEMBROS' // alias legado para publico de egressos
 }
 ```
 
@@ -483,8 +694,8 @@ Observacao:
 
 - os modulos continuam donos do conteudo de negocio;
 - o renderer devolve `htmlBody`, `bodyText` e `emailOptions`, e agora tambem alimenta a V1 da `MAIL_SAIDA`;
-- o slogan exibido no rodape nao e fixo: ele e buscado da coluna `Slogan` da diretoria vigente em `VIGENCIA_DIRETORIAS`, com fallback seguro quando estiver vazio.
-- a identidade oficial do grupo usada no renderer passa a ser lida de `DADOS_OFICIAIS_GEAPA`, incluindo nome oficial, sigla, e-mail oficial e cores institucionais;
+- o lema exibido no rodape nao e fixo: ele e buscado da coluna `LEMA` da diretoria vigente em `VIGENCIA_DIRETORIAS`, com fallback temporario para a coluna legada `Slogan` e fallback seguro quando estiver vazio.
+- a identidade oficial do grupo usada no renderer passa a ser lida pela camada central `Config_GEAPA`, incluindo nome oficial, sigla, e-mail oficial e cores institucionais;
 - nesta etapa, `LOGO_OFICIAL` fica reservado para evolucao posterior; o renderer continua usando a imagem institucional padrao ja servida pelo core.
 - `GEAPA_CLASSICO` preserva a linguagem mais simples do template historico de aniversarios: card unico, borda verde, lista linear de itens e rodape mais leve.
 
@@ -584,7 +795,15 @@ MAIL_SAIDA (V1 minima):
 - `coreMailProcessOutbox()` processa a fila central, monta o assunto final com `[GEAPA][CHAVE]`, renderiza o HTML institucional, envia tecnicamente e atualiza `Id Thread Gmail`, `Id Mensagem Gmail`, `Enviado Em`, `Tentativas`, `Ultimo Erro` e `Status Envio`;
 - ao enviar com sucesso, o core tambem registra `EMAIL_ENVIADO` em `MAIL_EVENTOS` e recompõe `MAIL_INDICE`;
 - nesta V1, o contrato do modulo pode incluir `moduleName`, `templateKey`, `correlationKey`, `entityType`, `entityId`, `flowCode`, `stage`, `to`, `cc`, `bcc`, `subjectHuman`, `payload`, `priority`, `sendAfter` e `metadata`;
-- quando o modulo optar por envio em massa via `bcc`, o core usa `EMAIL_OFICIAL` em `DADOS_OFICIAIS_GEAPA` como envelope principal de seguranca.
+- quando o modulo optar por envio em massa via `bcc`, o core usa `EMAIL_OFICIAL` da camada central `Config_GEAPA` como envelope principal de seguranca.
+
+Adapters institucionais da Mail Hub:
+
+- `ATV` / `ATIVIDADES`
+- `APR` / `APRESENTACOES`
+- `SEL` / `SELETIVO`
+- `MEM` / `MEMBROS`
+- `DES` / `DESLIGAMENTOS`: usa chaves `DES-{ID_SOLICITACAO}`, roteia replies para `Modulo Dono = DESLIGAMENTOS` e preenche `Tipo Entidade = SOLICITACAO_VINCULO` / `Id Entidade = ID_SOLICITACAO`.
 
 Higiene de ingestao e consistencia semantica:
 
@@ -637,6 +856,21 @@ Semantica pratica dessas configuracoes:
 
 Testes manuais no projeto:
 
+- `teste_getGeapaConfigValue_EMAIL_OFICIAL()`
+- `teste_getGeapaConfigMap()`
+- `diagnosticarConfigGeapa()`
+- `test_core_domainsV2_auditarPessoas()`
+- `test_core_domainsV2_auditarVigencias()`
+- `test_core_domainsV2_auditarDominiosCentrais()`
+- `test_core_domainsV2_compararLegadoComV2()`
+- `test_core_domainsV2_recalcularVigenciasResumoAtual_dryRun()`
+- `test_core_domainsV2_recalcularPessoasResumoOperacional_dryRun()`
+- `test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_dryRun()`
+- `test_core_domainsV2_diagnosticarPessoasResumoOperacional()`
+- `test_core_domainsV2_recalcularPessoasResumoOperacional_REAL_CONFIRMADO()`
+- `test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_REAL_CONFIRMADO()`
+- `test_core_domainsV2_pessoasListCurrentMembers()`
+- `test_core_domainsV2_recalcularVigenciasResumoAtual_REAL_CONFIRMADO()`
 - `test_core_modulesConfig_debug()`
 - `test_core_modulesConfig_clearCacheAndDebug()`
 - `test_core_modulesConfig_applySheetUx()`
@@ -907,6 +1141,64 @@ Erros controlados da chamada:
 - schema invalido: `{ ok: false, errorCode: "SCHEMA_MEMBROS_INVALIDO", message: "Base de membros sem cabecalhos obrigatorios para chamada." }`
 - erro inesperado: `{ ok: false, errorCode: "ERRO_LISTAR_MEMBROS_CHAMADA", message: "Nao foi possivel listar membros para chamada." }`
 
+### Portal GEAPA - perfis e permissoes
+
+Camada inicial para ler autorizacao e permissoes do Portal GEAPA na planilha `PESSOAS`, sem Firebase Auth nesta etapa.
+
+Abas oficiais esperadas via Registry:
+
+- `PORTAL_PERFIS`
+- `PORTAL_PERMISSOES`
+- `PORTAL_CONFIG`
+- `PORTAL_LOG_ACESSOS`
+
+Abas de pessoas usadas para localizar e-mail:
+
+- `Membros Atuais`
+- `Membros em Espera`
+- `Ex-Membros`
+
+Colunas novas esperadas nas abas de pessoas:
+
+- `PORTAL_ATIVO`
+- `PERFIL_PORTAL`
+- `PORTAL_OBS`
+
+Funcoes publicas:
+
+- `corePortalGetConfig()`
+- `corePortalGetProfiles()`
+- `corePortalGetPermissionsByProfile(perfilPortal)`
+- `corePortalAuthorizeEmail(email, opts)`
+- `corePortalHasPermission(sessionOrEmail, permission, opts)`
+- `corePortalLogAccess(payload)`
+- `corePortalDiagnostics()`
+
+Regras principais:
+
+- `corePortalAuthorizeEmail` e transitoria/legada enquanto nao ha Firebase Auth;
+- a autorizacao por e-mail nao substitui autenticacao real e nao deve proteger acoes administrativas sensiveis sozinha;
+- `PORTAL_ATIVO = SIM` permite avaliar o perfil;
+- `PORTAL_ATIVO = NAO` bloqueia;
+- `PORTAL_ATIVO` vazio bloqueia por padrao, salvo configuracao explicita em `PORTAL_CONFIG`;
+- `PERFIL_PORTAL` vazio usa `PORTAL_DEFAULT_PROFILE`, se existir, ou `MEMBRO` apenas para `Membros Atuais`;
+- `Ex-Membros` bloqueiam por padrao;
+- `Membros em Espera` so autorizam com `opts.includeWaiting === true` ou configuracao explicita;
+- `VISITANTE` so e aceito com `AUTH_ALLOW_VISITANTE = SIM`;
+- `ADMIN` nao e usado como padrao; precisa estar explicitamente em `PERFIL_PORTAL`;
+- permissoes sempre vem de `PORTAL_PERMISSOES`, nao de codigo hardcoded.
+
+Logs de acesso:
+
+- `corePortalLogAccess(payload)` escreve somente em `PORTAL_LOG_ACESSOS`;
+- nunca registre senha, token, segredo ou ID Token;
+- campos usados: `TIMESTAMP`, `EMAIL`, `UID_FIREBASE`, `NOME`, `PERFIL_PORTAL`, `ACAO`, `RESULTADO`, `MOTIVO`, `ORIGEM`, `USER_AGENT`, `OBS`.
+
+Firebase futuro:
+
+- Firebase Hosting/Auth, validacao de ID Token, API key e service account ficam fora desta etapa;
+- em PR futuro, a autenticacao Firebase deve chamar a mesma camada de perfis/permissoes, trocando a entrada `corePortalAuthorizeEmail(email)` por uma entrada autenticada como `corePortalAuthorizeFirebaseUser(idToken)`.
+
 Observacao de seguranca:
 
 - o navegador nunca deve chamar essa funcao diretamente;
@@ -1059,7 +1351,7 @@ O core depende do Registry e, conforme a funcao chamada, pode acessar chaves com
 - `MAIL_ANEXOS`
 - `MAIL_REGRAS`
 - `MAIL_CONFIG`
-- `DADOS_OFICIAIS_GEAPA`
+- `CONFIG_GEAPA` ou chave legada `DADOS_OFICIAIS_GEAPA`
 
 Modulos consumidores podem acessar outras `KEYS` via `coreGetSheetByKey`, desde que estejam cadastradas no Registry.
 

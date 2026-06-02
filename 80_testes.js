@@ -12,6 +12,83 @@ function test_core_exMembersCommunicationRecipients_eixoI() {
   }), null, 2));
 }
 
+function teste_getGeapaConfigValue_EMAIL_OFICIAL() {
+  Logger.log(core_getGeapaConfigValue_('EMAIL_OFICIAL', {
+    required: true
+  }));
+}
+
+function teste_getGeapaConfigMap() {
+  Logger.log(JSON.stringify(core_getGeapaConfigMap_(), null, 2));
+}
+
+function diagnosticarConfigGeapa() {
+  Logger.log(JSON.stringify(core_debugGeapaConfig_(), null, 2));
+}
+
+function test_core_domainsV2_auditarPessoas() {
+  Logger.log(JSON.stringify(coreAuditarPessoasV2_(), null, 2));
+}
+
+function test_core_domainsV2_auditarVigencias() {
+  Logger.log(JSON.stringify(coreAuditarVigenciasV2_(), null, 2));
+}
+
+function test_core_domainsV2_auditarDominiosCentrais() {
+  Logger.log(JSON.stringify(coreAuditarDominiosCentraisV2_(), null, 2));
+}
+
+function test_core_domainsV2_compararLegadoComV2() {
+  Logger.log(JSON.stringify(coreCompararLegadoComV2_(), null, 2));
+}
+
+function test_core_domainsV2_recalcularVigenciasResumoAtual_dryRun() {
+  Logger.log(JSON.stringify(coreRecalcularVigenciasResumoAtualV2_({
+    dryRun: true
+  }), null, 2));
+}
+
+function test_core_domainsV2_recalcularPessoasResumoOperacional_dryRun() {
+  Logger.log(JSON.stringify(coreRecalcularPessoasResumoOperacionalV2_({
+    dryRun: true
+  }), null, 2));
+}
+
+function test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_dryRun() {
+  Logger.log(JSON.stringify(coreRecalcularMembrosDetalhesSemestreAtualV2_({
+    dryRun: true
+  }), null, 2));
+}
+
+function test_core_domainsV2_diagnosticarPessoasResumoOperacional() {
+  Logger.log(JSON.stringify(coreDiagnosticarPessoasResumoOperacionalV2_(), null, 2));
+}
+
+function test_core_domainsV2_recalcularPessoasResumoOperacional_REAL_CONFIRMADO() {
+  Logger.log(JSON.stringify(coreRecalcularPessoasResumoOperacionalV2_({
+    dryRun: false,
+    confirmacao: 'RECALCULAR_PESSOAS_RESUMO_V2'
+  }), null, 2));
+}
+
+function test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_REAL_CONFIRMADO() {
+  Logger.log(JSON.stringify(coreRecalcularMembrosDetalhesSemestreAtualV2_({
+    dryRun: false,
+    confirmacao: 'RECALCULAR_MEMBROS_DETALHES_SEMESTRE_ATUAL_V2'
+  }), null, 2));
+}
+
+function test_core_domainsV2_pessoasListCurrentMembers() {
+  Logger.log(JSON.stringify(corePessoasListCurrentMembers_(), null, 2));
+}
+
+function test_core_domainsV2_recalcularVigenciasResumoAtual_REAL_CONFIRMADO() {
+  Logger.log(JSON.stringify(coreRecalcularVigenciasResumoAtualV2_({
+    dryRun: false,
+    confirmacao: 'RECALCULAR_RESUMO_ATUAL_V2'
+  }), null, 2));
+}
+
 function test_core_modulesConfig_debug() {
   Logger.log(JSON.stringify(core_debugModulesConfig_(), null, 2));
 }
@@ -358,6 +435,100 @@ function test_core_listarMembrosParaChamada_fakeSheet() {
   test_assert_(!Object.prototype.hasOwnProperty.call(result.data[0], 'Telefone'), 'Nao deve expor telefone.');
   test_assert_(denied.ok === false && denied.errorCode === 'PERMISSAO_NEGADA', 'Perfil MEMBRO nao deve listar chamada quando contexto e informado.');
   test_assert_(missingDate.ok === false && missingDate.errorCode === 'DATA_ATIVIDADE_OBRIGATORIA', 'Data ausente deveria retornar erro controlado.');
+}
+
+function test_core_portalAccess_authorizeEmail_fakeSheets() {
+  var profiles = [
+    { PERFIL_PORTAL: 'MEMBRO', NOME: 'Membro', ATIVO: 'SIM' },
+    { PERFIL_PORTAL: 'ADMIN', NOME: 'Administrador', ATIVO: 'SIM' }
+  ];
+  var permissions = [
+    { PERFIL_PORTAL: 'MEMBRO', PERMISSAO: 'portal:acessar', ATIVO: 'SIM' },
+    { PERFIL_PORTAL: 'MEMBRO', PERMISSAO: 'situacao:ver_propria', ATIVO: 'SIM' },
+    { PERFIL_PORTAL: 'ADMIN', PERMISSAO: 'portal:acessar', ATIVO: 'SIM' },
+    { PERFIL_PORTAL: 'ADMIN', PERMISSAO: 'sistema:admin', ATIVO: 'SIM' }
+  ];
+  var config = {
+    PORTAL_BLOCK_INACTIVE_MEMBERS: 'SIM',
+    PORTAL_DEFAULT_PROFILE: 'MEMBRO'
+  };
+  var currentSheet = test_createFakeSheet_([
+    ['NOME', 'RGA', 'EMAIL', 'STATUS', 'PORTAL_ATIVO', 'PERFIL_PORTAL', 'PORTAL_OBS', 'TELEFONE'],
+    ['Membro Ativo', 'RGA-001', 'ativo@example.com', 'ATIVO', 'SIM', 'MEMBRO', 'obs interna', '(00) 0000-0000'],
+    ['Membro Bloqueado', 'RGA-002', 'bloqueado@example.com', 'ATIVO', 'NAO', 'MEMBRO', '', '(00) 0000-0001'],
+    ['Admin Explicito', 'RGA-003', 'admin@example.com', 'ATIVO', 'SIM', 'ADMIN', '', '(00) 0000-0002']
+  ], 'Membros Atuais');
+  var formerSheet = test_createFakeSheet_([
+    ['NOME', 'RGA', 'EMAIL', 'STATUS', 'PORTAL_ATIVO', 'PERFIL_PORTAL'],
+    ['Ex Membro', 'RGA-004', 'ex@example.com', 'DESLIGADO', 'SIM', 'MEMBRO']
+  ], 'Ex-Membros');
+  var waitingSheet = test_createFakeSheet_([
+    ['NOME', 'RGA', 'EMAIL', 'STATUS', 'PORTAL_ATIVO', 'PERFIL_PORTAL'],
+    ['Membro Espera', 'RGA-005', 'espera@example.com', 'ESPERA', 'SIM', 'MEMBRO']
+  ], 'Membros em Espera');
+  var sources = [
+    { type: 'MEMBROS_ATUAIS', sourceSheet: 'Membros Atuais', sheet: currentSheet },
+    { type: 'MEMBROS_EM_ESPERA', sourceSheet: 'Membros em Espera', sheet: waitingSheet },
+    { type: 'EX_MEMBROS', sourceSheet: 'Ex-Membros', sheet: formerSheet }
+  ];
+  var opts = {
+    sources: sources,
+    profiles: corePortalReadProfiles_({ records: profiles }),
+    permissions: corePortalReadPermissions_({ records: permissions }),
+    config: config
+  };
+
+  var active = corePortalAuthorizeEmail_(' Ativo@Example.com ', opts);
+  var missing = corePortalAuthorizeEmail_('ausente@example.com', opts);
+  var former = corePortalAuthorizeEmail_('ex@example.com', opts);
+  var blocked = corePortalAuthorizeEmail_('bloqueado@example.com', opts);
+  var admin = corePortalAuthorizeEmail_('admin@example.com', opts);
+  var waiting = corePortalAuthorizeEmail_('espera@example.com', opts);
+  var waitingAllowed = corePortalAuthorizeEmail_('espera@example.com', Object.assign({}, opts, {
+    includeWaiting: true
+  }));
+
+  test_assert_(active.authorized === true, 'Membro ativo deveria ser autorizado.');
+  test_assert_(active.authMode === 'EMAIL_LEGACY', 'Modo transitorio de auth incorreto.');
+  test_assert_(active.email === 'ativo@example.com', 'Email deveria ser normalizado.');
+  test_assert_(active.perfilPortal === 'MEMBRO', 'Perfil do membro ativo incorreto.');
+  test_assert_(active.permissions.indexOf('situacao:ver_propria') >= 0, 'Permissao de membro ausente.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(active, 'rawRecord'), 'Sessao publica nao deve expor rawRecord.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(active, 'telefone'), 'Sessao publica nao deve expor telefone.');
+  test_assert_(missing.authorized === false && missing.reason === 'PESSOA_NAO_ENCONTRADA', 'Email inexistente deveria bloquear.');
+  test_assert_(former.authorized === false && former.reason === 'EX_MEMBRO_NAO_AUTORIZADO', 'Ex-membro deve bloquear por padrao.');
+  test_assert_(blocked.authorized === false && blocked.reason === 'PORTAL_ATIVO_NAO', 'PORTAL_ATIVO=NAO deveria bloquear.');
+  test_assert_(admin.authorized === true, 'ADMIN explicito e ativo deveria autorizar quando perfil/permissoes existem.');
+  test_assert_(corePortalHasPermission_(admin, 'sistema:admin') === true, 'ADMIN deveria ter sistema:admin.');
+  test_assert_(waiting.authorized === false && waiting.reason === 'MEMBRO_EM_ESPERA_NAO_AUTORIZADO', 'Espera deveria bloquear por padrao.');
+  test_assert_(waitingAllowed.authorized === true, 'Espera deveria autorizar quando includeWaiting=true.');
+}
+
+function test_core_portalAccess_logAccess_fakeSheet() {
+  var sheet = test_createFakeSheet_([
+    ['TIMESTAMP', 'EMAIL', 'UID_FIREBASE', 'NOME', 'PERFIL_PORTAL', 'ACAO', 'RESULTADO', 'MOTIVO', 'ORIGEM', 'USER_AGENT', 'OBS']
+  ], 'PORTAL_LOG_ACESSOS');
+
+  corePortalAppendAccessLogToSheet_(sheet, {
+    email: 'Pessoa@Example.com',
+    uidFirebase: 'uid-futuro',
+    nome: 'Pessoa Teste',
+    perfilPortal: 'MEMBRO',
+    acao: 'login',
+    resultado: 'permitido',
+    motivo: 'teste',
+    origem: 'teste_unitario',
+    userAgent: 'UnitTest',
+    obs: 'sem segredo',
+    token: 'NAO_DEVE_SER_REGISTRADO'
+  });
+
+  var row = sheet.getRange(2, 1, 1, 11).getValues()[0];
+
+  test_assert_(row[1] === 'pessoa@example.com', 'Log deveria normalizar email.');
+  test_assert_(row[2] === 'uid-futuro', 'UID futuro deveria ser registrado quando informado.');
+  test_assert_(row[5] === 'LOGIN', 'Acao deveria ser normalizada.');
+  test_assert_(row.join('|').indexOf('NAO_DEVE_SER_REGISTRADO') < 0, 'Log nao deve registrar token/segredo fora do contrato.');
 }
 
 function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {

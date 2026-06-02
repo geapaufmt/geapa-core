@@ -85,6 +85,38 @@ const GEAPA_CORE = Object.freeze({
     findFirstRecordByKeyField: core_findFirstRecordByKeyField_,
   }),
 
+  config: Object.freeze({
+    getGeapaConfigValue: core_getGeapaConfigValue_,
+    getGeapaConfigMap: core_getGeapaConfigMap_,
+    getGeapaConfigObject: core_getGeapaConfigObject_,
+    debugGeapaConfig: core_debugGeapaConfig_,
+  }),
+
+  domainsV2: Object.freeze({
+    schemas: core_getDomainsV2Schemas_,
+    contractKeys: core_getDomainsV2ContractKeys_,
+    auditarPessoas: coreAuditarPessoasV2_,
+    auditarVigencias: coreAuditarVigenciasV2_,
+    auditarDominiosCentrais: coreAuditarDominiosCentraisV2_,
+    compararLegadoComV2: coreCompararLegadoComV2_,
+    recalcularVigenciasResumoAtual: coreRecalcularVigenciasResumoAtualV2_,
+    recalcularPessoasResumoOperacional: coreRecalcularPessoasResumoOperacionalV2_,
+    recalcularMembrosDetalhesSemestreAtual: coreRecalcularMembrosDetalhesSemestreAtualV2_,
+    diagnosticarPessoasResumoOperacional: coreDiagnosticarPessoasResumoOperacionalV2_,
+    pessoasGetById: corePessoasGetById_,
+    pessoasFindByEmail: corePessoasFindByEmail_,
+    pessoasFindByRga: corePessoasFindByRga_,
+    pessoasGetOperationalSummary: corePessoasGetOperationalSummary_,
+    pessoasListCurrentMembers: corePessoasListCurrentMembers_,
+    pessoasListExMembers: corePessoasListExMembers_,
+    pessoasListWaitingMembers: corePessoasListWaitingMembers_,
+    pessoasListAcademicCollaborators: corePessoasListAcademicCollaborators_,
+    pessoasListExternalParticipants: corePessoasListExternalParticipants_,
+    vigenciasGetCurrentFunctionByPessoa: coreVigenciasGetCurrentFunctionByPessoa_,
+    vigenciasListCurrentFunctions: coreVigenciasListCurrentFunctions_,
+    vigenciasGetPortalPermissionsByPessoa: coreVigenciasGetPortalPermissionsByPessoa_,
+  }),
+
   identity: Object.freeze({
     fillMissingProfessorIds: core_fillMissingProfessorIds_,
     fillMissingExternalIds: core_fillMissingExternalIds_,
@@ -112,6 +144,15 @@ const GEAPA_CORE = Object.freeze({
     buscarUsuarioPortal: core_buscarUsuarioPortal_,
     buscarMinhaSituacaoParaPortal: core_buscarMinhaSituacaoParaPortal_,
     listarMembrosParaChamada: core_listarMembrosParaChamada_,
+    access: Object.freeze({
+      getConfig: corePortalReadConfig_,
+      getProfiles: corePortalReadProfiles_,
+      getPermissionsByProfile: corePortalBuildPermissionsForProfile_,
+      authorizeEmail: corePortalAuthorizeEmail_,
+      hasPermission: corePortalHasPermission_,
+      logAccess: corePortalAppendAccessLog_,
+      diagnostics: corePortalDiagnostics_,
+    }),
   }),
 
   /**
