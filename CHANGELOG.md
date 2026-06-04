@@ -10,5 +10,7 @@
 - Criado recalc controlado de `MEMBROS_DETALHES.SEMESTRE_ATUAL` em Pessoas v2 com base no RGA.
 - Criado `coreDiagnosticarPessoasResumoOperacionalV2` como diagnostico somente leitura.
 - Exposta comparacao legado/v2 como diagnostico somente leitura.
+- Criada camada de autorizacao v2 do Portal GEAPA baseada em Pessoas v2, Vigencias v2, `PORTAL_PERFIS` e `PORTAL_PERMISSOES`.
+- Exportadas funcoes publicas para resolver usuario, perfil efetivo, permissoes efetivas, validacao de acesso, apresentacoes permitidas e diagnostico de prontidao do portal v2.
 - Documentado o historico da migracao em `docs/MIGRACAO_V2_HISTORICO.md`.
 - Marcado `29_core_domains_v2_migration.js` como arquivo historico interno, sem uso em producao.

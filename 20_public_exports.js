@@ -506,6 +506,42 @@ function corePortalDiagnostics() {
   return corePortalDiagnostics_();
 }
 
+function corePortalResolverUsuarioAtual(entrada, opts) {
+  return corePortalResolverUsuarioAtual_(entrada, opts || {});
+}
+
+function corePortalCalcularPerfilEfetivo(idPessoa, opts) {
+  return corePortalCalcularPerfilEfetivo_(idPessoa, opts || {});
+}
+
+function corePortalListarPermissoesEfetivas(idPessoa, opts) {
+  return corePortalListarPermissoesEfetivas_(idPessoa, opts || {});
+}
+
+function corePortalValidarAcesso(idPessoa, permissaoOuPerfil, opts) {
+  return corePortalValidarAcesso_(idPessoa, permissaoOuPerfil, opts || {});
+}
+
+function corePortalGetMeuResumo(email, opts) {
+  return corePortalGetMeuResumo_(email, opts || {});
+}
+
+function corePortalListarApresentacoesPermitidas(email, options) {
+  return corePortalListarApresentacoesPermitidas_(email, options || {});
+}
+
+function corePortalListarApresentacoesParaEgresso(idPessoa, opts) {
+  return corePortalListarApresentacoesParaEgresso_(idPessoa, opts || {});
+}
+
+function corePortalDiagnosticarPerfisEPermissoes(opts) {
+  return corePortalDiagnosticarPerfisEPermissoes_(opts || {});
+}
+
+function corePrepararPortalParaV2(opts) {
+  return corePrepararPortalParaV2_(opts || {});
+}
+
 /* ============================================================
  * DATES
  * ============================================================ */

@@ -214,6 +214,795 @@ function corePortalBuildPermissionsForProfile_(perfilPortal, opts) {
   return Object.freeze(out);
 }
 
+const CORE_PORTAL_V2_REQUIRED_PROFILES = Object.freeze([
+  'ADMIN',
+  'DIRETORIA',
+  'SECRETARIA',
+  'COMUNICACAO',
+  'CONSELHO',
+  'MEMBRO',
+  'EGRESSO',
+  'COLABORADOR',
+  'EXTERNO',
+  'VISITANTE'
+]);
+
+const CORE_PORTAL_V2_PROFILE_LEVELS = Object.freeze({
+  ADMIN: 100,
+  DIRETORIA: 80,
+  SECRETARIA: 70,
+  COMUNICACAO: 60,
+  CONSELHO: 40,
+  COLABORADOR: 30,
+  MEMBRO: 10,
+  EGRESSO: 5,
+  EXTERNO: 2,
+  VISITANTE: 1
+});
+
+const CORE_PORTAL_V2_MIN_PERMISSIONS = Object.freeze({
+  EGRESSO: Object.freeze([
+    'portal:acessar',
+    'situacao:ver_propria',
+    'apresentacoes:ver_ate_saida',
+    'certificados:ver_proprios'
+  ]),
+  CONSELHO: Object.freeze([
+    'portal:acessar',
+    'apresentacoes:ver_publicas',
+    'eixos:ver'
+  ]),
+  COLABORADOR: Object.freeze([
+    'portal:acessar',
+    'apresentacoes:ver_publicas',
+    'eixos:ver'
+  ]),
+  EXTERNO: Object.freeze([
+    'portal:acessar',
+    'apresentacoes:ver_publicas',
+    'inscricoes:ver_proprias'
+  ]),
+  VISITANTE: Object.freeze([
+    'apresentacoes:ver_publicas'
+  ])
+});
+
+function corePortalNormalizePermission_(permission) {
+  return String(permission || '').trim().toLowerCase();
+}
+
+function corePortalSplitProfiles_(value) {
+  var seen = {};
+  var out = [];
+  String(value || '').split(/[;,|]/).forEach(function(part) {
+    var profile = corePortalNormalizeToken_(part);
+    if (!profile || seen[profile]) return;
+    seen[profile] = true;
+    out.push(profile);
+  });
+  return out;
+}
+
+function corePortalActiveProfileMap_(profiles) {
+  var out = {};
+  (profiles || corePortalReadProfiles_()).forEach(function(profile) {
+    out[corePortalNormalizeToken_(profile.perfilPortal)] = profile;
+  });
+  return out;
+}
+
+function corePortalPermissionsByProfile_(permissions) {
+  var out = {};
+  (permissions || corePortalReadPermissions_()).forEach(function(item) {
+    var profile = corePortalNormalizeToken_(item.perfilPortal);
+    var permission = corePortalNormalizePermission_(item.permissao);
+    if (!profile || !permission) return;
+    if (!out[profile]) out[profile] = [];
+    if (out[profile].indexOf(permission) < 0) out[profile].push(permission);
+  });
+  Object.keys(out).forEach(function(profile) {
+    out[profile].sort();
+  });
+  return out;
+}
+
+function corePortalIsExceptionActive_(record, refDate) {
+  var status = corePortalNormalizeToken_(record && record.STATUS);
+  if (['REVOGADO', 'ENCERRADO', 'INATIVO', 'EXPIRADO'].indexOf(status) >= 0) return false;
+  var today = refDate || new Date();
+  var start = core_domainsV2Date_(record && record.DATA_INICIO);
+  var end = core_domainsV2Date_(record && record.DATA_FIM);
+  if (start && start > today) return false;
+  if (end && end < today) return false;
+  return true;
+}
+
+function corePortalExceptionBlocks_(record) {
+  var status = corePortalNormalizeToken_(record && record.STATUS);
+  return ['BLOQUEADO', 'NEGADO', 'SUSPENSO'].indexOf(status) >= 0;
+}
+
+function corePortalGetBundleById_(idPessoa) {
+  var id = String(idPessoa || '').trim();
+  return id ? corePessoasGetById_(id) : null;
+}
+
+function corePortalGetBundleByEmail_(email) {
+  var normalizedEmail = corePortalNormalizeEmail_(email);
+  return normalizedEmail ? corePessoasFindByEmail_(normalizedEmail) : null;
+}
+
+function corePortalResolveInput_(entrada) {
+  var raw = entrada;
+  var opts = {};
+
+  if (entrada && typeof entrada === 'object') {
+    opts = entrada;
+    raw = entrada.email || entrada.emailOuRga || entrada.identificador || entrada.idPessoa || entrada.rga || '';
+  }
+
+  var text = String(raw || '').trim();
+  var email = corePortalNormalizeEmail_(opts.email || text);
+  var idPessoa = String(opts.idPessoa || '').trim();
+  var rga = String(opts.rga || '').trim();
+  var identifier = String(opts.identificador || opts.emailOuRga || text).trim();
+
+  if (!idPessoa && /^PES-\d+$/i.test(text)) idPessoa = text.toUpperCase();
+  if (!email && !rga && !idPessoa && text && text.indexOf('@') < 0) rga = text;
+
+  return Object.freeze({
+    raw: text,
+    email: email,
+    idPessoa: idPessoa,
+    rga: rga,
+    identificador: identifier
+  });
+}
+
+function corePortalGetBundleByInput_(entrada) {
+  var input = corePortalResolveInput_(entrada);
+  if (input.idPessoa) return corePortalGetBundleById_(input.idPessoa);
+  if (input.email) return corePortalGetBundleByEmail_(input.email);
+  if (input.rga) return corePessoasFindByRga_(input.rga);
+  if (input.identificador && input.identificador.indexOf('@') >= 0) {
+    return corePortalGetBundleByEmail_(input.identificador);
+  }
+  if (input.identificador) return corePessoasFindByRga_(input.identificador);
+  return null;
+}
+
+function corePortalGetCurrentLink_(bundle) {
+  var resumo = (bundle && bundle.resumoOperacional) || {};
+  var tipoResumo = corePortalNormalizeToken_(resumo.TIPO_VINCULO_ATUAL);
+  if (tipoResumo) {
+    return {
+      tipoVinculo: tipoResumo,
+      statusVinculo: corePortalNormalizeToken_(resumo.STATUS_VINCULO_ATUAL),
+      dataFim: ''
+    };
+  }
+  var vinculo = core_domainsV2PickCurrentVinculo_((bundle && bundle.vinculos) || []) || {};
+  return {
+    tipoVinculo: corePortalNormalizeToken_(vinculo.TIPO_VINCULO),
+    statusVinculo: corePortalNormalizeToken_(vinculo.STATUS_VINCULO),
+    dataFim: vinculo.DATA_FIM || ''
+  };
+}
+
+function corePortalGetEgressoExitDate_(bundle) {
+  var best = null;
+  ((bundle && bundle.vinculos) || []).forEach(function(vinculo) {
+    var tipo = corePortalNormalizeToken_(vinculo.TIPO_VINCULO);
+    var status = corePortalNormalizeToken_(vinculo.STATUS_VINCULO);
+    var date = core_domainsV2Date_(vinculo.DATA_FIM);
+    if (tipo !== 'MEMBRO_EFETIVO' || !date) return;
+    if (status === 'ATIVO' || corePortalIsYes_(vinculo.ATIVO)) return;
+    if (!best || date > best) best = date;
+  });
+  return best;
+}
+
+function corePortalGetIdentityMarker_(bundle, tipoIdentificador) {
+  var wanted = corePortalNormalizeToken_(tipoIdentificador);
+  var found = '';
+  ((bundle && bundle.identificadores) || []).forEach(function(record) {
+    if (found) return;
+    if (corePortalNormalizeToken_(record.TIPO_IDENTIFICADOR) === wanted && corePortalIsYes_(record.ATIVO)) {
+      found = String(record.VALOR_IDENTIFICADOR || '').trim();
+    }
+  });
+  return found;
+}
+
+function corePortalSanitizeCurrentFunction_(item) {
+  item = item || {};
+  var vigencia = item.vigencia || {};
+  var cargo = item.cargoConfig || {};
+  return Object.freeze({
+    cargoKey: String(vigencia.CARGO_KEY || cargo.CARGO_KEY || '').trim(),
+    cargoNome: String(
+      vigencia.CARGO_NOME_SNAPSHOT ||
+      vigencia.CARGO_NOME ||
+      cargo.NOME_PUBLICO ||
+      cargo.CARGO_NOME ||
+      cargo.CARGO_KEY ||
+      ''
+    ).trim(),
+    tipoFuncao: String(cargo.TIPO_FUNCAO || vigencia.TIPO_FUNCAO || '').trim(),
+    grupoCargo: String(cargo.GRUPO_CARGO || vigencia.GRUPO_CARGO || '').trim(),
+    dataInicio: vigencia.DATA_INICIO || '',
+    dataFimPrevista: vigencia.DATA_FIM_PREVISTA || vigencia.DATA_FIM || ''
+  });
+}
+
+function corePortalListCurrentFunctionsSafe_(idPessoa) {
+  try {
+    return Object.freeze(coreVigenciasListCurrentFunctions_({ idPessoa: idPessoa })
+      .map(corePortalSanitizeCurrentFunction_));
+  } catch (err) {
+    return Object.freeze([]);
+  }
+}
+
+function corePortalListActiveExceptions_(bundle) {
+  return ((bundle && bundle.portalExcecoes) || []).filter(function(record) {
+    return corePortalIsExceptionActive_(record);
+  });
+}
+
+function corePortalProfilesFromVigencias_(idPessoa) {
+  try {
+    var result = coreVigenciasGetPortalPermissionsByPessoa_(idPessoa) || {};
+    return (result.perfisPortalCalculados || []).map(corePortalNormalizeToken_).filter(String);
+  } catch (err) {
+    return [];
+  }
+}
+
+function corePortalCalcularPerfilEfetivo_(idPessoa, opts) {
+  opts = opts || {};
+  var bundle = opts.bundle || corePortalGetBundleById_(idPessoa);
+  if (!bundle || !bundle.pessoa) {
+    return Object.freeze({
+      ok: false,
+      idPessoa: String(idPessoa || '').trim(),
+      perfilPortalEfetivo: '',
+      perfisPortal: Object.freeze([]),
+      origemPerfil: '',
+      portalAtivo: false,
+      motivoBloqueio: 'PESSOA_NAO_ENCONTRADA'
+    });
+  }
+
+  var id = String(bundle.pessoa.ID_PESSOA || idPessoa || '').trim();
+  var profileMap = opts.profileMap || corePortalActiveProfileMap_(opts.profiles);
+  var resumo = bundle.resumoOperacional || {};
+  var link = corePortalGetCurrentLink_(bundle);
+  var exceptions = corePortalListActiveExceptions_(bundle);
+  var blocked = exceptions.some(corePortalExceptionBlocks_);
+  var profiles = [];
+  var origem = '';
+
+  exceptions.forEach(function(record) {
+    corePortalSplitProfiles_(record.PERFIL_EXTRA).forEach(function(profile) {
+      if (profile === 'ADMIN' && profiles.indexOf('ADMIN') < 0) {
+        profiles.unshift('ADMIN');
+        origem = 'PORTAL_ACESSOS_EXCECOES_ADMIN';
+      }
+    });
+  });
+
+  if (!profiles.length) {
+    profiles = corePortalProfilesFromVigencias_(id).filter(function(profile) {
+      return profile !== 'ADMIN';
+    });
+    if (profiles.length) origem = 'VIGENCIAS_RESUMO_ATUAL';
+  }
+
+  if (!profiles.length) {
+    profiles = corePortalSplitProfiles_(resumo.PERFIL_PORTAL_CALCULADO).filter(function(profile) {
+      return profile !== 'ADMIN';
+    });
+    if (profiles.length) origem = 'PESSOAS_RESUMO_OPERACIONAL';
+  }
+
+  if (!profiles.length) {
+    if (link.tipoVinculo === 'MEMBRO_EFETIVO' && link.statusVinculo === 'ATIVO') {
+      profiles = ['MEMBRO'];
+      origem = 'VINCULO_MEMBRO_EFETIVO';
+    } else if (link.tipoVinculo === 'EGRESSO' || link.tipoVinculo === 'EX_MEMBRO') {
+      profiles = ['EGRESSO'];
+      origem = 'VINCULO_EGRESSO';
+    } else if (corePortalGetIdentityMarker_(bundle, 'ID_PROFESSOR')) {
+      profiles = ['COLABORADOR'];
+      origem = 'IDENTIFICADOR_COLABORADOR';
+    } else if (corePortalGetIdentityMarker_(bundle, 'ID_PARTICIPANTE_EXTERNO')) {
+      profiles = ['EXTERNO'];
+      origem = 'IDENTIFICADOR_EXTERNO';
+    } else {
+      profiles = ['VISITANTE'];
+      origem = 'SEM_VINCULO_RECONHECIDO';
+    }
+  }
+
+  exceptions.forEach(function(record) {
+    corePortalSplitProfiles_(record.PERFIL_EXTRA).forEach(function(profile) {
+      if (profiles.indexOf(profile) < 0) profiles.push(profile);
+    });
+  });
+
+  var invalidProfiles = profiles.filter(function(profile) {
+    return !profileMap[profile];
+  });
+  var profileEffective = profiles[0] || '';
+  var portalAtivo = !blocked && !invalidProfiles.length && !!profileEffective;
+  if (resumo.PORTAL_ATIVO && corePortalIsExplicitNo_(resumo.PORTAL_ATIVO) && profileEffective !== 'EGRESSO') {
+    portalAtivo = false;
+  }
+
+  return Object.freeze({
+    ok: invalidProfiles.length === 0,
+    idPessoa: id,
+    perfilPortalEfetivo: profileEffective,
+    perfisPortal: Object.freeze(profiles),
+    perfisInvalidos: Object.freeze(invalidProfiles),
+    origemPerfil: origem,
+    portalAtivo: portalAtivo,
+    motivoBloqueio: blocked ? 'EXCECAO_PORTAL_BLOQUEIO' : (invalidProfiles.length ? 'PERFIL_PORTAL_INVALIDO' : ''),
+    regraApresentacoes: profileEffective === 'EGRESSO' ? 'ATE_DATA_SAIDA' : ''
+  });
+}
+
+function corePortalListarPermissoesEfetivas_(idPessoa, opts) {
+  opts = opts || {};
+  var bundle = opts.bundle || corePortalGetBundleById_(idPessoa);
+  var profileResult = opts.profileResult || corePortalCalcularPerfilEfetivo_(idPessoa, opts);
+  if (!profileResult.ok && !profileResult.perfisPortal.length) {
+    return Object.freeze({
+      ok: false,
+      idPessoa: String(idPessoa || '').trim(),
+      permissoes: Object.freeze([]),
+      origemPermissoes: '',
+      motivo: profileResult.motivoBloqueio || 'PERFIL_NAO_RESOLVIDO'
+    });
+  }
+
+  var permissionsByProfile = opts.permissionsByProfile || corePortalPermissionsByProfile_(opts.permissions);
+  var seen = {};
+  var out = [];
+  profileResult.perfisPortal.forEach(function(profile) {
+    (permissionsByProfile[profile] || []).forEach(function(permission) {
+      if (!seen[permission]) {
+        seen[permission] = true;
+        out.push(permission);
+      }
+    });
+  });
+
+  ((bundle && bundle.portalExcecoes) || []).filter(corePortalIsExceptionActive_).forEach(function(record) {
+    String(record.PERMISSAO_EXTRA || '').split(/[;,|]/).forEach(function(part) {
+      var permission = corePortalNormalizePermission_(part);
+      if (permission && !seen[permission]) {
+        seen[permission] = true;
+        out.push(permission);
+      }
+    });
+  });
+
+  out.sort();
+  return Object.freeze({
+    ok: true,
+    idPessoa: profileResult.idPessoa,
+    perfilPortalEfetivo: profileResult.perfilPortalEfetivo,
+    perfisPortal: profileResult.perfisPortal,
+    permissoes: Object.freeze(out),
+    origemPermissoes: 'PORTAL_PERMISSOES',
+    usaCargosConfigComoFonteFinal: false
+  });
+}
+
+function corePortalResolverUsuarioAtual_(entrada, opts) {
+  opts = opts || {};
+  var input = corePortalResolveInput_(entrada);
+  var bundle = corePortalGetBundleByInput_(entrada);
+  if (!bundle || !bundle.pessoa) {
+    return Object.freeze({
+      ok: false,
+      autenticado: false,
+      email: input.email,
+      idPessoa: input.idPessoa,
+      rga: input.rga,
+      motivoBloqueio: 'PESSOA_NAO_ENCONTRADA'
+    });
+  }
+  var idPessoa = String(bundle.pessoa.ID_PESSOA || '').trim();
+  var profileResult = corePortalCalcularPerfilEfetivo_(idPessoa, Object.assign({}, opts, { bundle: bundle }));
+  var permissionsResult = corePortalListarPermissoesEfetivas_(idPessoa, Object.assign({}, opts, {
+    bundle: bundle,
+    profileResult: profileResult
+  }));
+  var resumo = bundle.resumoOperacional || {};
+  var link = corePortalGetCurrentLink_(bundle);
+  var permissoes = permissionsResult.permissoes || [];
+  var hasAccess = permissoes.indexOf('portal:acessar') >= 0 || profileResult.perfilPortalEfetivo === 'VISITANTE';
+  var portalAtivo = profileResult.portalAtivo && hasAccess;
+  var cargosAtuais = corePortalListCurrentFunctionsSafe_(idPessoa);
+  var emailPrincipal = corePortalNormalizeEmail_(bundle.pessoa.EMAIL_PRINCIPAL || input.email || '');
+  var cargoFuncaoAtual = String(resumo.CARGO_FUNCAO_ATUAL || '').trim();
+  if (!cargoFuncaoAtual && cargosAtuais.length) {
+    cargoFuncaoAtual = cargosAtuais.map(function(item) {
+      return item.cargoNome || item.cargoKey;
+    }).filter(String).join('; ');
+  }
+
+  return Object.freeze({
+    ok: true,
+    autenticado: true,
+    idPessoa: idPessoa,
+    nomeExibicao: String(bundle.pessoa.NOME_EXIBICAO || bundle.pessoa.NOME_COMPLETO || '').trim(),
+    email: emailPrincipal,
+    rga: String((bundle.membrosDetalhes && bundle.membrosDetalhes.RGA) || resumo.RGA || '').trim(),
+    tipoVinculoAtual: resumo.TIPO_VINCULO_ATUAL || link.tipoVinculo || '',
+    statusVinculoAtual: resumo.STATUS_VINCULO_ATUAL || link.statusVinculo || '',
+    cargoFuncaoAtual: cargoFuncaoAtual,
+    cargosAtuais: cargosAtuais,
+    perfilPortalEfetivo: profileResult.perfilPortalEfetivo,
+    perfisPortal: profileResult.perfisPortal,
+    permissoes: Object.freeze(permissoes.slice()),
+    portalAtivo: portalAtivo,
+    motivoBloqueio: portalAtivo ? '' : (profileResult.motivoBloqueio || 'PERMISSAO_PORTAL_ACESSAR_AUSENTE'),
+    origemPerfil: profileResult.origemPerfil,
+    origemPermissoes: permissionsResult.origemPermissoes,
+    regraApresentacoes: profileResult.regraApresentacoes || ''
+  });
+}
+
+function corePortalValidarAcesso_(idPessoa, permissaoOuPerfil, opts) {
+  opts = opts || {};
+  var wanted = String(permissaoOuPerfil || '').trim();
+  if (!wanted) return Object.freeze({ ok: false, allowed: false, motivo: 'ALVO_AUSENTE' });
+  var profileResult = corePortalCalcularPerfilEfetivo_(idPessoa, opts);
+  var permissionResult = corePortalListarPermissoesEfetivas_(idPessoa, Object.assign({}, opts, {
+    profileResult: profileResult
+  }));
+  var isPermission = wanted.indexOf(':') >= 0;
+  var allowed = profileResult.portalAtivo && (
+    isPermission
+      ? permissionResult.permissoes.indexOf(corePortalNormalizePermission_(wanted)) >= 0
+      : profileResult.perfisPortal.indexOf(corePortalNormalizeToken_(wanted)) >= 0
+  );
+  return Object.freeze({
+    ok: true,
+    allowed: allowed,
+    idPessoa: String(idPessoa || '').trim(),
+    alvo: wanted,
+    tipoAlvo: isPermission ? 'PERMISSAO' : 'PERFIL',
+    motivo: allowed ? 'ACESSO_PERMITIDO' : 'ACESSO_NEGADO'
+  });
+}
+
+function corePortalGetMeuResumo_(email, opts) {
+  var usuario = corePortalResolverUsuarioAtual_(email, opts || {});
+  if (!usuario.ok) return usuario;
+  var resumo = corePessoasGetOperationalSummary_(usuario.idPessoa) || {};
+  return Object.freeze({
+    ok: true,
+    usuario: usuario,
+    resumoOperacional: Object.freeze({
+      tipoVinculoAtual: resumo.TIPO_VINCULO_ATUAL || '',
+      statusVinculoAtual: resumo.STATUS_VINCULO_ATUAL || '',
+      cargoFuncaoAtual: resumo.CARGO_FUNCAO_ATUAL || '',
+      perfilPortalCalculado: resumo.PERFIL_PORTAL_CALCULADO || '',
+      portalAtivo: resumo.PORTAL_ATIVO || '',
+      tempoEfetivoNoGrupo: resumo.TEMPO_EFETIVO_NO_GRUPO || '',
+      qtdSemestresNoGrupo: resumo.QTD_SEMESTRES_NO_GRUPO || '',
+      qtdApresentacoesRealizadas: resumo.QTD_APRESENTACOES_REALIZADAS || '',
+      periodoUltimaApresentacao: resumo.PERIODO_ULTIMA_APRESENTACAO || '',
+      frequenciaResumida: resumo.FREQUENCIA_RESUMIDA || '',
+      pendenciasAbertas: resumo.PENDENCIAS_ABERTAS || '',
+      flagJaFoiSuspenso: resumo.FLAG_JA_FOI_SUSPENSO || '',
+      statusElegibilidadeDiretoria: resumo.STATUS_ELEGIBILIDADE_DIRETORIA || ''
+    })
+  });
+}
+
+function corePortalReadPresentationRecords_() {
+  var records = [];
+  ['ATIVIDADES_V2_PORTAL_APRESENTACOES', 'ATIVIDADES_V2_APRESENTACOES'].forEach(function(key) {
+    try {
+      records = records.concat(core_readRecordsByKey_(key, { skipBlankRows: true }) || []);
+    } catch (err) {}
+  });
+  return records;
+}
+
+function corePortalPresentationDate_(record) {
+  return core_domainsV2Date_(core_domainsV2LegacyValue_(record, [
+    'DATA_ATIVIDADE',
+    'DATA_APRESENTACAO',
+    'DATA_REALIZADA',
+    'DATA',
+    'DATA_INICIO'
+  ]));
+}
+
+function corePortalPresentationIsPublic_(record) {
+  var visibility = corePortalNormalizeToken_(core_domainsV2LegacyValue_(record, [
+    'VISIBILIDADE',
+    'PORTAL_VISIBILIDADE',
+    'LIBERADA_PORTAL',
+    'PUBLICA',
+    'PUBLICO'
+  ]));
+  return ['PUBLICA', 'PUBLICO', 'SIM', 'LIBERADA', 'PORTAL'].indexOf(visibility) >= 0;
+}
+
+function corePortalPresentationBelongsToUser_(record, usuario) {
+  var idPessoa = String(core_domainsV2LegacyValue_(record, ['ID_PESSOA', 'Id Pessoa']) || '').trim();
+  var rga = String(core_domainsV2LegacyValue_(record, ['RGA']) || '').trim();
+  var email = corePortalNormalizeEmail_(core_domainsV2LegacyValue_(record, ['EMAIL', 'Email', 'E-mail']));
+  return (!!idPessoa && idPessoa === usuario.idPessoa) ||
+    (!!rga && rga === usuario.rga) ||
+    (!!email && email === usuario.email);
+}
+
+function corePortalSanitizePresentation_(record) {
+  return Object.freeze({
+    idAtividade: String(core_domainsV2LegacyValue_(record, ['ID_ATIVIDADE', 'ID_APRESENTACAO', 'ID']) || '').trim(),
+    titulo: String(core_domainsV2LegacyValue_(record, ['TITULO', 'TITULO_APRESENTACAO', 'TEMA']) || '').trim(),
+    dataAtividade: core_domainsV2LegacyValue_(record, ['DATA_ATIVIDADE', 'DATA_APRESENTACAO', 'DATA_REALIZADA', 'DATA']),
+    periodo: String(core_domainsV2LegacyValue_(record, ['PERIODO', 'CICLO', 'SEMESTRE', 'ID_PERIODO']) || '').trim(),
+    eixo: String(core_domainsV2LegacyValue_(record, ['EIXO', 'EIXO_TEMATICO']) || '').trim(),
+    status: String(core_domainsV2LegacyValue_(record, ['STATUS', 'STATUS_APRESENTACAO', 'SITUACAO']) || '').trim()
+  });
+}
+
+function corePortalListarApresentacoesParaEgresso_(idPessoa, opts) {
+  opts = opts || {};
+  var bundle = opts.bundle || corePortalGetBundleById_(idPessoa);
+  if (!bundle || !bundle.pessoa) {
+    return Object.freeze({ ok: false, motivo: 'PESSOA_NAO_ENCONTRADA', apresentacoes: Object.freeze([]) });
+  }
+  var exitDate = corePortalGetEgressoExitDate_(bundle);
+  if (!exitDate) {
+    return Object.freeze({
+      ok: false,
+      motivo: 'DATA_FIM_EGRESSO_AUSENTE',
+      status: 'PENDENTE',
+      apresentacoes: Object.freeze([])
+    });
+  }
+  var user = {
+    idPessoa: String(bundle.pessoa.ID_PESSOA || '').trim(),
+    email: corePortalNormalizeEmail_(bundle.pessoa.EMAIL_PRINCIPAL || ''),
+    rga: String((bundle.membrosDetalhes && bundle.membrosDetalhes.RGA) || '').trim()
+  };
+  var out = corePortalReadPresentationRecords_().filter(function(record) {
+    var date = corePortalPresentationDate_(record);
+    return date && date <= exitDate && (corePortalPresentationIsPublic_(record) || corePortalPresentationBelongsToUser_(record, user));
+  }).map(corePortalSanitizePresentation_);
+  return Object.freeze({
+    ok: true,
+    regra: 'ATE_DATA_SAIDA',
+    dataSaida: exitDate,
+    apresentacoes: Object.freeze(out)
+  });
+}
+
+function corePortalListarApresentacoesPermitidas_(email, options) {
+  options = options || {};
+  var usuario = corePortalResolverUsuarioAtual_(email, options);
+  if (!usuario.ok || !usuario.portalAtivo) {
+    return Object.freeze({
+      ok: false,
+      motivo: usuario.motivoBloqueio || 'USUARIO_SEM_ACESSO',
+      apresentacoes: Object.freeze([])
+    });
+  }
+  if (usuario.perfilPortalEfetivo === 'EGRESSO') {
+    var egresso = corePortalListarApresentacoesParaEgresso_(usuario.idPessoa);
+    return Object.freeze(Object.assign({ usuario: usuario }, egresso));
+  }
+  var canManage = usuario.permissoes.indexOf('apresentacoes:gerir') >= 0 || usuario.permissoes.indexOf('apresentacoes:ler') >= 0;
+  var canOwn = usuario.permissoes.indexOf('apresentacoes:ver_propria') >= 0 || usuario.perfilPortalEfetivo === 'MEMBRO';
+  var canPublic = usuario.permissoes.indexOf('apresentacoes:ver_publicas') >= 0 || ['VISITANTE', 'EXTERNO'].indexOf(usuario.perfilPortalEfetivo) >= 0;
+  var out = corePortalReadPresentationRecords_().filter(function(record) {
+    if (canManage) return true;
+    if (canOwn && corePortalPresentationBelongsToUser_(record, usuario)) return true;
+    return canPublic && corePortalPresentationIsPublic_(record);
+  }).map(corePortalSanitizePresentation_);
+  return Object.freeze({
+    ok: true,
+    usuario: usuario,
+    apresentacoes: Object.freeze(out)
+  });
+}
+
+function corePortalDiagnosticarPerfisEPermissoes_(opts) {
+  opts = opts || {};
+  var report = {
+    ok: true,
+    bloqueios: [],
+    perfisObrigatoriosAusentes: [],
+    sugestoesPerfis: [],
+    perfisSemPermissoes: [],
+    permissoesComPerfilInexistente: [],
+    permissoesInativas: [],
+    permissoesNaoRecomendadas: [],
+    usuariosPortalAtivoSemPerfil: [],
+    membrosAtivosSemPortalAcessar: [],
+    egressosSemPerfilEgresso: [],
+    conselhoSemCadastroPerfil: [],
+    excecoesAdminInvalidas: [],
+    avisos: [],
+    recomendacoes: []
+  };
+  var profiles = [];
+  var permissions = [];
+  var rawPermissions = [];
+  try {
+    profiles = corePortalReadProfiles_();
+  } catch (errProfiles) {
+    report.ok = false;
+    report.bloqueios.push('PORTAL_PERFIS_INDISPONIVEL');
+    report.avisos.push('Nao foi possivel ler PORTAL_PERFIS: ' + (errProfiles && errProfiles.message ? errProfiles.message : errProfiles));
+  }
+  try {
+    permissions = corePortalReadPermissions_();
+    rawPermissions = core_readRecordsByKey_('PORTAL_PERMISSOES', { skipBlankRows: true });
+  } catch (errPermissions) {
+    report.ok = false;
+    report.bloqueios.push('PORTAL_PERMISSOES_INDISPONIVEL');
+    report.avisos.push('Nao foi possivel ler PORTAL_PERMISSOES: ' + (errPermissions && errPermissions.message ? errPermissions.message : errPermissions));
+  }
+  var profileMap = corePortalActiveProfileMap_(profiles);
+  var permissionsByProfile = corePortalPermissionsByProfile_(permissions);
+
+  CORE_PORTAL_V2_REQUIRED_PROFILES.forEach(function(profile) {
+    if (!profileMap[profile]) {
+      report.perfisObrigatoriosAusentes.push(profile);
+      report.sugestoesPerfis.push({
+        PERFIL_PORTAL: profile,
+        NOME: profile,
+        NIVEL: CORE_PORTAL_V2_PROFILE_LEVELS[profile] || '',
+        ATIVO: 'SIM'
+      });
+    }
+  });
+  Object.keys(profileMap).forEach(function(profile) {
+    if (!(permissionsByProfile[profile] || []).length) report.perfisSemPermissoes.push(profile);
+  });
+  rawPermissions.forEach(function(record) {
+    var profile = corePortalNormalizeToken_(corePortalGetRecordValue_(record, CORE_PORTAL_ACCESS_CFG.headers.profileKey));
+    var permission = corePortalNormalizePermission_(corePortalGetRecordValue_(record, CORE_PORTAL_ACCESS_CFG.headers.permission));
+    if (!corePortalRecordIsActive_(record)) {
+      if (profile || permission) report.permissoesInativas.push({ perfilPortal: profile, permissao: permission });
+      return;
+    }
+    if (profile && !profileMap[profile]) {
+      report.permissoesComPerfilInexistente.push({ perfilPortal: profile, permissao: permission });
+    }
+  });
+  Object.keys(CORE_PORTAL_V2_MIN_PERMISSIONS).forEach(function(profile) {
+    CORE_PORTAL_V2_MIN_PERMISSIONS[profile].forEach(function(permission) {
+      if ((permissionsByProfile[profile] || []).indexOf(permission) < 0) {
+        report.recomendacoes.push('Adicionar permissao ' + permission + ' ao perfil ' + profile + '.');
+      }
+    });
+  });
+  ['membros:ler', 'presencas:ler', 'atividades:gerir', 'logs:ler'].forEach(function(permission) {
+    if ((permissionsByProfile.EGRESSO || []).indexOf(permission) >= 0) {
+      report.permissoesNaoRecomendadas.push({
+        perfilPortal: 'EGRESSO',
+        permissao: permission,
+        motivo: 'Egresso deve ter acesso limitado.'
+      });
+    }
+  });
+  (permissionsByProfile.CONSELHO || []).forEach(function(permission) {
+    if (permission.indexOf(':gerir') >= 0 || permission === 'sistema:admin' || permission === 'logs:ler') {
+      report.permissoesNaoRecomendadas.push({
+        perfilPortal: 'CONSELHO',
+        permissao: permission,
+        motivo: 'Conselho nao deve receber permissao administrativa por padrao.'
+      });
+    }
+  });
+
+  var pessoasReport = core_domainsV2AuditNewReport_('PORTAL_DIAGNOSTICO_PESSOAS_V2');
+  var pessoasData = core_domainsV2OpenPessoas_(pessoasReport);
+  if (!pessoasReport.totalErros) {
+    var resumo = (pessoasData.PESSOAS_RESUMO_OPERACIONAL && pessoasData.PESSOAS_RESUMO_OPERACIONAL.records) || [];
+    resumo.forEach(function(record) {
+      var idPessoa = String(record.ID_PESSOA || '').trim();
+      var profile = corePortalNormalizeToken_(record.PERFIL_PORTAL_CALCULADO);
+      var tipo = corePortalNormalizeToken_(record.TIPO_VINCULO_ATUAL);
+      var active = corePortalIsYes_(record.PORTAL_ATIVO);
+      if (active && !profile) report.usuariosPortalAtivoSemPerfil.push(idPessoa);
+      if (active && profile && (permissionsByProfile[profile] || []).indexOf('portal:acessar') < 0) {
+        report.membrosAtivosSemPortalAcessar.push({ idPessoa: idPessoa, perfilPortal: profile });
+      }
+      if ((tipo === 'EGRESSO' || tipo === 'EX_MEMBRO') && profile !== 'EGRESSO') {
+        report.egressosSemPerfilEgresso.push({ idPessoa: idPessoa, perfilPortal: profile });
+      }
+    });
+    ((pessoasData.PORTAL_ACESSOS_EXCECOES && pessoasData.PORTAL_ACESSOS_EXCECOES.records) || []).forEach(function(record) {
+      if (corePortalNormalizeToken_(record.PERFIL_EXTRA) !== 'ADMIN') return;
+      var activeException = corePortalIsExceptionActive_(record);
+      if (!activeException || !String(record.JUSTIFICATIVA || '').trim()) {
+        report.excecoesAdminInvalidas.push({
+          idPessoa: record.ID_PESSOA || '',
+          status: record.STATUS || '',
+          dataFim: record.DATA_FIM || '',
+          justificativa: record.JUSTIFICATIVA || ''
+        });
+      }
+    });
+  } else {
+    report.avisos.push('Nao foi possivel abrir Pessoas v2 para diagnostico de usuarios.');
+  }
+
+  if (!profileMap.CONSELHO) report.conselhoSemCadastroPerfil.push('CONSELHO');
+  var blocking = report.perfisObrigatoriosAusentes.length ||
+    report.permissoesComPerfilInexistente.length ||
+    report.usuariosPortalAtivoSemPerfil.length;
+  report.ok = !blocking;
+  return Object.freeze(report);
+}
+
+function corePrepararPortalParaV2_(opts) {
+  opts = opts || {};
+  var requiredFunctions = [
+    'corePortalResolverUsuarioAtual',
+    'corePortalValidarAcesso',
+    'corePortalCalcularPerfilEfetivo',
+    'corePortalListarPermissoesEfetivas',
+    'corePortalGetMeuResumo'
+  ];
+  var functionMap = {
+    corePortalResolverUsuarioAtual: typeof corePortalResolverUsuarioAtual === 'function',
+    corePortalValidarAcesso: typeof corePortalValidarAcesso === 'function',
+    corePortalCalcularPerfilEfetivo: typeof corePortalCalcularPerfilEfetivo === 'function',
+    corePortalListarPermissoesEfetivas: typeof corePortalListarPermissoesEfetivas === 'function',
+    corePortalGetMeuResumo: typeof corePortalGetMeuResumo === 'function'
+  };
+  var available = [];
+  var missing = [];
+  requiredFunctions.forEach(function(name) {
+    if (functionMap[name]) available.push(name);
+    else missing.push(name);
+  });
+  var diagnostic = corePortalDiagnosticarPerfisEPermissoes_(opts);
+  var bloqueios = [];
+  var avisos = [];
+  if (missing.length) bloqueios.push('FUNCOES_PUBLICAS_FALTANTES');
+  (diagnostic.bloqueios || []).forEach(function(code) {
+    if (bloqueios.indexOf(code) < 0) bloqueios.push(code);
+  });
+  if (diagnostic.perfisObrigatoriosAusentes.length) bloqueios.push('PERFIS_OBRIGATORIOS_AUSENTES');
+  if (diagnostic.permissoesComPerfilInexistente.length) bloqueios.push('PERMISSOES_COM_PERFIL_INEXISTENTE');
+  if (diagnostic.usuariosPortalAtivoSemPerfil.length) bloqueios.push('USUARIOS_PORTAL_ATIVO_SEM_PERFIL');
+  if (diagnostic.perfisSemPermissoes.length) avisos.push('PERFIS_SEM_PERMISSOES');
+  if (diagnostic.excecoesAdminInvalidas.length) avisos.push('EXCECOES_ADMIN_REVISAR');
+  if (diagnostic.permissoesNaoRecomendadas.length) avisos.push('PERMISSOES_NAO_RECOMENDADAS');
+  if (!diagnostic.recomendacoes.some(function(text) { return text.indexOf('apresentacoes:ver_ate_saida') >= 0 && text.indexOf('EGRESSO') >= 0; })) {
+    avisos.push('EGRESSO_APRESENTACOES_ATE_SAIDA_VERIFICADO_OU_JA_CONFIGURADO');
+  }
+  return Object.freeze({
+    status: bloqueios.length ? 'BLOQUEADO' : (avisos.length ? 'PARCIAL' : 'PRONTO'),
+    bloqueios: Object.freeze(bloqueios),
+    avisos: Object.freeze(avisos),
+    funcoesDisponiveis: Object.freeze(available),
+    funcoesFaltantes: Object.freeze(missing),
+    perfisInvalidos: Object.freeze(diagnostic.perfisObrigatoriosAusentes.concat(
+      diagnostic.permissoesComPerfilInexistente.map(function(item) { return item.perfilPortal; })
+    )),
+    permissoesInvalidas: Object.freeze(diagnostic.permissoesComPerfilInexistente),
+    recomendacoes: Object.freeze(diagnostic.recomendacoes),
+    diagnostico: diagnostic
+  });
+}
+
 function corePortalResolveSheetByRegistryOrName_(sourceCfg) {
   for (var i = 0; i < sourceCfg.registryKeys.length; i++) {
     try {

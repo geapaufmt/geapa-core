@@ -585,7 +585,7 @@ function core_getPortalPendenciasCadastro_(membro) {
   return Object.freeze(pendencias);
 }
 
-function core_buildMinhaSituacaoPortalResponse_(membro, usuario) {
+function core_buildMinhaSituacaoPortalResponse_(membro, usuario, sessao) {
   const pendencias = core_getPortalPendenciasCadastro_(membro);
   const apresentacoes = membro._portalApresentacoes || core_buildPortalApresentacoesVazio_();
   const diretoria = membro._portalDiretoria || core_buildPortalDiretoriaVazio_();
@@ -607,7 +607,21 @@ function core_buildMinhaSituacaoPortalResponse_(membro, usuario) {
     response.usuario = usuario;
   }
 
+  if (sessao) {
+    response.sessao = sessao;
+  }
+
   return Object.freeze(response);
+}
+
+function core_resolverSessaoPortalCompat_(emailOuRga) {
+  try {
+    if (typeof corePortalResolverUsuarioAtual_ !== "function") return null;
+    const sessao = corePortalResolverUsuarioAtual_(emailOuRga);
+    return sessao && sessao.ok ? sessao : null;
+  } catch (err) {
+    return null;
+  }
 }
 
 function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
@@ -663,8 +677,9 @@ function core_buscarMinhaSituacaoParaPortal_(emailOuRga) {
 
   const usuarioResult = core_buscarUsuarioPortalFromMember_(membro);
   const usuario = usuarioResult && usuarioResult.ok ? usuarioResult.usuario : null;
+  const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
 
-  return core_buildMinhaSituacaoPortalResponse_(membro, usuario);
+  return core_buildMinhaSituacaoPortalResponse_(membro, usuario, sessao);
 }
 
 function core_normalizePortalCargoKeyFallback_(value) {

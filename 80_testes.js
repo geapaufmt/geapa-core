@@ -531,6 +531,50 @@ function test_core_portalAccess_logAccess_fakeSheet() {
   test_assert_(row.join('|').indexOf('NAO_DEVE_SER_REGISTRADO') < 0, 'Log nao deve registrar token/segredo fora do contrato.');
 }
 
+function test_core_portalV2_diagnosticarPerfisEPermissoes() {
+  Logger.log(JSON.stringify(corePortalDiagnosticarPerfisEPermissoes_(), null, 2));
+}
+
+function test_core_portalV2_prepararPortalParaV2() {
+  Logger.log(JSON.stringify(corePrepararPortalParaV2_(), null, 2));
+}
+
+function test_core_portalV2_resolverUsuarioAtual_emailExemplo() {
+  Logger.log(JSON.stringify(corePortalResolverUsuarioAtual_('email@exemplo.com'), null, 2));
+}
+
+function test_core_portalV2_resolverUsuarioAtual_entradaObjeto() {
+  Logger.log(JSON.stringify(corePortalResolverUsuarioAtual_({
+    email: 'email@exemplo.com'
+  }), null, 2));
+}
+
+function test_core_portalV2_diagnosticarSessoesPortal() {
+  var raw = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_SESSOES');
+  var entradas = raw ? JSON.parse(raw) : {
+    MEMBRO: '',
+    DIRETORIA: '',
+    SECRETARIA: '',
+    COMUNICACAO: '',
+    CONSELHO: '',
+    EGRESSO: '',
+    COLABORADOR: '',
+    EXTERNO: '',
+    VISITANTE: '',
+    ADMIN: ''
+  };
+  var out = {};
+  Object.keys(entradas).forEach(function(label) {
+    var entrada = entradas[label];
+    out[label] = entrada
+      ? corePortalResolverUsuarioAtual_(entrada)
+      : { ok: false, skipped: true, motivo: 'ENTRADA_NAO_CONFIGURADA' };
+  });
+  Logger.log(JSON.stringify(out, null, 2));
+}
+
 function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
   var sheet = test_createFakeSheet_([
     [

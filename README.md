@@ -916,6 +916,9 @@ Testes manuais no projeto:
 - `test_core_memberLifecycle_updateEvent_invalidStatus_fakeSheet()`
 - `test_core_portalBuscarMembroParaPortal_fakeSheet()`
 - `test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet()`
+- `test_core_portalV2_diagnosticarPerfisEPermissoes()`
+- `test_core_portalV2_prepararPortalParaV2()`
+- `test_core_portalV2_resolverUsuarioAtual_emailExemplo()`
 - `test_core_mailHub_listPendingAttachments()`
 - `test_core_mailHub_getLatestPendingEventWithAttachment()`
 - `test_core_mailHub_getAttachmentById_example(attachmentId)`
@@ -1173,11 +1176,27 @@ Funcoes publicas:
 - `corePortalHasPermission(sessionOrEmail, permission, opts)`
 - `corePortalLogAccess(payload)`
 - `corePortalDiagnostics()`
+- `corePortalResolverUsuarioAtual(entrada, opts)` - aceita e-mail, RGA, `ID_PESSOA` ou objeto com `email`, `rga`, `idPessoa`, `identificador`/`emailOuRga`
+- `corePortalCalcularPerfilEfetivo(idPessoa, opts)`
+- `corePortalListarPermissoesEfetivas(idPessoa, opts)`
+- `corePortalValidarAcesso(idPessoa, permissaoOuPerfil, opts)`
+- `corePortalGetMeuResumo(email, opts)`
+- `corePortalListarApresentacoesPermitidas(email, options)`
+- `corePortalListarApresentacoesParaEgresso(idPessoa, opts)`
+- `corePortalDiagnosticarPerfisEPermissoes(opts)`
+- `corePrepararPortalParaV2(opts)`
 
 Regras principais:
 
 - `corePortalAuthorizeEmail` e transitoria/legada enquanto nao ha Firebase Auth;
 - a autorizacao por e-mail nao substitui autenticacao real e nao deve proteger acoes administrativas sensiveis sozinha;
+- as funcoes v2 resolvem usuario, perfil e permissoes a partir de Pessoas v2, Vigencias v2 e `PORTAL_PERMISSOES`;
+- `PORTAL_PERMISSOES` e a fonte oficial de permissoes efetivas;
+- `CARGOS_CONFIG` define cargo e `PERFIL_PORTAL_PADRAO`, mas nao e fonte final de permissao;
+- colunas `PODE_*` em `CARGOS_CONFIG` sao transitorias/depreciadas para autorizacao final;
+- `ADMIN` deve vir de excecao explicita ativa em `PORTAL_ACESSOS_EXCECOES`, nao de cargo;
+- `corePortalResolverUsuarioAtual` retorna a sessao canonica segura do Portal com `autenticado`, `idPessoa`, `perfilPortalEfetivo`, `perfisPortal`, `permissoes`, vinculo atual e cargos atuais sanitizados;
+- `EGRESSO` pode acessar apresentacoes ate a data de saida por `apresentacoes:ver_ate_saida`;
 - `PORTAL_ATIVO = SIM` permite avaliar o perfil;
 - `PORTAL_ATIVO = NAO` bloqueia;
 - `PORTAL_ATIVO` vazio bloqueia por padrao, salvo configuracao explicita em `PORTAL_CONFIG`;
@@ -1198,6 +1217,12 @@ Firebase futuro:
 
 - Firebase Hosting/Auth, validacao de ID Token, API key e service account ficam fora desta etapa;
 - em PR futuro, a autenticacao Firebase deve chamar a mesma camada de perfis/permissoes, trocando a entrada `corePortalAuthorizeEmail(email)` por uma entrada autenticada como `corePortalAuthorizeFirebaseUser(idToken)`.
+
+Diagnostico v2:
+
+- `corePortalDiagnosticarPerfisEPermissoes()` verifica perfis obrigatorios, permissoes por perfil, usuarios sem perfil, egressos sem perfil `EGRESSO` e excecoes `ADMIN`;
+- `corePrepararPortalParaV2()` retorna `PRONTO`, `PARCIAL` ou `BLOQUEADO` antes de qualquer alteracao no `geapa-portal`;
+- detalhes da arquitetura ficam em `docs/PORTAL_AUTORIZACAO_V2.md`.
 
 Observacao de seguranca:
 
