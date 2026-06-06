@@ -482,6 +482,14 @@ function corePortalGetConfig() {
   return corePortalReadConfig_();
 }
 
+function corePortalGetOperationalConfig(opts) {
+  return corePortalReadConfig_(opts || {});
+}
+
+function corePortalClearConfigCache() {
+  return corePortalConfigCacheClear_();
+}
+
 function corePortalGetProfiles() {
   return corePortalReadProfiles_();
 }
@@ -540,6 +548,82 @@ function corePortalDiagnosticarPerfisEPermissoes(opts) {
 
 function corePrepararPortalParaV2(opts) {
   return corePrepararPortalParaV2_(opts || {});
+}
+
+/* ============================================================
+ * PORTAL GEAPA / CONTEUDO PUBLICO EDITORIAL
+ * ============================================================ */
+
+function corePortalPublicContentGetDefinitions() {
+  return corePortalPublicContentGetDefinitions_();
+}
+
+function corePortalPublicContentEnsureStructure(options) {
+  return corePortalPublicContentEnsureStructure_(options || {});
+}
+
+function corePortalPublicContentCreateSpreadsheet(options) {
+  return corePortalPublicContentCreateSpreadsheet_(options || {});
+}
+
+function corePortalPublicContentEnsureSheets(options) {
+  return corePortalPublicContentEnsureSheets_(options || {});
+}
+
+function corePortalPublicContentEnsureHeaders(options) {
+  return corePortalPublicContentEnsureHeaders_(options || {});
+}
+
+function corePortalPublicContentDiagnostics(options) {
+  return corePortalPublicContentDiagnostics_(options || {});
+}
+
+function corePortalPublicContentReadRows(key, options) {
+  return corePortalPublicContentReadRows_(key, options || {});
+}
+
+function corePortalPublicContentGetPage(slug, options) {
+  return corePortalPublicContentGetPage_(slug, options || {});
+}
+
+function corePortalPublicContentGetHome(options) {
+  return corePortalPublicContentGetHome_(options || {});
+}
+
+function corePortalPublicContentGetSobre(options) {
+  return corePortalPublicContentGetSobre_(options || {});
+}
+
+function corePortalPublicContentGetHistoria(options) {
+  return corePortalPublicContentGetHistoria_(options || {});
+}
+
+function corePortalPublicContentGetParceiros(options) {
+  return corePortalPublicContentGetParceiros_(options || {});
+}
+
+function corePortalPublicContentGetDocumentos(options) {
+  return corePortalPublicContentGetDocumentos_(options || {});
+}
+
+function corePortalPublicContentGetConfig(options) {
+  return corePortalPublicContentGetConfig_(options || {});
+}
+
+function corePortalPublicContentGetMidias(options) {
+  return corePortalPublicContentGetMidias_(options || {});
+}
+
+function corePortalPublicContentGetDiretoriaComplementos(options) {
+  return corePortalPublicContentGetDiretoriaComplementos_(options || {});
+}
+
+function corePortalPublicContentBuildPublicSnapshot(options) {
+  return corePortalPublicContentBuildPublicSnapshot_(options || {});
+}
+
+function corePortalPublicContentBuildPublicBoard(options) {
+  return corePortalPublicContentBuildPublicBoard_(options || {});
 }
 
 /* ============================================================

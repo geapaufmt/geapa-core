@@ -531,12 +531,221 @@ function test_core_portalAccess_logAccess_fakeSheet() {
   test_assert_(row.join('|').indexOf('NAO_DEVE_SER_REGISTRADO') < 0, 'Log nao deve registrar token/segredo fora do contrato.');
 }
 
+function test_core_portalPublicContent_ensureStructure_fakeSpreadsheet() {
+  var sheets = {
+    PUBLIC_HOME: test_createFakeSheet_([
+      ['ID_BLOCO', 'COLUNA_EXTRA'],
+      ['home-1', 'valor manual']
+    ], 'PUBLIC_HOME')
+  };
+  var fakeSpreadsheet = {
+    getName: function() {
+      return 'PORTAL_CONTEUDO_PUBLICO_FAKE';
+    },
+    getSheetByName: function(name) {
+      return sheets[name] || null;
+    },
+    insertSheet: function(name) {
+      sheets[name] = test_createFakeSheet_([], name);
+      return sheets[name];
+    }
+  };
+
+  var definitions = corePortalPublicContentGetDefinitions_();
+  var first = corePortalPublicContentEnsureHeadersNoLock_({
+    spreadsheet: fakeSpreadsheet,
+    applyUx: false
+  });
+  var second = corePortalPublicContentEnsureHeadersNoLock_({
+    spreadsheet: fakeSpreadsheet,
+    applyUx: false
+  });
+  var homeHeaders = sheets.PUBLIC_HOME
+    .getRange(1, 1, 1, sheets.PUBLIC_HOME.getLastColumn())
+    .getValues()[0]
+    .map(function(value) { return String(value || '').trim(); });
+  var homeData = sheets.PUBLIC_HOME
+    .getRange(2, 1, 1, 2)
+    .getValues()[0];
+  var homeHeaderCount = homeHeaders.filter(function(header) {
+    return header === 'ID_BLOCO';
+  }).length;
+
+  test_assert_(definitions.sheets.length === 9, 'Deveria haver 9 abas editoriais definidas.');
+  test_assert_(!!sheets.PUBLIC_CONFIG, 'PUBLIC_CONFIG deveria ter sido criada.');
+  test_assert_(homeHeaders.indexOf('COLUNA_EXTRA') >= 0, 'Coluna extra existente deve ser preservada.');
+  test_assert_(homeHeaders.indexOf('TIPO_BLOCO') >= 0, 'Coluna faltante deveria ser adicionada ao final.');
+  test_assert_(homeHeaderCount === 1, 'Rodar duas vezes nao deve duplicar cabecalhos.');
+  test_assert_(homeData[0] === 'home-1' && homeData[1] === 'valor manual', 'Dados existentes nao devem ser apagados.');
+  test_assert_(first.actions.length === 9 && second.actions.length === 9, 'Relatorio deve cobrir todas as abas.');
+}
+
+function test_core_portalPublicContent_buildPublicSnapshot_fakeRecords() {
+  var recordsByKey = {
+    PORTAL_PUBLIC_HOME: [
+      {
+        ID_BLOCO: 'hero',
+        TIPO_BLOCO: 'destaque',
+        TITULO: 'Portal GEAPA',
+        SUBTITULO: 'Publico',
+        TEXTO: 'Texto <script>alert(1)</script> seguro',
+        IMAGEM_URL: 'https://example.com/img.png',
+        BOTAO_TEXTO: 'Saiba mais',
+        BOTAO_URL: 'javascript:alert(1)',
+        ORDEM: '2',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-01',
+        EMAIL_INTERNO: 'nao-vaza@example.com'
+      },
+      {
+        ID_BLOCO: 'rascunho',
+        TIPO_BLOCO: 'destaque',
+        TITULO: 'Rascunho',
+        ORDEM: '1',
+        STATUS_PUBLICACAO: 'RASCUNHO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM'
+      }
+    ],
+    PORTAL_PUBLIC_SOBRE: [
+      {
+        ID_BLOCO: 'sobre-1',
+        TITULO: 'Sobre',
+        TEXTO: 'Descricao',
+        ORDEM: '1',
+        STATUS_PUBLICACAO: 'PUBLICADA',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-05-30'
+      }
+    ],
+    PORTAL_PUBLIC_HISTORIA: [],
+    PORTAL_PUBLIC_PARCEIROS: [
+      {
+        ID_PARCEIRO: 'p1',
+        NOME: 'Parceiro',
+        TIPO_PARCEIRO: 'institucional',
+        DESCRICAO: 'Desc',
+        LOGO_URL: 'https://example.com/logo.png',
+        SITE_URL: 'https://example.com',
+        INSTAGRAM_URL: '/instagram-local',
+        ORDEM: '1',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-02'
+      }
+    ],
+    PORTAL_PUBLIC_DOCUMENTOS: [
+      {
+        ID_DOCUMENTO: 'doc-1',
+        TITULO: 'Regimento',
+        TIPO_DOCUMENTO: 'pdf',
+        VERSAO: '1',
+        DATA_PUBLICACAO: '2026-01-15',
+        DESCRICAO: 'Documento publico',
+        URL_DOCUMENTO: 'https://example.com/doc.pdf',
+        ORDEM: '1',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-03',
+        OBS_INTERNA: 'nao deve vazar'
+      }
+    ],
+    PORTAL_PUBLIC_CONFIG: [
+      { KEY: 'TEMA', VALOR: 'claro', TIPO: 'texto', ATIVO: 'SIM' },
+      { KEY: 'INATIVO', VALOR: 'nao', TIPO: 'texto', ATIVO: 'NAO' }
+    ],
+    PORTAL_PUBLIC_MIDIAS: [
+      {
+        ID_MIDIA: 'm1',
+        NOME: 'Foto',
+        TIPO: 'imagem',
+        URL: 'https://example.com/foto.jpg',
+        DESCRICAO: 'Foto publica',
+        CATEGORIA: 'home',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-04'
+      }
+    ],
+    PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS: [
+      {
+        ID_PESSOA: 'P-1',
+        ID_DIRETORIA: '2026-2027',
+        FOTO_URL: 'https://example.com/foto-diretoria.jpg',
+        DESCRICAO_PUBLICA: 'Descricao publica',
+        LINK_LATTES: 'https://lattes.cnpq.br/123',
+        LINK_INSTAGRAM_PUBLICO: 'https://instagram.com/geapa',
+        ORDEM_PUBLICA: '1',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-05',
+        EMAIL: 'nao-vaza@example.com'
+      }
+    ],
+    PORTAL_PUBLIC_LOG_PUBLICACAO: [
+      { ID_LOG: 'L1', EXECUTADO_POR: 'Pessoa Interna', STATUS: 'OK' }
+    ]
+  };
+  var snapshot = corePortalPublicContentBuildPublicSnapshot_({
+    recordsByKey: recordsByKey,
+    dryRun: true,
+    disableCache: true
+  });
+  var logRead = corePortalPublicContentReadRows_('PORTAL_PUBLIC_LOG_PUBLICACAO', {
+    recordsByKey: recordsByKey,
+    dryRun: true,
+    disableCache: true
+  });
+
+  test_assert_(snapshot.ok === true, 'Snapshot publico deveria montar ok=true.');
+  test_assert_(snapshot.data.pages.home.blocos.length === 1, 'Rascunho nao deve aparecer no home.');
+  test_assert_(snapshot.data.pages.home.blocos[0].botaoUrl === '', 'URL insegura deveria ser removida.');
+  test_assert_(snapshot.data.pages.home.blocos[0].texto.indexOf('<script>') < 0, 'Script tag deveria ser removida.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.pages.home.blocos[0], 'EMAIL_INTERNO'), 'Coluna extra nao deve vazar.');
+  test_assert_(snapshot.data.documents.length === 1, 'Documento publicado deveria aparecer.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.documents[0], 'OBS_INTERNA'), 'Observacao interna nao deve vazar.');
+  test_assert_(snapshot.data.config.TEMA === 'claro', 'Config ativa deveria aparecer.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.config, 'INATIVO'), 'Config inativa nao deve aparecer.');
+  test_assert_(snapshot.data.boardComplements[0].ID_PESSOA === 'P-1', 'Complemento publico de diretoria deveria preservar campo permitido.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.boardComplements[0], 'EMAIL'), 'Email nao deve vazar em complemento de diretoria.');
+  test_assert_(logRead.ok === false && logRead.errorCode === 'PORTAL_PUBLIC_KEY_NAO_EXPONIVEL', 'Log de publicacao nao deve ser exposto por leitura publica.');
+}
+
 function test_core_portalV2_diagnosticarPerfisEPermissoes() {
   Logger.log(JSON.stringify(corePortalDiagnosticarPerfisEPermissoes_(), null, 2));
 }
 
 function test_core_portalV2_prepararPortalParaV2() {
   Logger.log(JSON.stringify(corePrepararPortalParaV2_(), null, 2));
+}
+
+function test_core_portalConfig_normalizacao_fakeRecords() {
+  var config = corePortalReadConfig_({
+    records: [
+      { CHAVE: 'ATIVIDADES_CHAMADA_ANTECEDENCIA_MINUTOS', VALOR: '60', ATIVO: 'SIM', DESCRICAO: 'Numero' },
+      { CHAVE: 'ATIVIDADES_PRELOAD_DETALHES', VALOR: 'SIM', ATIVO: 'SIM', DESCRICAO: 'Boolean' },
+      { CHAVE: 'PORTAL_TEMA', VALOR: 'claro', ATIVO: 'SIM', DESCRICAO: 'Texto' },
+      { CHAVE: 'CONFIG_INATIVA', VALOR: 'SIM', ATIVO: 'NAO', DESCRICAO: 'Ignorar' },
+      { CHAVE: 'API_SECRET', VALOR: 'NAO_DEVE_SAIR', ATIVO: 'SIM', DESCRICAO: 'Sensivel' }
+    ]
+  });
+  test_assert_(config.ATIVIDADES_CHAMADA_ANTECEDENCIA_MINUTOS === 60, 'Numero deveria ser normalizado.');
+  test_assert_(config.ATIVIDADES_PRELOAD_DETALHES === true, 'SIM deveria virar boolean true.');
+  test_assert_(config.PORTAL_TEMA === 'claro', 'Texto deveria ser preservado.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(config, 'CONFIG_INATIVA'), 'Linha inativa nao deveria sair.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(config, 'API_SECRET'), 'Chave sensivel nao deveria sair.');
+  Logger.log(JSON.stringify(config, null, 2));
+}
+
+function test_core_portalConfig_lerOperacional() {
+  Logger.log(JSON.stringify(corePortalReadConfig_({ forceRefresh: true }), null, 2));
 }
 
 function test_core_portalV2_resolverUsuarioAtual_emailExemplo() {
@@ -573,6 +782,16 @@ function test_core_portalV2_diagnosticarSessoesPortal() {
       : { ok: false, skipped: true, motivo: 'ENTRADA_NAO_CONFIGURADA' };
   });
   Logger.log(JSON.stringify(out, null, 2));
+}
+
+function test_core_portalV2_minhaSituacaoV2_identificadorConfigurado() {
+  var identificador = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR');
+  if (!String(identificador || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR com e-mail, RGA ou ID_PESSOA.');
+  }
+  Logger.log(JSON.stringify(core_buscarMinhaSituacaoParaPortal_(identificador), null, 2));
 }
 
 function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {

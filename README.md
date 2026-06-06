@@ -1170,6 +1170,8 @@ Colunas novas esperadas nas abas de pessoas:
 Funcoes publicas:
 
 - `corePortalGetConfig()`
+- `corePortalGetOperationalConfig(opts)` - le `PORTAL_CONFIG` com cache, filtra `ATIVO = SIM`, normaliza booleanos/numeros e oculta chaves sensiveis
+- `corePortalClearConfigCache()`
 - `corePortalGetProfiles()`
 - `corePortalGetPermissionsByProfile(perfilPortal)`
 - `corePortalAuthorizeEmail(email, opts)`
@@ -1191,6 +1193,8 @@ Regras principais:
 - `corePortalAuthorizeEmail` e transitoria/legada enquanto nao ha Firebase Auth;
 - a autorizacao por e-mail nao substitui autenticacao real e nao deve proteger acoes administrativas sensiveis sozinha;
 - as funcoes v2 resolvem usuario, perfil e permissoes a partir de Pessoas v2, Vigencias v2 e `PORTAL_PERMISSOES`;
+- `corePortalResolverUsuarioAtual` usa `PESSOAS_RESUMO_OPERACIONAL` como base principal de identidade/vinculo/perfil e `VIGENCIAS_RESUMO_ATUAL` como base principal de cargos atuais;
+- `geapaCoreBuscarMinhaSituacaoParaPortal` usa Pessoas v2 como fonte principal e deixa `MEMBERS_ATUAIS` apenas como fallback de compatibilidade;
 - `PORTAL_PERMISSOES` e a fonte oficial de permissoes efetivas;
 - `CARGOS_CONFIG` define cargo e `PERFIL_PORTAL_PADRAO`, mas nao e fonte final de permissao;
 - colunas `PODE_*` em `CARGOS_CONFIG` sao transitorias/depreciadas para autorizacao final;
@@ -1223,6 +1227,105 @@ Diagnostico v2:
 - `corePortalDiagnosticarPerfisEPermissoes()` verifica perfis obrigatorios, permissoes por perfil, usuarios sem perfil, egressos sem perfil `EGRESSO` e excecoes `ADMIN`;
 - `corePrepararPortalParaV2()` retorna `PRONTO`, `PARCIAL` ou `BLOQUEADO` antes de qualquer alteracao no `geapa-portal`;
 - detalhes da arquitetura ficam em `docs/PORTAL_AUTORIZACAO_V2.md`.
+
+### Portal GEAPA - conteudo publico editorial
+
+`PORTAL_CONTEUDO_PUBLICO` e a planilha CMS editorial do Portal GEAPA. Ela serve para conteudo publico editavel em Google Sheets, como home, sobre, historia, parceiros, documentos, midias e complementos publicos de diretoria.
+
+Ela nao e fonte oficial para atividades, apresentacoes, membros, diretoria, frequencia ou permissoes. Esses dados continuam vindo dos modulos de dominio e de views/contratos `PORTAL_*` especificos.
+
+Funcoes publicas:
+
+- `corePortalPublicContentGetDefinitions()`
+- `corePortalPublicContentEnsureStructure(options)`
+- `corePortalPublicContentCreateSpreadsheet(options)`
+- `corePortalPublicContentEnsureSheets(options)`
+- `corePortalPublicContentEnsureHeaders(options)`
+- `corePortalPublicContentDiagnostics(options)`
+- `corePortalPublicContentReadRows(key, options)`
+- `corePortalPublicContentGetPage(slug, options)`
+- `corePortalPublicContentGetHome(options)`
+- `corePortalPublicContentGetSobre(options)`
+- `corePortalPublicContentGetHistoria(options)`
+- `corePortalPublicContentGetParceiros(options)`
+- `corePortalPublicContentGetDocumentos(options)`
+- `corePortalPublicContentGetConfig(options)`
+- `corePortalPublicContentGetMidias(options)`
+- `corePortalPublicContentGetDiretoriaComplementos(options)`
+- `corePortalPublicContentBuildPublicSnapshot(options)`
+
+Abas editoriais garantidas:
+
+- `PUBLIC_HOME`
+- `PUBLIC_SOBRE`
+- `PUBLIC_HISTORIA`
+- `PUBLIC_PARCEIROS`
+- `PUBLIC_DOCUMENTOS`
+- `PUBLIC_CONFIG`
+- `PUBLIC_MIDIAS`
+- `PUBLIC_DIRETORIA_COMPLEMENTOS`
+- `PUBLIC_LOG_PUBLICACAO`
+
+Regras da rotina estrutural:
+
+- usa Registry para resolver a planilha quando as keys ja existem;
+- se a aba nao existir, cria a aba;
+- se a aba existir, preserva dados e colunas extras;
+- se faltarem colunas, adiciona ao final;
+- rodar duas vezes nao duplica abas nem cabecalhos;
+- usa `LockService` via helper do Core para evitar concorrencia;
+- nao escreve no Registry automaticamente nesta etapa;
+- `corePortalPublicContentCreateSpreadsheet({ confirm: true })` existe para criacao administrativa explicita e retorna linhas sugeridas para cadastro manual no Registry.
+
+Firestore futuro:
+
+- o Firestore sera espelho publico futuro, nao fonte editorial principal nesta etapa;
+- proximas atividades e proximas apresentacoes nao devem virar abas editoriais principais aqui;
+- no futuro, uma rotina deve montar snapshot publico, como `publicAgenda/upcoming`, a partir de fontes oficiais ja sanitizadas, sem RGA, e-mail privado, presencas, faltas, justificativas ou observacoes internas.
+
+Leitura publica sanitizada:
+
+- resolve abas pelo Registry usando as keys `PORTAL_PUBLIC_*`;
+- le por cabecalho, nunca por indice fixo;
+- considera publicaveis somente linhas com `ATIVO = SIM`, `PUBLICAR = SIM` e `STATUS_PUBLICACAO = PUBLICADO/PUBLICADA`, quando essas colunas existirem;
+- ordena por `ORDEM` ou `ORDEM_PUBLICA`, quando existir;
+- retorna arrays vazios para abas vazias;
+- nao retorna colunas extras automaticamente;
+- sanitiza textos e URLs;
+- nao escreve em planilhas;
+- usa cache curto para snapshot/linhas no caminho real;
+- `PUBLIC_LOG_PUBLICACAO` nao e exposto pela leitura publica sanitizada.
+
+Contrato do snapshot editorial:
+
+```javascript
+{
+  ok: true,
+  data: {
+    pages: {
+      home: { blocos: [], atualizadoEm: "" },
+      sobre: { blocos: [], atualizadoEm: "" },
+      historia: { marcos: [], atualizadoEm: "" },
+      parceiros: { itens: [], atualizadoEm: "" }
+    },
+    documents: [],
+    media: [],
+    config: {},
+    boardComplements: []
+  },
+  meta: {
+    origem: "GEAPA_CORE",
+    fonte: "PORTAL_CONTEUDO_PUBLICO",
+    atualizadoEm: ""
+  }
+}
+```
+
+Diretoria:
+
+- `corePortalPublicContentGetDiretoriaComplementos()` retorna apenas complementos publicos de `PUBLIC_DIRETORIA_COMPLEMENTOS`;
+- nao monta a diretoria completa nesta etapa, porque isso exigiria cruzamento com Vigencias/Pessoas;
+- a funcao futura documentada para isso e `corePortalPublicContentBuildPublicBoard(options)`.
 
 Observacao de seguranca:
 
