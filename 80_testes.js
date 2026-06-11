@@ -810,16 +810,13 @@ function test_core_portalFirestore_syncUsuarioEmailConfigurado() {
   }
 
   var resultado = corePortalSyncFirestoreUserByEmail(email, { uid: uid });
-  Logger.log(JSON.stringify({
-    ok: resultado.ok === true,
-    synced: resultado.synced === true,
-    writer: resultado.writer || '',
-    code: resultado.code || '',
-    httpStatus: resultado.httpStatus || ''
-  }, null, 2));
-  test_assert_(resultado.ok === true, 'Sync Firestore deveria retornar ok=true.');
-  test_assert_(resultado.synced === true, 'Sync Firestore deveria gravar portalUsers/{uid}.');
-  test_assert_(resultado.code === 'FIRESTORE_SYNC_OK', 'Sync Firestore deveria retornar FIRESTORE_SYNC_OK.');
+  Logger.log(JSON.stringify(resultado, null, 2));
+  var detalheErro = resultado.firestoreError
+    ? ' Detalhe Firestore: ' + JSON.stringify(resultado.firestoreError)
+    : '';
+  test_assert_(resultado.ok === true, 'Sync Firestore deveria retornar ok=true.' + detalheErro);
+  test_assert_(resultado.synced === true, 'Sync Firestore deveria gravar portalUsers/{uid}.' + detalheErro);
+  test_assert_(resultado.code === 'FIRESTORE_SYNC_OK', 'Sync Firestore deveria retornar FIRESTORE_SYNC_OK.' + detalheErro);
 }
 function test_core_portalV2_diagnosticarSessoesPortal() {
   var raw = PropertiesService
