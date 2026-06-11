@@ -1194,7 +1194,7 @@ Regras principais:
 - a autorizacao por e-mail nao substitui autenticacao real e nao deve proteger acoes administrativas sensiveis sozinha;
 - as funcoes v2 resolvem usuario, perfil e permissoes a partir de Pessoas v2, Vigencias v2 e `PORTAL_PERMISSOES`;
 - `corePortalResolverUsuarioAtual` usa `PESSOAS_RESUMO_OPERACIONAL` como base principal de identidade/vinculo/perfil e `VIGENCIAS_RESUMO_ATUAL` como base principal de cargos atuais;
-- `geapaCoreBuscarMinhaSituacaoParaPortal` usa Pessoas v2 como fonte principal e deixa `MEMBERS_ATUAIS` apenas como fallback de compatibilidade;
+- `geapaCoreBuscarMembroParaPortal`, `geapaCoreBuscarUsuarioPortal` e `geapaCoreBuscarMinhaSituacaoParaPortal` usam Pessoas v2 como fonte principal e deixam `MEMBERS_ATUAIS` apenas como fallback de compatibilidade;
 - `PORTAL_PERMISSOES` e a fonte oficial de permissoes efetivas;
 - `CARGOS_CONFIG` define cargo e `PERFIL_PORTAL_PADRAO`, mas nao e fonte final de permissao;
 - colunas `PODE_*` em `CARGOS_CONFIG` sao transitorias/depreciadas para autorizacao final;
@@ -1532,3 +1532,9 @@ Fluxo manual sugerido para validar o Mail Hub:
 8. use `test_core_mailHub_markLatestPending_membros_processed()` para marcar o ultimo pendente sem copiar `eventId` na mao.
 9. para validar a fila central, rode `test_core_mailOutbox_queue_operacional()` e confira a nova linha em `MAIL_SAIDA`.
 10. em seguida rode `test_core_mailOutbox_process()` e confirme `Status Envio = ENVIADO`, `Enviado Em`, `Id Thread Gmail`, `Id Mensagem Gmail` e o reflexo em `MAIL_EVENTOS` / `MAIL_INDICE`.
+
+### Cache Firestore do login do Portal
+
+O GEAPA-CORE pode gerar snapshots seguros para `portalUsers/{uid}` usando PESSOAS v2 como fonte oficial. O Firestore e apenas cache operacional do Portal: o documento deve conter somente os campos minimos de interface (`uid`, `idPessoa`, `nomeExibicao`, `email`, `rga`, `portalAtivo`, perfis, permissoes, vinculo atual, `source`, `sourceUpdatedAt`, `cacheUpdatedAt`, `cacheExpiresAt` e `schemaVersion`).
+
+Funcoes principais: `corePortalGerarSnapshotFirestoreUsuario`, `corePortalSincronizarUsuarioFirestore`, `corePortalInvalidarCacheFirestoreUsuario`, `corePortalSyncFirestoreUserByEmail`, `corePortalSyncFirestoreUserByIdPessoa` e `corePortalSyncFirestoreUsersFromPessoasV2`. A escrita atual usa Apps Script + Firestore REST no plano Spark, configurada por Script Properties (`GEAPA_CORE_FIRESTORE_PROJECT_ID` e opcionalmente `GEAPA_CORE_FIRESTORE_DATABASE_ID`), sem Cloud Functions, Secret Manager, service account ou segredo no repositorio.

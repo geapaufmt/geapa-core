@@ -18,6 +18,8 @@ const CORE_PORTAL_ACCESS_CFG = Object.freeze({
     'PORTAL_LOG_ACESSOS'
   ]),
   peopleSpreadsheetId: '1j3ea96-ySjz7qrn4PJ4Ds3wlQc19cfpJrIiAA72560Q',
+  portalConfigCacheKey: 'GEAPA_CORE_PORTAL_CONFIG_V1',
+  portalConfigCacheTtlSeconds: 10 * 60,
   sources: Object.freeze({
     current: Object.freeze({
       type: 'MEMBROS_ATUAIS',
@@ -43,6 +45,7 @@ const CORE_PORTAL_ACCESS_CFG = Object.freeze({
     permission: Object.freeze(['PERMISSAO', 'PERMISSAO_KEY', 'CHAVE', 'PERMISSION']),
     configKey: Object.freeze(['CHAVE', 'KEY', 'CONFIG', 'CONFIG_KEY']),
     configValue: Object.freeze(['VALOR', 'VALUE']),
+    configDescription: Object.freeze(['DESCRICAO', 'DESCRIÇÃO', 'DESCRIPTION']),
     active: Object.freeze(['ATIVO', 'ACTIVE']),
     email: Object.freeze(['EMAIL', 'E-MAIL', 'Email', 'E-mail', 'EMAIL_PRINCIPAL']),
     name: Object.freeze(['NOME', 'NOME_COMPLETO', 'NOME_MEMBRO', 'MEMBRO', 'Membro', 'Nome']),
@@ -170,8 +173,53 @@ function corePortalReadPermissions_(opts) {
   return Object.freeze(out);
 }
 
+function corePortalConfigCacheGet_() {
+  try {
+    var raw = CacheService.getScriptCache().get(CORE_PORTAL_ACCESS_CFG.portalConfigCacheKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function corePortalConfigCacheSet_(config) {
+  try {
+    CacheService.getScriptCache().put(
+      CORE_PORTAL_ACCESS_CFG.portalConfigCacheKey,
+      JSON.stringify(config || {}),
+      CORE_PORTAL_ACCESS_CFG.portalConfigCacheTtlSeconds
+    );
+  } catch (err) {}
+}
+
+function corePortalConfigCacheClear_() {
+  try {
+    CacheService.getScriptCache().remove(CORE_PORTAL_ACCESS_CFG.portalConfigCacheKey);
+  } catch (err) {}
+  return Object.freeze({ ok: true, cacheCleared: true, cacheKey: CORE_PORTAL_ACCESS_CFG.portalConfigCacheKey });
+}
+
+function corePortalConfigIsSensitiveKey_(key) {
+  var normalized = corePortalNormalizeToken_(key);
+  return /(^|_)(TOKEN|SECRET|SEGREDO|SENHA|PASSWORD|API_KEY|PRIVATE_KEY|CHAVE_PRIVADA|CREDENTIAL|CREDENCIAL)(_|$)/.test(normalized);
+}
+
+function corePortalParseConfigValue_(value) {
+  var text = String(value == null ? '' : value).trim();
+  var token = corePortalNormalizeToken_(text);
+  if (CORE_PORTAL_ACCESS_CFG.yesValues.indexOf(token) >= 0) return true;
+  if (CORE_PORTAL_ACCESS_CFG.noValues.indexOf(token) >= 0) return false;
+  if (/^-?\d+([.,]\d+)?$/.test(text)) return Number(text.replace(',', '.'));
+  return text;
+}
+
 function corePortalReadConfig_(opts) {
   opts = opts || {};
+  if (!opts.records && opts.forceRefresh !== true) {
+    var cached = corePortalConfigCacheGet_();
+    if (cached) return Object.freeze(cached);
+  }
+
   var records = opts.records || core_readRecordsByKey_('PORTAL_CONFIG', {
     skipBlankRows: true
   });
@@ -184,12 +232,14 @@ function corePortalReadConfig_(opts) {
       corePortalGetRecordValue_(record, CORE_PORTAL_ACCESS_CFG.headers.configKey)
     );
     if (!key) return;
+    if (corePortalConfigIsSensitiveKey_(key)) return;
 
-    out[key] = String(
-      corePortalGetRecordValue_(record, CORE_PORTAL_ACCESS_CFG.headers.configValue) || ''
-    ).trim();
+    out[key] = corePortalParseConfigValue_(
+      corePortalGetRecordValue_(record, CORE_PORTAL_ACCESS_CFG.headers.configValue)
+    );
   });
 
+  if (!opts.records) corePortalConfigCacheSet_(out);
   return Object.freeze(out);
 }
 
@@ -414,34 +464,33 @@ function corePortalGetIdentityMarker_(bundle, tipoIdentificador) {
   return found;
 }
 
-function corePortalSanitizeCurrentFunction_(item) {
-  item = item || {};
-  var vigencia = item.vigencia || {};
-  var cargo = item.cargoConfig || {};
+function corePortalGetVigenciasResumoAtualSafe_(idPessoa) {
+  try {
+    return coreVigenciasGetCurrentSummaryByPessoa_(idPessoa) || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function corePortalSanitizeCurrentFunctionFromResumo_(record) {
+  record = record || {};
+  var cargoNome = String(record.CARGO_FUNCAO_ATUAL || '').trim();
+  if (!cargoNome) return null;
   return Object.freeze({
-    cargoKey: String(vigencia.CARGO_KEY || cargo.CARGO_KEY || '').trim(),
-    cargoNome: String(
-      vigencia.CARGO_NOME_SNAPSHOT ||
-      vigencia.CARGO_NOME ||
-      cargo.NOME_PUBLICO ||
-      cargo.CARGO_NOME ||
-      cargo.CARGO_KEY ||
-      ''
-    ).trim(),
-    tipoFuncao: String(cargo.TIPO_FUNCAO || vigencia.TIPO_FUNCAO || '').trim(),
-    grupoCargo: String(cargo.GRUPO_CARGO || vigencia.GRUPO_CARGO || '').trim(),
-    dataInicio: vigencia.DATA_INICIO || '',
-    dataFimPrevista: vigencia.DATA_FIM_PREVISTA || vigencia.DATA_FIM || ''
+    cargoKey: '',
+    cargoNome: cargoNome,
+    tipoFuncao: String(record.TIPO_FUNCAO_ATUAL || '').trim(),
+    grupoCargo: String(record.GRUPO_FUNCAO_ATUAL || '').trim(),
+    dataInicio: record.DATA_INICIO_FUNCAO_ATUAL || '',
+    dataFimPrevista: record.DATA_FIM_PREVISTA || ''
   });
 }
 
-function corePortalListCurrentFunctionsSafe_(idPessoa) {
-  try {
-    return Object.freeze(coreVigenciasListCurrentFunctions_({ idPessoa: idPessoa })
-      .map(corePortalSanitizeCurrentFunction_));
-  } catch (err) {
-    return Object.freeze([]);
-  }
+function corePortalListCurrentFunctionsSafe_(idPessoa, opts) {
+  opts = opts || {};
+  var resumo = opts.vigenciasResumo || corePortalGetVigenciasResumoAtualSafe_(idPessoa);
+  var current = corePortalSanitizeCurrentFunctionFromResumo_(resumo);
+  return Object.freeze(current ? [current] : []);
 }
 
 function corePortalListActiveExceptions_(bundle) {
@@ -450,13 +499,8 @@ function corePortalListActiveExceptions_(bundle) {
   });
 }
 
-function corePortalProfilesFromVigencias_(idPessoa) {
-  try {
-    var result = coreVigenciasGetPortalPermissionsByPessoa_(idPessoa) || {};
-    return (result.perfisPortalCalculados || []).map(corePortalNormalizeToken_).filter(String);
-  } catch (err) {
-    return [];
-  }
+function corePortalProfilesFromVigenciasResumo_(record) {
+  return corePortalSplitProfiles_(record && record.PERFIS_PORTAL_CALCULADOS);
 }
 
 function corePortalCalcularPerfilEfetivo_(idPessoa, opts) {
@@ -477,6 +521,7 @@ function corePortalCalcularPerfilEfetivo_(idPessoa, opts) {
   var id = String(bundle.pessoa.ID_PESSOA || idPessoa || '').trim();
   var profileMap = opts.profileMap || corePortalActiveProfileMap_(opts.profiles);
   var resumo = bundle.resumoOperacional || {};
+  var vigenciasResumo = opts.vigenciasResumo || null;
   var link = corePortalGetCurrentLink_(bundle);
   var exceptions = corePortalListActiveExceptions_(bundle);
   var blocked = exceptions.some(corePortalExceptionBlocks_);
@@ -493,17 +538,18 @@ function corePortalCalcularPerfilEfetivo_(idPessoa, opts) {
   });
 
   if (!profiles.length) {
-    profiles = corePortalProfilesFromVigencias_(id).filter(function(profile) {
-      return profile !== 'ADMIN';
-    });
-    if (profiles.length) origem = 'VIGENCIAS_RESUMO_ATUAL';
-  }
-
-  if (!profiles.length) {
     profiles = corePortalSplitProfiles_(resumo.PERFIL_PORTAL_CALCULADO).filter(function(profile) {
       return profile !== 'ADMIN';
     });
     if (profiles.length) origem = 'PESSOAS_RESUMO_OPERACIONAL';
+  }
+
+  if (!profiles.length) {
+    if (!vigenciasResumo) vigenciasResumo = corePortalGetVigenciasResumoAtualSafe_(id);
+    profiles = corePortalProfilesFromVigenciasResumo_(vigenciasResumo).filter(function(profile) {
+      return profile !== 'ADMIN';
+    });
+    if (profiles.length) origem = 'VIGENCIAS_RESUMO_ATUAL';
   }
 
   if (!profiles.length) {
@@ -616,7 +662,11 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
     });
   }
   var idPessoa = String(bundle.pessoa.ID_PESSOA || '').trim();
-  var profileResult = corePortalCalcularPerfilEfetivo_(idPessoa, Object.assign({}, opts, { bundle: bundle }));
+  var vigenciasResumo = opts.vigenciasResumo || corePortalGetVigenciasResumoAtualSafe_(idPessoa);
+  var profileResult = corePortalCalcularPerfilEfetivo_(idPessoa, Object.assign({}, opts, {
+    bundle: bundle,
+    vigenciasResumo: vigenciasResumo
+  }));
   var permissionsResult = corePortalListarPermissoesEfetivas_(idPessoa, Object.assign({}, opts, {
     bundle: bundle,
     profileResult: profileResult
@@ -626,9 +676,10 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
   var permissoes = permissionsResult.permissoes || [];
   var hasAccess = permissoes.indexOf('portal:acessar') >= 0 || profileResult.perfilPortalEfetivo === 'VISITANTE';
   var portalAtivo = profileResult.portalAtivo && hasAccess;
-  var cargosAtuais = corePortalListCurrentFunctionsSafe_(idPessoa);
-  var emailPrincipal = corePortalNormalizeEmail_(bundle.pessoa.EMAIL_PRINCIPAL || input.email || '');
+  var cargosAtuais = corePortalListCurrentFunctionsSafe_(idPessoa, { vigenciasResumo: vigenciasResumo });
+  var emailPrincipal = corePortalNormalizeEmail_(resumo.EMAIL || bundle.pessoa.EMAIL_PRINCIPAL || input.email || '');
   var cargoFuncaoAtual = String(resumo.CARGO_FUNCAO_ATUAL || '').trim();
+  if (!cargoFuncaoAtual && vigenciasResumo) cargoFuncaoAtual = String(vigenciasResumo.CARGO_FUNCAO_ATUAL || '').trim();
   if (!cargoFuncaoAtual && cargosAtuais.length) {
     cargoFuncaoAtual = cargosAtuais.map(function(item) {
       return item.cargoNome || item.cargoKey;
@@ -639,9 +690,9 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
     ok: true,
     autenticado: true,
     idPessoa: idPessoa,
-    nomeExibicao: String(bundle.pessoa.NOME_EXIBICAO || bundle.pessoa.NOME_COMPLETO || '').trim(),
+    nomeExibicao: String(resumo.NOME_EXIBICAO || bundle.pessoa.NOME_EXIBICAO || bundle.pessoa.NOME_COMPLETO || '').trim(),
     email: emailPrincipal,
-    rga: String((bundle.membrosDetalhes && bundle.membrosDetalhes.RGA) || resumo.RGA || '').trim(),
+    rga: String(resumo.RGA || (bundle.membrosDetalhes && bundle.membrosDetalhes.RGA) || '').trim(),
     tipoVinculoAtual: resumo.TIPO_VINCULO_ATUAL || link.tipoVinculo || '',
     statusVinculoAtual: resumo.STATUS_VINCULO_ATUAL || link.statusVinculo || '',
     cargoFuncaoAtual: cargoFuncaoAtual,
@@ -657,6 +708,296 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
   });
 }
 
+const CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION = 'portal-user-v1';
+const CORE_PORTAL_FIRESTORE_PROJECT_ID_PROPERTY = 'GEAPA_CORE_FIRESTORE_PROJECT_ID';
+const CORE_PORTAL_FIRESTORE_DATABASE_ID_PROPERTY = 'GEAPA_CORE_FIRESTORE_DATABASE_ID';
+
+function corePortalNormalizeFirestoreStringArray_(values) {
+  var seen = {};
+  var out = [];
+  (Array.isArray(values) ? values : []).forEach(function(value) {
+    var text = String(value || '').trim();
+    if (!text || seen[text]) return;
+    seen[text] = true;
+    out.push(text);
+  });
+  return Object.freeze(out);
+}
+
+function corePortalBuildFirestoreUserSnapshot_(entrada, opts) {
+  opts = opts || {};
+  var sessao = corePortalResolverUsuarioAtual_(entrada, opts);
+  if (!sessao || sessao.ok === false || sessao.autenticado === false) {
+    return Object.freeze({
+      ok: false,
+      code: sessao && sessao.motivoBloqueio ? sessao.motivoBloqueio : 'USUARIO_PORTAL_NAO_RESOLVIDO',
+      message: 'Usuario do Portal nao resolvido pela PESSOAS v2.'
+    });
+  }
+
+  var entradaObj = entrada && typeof entrada === 'object' ? entrada : {};
+  var uid = String(opts.uid || entradaObj.uid || entradaObj.firebaseUid || sessao.uid || '').trim();
+  var agora = new Date();
+  var cacheTtlMs = Math.max(0, Number(opts.cacheTtlMs || opts.ttlMs || 6 * 60 * 60 * 1000));
+  var cacheUpdatedAt = agora.toISOString();
+  var cacheExpiresAtDate = opts.cacheExpiresAt
+    ? new Date(opts.cacheExpiresAt)
+    : new Date(agora.getTime() + cacheTtlMs);
+  var cacheExpiresAt = isNaN(cacheExpiresAtDate.getTime())
+    ? new Date(agora.getTime() + cacheTtlMs).toISOString()
+    : cacheExpiresAtDate.toISOString();
+  var sourceUpdatedAtValue = opts.sourceUpdatedAt || sessao.sourceUpdatedAt || sessao.atualizadoEm || cacheUpdatedAt;
+  var sourceUpdatedAtDate = new Date(sourceUpdatedAtValue);
+  var sourceUpdatedAt = isNaN(sourceUpdatedAtDate.getTime())
+    ? cacheUpdatedAt
+    : sourceUpdatedAtDate.toISOString();
+
+  return Object.freeze({
+    uid: uid,
+    idPessoa: String(sessao.idPessoa || '').trim(),
+    nomeExibicao: String(sessao.nomeExibicao || '').trim(),
+    email: corePortalNormalizeEmail_(sessao.email || ''),
+    rga: String(sessao.rga || '').trim(),
+    portalAtivo: sessao.portalAtivo === true,
+    perfilPortalEfetivo: String(sessao.perfilPortalEfetivo || '').trim(),
+    perfisPortal: corePortalNormalizeFirestoreStringArray_(sessao.perfisPortal),
+    permissoes: corePortalNormalizeFirestoreStringArray_(sessao.permissoes),
+    tipoVinculoAtual: String(sessao.tipoVinculoAtual || '').trim(),
+    statusVinculoAtual: String(sessao.statusVinculoAtual || '').trim(),
+    cargoFuncaoAtual: String(sessao.cargoFuncaoAtual || '').trim(),
+    source: 'GEAPA_CORE_PESSOAS_V2',
+    sourceUpdatedAt: sourceUpdatedAt,
+    cacheUpdatedAt: cacheUpdatedAt,
+    cacheExpiresAt: cacheExpiresAt,
+    schemaVersion: CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION
+  });
+}
+
+function corePortalGetFirestoreSyncConfig_(opts) {
+  opts = opts || {};
+  var props = PropertiesService.getScriptProperties();
+  return Object.freeze({
+    projectId: String(opts.projectId || props.getProperty(CORE_PORTAL_FIRESTORE_PROJECT_ID_PROPERTY) || '').trim(),
+    databaseId: String(opts.databaseId || props.getProperty(CORE_PORTAL_FIRESTORE_DATABASE_ID_PROPERTY) || '(default)').trim() || '(default)'
+  });
+}
+
+function corePortalFirestoreEncodePathSegment_(value) {
+  return encodeURIComponent(String(value || '').trim());
+}
+
+function corePortalFirestoreDatabasePathSegment_(databaseId) {
+  var id = String(databaseId || '(default)').trim() || '(default)';
+  return id === '(default)' ? '(default)' : corePortalFirestoreEncodePathSegment_(id);
+}
+
+function corePortalFirestoreValue_(value) {
+  if (typeof value === 'boolean') {
+    return { booleanValue: value };
+  }
+
+  if (Array.isArray(value)) {
+    return {
+      arrayValue: {
+        values: value.map(function(item) {
+          return { stringValue: String(item || '').trim() };
+        }).filter(function(item) {
+          return item.stringValue;
+        })
+      }
+    };
+  }
+
+  return { stringValue: String(value == null ? '' : value).trim() };
+}
+
+function corePortalFirestoreDocumentFromSnapshot_(snapshot) {
+  var fields = {};
+  Object.keys(snapshot || {}).forEach(function(key) {
+    fields[key] = corePortalFirestoreValue_(snapshot[key]);
+  });
+  return Object.freeze({ fields: fields });
+}
+
+function corePortalFirestorePatchUrl_(config, uid, snapshot) {
+  var projectId = corePortalFirestoreEncodePathSegment_(config.projectId);
+  var databaseId = corePortalFirestoreDatabasePathSegment_(config.databaseId);
+  var docId = corePortalFirestoreEncodePathSegment_(uid);
+  var updateMask = Object.keys(snapshot || {}).map(function(field) {
+    return 'updateMask.fieldPaths=' + encodeURIComponent(field);
+  }).join('&');
+  return 'https://firestore.googleapis.com/v1/projects/' + projectId +
+    '/databases/' + databaseId + '/documents/portalUsers/' + docId +
+    (updateMask ? '?' + updateMask : '');
+}
+
+function corePortalPostFirestoreUserSnapshot_(snapshot, opts) {
+  opts = opts || {};
+  if (!snapshot || snapshot.ok === false) {
+    return Object.freeze({ ok: false, synced: false, code: 'SNAPSHOT_INVALIDO' });
+  }
+
+  if (!String(snapshot.uid || '').trim()) {
+    return Object.freeze({
+      ok: false,
+      synced: false,
+      code: 'UID_FIREBASE_AUSENTE',
+      message: 'Informe uid no opts ou entrada para gravar em portalUsers/{uid}.'
+    });
+  }
+
+  if (opts.dryRun === true) {
+    return Object.freeze({ ok: true, synced: false, code: 'DRY_RUN', snapshot: snapshot });
+  }
+
+  var config = corePortalGetFirestoreSyncConfig_(opts);
+  if (!config.projectId) {
+    return Object.freeze({
+      ok: true,
+      synced: false,
+      code: 'FIRESTORE_PROJECT_ID_NAO_CONFIGURADO',
+      message: 'Configure GEAPA_CORE_FIRESTORE_PROJECT_ID em Script Properties.'
+    });
+  }
+
+  var response = UrlFetchApp.fetch(corePortalFirestorePatchUrl_(config, snapshot.uid, snapshot), {
+    method: 'patch',
+    contentType: 'application/json; charset=utf-8',
+    payload: JSON.stringify(corePortalFirestoreDocumentFromSnapshot_(snapshot)),
+    headers: {
+      Authorization: 'Bearer ' + ScriptApp.getOAuthToken()
+    },
+    muteHttpExceptions: true
+  });
+  var httpStatus = response.getResponseCode();
+  var ok = httpStatus >= 200 && httpStatus < 300;
+
+  return Object.freeze({
+    ok: ok,
+    synced: ok,
+    writer: 'APPS_SCRIPT_FIRESTORE_REST',
+    code: ok ? 'FIRESTORE_SYNC_OK' : 'FIRESTORE_SYNC_FALHOU',
+    httpStatus: httpStatus
+  });
+}
+function corePortalSincronizarUsuarioFirestore_(entrada, opts) {
+  opts = opts || {};
+  var snapshot = corePortalBuildFirestoreUserSnapshot_(entrada || {}, opts);
+  return corePortalPostFirestoreUserSnapshot_(snapshot, opts);
+}
+
+function corePortalSyncFirestoreUserByEmail_(email, opts) {
+  opts = opts || {};
+  return corePortalSincronizarUsuarioFirestore_({
+    email: email,
+    uid: opts.uid || ''
+  }, opts);
+}
+
+function corePortalSyncFirestoreUserByIdPessoa_(idPessoa, opts) {
+  opts = opts || {};
+  return corePortalSincronizarUsuarioFirestore_({
+    idPessoa: idPessoa,
+    uid: opts.uid || ''
+  }, opts);
+}
+
+function corePortalInvalidarCacheFirestoreUsuario_(idPessoaOuEmail, opts) {
+  opts = opts || {};
+  var chave = String(idPessoaOuEmail || '').trim();
+  var entrada = opts.entrada || {};
+  if (chave) {
+    entrada = Object.assign({}, entrada, chave.indexOf('@') >= 0 ? { email: chave } : { idPessoa: chave });
+  }
+  if (opts.uid) entrada.uid = opts.uid;
+
+  var snapshot = corePortalBuildFirestoreUserSnapshot_(entrada, Object.assign({}, opts, {
+    cacheExpiresAt: new Date(Date.now() - 1000).toISOString()
+  }));
+
+  if (!snapshot || snapshot.ok === false) {
+    return Object.freeze({ ok: false, synced: false, code: 'SNAPSHOT_INVALIDO' });
+  }
+
+  var invalidado = Object.assign({}, snapshot, {
+    portalAtivo: false,
+    cacheUpdatedAt: new Date().toISOString(),
+    cacheExpiresAt: new Date(Date.now() - 1000).toISOString()
+  });
+
+  return corePortalPostFirestoreUserSnapshot_(Object.freeze(invalidado), opts);
+}
+
+function corePortalSyncFirestoreUsersFromPessoasV2_(opts) {
+  opts = opts || {};
+  var report = core_domainsV2NewReadReport_('PORTAL_FIRESTORE_USERS_SYNC');
+  var pessoasData = core_domainsV2OpenPessoas_(report);
+  if (report.totalErros) throw new Error('Pessoas v2 indisponivel: ' + JSON.stringify(report.erros));
+
+  var resumo = (pessoasData.PESSOAS_RESUMO_OPERACIONAL && pessoasData.PESSOAS_RESUMO_OPERACIONAL.records) || [];
+  var baseById = core_domainsV2IndexFirstBy_((pessoasData.PESSOAS_BASE && pessoasData.PESSOAS_BASE.records) || [], 'ID_PESSOA');
+  var uidByEmail = opts.uidByEmail || {};
+  var uidByIdPessoa = opts.uidByIdPessoa || {};
+  var limite = Math.max(0, Number(opts.limit || opts.limite || 0));
+  var contadores = { criados: 0, atualizados: 0, ignorados: 0, erros: 0 };
+  var erros = [];
+  var processados = 0;
+
+  for (var i = 0; i < resumo.length; i++) {
+    if (limite && processados >= limite) break;
+    var row = resumo[i] || {};
+    var idPessoa = String(row.ID_PESSOA || '').trim();
+    var base = baseById[idPessoa] || {};
+    var email = corePortalNormalizeEmail_(row.EMAIL || base.EMAIL_PRINCIPAL || '');
+    var portalAtivo = corePortalIsYes_(row.PORTAL_ATIVO);
+
+    if (!idPessoa || !email || (!portalAtivo && opts.includeInactive !== true)) {
+      contadores.ignorados++;
+      continue;
+    }
+
+    var uid = String(uidByIdPessoa[idPessoa] || uidByEmail[email] || '').trim();
+    if (!uid) {
+      contadores.ignorados++;
+      continue;
+    }
+
+    processados++;
+    try {
+      var resultado = corePortalSyncFirestoreUserByIdPessoa_(idPessoa, Object.assign({}, opts, { uid: uid }));
+      if (resultado.ok && resultado.synced) {
+        contadores.atualizados++;
+      } else if (resultado.ok && resultado.code === 'DRY_RUN') {
+        contadores.ignorados++;
+      } else if (resultado.ok && resultado.code === 'FIRESTORE_PROJECT_ID_NAO_CONFIGURADO') {
+        contadores.ignorados++;
+      } else {
+        contadores.erros++;
+        erros.push({ indice: i + 1, code: resultado.code || 'ERRO_SYNC' });
+      }
+    } catch (erro) {
+      contadores.erros++;
+      erros.push({ indice: i + 1, code: 'EXCEPTION_SYNC' });
+    }
+  }
+
+  Logger.log('GEAPA_CORE_PORTAL_FIRESTORE_USERS_SYNC ' + JSON.stringify({
+    totalResumo: resumo.length,
+    processados: processados,
+    criados: contadores.criados,
+    atualizados: contadores.atualizados,
+    ignorados: contadores.ignorados,
+    erros: contadores.erros
+  }));
+
+  return Object.freeze({
+    ok: contadores.erros === 0,
+    writer: opts.dryRun === true ? 'DRY_RUN' : 'APPS_SCRIPT_FIRESTORE_REST',
+    schemaVersion: CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION,
+    contadores: Object.freeze(contadores),
+    erros: Object.freeze(erros.slice(0, 20))
+  });
+}
 function corePortalValidarAcesso_(idPessoa, permissaoOuPerfil, opts) {
   opts = opts || {};
   var wanted = String(permissaoOuPerfil || '').trim();

@@ -518,6 +518,34 @@ function corePortalResolverUsuarioAtual(entrada, opts) {
   return corePortalResolverUsuarioAtual_(entrada, opts || {});
 }
 
+function corePortalBuildFirestoreUserSnapshot(entrada, opts) {
+  return corePortalBuildFirestoreUserSnapshot_(entrada, opts || {});
+}
+
+function corePortalGerarSnapshotFirestoreUsuario(entrada, opts) {
+  return corePortalBuildFirestoreUserSnapshot_(entrada, opts || {});
+}
+
+function corePortalSincronizarUsuarioFirestore(entrada, opts) {
+  return corePortalSincronizarUsuarioFirestore_(entrada, opts || {});
+}
+
+function corePortalInvalidarCacheFirestoreUsuario(idPessoaOuEmail, opts) {
+  return corePortalInvalidarCacheFirestoreUsuario_(idPessoaOuEmail, opts || {});
+}
+
+function corePortalSyncFirestoreUserByEmail(email, opts) {
+  return corePortalSyncFirestoreUserByEmail_(email, opts || {});
+}
+
+function corePortalSyncFirestoreUserByIdPessoa(idPessoa, opts) {
+  return corePortalSyncFirestoreUserByIdPessoa_(idPessoa, opts || {});
+}
+
+function corePortalSyncFirestoreUsersFromPessoasV2(opts) {
+  return corePortalSyncFirestoreUsersFromPessoasV2_(opts || {});
+}
+
 function corePortalCalcularPerfilEfetivo(idPessoa, opts) {
   return corePortalCalcularPerfilEfetivo_(idPessoa, opts || {});
 }

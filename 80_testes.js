@@ -758,6 +758,69 @@ function test_core_portalV2_resolverUsuarioAtual_entradaObjeto() {
   }), null, 2));
 }
 
+function test_core_portalV2_resolverUsuarioAtual_rgaConfigurado() {
+  var rga = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_RGA');
+  if (!String(rga || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_RGA com um RGA existente em Pessoas v2.');
+  }
+  Logger.log(JSON.stringify(corePortalResolverUsuarioAtual_({ rga: rga }), null, 2));
+}
+
+function test_core_portalV2_resolverUsuarioAtual_idPessoaConfigurado() {
+  var idPessoa = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_ID_PESSOA');
+  if (!String(idPessoa || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_ID_PESSOA com um ID_PESSOA existente em Pessoas v2.');
+  }
+  Logger.log(JSON.stringify(corePortalResolverUsuarioAtual_({ idPessoa: idPessoa }), null, 2));
+}
+
+function test_core_portalV2_buscarMembroLegado_identificadorConfigurado() {
+  var identificador = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR');
+  if (!String(identificador || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR com e-mail, RGA ou ID_PESSOA.');
+  }
+  Logger.log(JSON.stringify(geapaCoreBuscarMembroParaPortal(identificador), null, 2));
+}
+
+function test_core_portalV2_buscarUsuarioLegado_identificadorConfigurado() {
+  var identificador = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR');
+  if (!String(identificador || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR com e-mail, RGA ou ID_PESSOA.');
+  }
+  Logger.log(JSON.stringify(geapaCoreBuscarUsuarioPortal(identificador), null, 2));
+}
+
+function test_core_portalFirestore_syncUsuarioEmailConfigurado() {
+  var props = PropertiesService.getScriptProperties();
+  var email = props.getProperty('GEAPA_CORE_PORTAL_TESTE_FIRESTORE_EMAIL') || '';
+  var uid = props.getProperty('GEAPA_CORE_PORTAL_TESTE_FIRESTORE_UID') || '';
+  if (!String(email || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_FIRESTORE_EMAIL com um e-mail existente em Pessoas v2.');
+  }
+  if (!String(uid || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_FIRESTORE_UID com o uid Firebase desse usuario.');
+  }
+
+  var resultado = corePortalSyncFirestoreUserByEmail(email, { uid: uid });
+  Logger.log(JSON.stringify({
+    ok: resultado.ok === true,
+    synced: resultado.synced === true,
+    writer: resultado.writer || '',
+    code: resultado.code || '',
+    httpStatus: resultado.httpStatus || ''
+  }, null, 2));
+  test_assert_(resultado.ok === true, 'Sync Firestore deveria retornar ok=true.');
+  test_assert_(resultado.synced === true, 'Sync Firestore deveria gravar portalUsers/{uid}.');
+  test_assert_(resultado.code === 'FIRESTORE_SYNC_OK', 'Sync Firestore deveria retornar FIRESTORE_SYNC_OK.');
+}
 function test_core_portalV2_diagnosticarSessoesPortal() {
   var raw = PropertiesService
     .getScriptProperties()
@@ -772,7 +835,10 @@ function test_core_portalV2_diagnosticarSessoesPortal() {
     COLABORADOR: '',
     EXTERNO: '',
     VISITANTE: '',
-    ADMIN: ''
+    ADMIN: '',
+    SEM_PORTAL_ATIVO: '',
+    EXCECAO_ACESSO: '',
+    NAO_ENCONTRADO: 'usuario-nao-encontrado@example.invalid'
   };
   var out = {};
   Object.keys(entradas).forEach(function(label) {

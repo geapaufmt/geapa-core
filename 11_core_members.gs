@@ -444,6 +444,107 @@ function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, opts) {
   return null;
 }
 
+function core_resolverSessaoPortalCompatDetalhada_(emailOuRga) {
+  try {
+    if (typeof corePortalResolverUsuarioAtual_ !== "function") {
+      return Object.freeze({ status: "indisponivel", sessao: null });
+    }
+
+    const sessao = corePortalResolverUsuarioAtual_(emailOuRga);
+    if (!sessao) {
+      return Object.freeze({ status: "indisponivel", sessao: null });
+    }
+
+    if (sessao.ok === false || sessao.autenticado === false) {
+      return Object.freeze({
+        status: sessao.motivoBloqueio === "PESSOA_NAO_ENCONTRADA" ? "nao_encontrada" : "bloqueada",
+        sessao: sessao
+      });
+    }
+
+    return Object.freeze({ status: "resolvida", sessao: sessao });
+  } catch (err) {
+    return Object.freeze({ status: "indisponivel", sessao: null });
+  }
+}
+
+function core_buildMembroPortalFromSessaoV2_(sessao) {
+  if (!sessao || (!sessao.idPessoa && !sessao.email && !sessao.rga)) return null;
+
+  return Object.freeze({
+    id: String(sessao.idPessoa || sessao.rga || sessao.email || "").trim(),
+    nomeExibicao: String(sessao.nomeExibicao || "").trim(),
+    emailCadastrado: String(sessao.email || "").trim(),
+    rga: String(sessao.rga || "").trim(),
+    situacaoGeral: String(sessao.statusVinculoAtual || "").trim(),
+    vinculo: String(sessao.tipoVinculoAtual || "").trim()
+  });
+}
+
+function core_buildPermissoesLegadasFromSessaoV2_(sessao) {
+  const legacy = Object.assign({}, core_derivePortalPermissions_(sessao && sessao.perfisPortal ? sessao.perfisPortal : []));
+  const canonical = (sessao && Array.isArray(sessao.permissoes)) ? sessao.permissoes : [];
+
+  if (canonical.indexOf("sistema:admin") >= 0) {
+    Object.keys(legacy).forEach(function(chave) {
+      legacy[chave] = true;
+    });
+    return Object.freeze(legacy);
+  }
+
+  if (canonical.indexOf("membros:ler") >= 0 || canonical.indexOf("logs:ler") >= 0) {
+    legacy.podeVerAreaDiretoria = true;
+  }
+
+  if (canonical.indexOf("atividades:gerir") >= 0) {
+    legacy.podeVerAreaDiretoria = true;
+    legacy.podeGerenciarAtividades = true;
+    legacy.podeEditarAtividade = true;
+  }
+
+  if (canonical.indexOf("presencas:gerir") >= 0) {
+    legacy.podeRegistrarChamada = true;
+  }
+
+  if (canonical.indexOf("certificados:gerir") >= 0) {
+    legacy.podeGerenciarCertificados = true;
+  }
+
+  if (canonical.indexOf("comunicacao:gerir") >= 0) {
+    legacy.podeGerenciarComunicacao = true;
+  }
+
+  if (canonical.indexOf("portal:configurar") >= 0 || canonical.indexOf("configuracoes:gerir") >= 0) {
+    legacy.podeGerenciarConfiguracoes = true;
+  }
+
+  return Object.freeze(legacy);
+}
+
+function core_buildUsuarioPortalFromSessaoV2_(sessao) {
+  const perfis = ((sessao.perfisPortal || []).length ? sessao.perfisPortal : [sessao.perfilPortalEfetivo || "MEMBRO"]).slice();
+
+  return Object.freeze({
+    id: String(sessao.idPessoa || sessao.rga || sessao.email || "").trim(),
+    idPessoa: String(sessao.idPessoa || "").trim(),
+    nomeExibicao: String(sessao.nomeExibicao || "").trim(),
+    rga: String(sessao.rga || "").trim(),
+    emailCadastrado: String(sessao.email || "").trim(),
+    email: String(sessao.email || "").trim(),
+    perfilPrincipal: String(sessao.perfilPortalEfetivo || "MEMBRO").trim(),
+    perfilPortalEfetivo: String(sessao.perfilPortalEfetivo || "MEMBRO").trim(),
+    perfis: Object.freeze(perfis),
+    perfisPortal: Object.freeze(perfis.slice()),
+    cargosAtuais: Object.freeze((sessao.cargosAtuais || []).slice()),
+    permissoes: core_buildPermissoesLegadasFromSessaoV2_(sessao),
+    permissoesEfetivas: Object.freeze((sessao.permissoes || []).slice()),
+    portalAtivo: sessao.portalAtivo !== false,
+    tipoVinculoAtual: String(sessao.tipoVinculoAtual || "").trim(),
+    statusVinculoAtual: String(sessao.statusVinculoAtual || "").trim(),
+    cargoFuncaoAtual: String(sessao.cargoFuncaoAtual || "").trim()
+  });
+}
+
 /**
  * Contrato inicial com o geapa-portal.
  *
@@ -458,6 +559,13 @@ function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, opts) {
  * @return {Object|null}
  */
 function core_buscarMembroParaPortal_(emailOuRga) {
+  const sessaoResult = core_resolverSessaoPortalCompatDetalhada_(emailOuRga);
+  if (sessaoResult.status === "resolvida") {
+    return sessaoResult.sessao.portalAtivo === false
+      ? null
+      : core_buildMembroPortalFromSessaoV2_(sessaoResult.sessao);
+  }
+
   return core_buscarMembroParaPortalInSheet_(core_getMembersSheet_(), emailOuRga);
 }
 
@@ -615,13 +723,90 @@ function core_buildMinhaSituacaoPortalResponse_(membro, usuario, sessao) {
 }
 
 function core_resolverSessaoPortalCompat_(emailOuRga) {
-  try {
-    if (typeof corePortalResolverUsuarioAtual_ !== "function") return null;
-    const sessao = corePortalResolverUsuarioAtual_(emailOuRga);
-    return sessao && sessao.ok ? sessao : null;
-  } catch (err) {
-    return null;
-  }
+  const resultado = core_resolverSessaoPortalCompatDetalhada_(emailOuRga);
+  return resultado.status === "resolvida" ? resultado.sessao : null;
+}
+
+function core_parsePortalPendingCountV2_(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "SEM_PENDENCIAS") return 0;
+  const numeric = Number(text);
+  if (isFinite(numeric) && !isNaN(numeric)) return Math.max(0, numeric);
+  return text.split(/[;,|]/).filter(function(part) {
+    const normalized = String(part || "").trim();
+    return normalized && normalized !== "SEM_PENDENCIAS";
+  }).length;
+}
+
+function core_buildPortalPendenciasFromResumoV2_(resumo) {
+  const raw = String((resumo && resumo.PENDENCIAS_ABERTAS) || "").trim();
+  if (!raw || raw === "SEM_PENDENCIAS") return Object.freeze([]);
+  return Object.freeze(raw.split(/[;,|]/).map(function(part) {
+    const code = String(part || "").trim();
+    if (!code || code === "SEM_PENDENCIAS") return null;
+    return core_buildPortalPendencia_(
+      "operacional",
+      code.replace(/_/g, " "),
+      "Pendencia operacional indicada em PESSOAS_RESUMO_OPERACIONAL.",
+      "media"
+    );
+  }).filter(Boolean));
+}
+
+function core_buildMinhaSituacaoPortalV2_(resumo) {
+  resumo = resumo || {};
+  const pendencias = core_buildPortalPendenciasFromResumoV2_(resumo);
+  return Object.freeze({
+    resumo: Object.freeze({
+      frequencia: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
+      pendenciasAbertas: core_parsePortalPendingCountV2_(resumo.PENDENCIAS_ABERTAS),
+      certificadosDisponiveis: 0
+    }),
+    pendencias: pendencias,
+    participacao: Object.freeze({
+      frequenciaGeral: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
+      atividadesRecentes: Object.freeze([]),
+      apresentacoes: Object.freeze({
+        periodoUltimaApresentacao: String(resumo.PERIODO_ULTIMA_APRESENTACAO || "").trim(),
+        quantidadeRealizadas: core_parsePortalNonNegativeNumber_(resumo.QTD_APRESENTACOES_REALIZADAS)
+      })
+    }),
+    diretoria: Object.freeze({
+      statusElegibilidade: String(resumo.STATUS_ELEGIBILIDADE_DIRETORIA || "").trim(),
+      diasComputados: 0,
+      limiteDias: 0,
+      saldoDias: 0,
+      dataLimiteEstimada: String(resumo.DATA_LIMITE_ESTIMADA_DIRETORIA || "").trim()
+    }),
+    certificados: Object.freeze([]),
+    avisos: Object.freeze([
+      "Dados carregados de Pessoas v2 pelo GEAPA-CORE."
+    ])
+  });
+}
+
+function core_buscarMinhaSituacaoParaPortalV2_(emailOuRga) {
+  const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
+  if (!sessao || !sessao.idPessoa) return null;
+
+  const resumo = corePessoasGetOperationalSummary_(sessao.idPessoa) || {};
+  const membro = Object.freeze({
+    id: String(sessao.idPessoa || "").trim(),
+    nomeExibicao: String(sessao.nomeExibicao || resumo.NOME_EXIBICAO || "").trim(),
+    emailCadastrado: String(sessao.email || resumo.EMAIL || "").trim(),
+    rga: String(sessao.rga || resumo.RGA || "").trim(),
+    vinculo: String(sessao.tipoVinculoAtual || resumo.TIPO_VINCULO_ATUAL || "").trim(),
+    situacaoGeral: String(sessao.statusVinculoAtual || resumo.STATUS_VINCULO_ATUAL || "").trim()
+  });
+
+  return Object.freeze({
+    ok: true,
+    fonteDados: "PESSOAS_V2",
+    membro: membro,
+    usuario: sessao,
+    sessao: sessao,
+    minhaSituacao: core_buildMinhaSituacaoPortalV2_(resumo)
+  });
 }
 
 function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
@@ -645,11 +830,13 @@ function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
 /**
  * Contrato inicial da tela "Minha situacao" do geapa-portal.
  *
- * Esta V1 usa somente fontes oficiais ja centralizadas no Core para localizar
- * o proprio membro. As pendencias retornadas sao apenas cadastrais objetivas
- * derivadas desse proprio registro. Enquanto frequencia, certificados e
- * atividades recentes nao tiverem uma fonte confiavel integrada ao Core, esses
- * blocos ficam vazios ou zerados. Nao inventar dados nesta funcao.
+ * Esta versao tenta primeiro Pessoas v2 via `corePortalResolverUsuarioAtual`
+ * e `PESSOAS_RESUMO_OPERACIONAL`. `MEMBERS_ATUAIS` permanece apenas como
+ * fallback de compatibilidade quando a v2 ainda nao resolver a pessoa.
+ *
+ * Enquanto certificados e atividades recentes nao tiverem uma fonte confiavel
+ * integrada ao Core, esses blocos ficam vazios ou zerados. Nao inventar dados
+ * nesta funcao.
  *
  * Regras de seguranca para futuras diretorias:
  * - retornar apenas dados do membro localizado;
@@ -661,6 +848,9 @@ function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
  * @return {Object}
  */
 function core_buscarMinhaSituacaoParaPortal_(emailOuRga) {
+  const situacaoV2 = core_buscarMinhaSituacaoParaPortalV2_(emailOuRga);
+  if (situacaoV2 && situacaoV2.ok) return situacaoV2;
+
   const membro = core_buscarMembroParaPortalInSheet_(core_getMembersSheet_(), emailOuRga, {
     requireValidEmail: false,
     useDefaultLabels: false,
@@ -944,6 +1134,22 @@ function core_buscarUsuarioPortalFromMember_(membro, refDate) {
 }
 
 function core_buscarUsuarioPortal_(emailOuRga) {
+  const sessaoResult = core_resolverSessaoPortalCompatDetalhada_(emailOuRga);
+  if (sessaoResult.status === "resolvida") {
+    if (sessaoResult.sessao.portalAtivo === false) {
+      return core_buildPortalError_(
+        sessaoResult.sessao.motivoBloqueio || "USUARIO_SEM_ACESSO_PORTAL",
+        "Usuario sem acesso ativo ao Portal."
+      );
+    }
+
+    return Object.freeze({
+      ok: true,
+      usuario: core_buildUsuarioPortalFromSessaoV2_(sessaoResult.sessao),
+      sessao: sessaoResult.sessao
+    });
+  }
+
   const membro = core_buscarMembroParaPortal_(emailOuRga);
 
   if (!membro) {
