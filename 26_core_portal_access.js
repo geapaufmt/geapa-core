@@ -831,6 +831,21 @@ function corePortalFirestorePatchUrl_(config, uid, snapshot) {
     (updateMask ? '?' + updateMask : '');
 }
 
+function corePortalFirestoreSafeError_(responseText) {
+  try {
+    var parsed = JSON.parse(String(responseText || '{}'));
+    var error = parsed.error || {};
+    return Object.freeze({
+      status: String(error.status || '').trim(),
+      message: String(error.message || '').trim().slice(0, 500)
+    });
+  } catch (err) {
+    return Object.freeze({
+      status: '',
+      message: String(responseText || '').trim().slice(0, 500)
+    });
+  }
+}
 function corePortalPostFirestoreUserSnapshot_(snapshot, opts) {
   opts = opts || {};
   if (!snapshot || snapshot.ok === false) {
@@ -871,14 +886,18 @@ function corePortalPostFirestoreUserSnapshot_(snapshot, opts) {
   });
   var httpStatus = response.getResponseCode();
   var ok = httpStatus >= 200 && httpStatus < 300;
-
-  return Object.freeze({
+  var result = {
     ok: ok,
     synced: ok,
     writer: 'APPS_SCRIPT_FIRESTORE_REST',
     code: ok ? 'FIRESTORE_SYNC_OK' : 'FIRESTORE_SYNC_FALHOU',
     httpStatus: httpStatus
-  });
+  };
+  if (!ok) {
+    result.firestoreError = corePortalFirestoreSafeError_(response.getContentText());
+  }
+
+  return Object.freeze(result);
 }
 function corePortalSincronizarUsuarioFirestore_(entrada, opts) {
   opts = opts || {};
