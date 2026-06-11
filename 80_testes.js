@@ -798,6 +798,23 @@ function test_core_portalV2_buscarUsuarioLegado_identificadorConfigurado() {
   Logger.log(JSON.stringify(geapaCoreBuscarUsuarioPortal(identificador), null, 2));
 }
 
+function test_core_portalFirestore_diagnosticarEscoposOAuth() {
+  var token = ScriptApp.getOAuthToken();
+  var response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo', {
+    method: 'post',
+    payload: { access_token: token },
+    muteHttpExceptions: true
+  });
+  var body = JSON.parse(response.getContentText() || '{}');
+  var scopes = String(body.scope || '').split(/\s+/).filter(String).sort();
+  Logger.log(JSON.stringify({
+    ok: response.getResponseCode() >= 200 && response.getResponseCode() < 300,
+    httpStatus: response.getResponseCode(),
+    hasDatastore: scopes.indexOf('https://www.googleapis.com/auth/datastore') >= 0,
+    hasCloudPlatform: scopes.indexOf('https://www.googleapis.com/auth/cloud-platform') >= 0,
+    scopes: scopes
+  }, null, 2));
+}
 function test_core_portalFirestore_syncUsuarioEmailConfigurado() {
   var props = PropertiesService.getScriptProperties();
   var email = props.getProperty('GEAPA_CORE_PORTAL_TESTE_FIRESTORE_EMAIL') || '';
