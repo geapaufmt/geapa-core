@@ -726,7 +726,10 @@ function corePortalNormalizeFirestoreStringArray_(values) {
 
 function corePortalBuildFirestoreUserSnapshot_(entrada, opts) {
   opts = opts || {};
-  var sessao = corePortalResolverUsuarioAtual_(entrada, opts);
+  var sessao = opts.sessao || opts.session || opts.resolvedSession || null;
+  if (!sessao) {
+    sessao = corePortalResolverUsuarioAtual_(entrada, opts);
+  }
   if (!sessao || sessao.ok === false || sessao.autenticado === false) {
     return Object.freeze({
       ok: false,
