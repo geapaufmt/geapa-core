@@ -819,6 +819,76 @@ function corePortalFirestoreDocumentFromSnapshot_(snapshot) {
   return Object.freeze({ fields: fields });
 }
 
+function corePortalFirestoreDocumentUrl_(config, uid) {
+  var projectId = corePortalFirestoreEncodePathSegment_(config.projectId);
+  var databaseId = corePortalFirestoreDatabasePathSegment_(config.databaseId);
+  var docId = corePortalFirestoreEncodePathSegment_(uid);
+  return 'https://firestore.googleapis.com/v1/projects/' + projectId +
+    '/databases/' + databaseId + '/documents/portalUsers/' + docId;
+}
+
+function corePortalFirestoreSimpleValue_(value) {
+  value = value || {};
+  if (Object.prototype.hasOwnProperty.call(value, 'stringValue')) return String(value.stringValue || '');
+  if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return value.booleanValue === true;
+  if (Object.prototype.hasOwnProperty.call(value, 'integerValue')) return Number(value.integerValue || 0);
+  if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue || 0);
+  if (Object.prototype.hasOwnProperty.call(value, 'timestampValue')) return String(value.timestampValue || '');
+  if (value.arrayValue) {
+    return ((value.arrayValue && value.arrayValue.values) || []).map(corePortalFirestoreSimpleValue_);
+  }
+  return null;
+}
+
+function corePortalFirestoreSnapshotFromDocument_(document) {
+  var fields = (document && document.fields) || {};
+  var out = {};
+  Object.keys(fields).forEach(function(key) {
+    out[key] = corePortalFirestoreSimpleValue_(fields[key]);
+  });
+  return Object.freeze(out);
+}
+
+function corePortalReadFirestoreUserSnapshotByUid_(uid, opts) {
+  opts = opts || {};
+  var id = String(uid || '').trim();
+  if (!id) {
+    return Object.freeze({ ok: false, found: false, code: 'UID_FIREBASE_AUSENTE' });
+  }
+
+  var config = corePortalGetFirestoreSyncConfig_(opts);
+  if (!config.projectId) {
+    return Object.freeze({
+      ok: true,
+      found: false,
+      code: 'FIRESTORE_PROJECT_ID_NAO_CONFIGURADO',
+      message: 'Configure GEAPA_CORE_FIRESTORE_PROJECT_ID em Script Properties.'
+    });
+  }
+
+  var response = UrlFetchApp.fetch(corePortalFirestoreDocumentUrl_(config, id), {
+    method: 'get',
+    headers: {
+      Authorization: 'Bearer ' + ScriptApp.getOAuthToken()
+    },
+    muteHttpExceptions: true
+  });
+  var httpStatus = response.getResponseCode();
+  var ok = httpStatus >= 200 && httpStatus < 300;
+  var result = {
+    ok: ok,
+    found: ok,
+    reader: 'APPS_SCRIPT_FIRESTORE_REST',
+    code: ok ? 'FIRESTORE_READ_OK' : 'FIRESTORE_READ_FALHOU',
+    httpStatus: httpStatus
+  };
+  if (ok) {
+    result.snapshot = corePortalFirestoreSnapshotFromDocument_(JSON.parse(response.getContentText() || '{}'));
+  } else {
+    result.firestoreError = corePortalFirestoreSafeError_(response.getContentText());
+  }
+  return Object.freeze(result);
+}
 function corePortalFirestorePatchUrl_(config, uid, snapshot) {
   var projectId = corePortalFirestoreEncodePathSegment_(config.projectId);
   var databaseId = corePortalFirestoreDatabasePathSegment_(config.databaseId);
