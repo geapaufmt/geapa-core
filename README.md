@@ -1230,7 +1230,7 @@ Diagnostico v2:
 
 ### Portal GEAPA - conteudo publico editorial
 
-`PORTAL_CONTEUDO_PUBLICO` e a planilha CMS editorial do Portal GEAPA. Ela serve para conteudo publico editavel em Google Sheets, como home, sobre, historia, parceiros, documentos, midias e complementos publicos de diretoria.
+`PORTAL_CONTEUDO_PUBLICO` e a planilha CMS editorial do Portal GEAPA. Ela serve para conteudo publico editavel em Google Sheets, como home, sobre, historia, parceiros, documentos, midias e complementos publicos de pessoas/gestoes.
 
 Ela nao e fonte oficial para atividades, apresentacoes, membros, diretoria, frequencia ou permissoes. Esses dados continuam vindo dos modulos de dominio e de views/contratos `PORTAL_*` especificos.
 
@@ -1252,6 +1252,9 @@ Funcoes publicas:
 - `corePortalPublicContentGetConfig(options)`
 - `corePortalPublicContentGetMidias(options)`
 - `corePortalPublicContentGetDiretoriaComplementos(options)`
+- `corePortalPublicContentGetPessoasComplementos(options)`
+- `corePortalPublicContentGetGestoesComplementos(options)`
+- `corePortalPublicContentGetPessoasConfig(options)`
 - `corePortalPublicContentBuildPublicSnapshot(options)`
 
 Abas editoriais garantidas:
@@ -1263,8 +1266,12 @@ Abas editoriais garantidas:
 - `PUBLIC_DOCUMENTOS`
 - `PUBLIC_CONFIG`
 - `PUBLIC_MIDIAS`
-- `PUBLIC_DIRETORIA_COMPLEMENTOS`
+- `PUBLIC_PESSOAS_COMPLEMENTOS`
+- `PUBLIC_GESTOES_COMPLEMENTOS`
+- `PUBLIC_PESSOAS_CONFIG`
 - `PUBLIC_LOG_PUBLICACAO`
+
+`PUBLIC_DIRETORIA_COMPLEMENTOS` e `PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS` ficam apenas como legado defensivo de leitura. A rotina estrutural nova nao cria essa aba antiga.
 
 Regras da rotina estrutural:
 
@@ -1311,7 +1318,10 @@ Contrato do snapshot editorial:
     documents: [],
     media: [],
     config: {},
-    boardComplements: []
+    boardComplements: [],
+    peopleComplements: [],
+    managementComplements: [],
+    peopleConfig: {}
   },
   meta: {
     origem: "GEAPA_CORE",
@@ -1323,7 +1333,10 @@ Contrato do snapshot editorial:
 
 Diretoria:
 
-- `corePortalPublicContentGetDiretoriaComplementos()` retorna apenas complementos publicos de `PUBLIC_DIRETORIA_COMPLEMENTOS`;
+- `corePortalPublicContentGetPessoasComplementos()` retorna complementos editoriais publicos de `PUBLIC_PESSOAS_COMPLEMENTOS`;
+- `corePortalPublicContentGetGestoesComplementos()` retorna complementos editoriais publicos de `PUBLIC_GESTOES_COMPLEMENTOS`;
+- `corePortalPublicContentGetPessoasConfig()` retorna configuracoes publicas de `PUBLIC_PESSOAS_CONFIG`;
+- `corePortalPublicContentGetDiretoriaComplementos()` existe apenas como fallback legado para `PUBLIC_DIRETORIA_COMPLEMENTOS`;
 - nao monta a diretoria completa nesta etapa, porque isso exigiria cruzamento com Vigencias/Pessoas;
 - a funcao futura documentada para isso e `corePortalPublicContentBuildPublicBoard(options)`.
 

@@ -646,6 +646,18 @@ function corePortalPublicContentGetDiretoriaComplementos(options) {
   return corePortalPublicContentGetDiretoriaComplementos_(options || {});
 }
 
+function corePortalPublicContentGetPessoasComplementos(options) {
+  return corePortalPublicContentGetPessoasComplementos_(options || {});
+}
+
+function corePortalPublicContentGetGestoesComplementos(options) {
+  return corePortalPublicContentGetGestoesComplementos_(options || {});
+}
+
+function corePortalPublicContentGetPessoasConfig(options) {
+  return corePortalPublicContentGetPessoasConfig_(options || {});
+}
+
 function corePortalPublicContentBuildPublicSnapshot(options) {
   return corePortalPublicContentBuildPublicSnapshot_(options || {});
 }

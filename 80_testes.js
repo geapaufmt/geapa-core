@@ -571,13 +571,16 @@ function test_core_portalPublicContent_ensureStructure_fakeSpreadsheet() {
     return header === 'ID_BLOCO';
   }).length;
 
-  test_assert_(definitions.sheets.length === 9, 'Deveria haver 9 abas editoriais definidas.');
+  test_assert_(definitions.sheets.length === 11, 'Deveria haver 11 abas editoriais definidas.');
   test_assert_(!!sheets.PUBLIC_CONFIG, 'PUBLIC_CONFIG deveria ter sido criada.');
+  test_assert_(!!sheets.PUBLIC_PESSOAS_COMPLEMENTOS, 'PUBLIC_PESSOAS_COMPLEMENTOS deveria ter sido criada.');
+  test_assert_(!!sheets.PUBLIC_GESTOES_COMPLEMENTOS, 'PUBLIC_GESTOES_COMPLEMENTOS deveria ter sido criada.');
+  test_assert_(!!sheets.PUBLIC_PESSOAS_CONFIG, 'PUBLIC_PESSOAS_CONFIG deveria ter sido criada.');
   test_assert_(homeHeaders.indexOf('COLUNA_EXTRA') >= 0, 'Coluna extra existente deve ser preservada.');
   test_assert_(homeHeaders.indexOf('TIPO_BLOCO') >= 0, 'Coluna faltante deveria ser adicionada ao final.');
   test_assert_(homeHeaderCount === 1, 'Rodar duas vezes nao deve duplicar cabecalhos.');
   test_assert_(homeData[0] === 'home-1' && homeData[1] === 'valor manual', 'Dados existentes nao devem ser apagados.');
-  test_assert_(first.actions.length === 9 && second.actions.length === 9, 'Relatorio deve cobrir todas as abas.');
+  test_assert_(first.actions.length === 11 && second.actions.length === 11, 'Relatorio deve cobrir todas as abas.');
 }
 
 function test_core_portalPublicContent_buildPublicSnapshot_fakeRecords() {
@@ -673,6 +676,50 @@ function test_core_portalPublicContent_buildPublicSnapshot_fakeRecords() {
         ATUALIZADO_EM: '2026-06-04'
       }
     ],
+    PORTAL_PUBLIC_PESSOAS_COMPLEMENTOS: [
+      {
+        ID_PESSOA: 'P-1',
+        GRUPO_PUBLICO: 'DIRETORIA',
+        ID_DIRETORIA: '2026-2027',
+        CARGO_PUBLICO: 'Presidencia',
+        NOME_PUBLICO: 'Pessoa Publica',
+        FOTO_URL: 'https://example.com/foto-pessoa.jpg',
+        DESCRICAO_PUBLICA: 'Descricao publica de pessoa',
+        PERIODO_PUBLICO: '2026-2027',
+        DESTAQUE_HISTORICO: 'SIM',
+        EXIBIR_NO_HISTORICO: 'SIM',
+        AUTORIZACAO_PUBLICACAO: 'SIM',
+        LINK_LATTES: 'https://lattes.cnpq.br/123',
+        LINK_INSTAGRAM_PUBLICO: 'https://instagram.com/geapa',
+        LINK_LINKEDIN_PUBLICO: 'javascript:alert(1)',
+        ORDEM_PUBLICA: '1',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-05',
+        EMAIL: 'nao-vaza@example.com'
+      }
+    ],
+    PORTAL_PUBLIC_GESTOES_COMPLEMENTOS: [
+      {
+        ID_DIRETORIA: '2026-2027',
+        NOME_PUBLICO_GESTAO: 'Gestao Publica',
+        LEMA_PUBLICO: 'Lema',
+        DESCRICAO_GESTAO: 'Descricao de gestao',
+        FOTO_GESTAO_URL: 'https://example.com/gestao.jpg',
+        LINK_ATA_POSSE_PUBLICA: 'https://example.com/ata.pdf',
+        LINK_RELATORIO_GESTAO: 'https://example.com/relatorio.pdf',
+        URL_GALERIA: 'https://example.com/galeria',
+        ORDEM_PUBLICA: '1',
+        STATUS_PUBLICACAO: 'PUBLICADA',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-06'
+      }
+    ],
+    PORTAL_PUBLIC_PESSOAS_CONFIG: [
+      { KEY: 'EXIBIR_MEMBROS_PUBLICOS', VALOR: 'SIM', TIPO: 'texto', ATIVO: 'SIM' }
+    ],
     PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS: [
       {
         ID_PESSOA: 'P-1',
@@ -713,8 +760,13 @@ function test_core_portalPublicContent_buildPublicSnapshot_fakeRecords() {
   test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.documents[0], 'OBS_INTERNA'), 'Observacao interna nao deve vazar.');
   test_assert_(snapshot.data.config.TEMA === 'claro', 'Config ativa deveria aparecer.');
   test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.config, 'INATIVO'), 'Config inativa nao deve aparecer.');
-  test_assert_(snapshot.data.boardComplements[0].ID_PESSOA === 'P-1', 'Complemento publico de diretoria deveria preservar campo permitido.');
-  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.boardComplements[0], 'EMAIL'), 'Email nao deve vazar em complemento de diretoria.');
+  test_assert_(snapshot.data.peopleComplements[0].idPessoa === 'P-1', 'Complemento publico de pessoa deveria aparecer.');
+  test_assert_(snapshot.data.peopleComplements[0].linkLinkedinPublico === '', 'URL insegura de pessoa deveria ser removida.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.peopleComplements[0], 'EMAIL'), 'Email nao deve vazar em complemento de pessoa.');
+  test_assert_(snapshot.data.managementComplements[0].idDiretoria === '2026-2027', 'Complemento publico de gestao deveria aparecer.');
+  test_assert_(snapshot.data.peopleConfig.EXIBIR_MEMBROS_PUBLICOS === 'SIM', 'Config publica de pessoas deveria aparecer.');
+  test_assert_(snapshot.data.boardComplements[0].ID_PESSOA === 'P-1', 'Complemento legado de diretoria deveria continuar disponivel.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.boardComplements[0], 'EMAIL'), 'Email nao deve vazar em complemento legado de diretoria.');
   test_assert_(logRead.ok === false && logRead.errorCode === 'PORTAL_PUBLIC_KEY_NAO_EXPONIVEL', 'Log de publicacao nao deve ser exposto por leitura publica.');
 }
 

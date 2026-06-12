@@ -23,6 +23,9 @@ const CORE_PORTAL_PUBLIC_CONTENT_CFG = Object.freeze({
     PUBLIC_DOCUMENTOS: 'PORTAL_PUBLIC_DOCUMENTOS',
     PUBLIC_CONFIG: 'PORTAL_PUBLIC_CONFIG',
     PUBLIC_MIDIAS: 'PORTAL_PUBLIC_MIDIAS',
+    PUBLIC_PESSOAS_COMPLEMENTOS: 'PORTAL_PUBLIC_PESSOAS_COMPLEMENTOS',
+    PUBLIC_GESTOES_COMPLEMENTOS: 'PORTAL_PUBLIC_GESTOES_COMPLEMENTOS',
+    PUBLIC_PESSOAS_CONFIG: 'PORTAL_PUBLIC_PESSOAS_CONFIG',
     PUBLIC_DIRETORIA_COMPLEMENTOS: 'PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS',
     PUBLIC_LOG_PUBLICACAO: 'PORTAL_PUBLIC_LOG_PUBLICACAO'
   }),
@@ -144,20 +147,59 @@ const CORE_PORTAL_PUBLIC_CONTENT_CFG = Object.freeze({
       ])
     }),
     Object.freeze({
-      sheetName: 'PUBLIC_DIRETORIA_COMPLEMENTOS',
-      key: 'PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS',
+      sheetName: 'PUBLIC_PESSOAS_COMPLEMENTOS',
+      key: 'PORTAL_PUBLIC_PESSOAS_COMPLEMENTOS',
       headers: Object.freeze([
         'ID_PESSOA',
+        'GRUPO_PUBLICO',
         'ID_DIRETORIA',
+        'CARGO_PUBLICO',
+        'NOME_PUBLICO',
         'FOTO_URL',
         'DESCRICAO_PUBLICA',
+        'PERIODO_PUBLICO',
+        'DESTAQUE_HISTORICO',
+        'EXIBIR_NO_HISTORICO',
+        'AUTORIZACAO_PUBLICACAO',
         'LINK_LATTES',
         'LINK_INSTAGRAM_PUBLICO',
+        'LINK_LINKEDIN_PUBLICO',
         'ORDEM_PUBLICA',
         'STATUS_PUBLICACAO',
         'PUBLICAR',
         'ATIVO',
         'ATUALIZADO_EM'
+      ])
+    }),
+    Object.freeze({
+      sheetName: 'PUBLIC_GESTOES_COMPLEMENTOS',
+      key: 'PORTAL_PUBLIC_GESTOES_COMPLEMENTOS',
+      headers: Object.freeze([
+        'ID_DIRETORIA',
+        'NOME_PUBLICO_GESTAO',
+        'LEMA_PUBLICO',
+        'DESCRICAO_GESTAO',
+        'FOTO_GESTAO_URL',
+        'LINK_ATA_POSSE_PUBLICA',
+        'LINK_RELATORIO_GESTAO',
+        'URL_GALERIA',
+        'ORDEM_PUBLICA',
+        'STATUS_PUBLICACAO',
+        'PUBLICAR',
+        'ATIVO',
+        'ATUALIZADO_EM'
+      ])
+    }),
+    Object.freeze({
+      sheetName: 'PUBLIC_PESSOAS_CONFIG',
+      key: 'PORTAL_PUBLIC_PESSOAS_CONFIG',
+      headers: Object.freeze([
+        'KEY',
+        'VALOR',
+        'TIPO',
+        'GRUPO',
+        'DESCRICAO',
+        'ATIVO'
       ])
     }),
     Object.freeze({
@@ -178,7 +220,7 @@ const CORE_PORTAL_PUBLIC_CONTENT_CFG = Object.freeze({
 
 const CORE_PORTAL_PUBLIC_CONTENT_READ_CFG = Object.freeze({
   cacheTtlSeconds: 5 * 60,
-  cachePrefix: 'GEAPA_CORE_PORTAL_PUBLIC_CONTENT_V1_',
+  cachePrefix: 'GEAPA_CORE_PORTAL_PUBLIC_CONTENT_V2_',
   blockedPublicKeys: Object.freeze(['PORTAL_PUBLIC_LOG_PUBLICACAO']),
   pageSlugMap: Object.freeze({
     home: 'PORTAL_PUBLIC_HOME',
@@ -188,6 +230,9 @@ const CORE_PORTAL_PUBLIC_CONTENT_READ_CFG = Object.freeze({
     documentos: 'PORTAL_PUBLIC_DOCUMENTOS',
     config: 'PORTAL_PUBLIC_CONFIG',
     midias: 'PORTAL_PUBLIC_MIDIAS',
+    pessoascomplementos: 'PORTAL_PUBLIC_PESSOAS_COMPLEMENTOS',
+    gestoescomplementos: 'PORTAL_PUBLIC_GESTOES_COMPLEMENTOS',
+    pessoasconfig: 'PORTAL_PUBLIC_PESSOAS_CONFIG',
     diretoriacomplementos: 'PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS'
   }),
   publicFields: Object.freeze({
@@ -259,6 +304,43 @@ const CORE_PORTAL_PUBLIC_CONTENT_READ_CFG = Object.freeze({
       Object.freeze({ from: 'DESCRICAO', to: 'descricao', type: 'text' }),
       Object.freeze({ from: 'CATEGORIA', to: 'categoria', type: 'token' }),
       Object.freeze({ from: 'ATUALIZADO_EM', to: 'atualizadoEm', type: 'date' })
+    ]),
+    PORTAL_PUBLIC_PESSOAS_COMPLEMENTOS: Object.freeze([
+      Object.freeze({ from: 'ID_PESSOA', to: 'idPessoa', type: 'text' }),
+      Object.freeze({ from: 'GRUPO_PUBLICO', to: 'grupoPublico', type: 'token' }),
+      Object.freeze({ from: 'ID_DIRETORIA', to: 'idDiretoria', type: 'text' }),
+      Object.freeze({ from: 'CARGO_PUBLICO', to: 'cargoPublico', type: 'text' }),
+      Object.freeze({ from: 'NOME_PUBLICO', to: 'nomePublico', type: 'text' }),
+      Object.freeze({ from: 'FOTO_URL', to: 'fotoUrl', type: 'url' }),
+      Object.freeze({ from: 'DESCRICAO_PUBLICA', to: 'descricaoPublica', type: 'text' }),
+      Object.freeze({ from: 'PERIODO_PUBLICO', to: 'periodoPublico', type: 'text' }),
+      Object.freeze({ from: 'DESTAQUE_HISTORICO', to: 'destaqueHistorico', type: 'token' }),
+      Object.freeze({ from: 'EXIBIR_NO_HISTORICO', to: 'exibirNoHistorico', type: 'token' }),
+      Object.freeze({ from: 'AUTORIZACAO_PUBLICACAO', to: 'autorizacaoPublicacao', type: 'token' }),
+      Object.freeze({ from: 'LINK_LATTES', to: 'linkLattes', type: 'url' }),
+      Object.freeze({ from: 'LINK_INSTAGRAM_PUBLICO', to: 'linkInstagramPublico', type: 'url' }),
+      Object.freeze({ from: 'LINK_LINKEDIN_PUBLICO', to: 'linkLinkedinPublico', type: 'url' }),
+      Object.freeze({ from: 'ORDEM_PUBLICA', to: 'ordemPublica', type: 'number' }),
+      Object.freeze({ from: 'ATUALIZADO_EM', to: 'atualizadoEm', type: 'date' })
+    ]),
+    PORTAL_PUBLIC_GESTOES_COMPLEMENTOS: Object.freeze([
+      Object.freeze({ from: 'ID_DIRETORIA', to: 'idDiretoria', type: 'text' }),
+      Object.freeze({ from: 'NOME_PUBLICO_GESTAO', to: 'nomePublicoGestao', type: 'text' }),
+      Object.freeze({ from: 'LEMA_PUBLICO', to: 'lemaPublico', type: 'text' }),
+      Object.freeze({ from: 'DESCRICAO_GESTAO', to: 'descricaoGestao', type: 'text' }),
+      Object.freeze({ from: 'FOTO_GESTAO_URL', to: 'fotoGestaoUrl', type: 'url' }),
+      Object.freeze({ from: 'LINK_ATA_POSSE_PUBLICA', to: 'linkAtaPossePublica', type: 'url' }),
+      Object.freeze({ from: 'LINK_RELATORIO_GESTAO', to: 'linkRelatorioGestao', type: 'url' }),
+      Object.freeze({ from: 'URL_GALERIA', to: 'urlGaleria', type: 'url' }),
+      Object.freeze({ from: 'ORDEM_PUBLICA', to: 'ordemPublica', type: 'number' }),
+      Object.freeze({ from: 'ATUALIZADO_EM', to: 'atualizadoEm', type: 'date' })
+    ]),
+    PORTAL_PUBLIC_PESSOAS_CONFIG: Object.freeze([
+      Object.freeze({ from: 'KEY', to: 'key', type: 'token' }),
+      Object.freeze({ from: 'VALOR', to: 'valor', type: 'text' }),
+      Object.freeze({ from: 'TIPO', to: 'tipo', type: 'token' }),
+      Object.freeze({ from: 'GRUPO', to: 'grupo', type: 'token' }),
+      Object.freeze({ from: 'DESCRICAO', to: 'descricao', type: 'text' })
     ]),
     PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS: Object.freeze([
       Object.freeze({ from: 'ID_PESSOA', to: 'ID_PESSOA', type: 'text' }),
@@ -659,6 +741,16 @@ function corePortalPublicContentFindDefinitionByKey_(keyOrSlug) {
       return def;
     }
   }
+
+  if (key === 'PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS' ||
+      key === corePortalPublicContentNormalizeToken_('PUBLIC_DIRETORIA_COMPLEMENTOS')) {
+    return Object.freeze({
+      sheetName: 'PUBLIC_DIRETORIA_COMPLEMENTOS',
+      key: 'PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS',
+      headers: Object.freeze([])
+    });
+  }
+
   return null;
 }
 
@@ -890,10 +982,19 @@ function corePortalPublicContentResolveLatestUpdated_(items) {
   return latest;
 }
 
-function corePortalPublicContentReadConfig_(options) {
+function corePortalPublicContentReadConfigByKey_(keyOrSlug, options) {
   options = options || {};
-  var key = 'PORTAL_PUBLIC_CONFIG';
+  var def = corePortalPublicContentFindDefinitionByKey_(keyOrSlug || 'config');
+  var key = def ? def.key : corePortalPublicContentResolveKey_(keyOrSlug || 'config');
   var records;
+
+  if (!def) {
+    return corePortalPublicContentBuildError_(
+      'PORTAL_PUBLIC_KEY_DESCONHECIDA',
+      'Key de configuracao publica nao reconhecida.',
+      { requestedKey: String(keyOrSlug || '').trim() }
+    );
+  }
 
   try {
     records = corePortalPublicContentReadRecordsByKey_(key, options);
@@ -927,6 +1028,10 @@ function corePortalPublicContentReadConfig_(options) {
       fonte: CORE_PORTAL_PUBLIC_CONTENT_CFG.spreadsheetName
     })
   });
+}
+
+function corePortalPublicContentReadConfig_(options) {
+  return corePortalPublicContentReadConfigByKey_('config', options || {});
 }
 
 function corePortalPublicContentGetPage_(slug, options) {
@@ -988,6 +1093,18 @@ function corePortalPublicContentGetDiretoriaComplementos_(options) {
   return corePortalPublicContentReadRows_('diretoriaComplementos', options || {});
 }
 
+function corePortalPublicContentGetPessoasComplementos_(options) {
+  return corePortalPublicContentReadRows_('pessoasComplementos', options || {});
+}
+
+function corePortalPublicContentGetGestoesComplementos_(options) {
+  return corePortalPublicContentReadRows_('gestoesComplementos', options || {});
+}
+
+function corePortalPublicContentGetPessoasConfig_(options) {
+  return corePortalPublicContentReadConfigByKey_('pessoasConfig', options || {});
+}
+
 function corePortalPublicContentBuildPublicSnapshot_(options) {
   options = options || {};
   var cacheKey = CORE_PORTAL_PUBLIC_CONTENT_READ_CFG.cachePrefix + 'SNAPSHOT';
@@ -1003,8 +1120,11 @@ function corePortalPublicContentBuildPublicSnapshot_(options) {
   var documentos = corePortalPublicContentGetDocumentos_(options);
   var config = corePortalPublicContentGetConfig_(options);
   var midias = corePortalPublicContentGetMidias_(options);
+  var pessoas = corePortalPublicContentGetPessoasComplementos_(options);
+  var gestoes = corePortalPublicContentGetGestoesComplementos_(options);
+  var pessoasConfig = corePortalPublicContentGetPessoasConfig_(options);
   var board = corePortalPublicContentGetDiretoriaComplementos_(options);
-  var parts = [home, sobre, historia, parceiros, documentos, config, midias, board];
+  var parts = [home, sobre, historia, parceiros, documentos, config, midias, pessoas, gestoes, pessoasConfig];
   var errors = parts.filter(function(part) { return !part.ok; });
 
   if (errors.length) {
@@ -1022,7 +1142,8 @@ function corePortalPublicContentBuildPublicSnapshot_(options) {
     parceiros.data.atualizadoEm,
     documentos.meta.atualizadoEm,
     midias.meta.atualizadoEm,
-    board.meta.atualizadoEm
+    pessoas.meta.atualizadoEm,
+    gestoes.meta.atualizadoEm
   ].filter(Boolean).sort();
 
   var result = Object.freeze({
@@ -1037,7 +1158,10 @@ function corePortalPublicContentBuildPublicSnapshot_(options) {
       documents: documentos.data,
       media: midias.data,
       config: config.data,
-      boardComplements: board.data
+      boardComplements: board.ok ? board.data : [],
+      peopleComplements: pessoas.data,
+      managementComplements: gestoes.data,
+      peopleConfig: pessoasConfig.data
     }),
     meta: Object.freeze({
       origem: 'GEAPA_CORE',
