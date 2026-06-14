@@ -114,10 +114,19 @@ Recalculo operacional:
 - a funcao limpa e reescreve apenas as linhas de dados do cache `VIGENCIAS_RESUMO_ATUAL`.
 - `PERFIS_PORTAL_CALCULADOS` e `PERMISSOES_CALCULADAS` sao derivados de `CARGOS_CONFIG`.
 
+Rotina segura nova:
+
+- usar `coreVigenciasV2AtualizarResumoAtual({ dryRun: true })` para validar a previa;
+- usar `coreVigenciasV2AtualizarResumoAtual({ dryRun: false })` para escrita manual controlada;
+- a funcao nova usa Registry, adiciona colunas faltantes ao final quando necessario, atualiza/anexa por cabecalho e nao limpa a aba inteira.
+
 ## APIs Operacionais Publicas
 
 Pessoas v2:
 
+- `corePessoasV2Diagnostico(options)`
+- `corePessoasV2ConferirConsistencia(options)`
+- `corePessoasV2AtualizarResumoOperacional(options)`
 - `corePessoasGetById(idPessoa)`
 - `corePessoasFindByEmail(email)`
 - `corePessoasFindByRga(rga)`
@@ -132,12 +141,16 @@ Pessoas v2:
 
 Vigencias v2:
 
+- `coreVigenciasV2Diagnostico(options)`
+- `coreVigenciasV2ConferirConsistencia(options)`
+- `coreVigenciasV2AtualizarResumoAtual(options)`
 - `coreVigenciasGetCurrentFunctionByPessoa(idPessoa)`
 - `coreVigenciasListCurrentFunctions(opts)`
 - `coreVigenciasGetPortalPermissionsByPessoa(idPessoa)`
 
 Diagnostico somente leitura:
 
+- `coreV2DiagnosticoGeral(options)`
 - `coreAuditarPessoasV2()`
 - `coreAuditarVigenciasV2()`
 - `coreCompararLegadoComV2(opts)`

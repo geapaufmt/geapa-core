@@ -97,6 +97,66 @@ function coreAuditarDominiosCentraisV2() {
   return coreAuditarDominiosCentraisV2_();
 }
 
+function corePessoasV2Diagnostico(options) {
+  return core_pessoasV2Diagnostico_(options || {});
+}
+
+function corePessoasV2ConferirConsistencia(options) {
+  return core_pessoasV2ConferirConsistencia_(options || {});
+}
+
+function coreVigenciasV2Diagnostico(options) {
+  return core_vigenciasV2Diagnostico_(options || {});
+}
+
+function coreVigenciasV2ConferirConsistencia(options) {
+  return core_vigenciasV2ConferirConsistencia_(options || {});
+}
+
+function coreV2DiagnosticoGeral(options) {
+  return core_v2DiagnosticoGeral_(options || {});
+}
+
+function corePessoasV2AtualizarResumoOperacional(options) {
+  return core_pessoasV2AtualizarResumoOperacional_(options || {});
+}
+
+function coreVigenciasV2AtualizarResumoAtual(options) {
+  return core_vigenciasV2AtualizarResumoAtual_(options || {});
+}
+
+function coreV2RunTesteDiagnosticoGeral() {
+  return coreV2RunTesteDiagnosticoGeral_();
+}
+
+function coreV2RunTestePessoasResumo() {
+  return coreV2RunTestePessoasResumo_();
+}
+
+function coreV2RunTesteVigenciasResumo() {
+  return coreV2RunTesteVigenciasResumo_();
+}
+
+function coreV2_runTesteJobDiarioDryRun() {
+  return coreV2_runTesteJobDiarioDryRun_();
+}
+
+function coreV2_jobDiarioManutencao(options) {
+  return coreV2_jobDiarioManutencao_(options || {});
+}
+
+function coreV2InstalarTriggerJobDiario(options) {
+  return coreV2_instalarTriggerJobDiario_(options || {});
+}
+
+function coreV2RemoverTriggerJobDiario() {
+  return coreV2_removerTriggerJobDiario_();
+}
+
+function coreV2ListarTriggerJobDiario() {
+  return coreV2_listarTriggerJobDiario_();
+}
+
 function coreCompararLegadoComV2(opts) {
   return coreCompararLegadoComV2_(opts || {});
 }

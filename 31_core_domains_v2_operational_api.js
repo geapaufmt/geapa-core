@@ -285,6 +285,18 @@ function coreVigenciasGetCurrentFunctionByPessoa_(idPessoa) {
   return list[0] || null;
 }
 
+function coreVigenciasGetCurrentSummaryByPessoa_(idPessoa) {
+  var report = core_domainsV2NewReadReport_('VIGENCIAS_GET_CURRENT_SUMMARY_BY_PESSOA');
+  var vigenciasData = core_domainsV2OpenVigencias_(report);
+  if (report.totalErros) throw new Error('Vigencias v2 indisponivel: ' + JSON.stringify(report.erros));
+  var id = String(idPessoa || '').trim();
+  var records = (vigenciasData.VIGENCIAS_RESUMO_ATUAL && vigenciasData.VIGENCIAS_RESUMO_ATUAL.records) || [];
+  for (var i = 0; i < records.length; i++) {
+    if (String(records[i].ID_PESSOA || '').trim() === id) return core_domainsV2CloneRecord_(records[i]);
+  }
+  return null;
+}
+
 function coreVigenciasGetPortalPermissionsByPessoa_(idPessoa) {
   var functions = coreVigenciasListCurrentFunctions_({ idPessoa: idPessoa });
   var perfis = [];

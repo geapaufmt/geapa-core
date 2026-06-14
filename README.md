@@ -195,6 +195,14 @@ Observacoes desta V1:
 - ainda nao ha janela deslizante real de 24 horas;
 - a escrita e feita por cabecalho, sem depender de indice fixo de coluna.
 
+### Rotinas V2 de Pessoas e Vigencias
+
+As rotinas manuais de diagnostico, conferencia e atualizacao segura de `PESSOAS_RESUMO_OPERACIONAL` e `VIGENCIAS_RESUMO_ATUAL` estao documentadas em [`docs/rotinas-v2-pessoas-vigencias.md`](docs/rotinas-v2-pessoas-vigencias.md).
+
+Estas rotinas usam Registry, `dryRun` por padrao, `MODULOS_CONFIG` quando disponivel e `MODULOS_STATUS` em best effort. Consumidores externos devem usar uma versao/implantacao publicada do Core.
+
+O job coordenado `coreV2_jobDiarioManutencao(options)` executa diagnostico, atualizacao e conferencia de Pessoas/Vigencias e pode receber callbacks do modulo Atividades. O trigger correspondente so e instalado por chamada manual a `coreV2InstalarTriggerJobDiario(options)`. A homologacao manual esta em [`docs/jobs-v2-manutencao.md`](docs/jobs-v2-manutencao.md).
+
 ### Sheets e records
 
 Camada reutilizavel para leitura e escrita sem depender de colunas fixas.
