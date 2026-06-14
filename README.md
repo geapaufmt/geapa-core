@@ -203,6 +203,8 @@ Estas rotinas usam Registry, `dryRun` por padrao, `MODULOS_CONFIG` quando dispon
 
 O job coordenado `coreV2_jobDiarioManutencao(options)` executa diagnostico, atualizacao e conferencia de Pessoas/Vigencias e pode receber callbacks do modulo Atividades. O trigger correspondente so e instalado por chamada manual a `coreV2InstalarTriggerJobDiario(options)`. A homologacao manual esta em [`docs/jobs-v2-manutencao.md`](docs/jobs-v2-manutencao.md).
 
+O bootstrap seguro `coreV2_bootstrapConfiguracao(options)` confere e, quando explicitamente autorizado em DEV, cria apenas linhas ausentes em `MODULOS_CONFIG` e `MODULOS_STATUS`. A operacao esta documentada em [`docs/bootstrap-configuracao-v2.md`](docs/bootstrap-configuracao-v2.md).
+
 ### Sheets e records
 
 Camada reutilizavel para leitura e escrita sem depender de colunas fixas.

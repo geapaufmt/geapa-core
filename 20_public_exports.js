@@ -157,6 +157,18 @@ function coreV2ListarTriggerJobDiario() {
   return coreV2_listarTriggerJobDiario_();
 }
 
+function coreV2_conferirConfiguracao(options) {
+  return coreV2_conferirConfiguracao_(options || {});
+}
+
+function coreV2_bootstrapConfiguracao(options) {
+  return coreV2_bootstrapConfiguracao_(options || {});
+}
+
+function coreV2_runTesteBootstrapDryRun() {
+  return coreV2_runTesteBootstrapDryRun_();
+}
+
 function coreCompararLegadoComV2(opts) {
   return coreCompararLegadoComV2_(opts || {});
 }
