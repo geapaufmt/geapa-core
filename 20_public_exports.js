@@ -169,6 +169,10 @@ function coreV2_runTesteBootstrapDryRun() {
   return coreV2_runTesteBootstrapDryRun_();
 }
 
+function coreV2_runTesteResolverRegistryV2() {
+  return coreV2_runTesteResolverRegistryV2_();
+}
+
 function coreCompararLegadoComV2(opts) {
   return coreCompararLegadoComV2_(opts || {});
 }

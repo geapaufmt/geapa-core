@@ -90,7 +90,7 @@ function core_v2RotinasOptions_(options) {
     dryRun: options.dryRun !== false,
     includeRecords: options.includeRecords === true,
     limit: Math.max(1, Number(options.limit || 10)),
-    ambiente: options.ambiente || '',
+    ambiente: options.ambiente || 'DEV',
     allowWriteWithErrors: options.allowWriteWithErrors === true
   };
 }
@@ -229,9 +229,38 @@ function core_v2RotinasSanitizeError_(err) {
     .replace(/Disponiveis: .+$/i, 'Consulte o Registry para conferir as keys disponiveis.');
 }
 
-function core_v2RotinasReadKey_(key) {
+function core_v2RotinasGetSheetByKey_(key, ambiente) {
+  var env = core_v2RotinasNormalize_(ambiente || '');
+  if (!env) return core_getSheetByKey_(key);
+  if (env !== 'DEV' && env !== 'PROD') {
+    throw new Error('Ambiente invalido para leitura V2: ' + env + '. Use DEV ou PROD.');
+  }
+
+  var wanted = core_v2RotinasNormalize_(key);
+  var raw = core_getRegistryRaw_();
+  var envMap = raw[wanted];
+  if (!envMap) {
+    throw new Error('Registry KEY nao encontrada: "' + wanted + '".');
+  }
+
+  var entry = envMap[env];
+  if (!entry) {
+    throw new Error(
+      'Registry KEY "' + wanted + '" nao possui cadastro para o ambiente "' + env +
+      '". Ambientes disponiveis: ' + Object.keys(envMap).sort().join(', ') + '.'
+    );
+  }
+  if (!entry.ativo) {
+    throw new Error('Registry KEY "' + wanted + '" esta inativa no ambiente "' + env + '".');
+  }
+
+  return core_getSheetById_(entry.id, entry.sheet);
+}
+
+function core_v2RotinasReadKey_(key, options) {
+  var opts = core_v2RotinasOptions_(options || {});
   try {
-    var sheet = core_getSheetByKey_(key);
+    var sheet = core_v2RotinasGetSheetByKey_(key, opts.ambiente);
     var lastCol = sheet.getLastColumn();
     var headers = lastCol > 0
       ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(header) {
@@ -241,14 +270,16 @@ function core_v2RotinasReadKey_(key) {
     return {
       ok: true,
       key: key,
+      ambiente: opts.ambiente,
       sheet: sheet,
       headers: headers,
-      records: core_readRecordsByKey_(key, { skipBlankRows: true })
+      records: core_readSheetRecords_(sheet, { skipBlankRows: true })
     };
   } catch (err) {
     return {
       ok: false,
       key: key,
+      ambiente: opts.ambiente,
       sheet: null,
       headers: [],
       records: [],
@@ -257,17 +288,17 @@ function core_v2RotinasReadKey_(key) {
   }
 }
 
-function core_v2RotinasReadGroup_(keyMap) {
+function core_v2RotinasReadGroup_(keyMap, options) {
   var out = {};
   Object.keys(keyMap || {}).forEach(function(name) {
-    out[name] = core_v2RotinasReadKey_(keyMap[name]);
+    out[name] = core_v2RotinasReadKey_(keyMap[name], options || {});
   });
   return out;
 }
 
 function core_v2RotinasDiagnosticForGroup_(modulo, fluxo, keyMap, options) {
   var opts = core_v2RotinasOptions_(options);
-  var data = core_v2RotinasReadGroup_(keyMap);
+  var data = core_v2RotinasReadGroup_(keyMap, opts);
   var datasets = [];
   var ok = true;
 
@@ -450,7 +481,7 @@ function core_pessoasV2ConferirConsistencia_(options) {
   }
 
   try {
-    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.PESSOAS);
+    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.PESSOAS, execution.opts);
     core_v2RotinasAddUnavailableDataIssues_(envelope, data, 'PESSOAS');
     if (!envelope.ok) {
       core_v2RotinasFinishError_(execution, fluxo.modulo, fluxo.fluxo, '', 'Datasets V2 indisponiveis.');
@@ -487,8 +518,8 @@ function core_vigenciasV2ConferirConsistencia_(options) {
   }
 
   try {
-    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS);
-    var pessoas = core_v2RotinasReadGroup_({ BASE: CORE_V2_ROTINAS_KEYS.PESSOAS.BASE });
+    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS, execution.opts);
+    var pessoas = core_v2RotinasReadGroup_({ BASE: CORE_V2_ROTINAS_KEYS.PESSOAS.BASE }, execution.opts);
     data.PESSOAS_BASE = pessoas.BASE;
     core_v2RotinasAddUnavailableDataIssues_(envelope, data, 'VIGENCIAS');
     if (!envelope.ok) {
@@ -801,14 +832,14 @@ function core_pessoasV2AtualizarResumoOperacional_(options) {
   }
 
   try {
-    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.PESSOAS);
-    var vigenciasResumo = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.VIGENCIAS.RESUMO);
+    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.PESSOAS, execution.opts);
+    var vigenciasResumo = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.VIGENCIAS.RESUMO, execution.opts);
     var unavailable = core_v2RotinasUnavailableKeys_(data);
     if (unavailable.length) {
       throw new Error('Keys V2 indisponiveis: ' + unavailable.join(', '));
     }
 
-    var consistencia = core_pessoasV2ConferirConsistencia_({ dryRun: true });
+    var consistencia = core_pessoasV2ConferirConsistencia_({ dryRun: true, ambiente: execution.opts.ambiente });
     var rows = core_pessoasV2BuildResumoRows_(data, vigenciasResumo.ok ? vigenciasResumo.records : []);
     var result = core_v2RotinasUpdateEnvelope_(fluxo.modulo, fluxo.fluxo, execution, rows, consistencia);
 
@@ -823,7 +854,7 @@ function core_pessoasV2AtualizarResumoOperacional_(options) {
 
     if (!execution.opts.dryRun) {
       result.escrita = core_v2RotinasWriteWithLock_(function() {
-        var target = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.RESUMO);
+        var target = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.RESUMO, execution.opts);
         if (!target.ok) throw new Error(target.error);
         return core_v2RotinasUpsertRows_(target.sheet, rows, {
           primaryKey: 'ID_PESSOA',
@@ -850,17 +881,17 @@ function core_vigenciasV2AtualizarResumoAtual_(options) {
   }
 
   try {
-    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS);
+    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS, execution.opts);
     var pessoasData = core_v2RotinasReadGroup_({
       BASE: CORE_V2_ROTINAS_KEYS.PESSOAS.BASE,
       MEMBROS_DETALHES: CORE_V2_ROTINAS_KEYS.PESSOAS.MEMBROS_DETALHES
-    });
+    }, execution.opts);
     var unavailable = core_v2RotinasUnavailableKeys_(data).concat(core_v2RotinasUnavailableKeys_(pessoasData));
     if (unavailable.length) {
       throw new Error('Keys V2 indisponiveis: ' + unavailable.join(', '));
     }
 
-    var consistencia = core_vigenciasV2ConferirConsistencia_({ dryRun: true });
+    var consistencia = core_vigenciasV2ConferirConsistencia_({ dryRun: true, ambiente: execution.opts.ambiente });
     var rows = core_vigenciasV2BuildResumoRows_(data, pessoasData);
     var result = core_v2RotinasUpdateEnvelope_(fluxo.modulo, fluxo.fluxo, execution, rows, consistencia);
 
@@ -875,7 +906,7 @@ function core_vigenciasV2AtualizarResumoAtual_(options) {
 
     if (!execution.opts.dryRun) {
       result.escrita = core_v2RotinasWriteWithLock_(function() {
-        var target = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.VIGENCIAS.RESUMO);
+        var target = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.VIGENCIAS.RESUMO, execution.opts);
         if (!target.ok) throw new Error(target.error);
         return core_v2RotinasUpsertRows_(target.sheet, rows, {
           primaryKey: 'ID_VIGENCIA',

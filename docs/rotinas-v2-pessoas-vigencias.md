@@ -16,6 +16,7 @@ Para a homologacao do job coordenado, veja tambem [`docs/jobs-v2-manutencao.md`]
 - Colunas faltantes dos caches podem ser adicionadas ao final, de forma nao destrutiva.
 - Linhas existentes sao atualizadas por chave tecnica e linhas ausentes sao anexadas.
 - Colunas extras ja existentes sao preservadas.
+- Durante a homologacao, `options.ambiente` usa `DEV` por padrao para resolver as keys V2 no Registry bruto, mesmo que `GEAPA_ENV` do script esteja em outro ambiente.
 
 ## Implantacao e consumo por versao
 

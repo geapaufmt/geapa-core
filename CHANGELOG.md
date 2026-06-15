@@ -18,6 +18,7 @@
 - Criado `coreV2_jobDiarioManutencao` com instaladores manuais de trigger para orquestrar diagnostico, atualizacao e conferencia V2 sem ativacao automatica em producao.
 - Criado `coreV2_runTesteJobDiarioDryRun` e documentada a checklist de homologacao manual dos jobs V2.
 - Criado bootstrap seguro `coreV2_bootstrapConfiguracao`, conferencia `coreV2_conferirConfiguracao` e teste `coreV2_runTesteBootstrapDryRun` para preparar `MODULOS_CONFIG` e `MODULOS_STATUS` em DEV sem sobrescrever dados.
+- Criado `coreV2_runTesteResolverRegistryV2` para diagnosticar keys Pessoas/Vigencias V2 no Registry bruto em DEV e ajustadas leituras V2 para resolver ambiente explicitamente.
 - Exportadas funcoes publicas para resolver usuario, perfil efetivo, permissoes efetivas, validacao de acesso, apresentacoes permitidas e diagnostico de prontidao do portal v2.
 - Documentado o historico da migracao em `docs/MIGRACAO_V2_HISTORICO.md`.
 - Marcado `29_core_domains_v2_migration.js` como arquivo historico interno, sem uso em producao.

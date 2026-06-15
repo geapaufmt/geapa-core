@@ -205,6 +205,8 @@ O job coordenado `coreV2_jobDiarioManutencao(options)` executa diagnostico, atua
 
 O bootstrap seguro `coreV2_bootstrapConfiguracao(options)` confere e, quando explicitamente autorizado em DEV, cria apenas linhas ausentes em `MODULOS_CONFIG` e `MODULOS_STATUS`. A operacao esta documentada em [`docs/bootstrap-configuracao-v2.md`](docs/bootstrap-configuracao-v2.md).
 
+O diagnostico `coreV2_runTesteResolverRegistryV2()` verifica, em modo somente leitura, se as keys de Pessoas/Vigencias V2 existem no Registry bruto em `AMBIENTE=DEV`, com IDs mascarados. Detalhes: [`docs/core-v2-registry-diagnostico.md`](docs/core-v2-registry-diagnostico.md).
+
 ### Sheets e records
 
 Camada reutilizavel para leitura e escrita sem depender de colunas fixas.
