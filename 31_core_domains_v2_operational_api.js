@@ -608,17 +608,73 @@ function core_domainsV2ActivityData_() {
   var unavailable = {};
   return {
     apresentacoes: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_APRESENTACOES', unavailable),
-    portalApresentacoes: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PORTAL_APRESENTACOES', unavailable),
+    portalAtividadesDetalhes: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES', unavailable),
     presencas: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PRESENCAS_REGISTROS', unavailable),
     portalFrequencia: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PORTAL_FREQUENCIA_MEMBROS', unavailable),
     unavailable: unavailable
   };
 }
 
+function core_domainsV2ParseJsonArray_(value) {
+  if (Array.isArray(value)) return value;
+  var text = String(value || '').trim();
+  if (!text) return [];
+  try {
+    var parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function core_domainsV2PresentationRecordsFromPortalDetails_(details) {
+  var records = [];
+  (details || []).forEach(function(detail) {
+    var presentations = core_domainsV2ParseJsonArray_(core_domainsV2LegacyValue_(detail, [
+      'APRESENTACOES_PUBLICAS_JSON',
+      'apresentacoesPublicas'
+    ]));
+    if (!presentations.length) return;
+
+    var base = {
+      ID_ATIVIDADE: core_domainsV2LegacyValue_(detail, ['ID_ATIVIDADE', 'idAtividade']),
+      DATA_ATIVIDADE: core_domainsV2LegacyValue_(detail, ['DATA_ATIVIDADE', 'dataAtividade', 'DATA']),
+      PERIODO: core_domainsV2LegacyValue_(detail, ['PERIODO', 'ID_PERIODO', 'periodo'])
+    };
+    presentations.forEach(function(item) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+      var out = {};
+      Object.keys(item).forEach(function(key) {
+        out[key] = item[key];
+      });
+      Object.keys(base).forEach(function(key) {
+        if (out[key] === undefined || out[key] === null || out[key] === '') out[key] = base[key];
+      });
+      records.push(out);
+    });
+  });
+  return records;
+}
+
 function core_domainsV2RecordMatchesPessoa_(record, ctx) {
-  var id = String(core_domainsV2LegacyValue_(record, ['ID_PESSOA', 'Id Pessoa']) || '').trim();
-  var rga = core_domainsV2Rga_(core_domainsV2LegacyValue_(record, ['RGA']));
-  var email = core_domainsV2Email_(core_domainsV2LegacyValue_(record, ['EMAIL', 'Email', 'E-mail']));
+  var id = String(core_domainsV2LegacyValue_(record, [
+    'ID_PESSOA',
+    'ID_PESSOA_APRESENTADOR',
+    'ID_PESSOA_PRINCIPAL',
+    'idPessoa',
+    'idPessoaApresentador',
+    'idPessoaPrincipal',
+    'Id Pessoa'
+  ]) || '').trim();
+  var rga = core_domainsV2Rga_(core_domainsV2LegacyValue_(record, ['RGA', 'rga', 'rgaApresentador']));
+  var email = core_domainsV2Email_(core_domainsV2LegacyValue_(record, [
+    'EMAIL',
+    'EMAIL_APRESENTADOR',
+    'Email',
+    'E-mail',
+    'email',
+    'emailApresentador'
+  ]));
   return (!!ctx.idPessoa && id === ctx.idPessoa) || (!!ctx.rga && rga === ctx.rga) || (!!ctx.email && email === ctx.email);
 }
 
@@ -633,7 +689,9 @@ function core_domainsV2StatusPendente_(value) {
 }
 
 function core_domainsV2PresentationSummary_(activityData, ctx) {
-  var records = (activityData.apresentacoes || []).concat(activityData.portalApresentacoes || []);
+  var records = activityData.apresentacoes && activityData.apresentacoes.length
+    ? activityData.apresentacoes
+    : core_domainsV2PresentationRecordsFromPortalDetails_(activityData.portalAtividadesDetalhes || []);
   var concluded = [];
   var pending = false;
   var filePending = false;
@@ -646,8 +704,8 @@ function core_domainsV2PresentationSummary_(activityData, ctx) {
     if (core_domainsV2StatusPendente_(fileStatus)) filePending = true;
   });
   concluded.sort(function(a, b) {
-    var da = core_domainsV2Date_(core_domainsV2LegacyValue_(a, ['DATA_APRESENTACAO', 'DATA_REALIZADA', 'DATA', 'DATA_INICIO']));
-    var db = core_domainsV2Date_(core_domainsV2LegacyValue_(b, ['DATA_APRESENTACAO', 'DATA_REALIZADA', 'DATA', 'DATA_INICIO']));
+    var da = core_domainsV2Date_(core_domainsV2LegacyValue_(a, ['DATA_ATIVIDADE', 'DATA_APRESENTACAO', 'DATA_REALIZADA', 'DATA', 'DATA_INICIO', 'dataAtividade', 'dataApresentacao']));
+    var db = core_domainsV2Date_(core_domainsV2LegacyValue_(b, ['DATA_ATIVIDADE', 'DATA_APRESENTACAO', 'DATA_REALIZADA', 'DATA', 'DATA_INICIO', 'dataAtividade', 'dataApresentacao']));
     return core_domainsV2ResumoTimestamp_(db) - core_domainsV2ResumoTimestamp_(da);
   });
   var last = concluded[0] || {};

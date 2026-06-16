@@ -1141,12 +1141,53 @@ function corePortalGetMeuResumo_(email, opts) {
 
 function corePortalReadPresentationRecords_() {
   var records = [];
-  ['ATIVIDADES_V2_PORTAL_APRESENTACOES', 'ATIVIDADES_V2_APRESENTACOES'].forEach(function(key) {
-    try {
-      records = records.concat(core_readRecordsByKey_(key, { skipBlankRows: true }) || []);
-    } catch (err) {}
-  });
+  try {
+    var details = core_readRecordsByKey_('ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES', { skipBlankRows: true }) || [];
+    details.forEach(function(detail) {
+      records = records.concat(corePortalPresentationRecordsFromActivityDetail_(detail));
+    });
+  } catch (err) {}
   return records;
+}
+
+function corePortalParseJsonArray_(value) {
+  if (Array.isArray(value)) return value;
+  var text = String(value || '').trim();
+  if (!text) return [];
+  try {
+    var parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function corePortalPresentationRecordsFromActivityDetail_(detail) {
+  var presentations = corePortalParseJsonArray_(core_domainsV2LegacyValue_(detail, [
+    'APRESENTACOES_PUBLICAS_JSON',
+    'apresentacoesPublicas'
+  ]));
+  if (!presentations.length) return [];
+
+  var base = {
+    ID_ATIVIDADE: core_domainsV2LegacyValue_(detail, ['ID_ATIVIDADE', 'idAtividade']),
+    DATA_ATIVIDADE: core_domainsV2LegacyValue_(detail, ['DATA_ATIVIDADE', 'dataAtividade', 'DATA']),
+    PERIODO: core_domainsV2LegacyValue_(detail, ['PERIODO', 'ID_PERIODO', 'periodo']),
+    VISIBILIDADE: core_domainsV2LegacyValue_(detail, ['VISIBILIDADE_PORTAL', 'visibilidadePortal', 'STATUS_PUBLICO', 'statusPublico'])
+  };
+
+  return presentations.filter(function(item) {
+    return item && typeof item === 'object' && !Array.isArray(item);
+  }).map(function(item) {
+    var out = {};
+    Object.keys(item).forEach(function(key) {
+      out[key] = item[key];
+    });
+    Object.keys(base).forEach(function(key) {
+      if (out[key] === undefined || out[key] === null || out[key] === '') out[key] = base[key];
+    });
+    return out;
+  });
 }
 
 function corePortalPresentationDate_(record) {
@@ -1171,9 +1212,24 @@ function corePortalPresentationIsPublic_(record) {
 }
 
 function corePortalPresentationBelongsToUser_(record, usuario) {
-  var idPessoa = String(core_domainsV2LegacyValue_(record, ['ID_PESSOA', 'Id Pessoa']) || '').trim();
-  var rga = String(core_domainsV2LegacyValue_(record, ['RGA']) || '').trim();
-  var email = corePortalNormalizeEmail_(core_domainsV2LegacyValue_(record, ['EMAIL', 'Email', 'E-mail']));
+  var idPessoa = String(core_domainsV2LegacyValue_(record, [
+    'ID_PESSOA',
+    'ID_PESSOA_APRESENTADOR',
+    'ID_PESSOA_PRINCIPAL',
+    'idPessoa',
+    'idPessoaApresentador',
+    'idPessoaPrincipal',
+    'Id Pessoa'
+  ]) || '').trim();
+  var rga = String(core_domainsV2LegacyValue_(record, ['RGA', 'rga', 'rgaApresentador']) || '').trim();
+  var email = corePortalNormalizeEmail_(core_domainsV2LegacyValue_(record, [
+    'EMAIL',
+    'EMAIL_APRESENTADOR',
+    'Email',
+    'E-mail',
+    'email',
+    'emailApresentador'
+  ]));
   return (!!idPessoa && idPessoa === usuario.idPessoa) ||
     (!!rga && rga === usuario.rga) ||
     (!!email && email === usuario.email);
@@ -1181,12 +1237,12 @@ function corePortalPresentationBelongsToUser_(record, usuario) {
 
 function corePortalSanitizePresentation_(record) {
   return Object.freeze({
-    idAtividade: String(core_domainsV2LegacyValue_(record, ['ID_ATIVIDADE', 'ID_APRESENTACAO', 'ID']) || '').trim(),
-    titulo: String(core_domainsV2LegacyValue_(record, ['TITULO', 'TITULO_APRESENTACAO', 'TEMA']) || '').trim(),
-    dataAtividade: core_domainsV2LegacyValue_(record, ['DATA_ATIVIDADE', 'DATA_APRESENTACAO', 'DATA_REALIZADA', 'DATA']),
-    periodo: String(core_domainsV2LegacyValue_(record, ['PERIODO', 'CICLO', 'SEMESTRE', 'ID_PERIODO']) || '').trim(),
-    eixo: String(core_domainsV2LegacyValue_(record, ['EIXO', 'EIXO_TEMATICO']) || '').trim(),
-    status: String(core_domainsV2LegacyValue_(record, ['STATUS', 'STATUS_APRESENTACAO', 'SITUACAO']) || '').trim()
+    idAtividade: String(core_domainsV2LegacyValue_(record, ['ID_ATIVIDADE', 'ID_APRESENTACAO', 'ID', 'idAtividade', 'idApresentacao']) || '').trim(),
+    titulo: String(core_domainsV2LegacyValue_(record, ['TITULO', 'TITULO_APRESENTACAO', 'TEMA', 'titulo', 'tituloApresentacao']) || '').trim(),
+    dataAtividade: core_domainsV2LegacyValue_(record, ['DATA_ATIVIDADE', 'DATA_APRESENTACAO', 'DATA_REALIZADA', 'DATA', 'dataAtividade', 'dataApresentacao']),
+    periodo: String(core_domainsV2LegacyValue_(record, ['PERIODO', 'CICLO', 'SEMESTRE', 'ID_PERIODO', 'periodo']) || '').trim(),
+    eixo: String(core_domainsV2LegacyValue_(record, ['EIXO', 'EIXO_TEMATICO', 'EIXO_TEMATICO_PRINCIPAL', 'eixo', 'eixoTematicoPrincipal']) || '').trim(),
+    status: String(core_domainsV2LegacyValue_(record, ['STATUS', 'STATUS_APRESENTACAO', 'SITUACAO', 'status', 'statusApresentacao']) || '').trim()
   });
 }
 
