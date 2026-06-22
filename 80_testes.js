@@ -373,6 +373,7 @@ function test_core_listarMembrosParaChamada_fakeSheet() {
   var result = core_listarMembrosParaChamadaInSheet_(sheet, '2026-04-16', {
     perfil: 'DIRETORIA'
   }, {
+    identityMaps: {},
     lifecycleByRga: {
       'RGA-005': [
         {
@@ -397,17 +398,21 @@ function test_core_listarMembrosParaChamada_fakeSheet() {
   var denied = core_listarMembrosParaChamadaInSheet_(sheet, '2026-04-16', {
     perfil: 'MEMBRO'
   }, {
+    identityMaps: {},
     lifecycleByRga: {}
   });
   var missingDate = core_listarMembrosParaChamadaInSheet_(sheet, '', {
     perfil: 'DIRETORIA'
   }, {
+    identityMaps: {},
     lifecycleByRga: {}
   });
   var safeKeys = [
     'aplicavelNaData',
     'contaFalta',
     'contaPresenca',
+    'email',
+    'idPessoa',
     'motivoNaoAplicavel',
     'nomeExibicao',
     'rga',
@@ -418,8 +423,12 @@ function test_core_listarMembrosParaChamada_fakeSheet() {
 
   test_assert_(result.ok === true, 'Lista de membros para chamada deveria retornar ok=true.');
   test_assert_(result.meta.total === 3, 'A chamada deveria incluir ativo, historico e suspenso/N/A, excluindo futuro e desligado.');
+  test_assert_(result.meta.totalAplicaveis === 2, 'A chamada deveria ter dois membros aplicaveis.');
+  test_assert_(result.meta.totalNaoAplicaveis === 1, 'A chamada deveria ter um membro nao aplicavel.');
+  test_assert_(result.meta.cacheHit === false, 'Resultado direto em sheet fake nao deveria vir do cache.');
   test_assert_(result.meta.dataReferencia === '2026-04-16', 'Data de referencia deveria ser ISO local.');
   test_assert_(result.data[0].nomeExibicao === 'Membro Ativo', 'Ordenacao por nome incorreta.');
+  test_assert_(result.data[0].email === 'ativo@example.com', 'Email seguro da chamada deveria ser normalizado.');
   test_assert_(result.data[0].situacao === 'ATIVO', 'Situacao ativa deveria ser normalizada.');
   test_assert_(result.data[0].contaPresenca === true, 'Membro ativo deve contar presenca.');
   test_assert_(result.data[0].contaFalta === true, 'Membro ativo deve contar falta.');
@@ -427,11 +436,12 @@ function test_core_listarMembrosParaChamada_fakeSheet() {
   test_assert_(result.data[1].situacao === 'ATIVO', 'Membro historico deveria estar ativo na data.');
   test_assert_(result.data[2].nomeExibicao === 'Membro Suspenso', 'Membro suspenso deveria aparecer como N/A seguro.');
   test_assert_(result.data[2].situacao === 'SUSPENSO', 'Situacao suspensa deveria ser normalizada.');
+  test_assert_(result.data[2].aplicavelNaData === false, 'Suspenso deve aparecer como nao aplicavel na data.');
   test_assert_(result.data[2].contaPresenca === false, 'Suspenso nao deve contar presenca.');
   test_assert_(result.data[2].contaFalta === false, 'Suspenso nao deve contar falta.');
   test_assert_(result.data[2].motivoNaoAplicavel === 'SITUACAO_NAO_CONTABILIZA_CHAMADA', 'Motivo seguro de suspensao incorreto.');
   test_assert_(Object.keys(result.data[0]).sort().join(',') === safeKeys, 'Contrato retornou campos nao seguros.');
-  test_assert_(!Object.prototype.hasOwnProperty.call(result.data[0], 'EMAIL'), 'Nao deve expor email.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(result.data[0], 'EMAIL'), 'Nao deve expor cabecalho bruto EMAIL.');
   test_assert_(!Object.prototype.hasOwnProperty.call(result.data[0], 'Telefone'), 'Nao deve expor telefone.');
   test_assert_(denied.ok === false && denied.errorCode === 'PERMISSAO_NEGADA', 'Perfil MEMBRO nao deve listar chamada quando contexto e informado.');
   test_assert_(missingDate.ok === false && missingDate.errorCode === 'DATA_ATIVIDADE_OBRIGATORIA', 'Data ausente deveria retornar erro controlado.');

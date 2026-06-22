@@ -144,6 +144,7 @@ const GEAPA_CORE = Object.freeze({
     buscarUsuarioPortal: core_buscarUsuarioPortal_,
     buscarMinhaSituacaoParaPortal: core_buscarMinhaSituacaoParaPortal_,
     listarMembrosParaChamada: core_listarMembrosParaChamada_,
+    invalidarCacheMembrosChamada: core_invalidarCacheMembrosChamada_,
     access: Object.freeze({
       getConfig: corePortalReadConfig_,
       getOperationalConfig: corePortalReadConfig_,

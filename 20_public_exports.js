@@ -490,6 +490,14 @@ function listarMembrosParaChamada(dataAtividade, contexto) {
   return geapaCoreListarMembrosParaChamada(dataAtividade, contexto || {});
 }
 
+function geapaCoreInvalidarCacheMembrosChamada(dataAtividade) {
+  return core_invalidarCacheMembrosChamada_(dataAtividade);
+}
+
+function coreInvalidarCacheMembrosChamada(dataAtividade) {
+  return geapaCoreInvalidarCacheMembrosChamada(dataAtividade);
+}
+
 function geapaCoreRunTesteUsuarioPortal() {
   try {
     var identificador = PropertiesService

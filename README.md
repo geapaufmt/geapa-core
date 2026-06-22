@@ -1119,8 +1119,10 @@ Retorno de sucesso:
   ok: true,
   data: [
     {
+      idPessoa: string,
       tipoParticipante: "MEMBRO",
       rga: string,
+      email: string,
       nomeExibicao: string,
       situacao: "ATIVO" | "SUSPENSO" | "LICENCA" | "AFASTADO",
       vinculo: string,
@@ -1132,9 +1134,20 @@ Retorno de sucesso:
   ],
   meta: {
     total: number,
+    totalAplicaveis: number,
+    totalNaoAplicaveis: number,
     dataReferencia: "yyyy-MM-dd",
+    origem: "geapa-core",
     origemDados: "GEAPA_CORE",
+    cacheHit: boolean,
+    cacheTtlSeconds: 600,
     observacoes: []
+  },
+  performance: {
+    totalMs: number,
+    etapas: [
+      { etapa: string, ms: number, totalMs: number }
+    ]
   }
 }
 ```
@@ -1143,13 +1156,24 @@ Regras da chamada:
 
 - funcao somente leitura, segura para uso indireto pelo Portal via Apps Script/backend, como `geapa-atividades`;
 - nao escreve em planilhas e nao altera producao;
-- usa `MEMBERS_ATUAIS` como base principal de membros e, quando disponivel, `MEMBER_EVENTOS_VINCULO` para historico de ingresso, desligamento, suspensao e retorno;
-- retorna apenas campos seguros: `tipoParticipante`, `rga`, `nomeExibicao`, `situacao`, `vinculo`, `aplicavelNaData`, `contaPresenca`, `contaFalta` e `motivoNaoAplicavel`;
-- nao retorna e-mail completo, CPF, telefone, endereco, documentos, observacoes internas, dados disciplinares, logs ou IDs privados de planilhas;
+- usa `MEMBERS_ATUAIS` como base principal de membros e, quando disponiveis via Registry, `PESSOAS_V2_BASE`, `PESSOAS_V2_MEMBROS_DETALHES` e `PESSOAS_V2_IDENTIFICADORES` para enriquecer identidade canonica;
+- quando disponivel, usa `MEMBER_EVENTOS_VINCULO` para historico de ingresso, desligamento, suspensao e retorno;
+- retorna apenas campos seguros para a chamada: `idPessoa`, `tipoParticipante`, `rga`, `email`, `nomeExibicao`, `situacao`, `vinculo`, `aplicavelNaData`, `contaPresenca`, `contaFalta` e `motivoNaoAplicavel`;
+- a identidade canonica prioriza `ID_PESSOA`, depois `RGA`, depois e-mail, evitando duplicidade do mesmo membro real;
+- nao retorna CPF, telefone, endereco, documentos, observacoes internas, dados disciplinares, logs ou IDs privados de planilhas;
 - exclui pessoas que ingressaram depois da data da atividade ou que tiveram vinculo encerrado antes da data;
 - quando situacao confiavel indicar suspensao, licenca ou afastamento, a pessoa pode retornar como N/A seguro, com `contaPresenca: false`, `contaFalta: false` e motivo padronizado, sem expor motivo sensivel;
 - se o contexto trouxer perfil sem permissao operacional, retorna `PERMISSAO_NEGADA`;
 - se `MEMBER_EVENTOS_VINCULO` ou campos oficiais de datas ainda nao estiverem disponiveis, a resposta inclui limitacoes em `meta.observacoes` e nao inventa dados ausentes.
+- usa cache curto por ambiente/data com chave `CORE_MEMBROS_CHAMADA_V2:<AMBIENTE>:<yyyy-MM-dd>` e TTL de 10 minutos;
+- o cache pode ser ignorado com `contexto.disableCache === true` e invalidado por data com `geapaCoreInvalidarCacheMembrosChamada(dataAtividade)`;
+- retorna diagnostico de performance em `performance.totalMs` e `performance.etapas`.
+
+Observacao operacional para o Pacote 3.1:
+
+- `SALVAR` chamada em `geapa-atividades` e apenas rascunho operacional em `Portal_Acoes` (`CHAMADA_RASCUNHO_SALVO`) e nao deve ser tratado pelo Core como presenca oficial;
+- apenas `FINALIZAR` produz presenca oficial em `Atividades_Presencas_Registros`;
+- a listagem de membros do Core nao recalcula frequencia/justificativas e nao espera atualizacao dessas visoes apos `SALVAR`.
 
 Erros controlados da chamada:
 
