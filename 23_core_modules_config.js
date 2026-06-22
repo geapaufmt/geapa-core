@@ -44,7 +44,13 @@ const CORE_MODULES_CONFIG_UX = Object.freeze({
     'EMAIL',
     'SYNC',
     'DRIVE',
-    'DIAGNOSTICO'
+    'DIAGNOSTICO',
+    'JOB_DIARIO_V2',
+    'BOOTSTRAP_CONFIGURACAO_V2',
+    'ATUALIZACAO_V2',
+    'CONFERENCIA_V2',
+    'ATUALIZACAO_PORTAL_V2',
+    'FREQUENCIA_V2'
   ]),
   modes: Object.freeze(['ON', 'OFF', 'MANUAL', 'DRY_RUN']),
   environments: Object.freeze(['PROD', 'DEV']),
