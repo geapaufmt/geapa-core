@@ -459,6 +459,8 @@ function test_core_portalAccess_authorizeEmail_fakeSheets() {
     { PERFIL_PORTAL: 'ADMIN', PERMISSAO: 'sistema:admin', ATIVO: 'SIM' }
   ];
   var config = {
+    PORTAL_MODO_ACESSO: 'MEMBROS_ATIVOS',
+    PORTAL_EMAILS_TESTE: 'teste@example.com',
     PORTAL_BLOCK_INACTIVE_MEMBERS: 'SIM',
     PORTAL_DEFAULT_PROFILE: 'MEMBRO'
   };
@@ -497,8 +499,18 @@ function test_core_portalAccess_authorizeEmail_fakeSheets() {
   var waitingAllowed = corePortalAuthorizeEmail_('espera@example.com', Object.assign({}, opts, {
     includeWaiting: true
   }));
+  var testeBloqueado = corePortalAuthorizeEmail_('ativo@example.com', Object.assign({}, opts, {
+    config: Object.assign({}, config, { PORTAL_MODO_ACESSO: 'TESTE' })
+  }));
+  var testeLiberado = corePortalAuthorizeEmail_('ativo@example.com', Object.assign({}, opts, {
+    config: Object.assign({}, config, {
+      PORTAL_MODO_ACESSO: 'TESTE',
+      PORTAL_EMAILS_TESTE: 'ativo@example.com'
+    })
+  }));
 
   test_assert_(active.authorized === true, 'Membro ativo deveria ser autorizado.');
+  test_assert_(active.modoAcesso === 'MEMBROS_ATIVOS', 'Modo MEMBROS_ATIVOS deveria aparecer na autorizacao.');
   test_assert_(active.authMode === 'EMAIL_LEGACY', 'Modo transitorio de auth incorreto.');
   test_assert_(active.email === 'ativo@example.com', 'Email deveria ser normalizado.');
   test_assert_(active.perfilPortal === 'MEMBRO', 'Perfil do membro ativo incorreto.');
@@ -512,6 +524,8 @@ function test_core_portalAccess_authorizeEmail_fakeSheets() {
   test_assert_(corePortalHasPermission_(admin, 'sistema:admin') === true, 'ADMIN deveria ter sistema:admin.');
   test_assert_(waiting.authorized === false && waiting.reason === 'MEMBRO_EM_ESPERA_NAO_AUTORIZADO', 'Espera deveria bloquear por padrao.');
   test_assert_(waitingAllowed.authorized === true, 'Espera deveria autorizar quando includeWaiting=true.');
+  test_assert_(testeBloqueado.authorized === false && testeBloqueado.reason === 'EMAIL_FORA_PORTAL_EMAILS_TESTE', 'Modo TESTE deveria aplicar PORTAL_EMAILS_TESTE.');
+  test_assert_(testeLiberado.authorized === true, 'Modo TESTE deveria autorizar e-mail listado em PORTAL_EMAILS_TESTE.');
 }
 
 function test_core_portalAccess_logAccess_fakeSheet() {

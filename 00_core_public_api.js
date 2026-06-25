@@ -155,6 +155,7 @@ const GEAPA_CORE = Object.freeze({
       hasPermission: corePortalHasPermission_,
       logAccess: corePortalAppendAccessLog_,
       diagnostics: corePortalDiagnostics_,
+      diagnosticarAcessoPortalDev: corePortalDiagnosticarAcessoPortalDev_,
       resolverUsuarioAtual: corePortalResolverUsuarioAtual_,
       buildFirestoreUserSnapshot: corePortalBuildFirestoreUserSnapshot_,
       gerarSnapshotFirestoreUsuario: corePortalBuildFirestoreUserSnapshot_,

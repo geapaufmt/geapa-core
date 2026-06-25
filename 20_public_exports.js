@@ -658,6 +658,14 @@ function corePortalDiagnosticarPerfisEPermissoes(opts) {
   return corePortalDiagnosticarPerfisEPermissoes_(opts || {});
 }
 
+function corePortalDiagnosticarAcessoPortalDev(opts) {
+  return corePortalDiagnosticarAcessoPortalDev_(opts || {});
+}
+
+function geapaCore_diagnosticarAcessoPortalDev_(opts) {
+  return corePortalDiagnosticarAcessoPortalDev_(opts || {});
+}
+
 function corePrepararPortalParaV2(opts) {
   return corePrepararPortalParaV2_(opts || {});
 }

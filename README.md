@@ -1224,6 +1224,7 @@ Funcoes publicas:
 - `corePortalListarApresentacoesPermitidas(email, options)`
 - `corePortalListarApresentacoesParaEgresso(idPessoa, opts)`
 - `corePortalDiagnosticarPerfisEPermissoes(opts)`
+- `corePortalDiagnosticarAcessoPortalDev(opts)`
 - `corePrepararPortalParaV2(opts)`
 
 Regras principais:
@@ -1238,6 +1239,9 @@ Regras principais:
 - colunas `PODE_*` em `CARGOS_CONFIG` sao transitorias/depreciadas para autorizacao final;
 - `ADMIN` deve vir de excecao explicita ativa em `PORTAL_ACESSOS_EXCECOES`, nao de cargo;
 - `corePortalResolverUsuarioAtual` retorna a sessao canonica segura do Portal com `autenticado`, `idPessoa`, `perfilPortalEfetivo`, `perfisPortal`, `permissoes`, vinculo atual e cargos atuais sanitizados;
+- `PORTAL_MODO_ACESSO` controla a liberacao geral: `TESTE` aplica `PORTAL_EMAILS_TESTE`; `MEMBROS_ATIVOS` ignora a whitelist de teste e libera membros ativos com `portal:acessar`; `PUBLICO_LIMITADO` so deve ser usado com fluxo publico seguro;
+- para liberar aos membros hoje, configure `PORTAL_MODO_ACESSO = MEMBROS_ATIVOS`, `AUTH_ALLOW_VISITANTE = NAO` e `PORTAL_BLOCK_INACTIVE_MEMBERS = SIM`;
+- apos alterar `PORTAL_MODO_ACESSO`, rode `corePortalClearConfigCache()` e force nova validacao de sessao no Portal;
 - `EGRESSO` pode acessar apresentacoes ate a data de saida por `apresentacoes:ver_ate_saida`;
 - `PORTAL_ATIVO = SIM` permite avaliar o perfil;
 - `PORTAL_ATIVO = NAO` bloqueia;
@@ -1263,6 +1267,7 @@ Firebase futuro:
 Diagnostico v2:
 
 - `corePortalDiagnosticarPerfisEPermissoes()` verifica perfis obrigatorios, permissoes por perfil, usuarios sem perfil, egressos sem perfil `EGRESSO` e excecoes `ADMIN`;
+- `corePortalDiagnosticarAcessoPortalDev()` verifica o modo de acesso, membros ativos com/sem e-mail, perfis sem `portal:acessar` e e-mails que ficariam bloqueados por `PORTAL_EMAILS_TESTE` no modo `TESTE`;
 - `corePrepararPortalParaV2()` retorna `PRONTO`, `PARCIAL` ou `BLOQUEADO` antes de qualquer alteracao no `geapa-portal`;
 - detalhes da arquitetura ficam em `docs/PORTAL_AUTORIZACAO_V2.md`.
 

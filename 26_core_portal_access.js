@@ -243,6 +243,75 @@ function corePortalReadConfig_(opts) {
   return Object.freeze(out);
 }
 
+function corePortalAccessMode_(config) {
+  var mode = corePortalNormalizeToken_((config || {}).PORTAL_MODO_ACESSO || 'MEMBROS_ATIVOS');
+  if (['TESTE', 'MEMBROS_ATIVOS', 'PUBLICO_LIMITADO'].indexOf(mode) >= 0) return mode;
+  return 'MEMBROS_ATIVOS';
+}
+
+function corePortalTestEmails_(config) {
+  var seen = {};
+  var out = [];
+  String((config || {}).PORTAL_EMAILS_TESTE || '').split(/[;,\n\r\t ]+/).forEach(function(part) {
+    var email = corePortalNormalizeEmail_(part);
+    if (email && !seen[email]) {
+      seen[email] = true;
+      out.push(email);
+    }
+  });
+  return Object.freeze(out);
+}
+
+function corePortalIsEmailInTestList_(email, config) {
+  var normalized = corePortalNormalizeEmail_(email);
+  return !!normalized && corePortalTestEmails_(config).indexOf(normalized) >= 0;
+}
+
+function corePortalAccessDeniedMessage_() {
+  return 'Seu e-mail nao esta liberado para acessar o Portal GEAPA ou nao possui vinculo ativo no grupo. Entre com o mesmo e-mail cadastrado junto ao GEAPA.';
+}
+
+function corePortalLinkAllowsMemberAccess_(link) {
+  var tipo = corePortalNormalizeToken_(link && link.tipoVinculo);
+  var status = corePortalNormalizeToken_(link && link.statusVinculo);
+  if (status !== 'ATIVO' && status !== 'ATIVA') return false;
+  return ['MEMBRO_EFETIVO', 'MEMBRO'].indexOf(tipo) >= 0;
+}
+
+function corePortalEvaluateAccessMode_(config, email, profileResult, permissions, link) {
+  var mode = corePortalAccessMode_(config);
+  var profile = corePortalNormalizeToken_(profileResult && profileResult.perfilPortalEfetivo);
+  var hasPortalAccess = (permissions || []).indexOf('portal:acessar') >= 0;
+  var blockInactive = !Object.prototype.hasOwnProperty.call(config || {}, 'PORTAL_BLOCK_INACTIVE_MEMBERS') ||
+    corePortalIsYes_((config || {}).PORTAL_BLOCK_INACTIVE_MEMBERS);
+
+  if (mode === 'TESTE' && !corePortalIsEmailInTestList_(email, config)) {
+    return Object.freeze({ allowed: false, mode: mode, reason: 'EMAIL_FORA_PORTAL_EMAILS_TESTE' });
+  }
+
+  if (profile === 'VISITANTE' && !corePortalIsYes_((config || {}).AUTH_ALLOW_VISITANTE)) {
+    return Object.freeze({ allowed: false, mode: mode, reason: 'VISITANTE_NAO_PERMITIDO' });
+  }
+
+  if (mode === 'PUBLICO_LIMITADO' && profile === 'VISITANTE') {
+    return Object.freeze({
+      allowed: corePortalIsYes_((config || {}).AUTH_ALLOW_VISITANTE),
+      mode: mode,
+      reason: corePortalIsYes_((config || {}).AUTH_ALLOW_VISITANTE) ? 'PUBLICO_LIMITADO_VISITANTE' : 'VISITANTE_NAO_PERMITIDO'
+    });
+  }
+
+  if (profile === 'ADMIN' && hasPortalAccess) {
+    return Object.freeze({ allowed: true, mode: mode, reason: 'ADMIN_COM_PORTAL_ACESSAR' });
+  }
+
+  if (blockInactive && !corePortalLinkAllowsMemberAccess_(link)) {
+    return Object.freeze({ allowed: false, mode: mode, reason: 'VINCULO_ATIVO_AUSENTE' });
+  }
+
+  return Object.freeze({ allowed: true, mode: mode, reason: 'MEMBRO_ATIVO_COM_PORTAL_ACESSAR' });
+}
+
 function corePortalBuildPermissionsForProfile_(perfilPortal, opts) {
   opts = opts || {};
   var profile = corePortalNormalizeToken_(perfilPortal);
@@ -650,6 +719,7 @@ function corePortalListarPermissoesEfetivas_(idPessoa, opts) {
 function corePortalResolverUsuarioAtual_(entrada, opts) {
   opts = opts || {};
   var input = corePortalResolveInput_(entrada);
+  var config = opts.config || corePortalReadConfig_(opts.configOpts || {});
   var bundle = corePortalGetBundleByInput_(entrada);
   if (!bundle || !bundle.pessoa) {
     return Object.freeze({
@@ -658,7 +728,9 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
       email: input.email,
       idPessoa: input.idPessoa,
       rga: input.rga,
-      motivoBloqueio: 'PESSOA_NAO_ENCONTRADA'
+      modoAcesso: corePortalAccessMode_(config),
+      motivoBloqueio: 'PESSOA_NAO_ENCONTRADA',
+      mensagemBloqueio: corePortalAccessDeniedMessage_()
     });
   }
   var idPessoa = String(bundle.pessoa.ID_PESSOA || '').trim();
@@ -674,10 +746,23 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
   var resumo = bundle.resumoOperacional || {};
   var link = corePortalGetCurrentLink_(bundle);
   var permissoes = permissionsResult.permissoes || [];
-  var hasAccess = permissoes.indexOf('portal:acessar') >= 0 || profileResult.perfilPortalEfetivo === 'VISITANTE';
-  var portalAtivo = profileResult.portalAtivo && hasAccess;
   var cargosAtuais = corePortalListCurrentFunctionsSafe_(idPessoa, { vigenciasResumo: vigenciasResumo });
   var emailPrincipal = corePortalNormalizeEmail_(resumo.EMAIL || bundle.pessoa.EMAIL_PRINCIPAL || input.email || '');
+  var modeDecision = corePortalEvaluateAccessMode_(config, emailPrincipal, profileResult, permissoes, link);
+  var hasAccess = permissoes.indexOf('portal:acessar') >= 0 || (
+    profileResult.perfilPortalEfetivo === 'VISITANTE' && corePortalIsYes_(config.AUTH_ALLOW_VISITANTE)
+  );
+  var portalAtivo = profileResult.portalAtivo && hasAccess && modeDecision.allowed;
+  var motivoBloqueio = '';
+  if (!portalAtivo) {
+    if (!profileResult.portalAtivo) {
+      motivoBloqueio = profileResult.motivoBloqueio || 'PERFIL_PORTAL_INATIVO';
+    } else if (!hasAccess) {
+      motivoBloqueio = 'PERMISSAO_PORTAL_ACESSAR_AUSENTE';
+    } else {
+      motivoBloqueio = modeDecision.reason || 'ACESSO_PORTAL_BLOQUEADO';
+    }
+  }
   var cargoFuncaoAtual = String(resumo.CARGO_FUNCAO_ATUAL || '').trim();
   if (!cargoFuncaoAtual && vigenciasResumo) cargoFuncaoAtual = String(vigenciasResumo.CARGO_FUNCAO_ATUAL || '').trim();
   if (!cargoFuncaoAtual && cargosAtuais.length) {
@@ -701,7 +786,9 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
     perfisPortal: profileResult.perfisPortal,
     permissoes: Object.freeze(permissoes.slice()),
     portalAtivo: portalAtivo,
-    motivoBloqueio: portalAtivo ? '' : (profileResult.motivoBloqueio || 'PERMISSAO_PORTAL_ACESSAR_AUSENTE'),
+    modoAcesso: modeDecision.mode,
+    motivoBloqueio: motivoBloqueio,
+    mensagemBloqueio: portalAtivo ? '' : corePortalAccessDeniedMessage_(),
     origemPerfil: profileResult.origemPerfil,
     origemPermissoes: permissionsResult.origemPermissoes,
     regraApresentacoes: profileResult.regraApresentacoes || ''
@@ -1439,6 +1526,110 @@ function corePortalDiagnosticarPerfisEPermissoes_(opts) {
   return Object.freeze(report);
 }
 
+function corePortalDiagnosticarAcessoPortalDev_(opts) {
+  opts = opts || {};
+  var config = opts.config || corePortalReadConfig_(opts.configOpts || {});
+  var modoAcesso = corePortalAccessMode_(config);
+  var permissionsByProfile = corePortalPermissionsByProfile_(opts.permissions || corePortalReadPermissions_(opts.permissionsOpts || {}));
+  var limit = Math.max(1, Number(opts.limit || 100));
+  var bloqueados = [];
+  var totais = {
+    totalMembrosAtivos: 0,
+    totalComEmail: 0,
+    totalSemEmail: 0,
+    totalComPortalAcessar: 0,
+    totalForaListaTeste: 0
+  };
+  var records = [];
+  var fonte = 'PESSOAS_V2_RESUMO_OPERACIONAL';
+
+  try {
+    records = core_readRecordsByKey_('PESSOAS_V2_RESUMO_OPERACIONAL', { skipBlankRows: true }) || [];
+  } catch (err) {
+    return Object.freeze({
+      ok: false,
+      modoAcesso: modoAcesso,
+      errorCode: 'PESSOAS_RESUMO_OPERACIONAL_INDISPONIVEL',
+      message: 'Nao foi possivel ler PESSOAS_V2_RESUMO_OPERACIONAL para diagnosticar acesso ao portal.'
+    });
+  }
+
+  records.forEach(function(record) {
+    var idPessoa = String(corePortalGetRecordValue_(record, ['ID_PESSOA']) || '').trim();
+    var nome = String(corePortalGetRecordValue_(record, ['NOME_EXIBICAO', 'NOME_COMPLETO', 'NOME']) || '').trim();
+    var email = corePortalNormalizeEmail_(corePortalGetRecordValue_(record, ['EMAIL_PRINCIPAL', 'EMAIL', 'E-MAIL']));
+    var tipo = corePortalNormalizeToken_(corePortalGetRecordValue_(record, ['TIPO_VINCULO_ATUAL', 'TIPO_VINCULO']));
+    var status = corePortalNormalizeToken_(corePortalGetRecordValue_(record, ['STATUS_VINCULO_ATUAL', 'STATUS_VINCULO', 'STATUS']));
+    var profile = corePortalNormalizeToken_(corePortalGetRecordValue_(record, ['PERFIL_PORTAL_CALCULADO', 'PERFIL_PORTAL_BASE', 'PERFIL_PORTAL']));
+    var activeMember = ['MEMBRO_EFETIVO', 'MEMBRO'].indexOf(tipo) >= 0 && ['ATIVO', 'ATIVA'].indexOf(status) >= 0;
+    if (!activeMember) return;
+
+    totais.totalMembrosAtivos++;
+    if (email) totais.totalComEmail++;
+    else {
+      totais.totalSemEmail++;
+      if (bloqueados.length < limit) {
+        bloqueados.push({
+          idPessoa: idPessoa,
+          nome: nome,
+          email: '',
+          motivo: 'Membro ativo sem e-mail cadastrado'
+        });
+      }
+    }
+
+    if (!profile) {
+      if (bloqueados.length < limit) {
+        bloqueados.push({
+          idPessoa: idPessoa,
+          nome: nome,
+          email: email,
+          motivo: 'Membro ativo sem perfil portal calculado'
+        });
+      }
+      return;
+    }
+
+    if ((permissionsByProfile[profile] || []).indexOf('portal:acessar') >= 0) {
+      totais.totalComPortalAcessar++;
+    } else if (bloqueados.length < limit) {
+      bloqueados.push({
+        idPessoa: idPessoa,
+        nome: nome,
+        email: email,
+        motivo: 'Perfil portal sem permissao portal:acessar'
+      });
+    }
+
+    if (modoAcesso === 'TESTE' && email && !corePortalIsEmailInTestList_(email, config)) {
+      totais.totalForaListaTeste++;
+      if (bloqueados.length < limit) {
+        bloqueados.push({
+          idPessoa: idPessoa,
+          nome: nome,
+          email: email,
+          motivo: 'Membro ativo fora de PORTAL_EMAILS_TESTE no modo TESTE'
+        });
+      }
+    }
+  });
+
+  return Object.freeze({
+    ok: true,
+    modoAcesso: modoAcesso,
+    authAllowVisitante: corePortalIsYes_(config.AUTH_ALLOW_VISITANTE),
+    portalBlockInactiveMembers: !Object.prototype.hasOwnProperty.call(config, 'PORTAL_BLOCK_INACTIVE_MEMBERS') ||
+      corePortalIsYes_(config.PORTAL_BLOCK_INACTIVE_MEMBERS),
+    fonte: fonte,
+    totalMembrosAtivos: totais.totalMembrosAtivos,
+    totalComEmail: totais.totalComEmail,
+    totalSemEmail: totais.totalSemEmail,
+    totalComPortalAcessar: totais.totalComPortalAcessar,
+    totalForaListaTeste: totais.totalForaListaTeste,
+    bloqueados: Object.freeze(bloqueados)
+  });
+}
+
 function corePrepararPortalParaV2_(opts) {
   opts = opts || {};
   var requiredFunctions = [
@@ -1656,6 +1847,7 @@ function corePortalBuildAuthorizationResult_(authorized, data) {
   return Object.freeze({
     authorized: authorized === true,
     authMode: 'EMAIL_LEGACY',
+    modoAcesso: String(data.modoAcesso || '').trim(),
     email: String(data.email || '').trim(),
     nome: String(data.nome || '').trim(),
     rga: String(data.rga || '').trim(),
@@ -1665,6 +1857,7 @@ function corePortalBuildAuthorizationResult_(authorized, data) {
     perfilPortal: String(data.perfilPortal || '').trim(),
     permissions: Object.freeze((data.permissions || []).slice()),
     reason: String(data.reason || '').trim(),
+    message: data.message || (authorized === true ? '' : corePortalAccessDeniedMessage_()),
     timestamp: data.timestamp || new Date()
   });
 }
@@ -1680,6 +1873,14 @@ function corePortalAuthorizeEmail_(email, opts) {
   }
 
   var config = opts.config || corePortalReadConfig_(opts.configOpts || {});
+  var mode = corePortalAccessMode_(config);
+  if (mode === 'TESTE' && !corePortalIsEmailInTestList_(normalizedEmail, config)) {
+    return corePortalBuildAuthorizationResult_(false, {
+      email: normalizedEmail,
+      modoAcesso: mode,
+      reason: 'EMAIL_FORA_PORTAL_EMAILS_TESTE'
+    });
+  }
   var includeWaiting = opts.includeWaiting === true || corePortalIsYes_(config.PORTAL_ALLOW_WAITING);
   var includeFormer = true; // busca ex-membro para bloquear com motivo claro por padrao
   var person = corePortalFindPersonByEmail_(normalizedEmail, {
@@ -1691,6 +1892,7 @@ function corePortalAuthorizeEmail_(email, opts) {
   if (!person || !person.found) {
     return corePortalBuildAuthorizationResult_(false, {
       email: normalizedEmail,
+      modoAcesso: mode,
       reason: 'PESSOA_NAO_ENCONTRADA'
     });
   }
@@ -1698,6 +1900,7 @@ function corePortalAuthorizeEmail_(email, opts) {
   if (person.sourceType === CORE_PORTAL_ACCESS_CFG.sources.former.type && opts.includeFormer !== true) {
     return corePortalBuildAuthorizationResult_(false, {
       email: normalizedEmail,
+      modoAcesso: mode,
       nome: person.nome,
       rga: person.rga,
       sourceSheet: person.sourceSheet,
@@ -1711,6 +1914,7 @@ function corePortalAuthorizeEmail_(email, opts) {
   if (person.sourceType === CORE_PORTAL_ACCESS_CFG.sources.waiting.type && !includeWaiting) {
     return corePortalBuildAuthorizationResult_(false, {
       email: normalizedEmail,
+      modoAcesso: mode,
       nome: person.nome,
       rga: person.rga,
       sourceSheet: person.sourceSheet,
@@ -1724,6 +1928,7 @@ function corePortalAuthorizeEmail_(email, opts) {
   if (corePortalIsExplicitNo_(person.portalAtivo)) {
     return corePortalBuildAuthorizationResult_(false, {
       email: normalizedEmail,
+      modoAcesso: mode,
       nome: person.nome,
       rga: person.rga,
       sourceSheet: person.sourceSheet,
@@ -1740,6 +1945,7 @@ function corePortalAuthorizeEmail_(email, opts) {
     if (blockBlank) {
       return corePortalBuildAuthorizationResult_(false, {
         email: normalizedEmail,
+        modoAcesso: mode,
         nome: person.nome,
         rga: person.rga,
         sourceSheet: person.sourceSheet,
@@ -1756,6 +1962,7 @@ function corePortalAuthorizeEmail_(email, opts) {
   if (!resolvedProfile.ok) {
     return corePortalBuildAuthorizationResult_(false, {
       email: normalizedEmail,
+      modoAcesso: mode,
       nome: person.nome,
       rga: person.rga,
       sourceSheet: person.sourceSheet,
@@ -1774,6 +1981,7 @@ function corePortalAuthorizeEmail_(email, opts) {
 
   return corePortalBuildAuthorizationResult_(hasAccess, {
     email: normalizedEmail,
+    modoAcesso: mode,
     nome: person.nome,
     rga: person.rga,
     sourceSheet: person.sourceSheet,

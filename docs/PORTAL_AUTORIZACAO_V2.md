@@ -55,6 +55,7 @@ Saida segura esperada:
   perfisPortal: ["MEMBRO"],
   permissoes: ["portal:acessar", "situacao:ver_propria"],
   portalAtivo: true,
+  modoAcesso: "MEMBROS_ATIVOS",
   tipoVinculoAtual: "MEMBRO_EFETIVO",
   statusVinculoAtual: "ATIVO",
   cargoFuncaoAtual: "",
@@ -87,6 +88,15 @@ Regras:
 - chaves com indicios de segredo, token, senha, API key ou credencial nao sao expostas;
 - o resultado usa `CacheService` por 10 minutos.
 
+Chaves operacionais de acesso:
+
+- `PORTAL_MODO_ACESSO`: aceita `TESTE`, `MEMBROS_ATIVOS` ou `PUBLICO_LIMITADO`.
+- `PORTAL_EMAILS_TESTE`: whitelist usada apenas quando `PORTAL_MODO_ACESSO = TESTE`.
+- `AUTH_ALLOW_VISITANTE`: para esta liberacao deve ficar `NAO`.
+- `PORTAL_BLOCK_INACTIVE_MEMBERS`: para esta liberacao deve ficar `SIM`.
+
+Para liberar o Portal aos membros ativos, use `PORTAL_MODO_ACESSO = MEMBROS_ATIVOS`; nesse modo, `PORTAL_EMAILS_TESTE` deixa de limitar membros ativos com `portal:acessar`. Apos alterar o modo, rode `corePortalClearConfigCache()` e force nova validacao de sessao no Portal.
+
 Exemplo de retorno:
 
 ```js
@@ -111,6 +121,7 @@ Use `corePortalClearConfigCache()` apenas em diagnostico/manual quando for neces
 - `corePortalListarApresentacoesPermitidas(email, options)`
 - `corePortalListarApresentacoesParaEgresso(idPessoa)`
 - `corePortalDiagnosticarPerfisEPermissoes()`
+- `corePortalDiagnosticarAcessoPortalDev()`
 - `corePrepararPortalParaV2()`
 
 ## Diagnostico
