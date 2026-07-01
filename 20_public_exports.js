@@ -630,6 +630,22 @@ function corePortalSyncFirestoreUsersFromPessoasV2(opts) {
   return corePortalSyncFirestoreUsersFromPessoasV2_(opts || {});
 }
 
+function coreFirestoreSetDocument(path, data, options) {
+  return coreFirestoreSetDocument_(path, data || {}, options || {});
+}
+
+function coreFirestoreDeleteDocument(path, options) {
+  return coreFirestoreDeleteDocument_(path, options || {});
+}
+
+function coreFirestoreBatchSetDocuments(items, options) {
+  return coreFirestoreBatchSetDocuments_(items || [], options || {});
+}
+
+function coreFirestoreDiagnosticar(options) {
+  return coreFirestoreDiagnosticar_(options || {});
+}
+
 function corePortalCalcularPerfilEfetivo(idPessoa, opts) {
   return corePortalCalcularPerfilEfetivo_(idPessoa, opts || {});
 }

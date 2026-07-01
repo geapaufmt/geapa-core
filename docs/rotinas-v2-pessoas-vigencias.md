@@ -134,13 +134,36 @@ A rotina `coreVigenciasV2ConferirConsistencia(options)` verifica, no minimo:
 
 - semestre ativo ausente;
 - mais de um semestre ativo simultaneo;
-- periodo ativo ausente;
+- ciclo ativo ausente;
+- `SEMESTRES.ID_CICLO` sem correspondencia em `CICLOS.ID_CICLO`;
 - funcao vigente sem `ID_PESSOA`;
 - funcao vigente com `ID_PESSOA` inexistente;
 - data de fim anterior a data de inicio;
 - `CARGO_KEY` sem correspondencia em `CARGOS_CONFIG`;
 - cargo exclusivo duplicado no mesmo intervalo;
 - diretoria vigente sem presidente ou sem vice quando aplicavel.
+
+O contrato principal usa `VIGENCIAS_V2_CICLOS`, a aba `CICLOS` e os cabecalhos
+`ID_CICLO`, `NOME_CICLO` e `TIPO_CICLO`. Os cabecalhos antigos equivalentes sao
+aceitos apenas como fallback temporario de leitura; a key antiga nao faz parte
+do contrato ativo.
+
+### Validacao apos a renomeacao para Ciclos
+
+1. Executar `coreV2_runTesteResolverRegistryV2()` e confirmar que
+   `VIGENCIAS_V2_CICLOS` resolve para a aba `CICLOS` em `DEV`.
+2. Executar `coreVigenciasV2Diagnostico({ dryRun: true, ambiente: 'DEV' })`.
+3. Executar `coreVigenciasV2ConferirConsistencia({ dryRun: true, ambiente: 'DEV' })`
+   e confirmar que `SEMESTRES.ID_CICLO` referencia `CICLOS.ID_CICLO`.
+4. Executar `coreV2DiagnosticoGeral({ dryRun: true, ambiente: 'DEV' })` e confirmar
+   que todas as etapas de Vigencias resolvem o contrato de ciclos.
+5. No modulo Atividades V2, executar a sincronizacao de views em dry-run, quando
+   disponivel, e conferir a geracao de `PORTAL_ATIVIDADES_CALENDARIO`,
+   `PORTAL_ATIVIDADES_DETALHES`, `PORTAL_FREQUENCIA_MEMBROS` e
+   `PORTAL_STATUS_ATIVIDADES`.
+
+Essas validacoes nao exigem alteracao de dados pelo Core. A renomeacao da aba,
+dos cabecalhos e da key no Registry deve ser feita manualmente antes dos testes.
 
 ## Atualizacao de Pessoas
 

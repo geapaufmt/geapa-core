@@ -198,6 +198,17 @@ const GEAPA_CORE = Object.freeze({
     }),
   }),
 
+  firestore: Object.freeze({
+    getConfig: coreFirestoreGetConfig_,
+    buildDocumentUrl: coreFirestoreBuildDocumentUrl_,
+    encodeValue: coreFirestoreEncodeValue_,
+    encodeDocument: coreFirestoreEncodeDocument_,
+    setDocument: coreFirestoreSetDocument_,
+    deleteDocument: coreFirestoreDeleteDocument_,
+    batchSetDocuments: coreFirestoreBatchSetDocuments_,
+    diagnosticar: coreFirestoreDiagnosticar_
+  }),
+
   /**
    * ----------------------------------------------------------
    * dates (Datas / Tempo)

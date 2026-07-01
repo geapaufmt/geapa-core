@@ -381,7 +381,7 @@ Abas de `PESSOAS v2`:
 Abas de `VIGENCIAS v2`:
 
 - `SEMESTRES`
-- `PERIODOS`
+- `CICLOS`
 - `DIRETORIAS`
 - `SEMESTRES_DIRETORIA`
 - `CARGOS_CONFIG`
@@ -442,7 +442,7 @@ var resultadoPessoas = coreRecalcularPessoasResumoOperacionalV2({
 });
 ```
 
-O recalculo usa `PESSOAS_BASE`, `PESSOAS_IDENTIFICADORES`, `MEMBROS_DETALHES`, `VINCULOS_GEAPA`, `MEMBROS_EVENTOS_VINCULO`, `PORTAL_ACESSOS_EXCECOES`, `VIGENCIAS_RESUMO_ATUAL`, `SEMESTRES`/`PERIODOS` e, quando disponiveis via Registry, as views de Atividades v2:
+O recalculo usa `PESSOAS_BASE`, `PESSOAS_IDENTIFICADORES`, `MEMBROS_DETALHES`, `VINCULOS_GEAPA`, `MEMBROS_EVENTOS_VINCULO`, `PORTAL_ACESSOS_EXCECOES`, `VIGENCIAS_RESUMO_ATUAL`, `SEMESTRES`/`CICLOS` e, quando disponiveis via Registry, as views de Atividades v2:
 
 - `ATIVIDADES_V2_APRESENTACOES`
 - `ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES`
@@ -1594,3 +1594,10 @@ Fluxo manual sugerido para validar o Mail Hub:
 O GEAPA-CORE pode gerar snapshots seguros para `portalUsers/{uid}` usando PESSOAS v2 como fonte oficial. O Firestore e apenas cache operacional do Portal: o documento deve conter somente os campos minimos de interface (`uid`, `idPessoa`, `nomeExibicao`, `email`, `rga`, `portalAtivo`, perfis, permissoes, vinculo atual, `source`, `sourceUpdatedAt`, `cacheUpdatedAt`, `cacheExpiresAt` e `schemaVersion`).
 
 Funcoes principais: `corePortalGerarSnapshotFirestoreUsuario`, `corePortalSincronizarUsuarioFirestore`, `corePortalInvalidarCacheFirestoreUsuario`, `corePortalSyncFirestoreUserByEmail`, `corePortalSyncFirestoreUserByIdPessoa` e `corePortalSyncFirestoreUsersFromPessoasV2`. A escrita atual usa Apps Script + Firestore REST no plano Spark, configurada por Script Properties (`GEAPA_CORE_FIRESTORE_PROJECT_ID` e opcionalmente `GEAPA_CORE_FIRESTORE_DATABASE_ID`), sem Cloud Functions, Secret Manager, service account ou segredo no repositorio.
+
+O transporte REST compartilhado fica em `24_core_firestore_rest.js` e tambem
+expoe `coreFirestoreSetDocument`, `coreFirestoreDeleteDocument`,
+`coreFirestoreBatchSetDocuments` e `coreFirestoreDiagnosticar`. Essas funcoes
+usam `dryRun: true` por padrao e suportam os read models de Atividades sem
+transformar o Firestore em fonte oficial. Consulte
+`docs/firestore-read-models-atividades.md`.

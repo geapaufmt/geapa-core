@@ -12,6 +12,9 @@
 - `email`
 - `rga`
 - `portalAtivo`
+- `modoAcesso`
+- `motivoBloqueio`
+- `mensagemBloqueio`
 - `perfilPortalEfetivo`
 - `perfisPortal`
 - `permissoes`
@@ -22,7 +25,7 @@
 - `sourceUpdatedAt`
 - `cacheUpdatedAt`
 - `cacheExpiresAt`
-- `schemaVersion: "portal-user-v1"`
+- `schemaVersion: "portal-user-v2"`
 
 Nao incluir CPF, telefone, data de nascimento, observacoes internas, logs, pendencias detalhadas, chaves ou IDs de planilhas.
 
@@ -34,6 +37,10 @@ Como `portal-geapa` permanece no plano Spark, o CORE escreve por Firestore REST 
 - `Authorization: Bearer ScriptApp.getOAuthToken()`
 - metodo `PATCH`
 - documento `portalUsers/{uid}`
+
+O transporte REST compartilhado fica em `24_core_firestore_rest.js`; o fluxo
+de usuario apenas monta o snapshot seguro e delega encoding e escrita para essa
+infraestrutura.
 
 Nao ha Cloud Function, Secret Manager, service account ou chave privada nesse caminho.
 

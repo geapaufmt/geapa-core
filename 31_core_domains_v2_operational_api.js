@@ -418,7 +418,7 @@ function core_domainsV2CountIntervalDays_(intervals) {
 function core_domainsV2CountSemestersForIntervals_(vigenciasData, intervals) {
   if (!intervals.length) return '';
   var records = ((vigenciasData.SEMESTRES && vigenciasData.SEMESTRES.records) || []);
-  if (!records.length) records = ((vigenciasData.PERIODOS && vigenciasData.PERIODOS.records) || []);
+  if (!records.length) records = ((vigenciasData.CICLOS && vigenciasData.CICLOS.records) || []);
   var seen = {};
   records.forEach(function(record) {
     var start = core_domainsV2Date_(record.DATA_INICIO);
@@ -428,7 +428,7 @@ function core_domainsV2CountSemestersForIntervals_(vigenciasData, intervals) {
       return core_domainsV2IntervalsOverlap_(interval.start, interval.end, start, end);
     });
     if (crosses) {
-      var key = record.ID_SEMESTRE || record.ID_PERIODO || record.NOME_PERIODO || [record.ANO, record.SEMESTRE].join('/');
+      var key = record.ID_SEMESTRE || record.ID_CICLO || record.ID_PERIODO || record.NOME_CICLO || record.NOME_PERIODO || [record.ANO, record.SEMESTRE].join('/');
       seen[String(key || record.__rowNumber || '').trim()] = true;
     }
   });

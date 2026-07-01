@@ -249,13 +249,16 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
     Object.freeze({
       sheetName: 'SEMESTRES',
       classification: 'FONTE',
+      readAliases: Object.freeze({
+        ID_CICLO: Object.freeze(['ID_PERIODO'])
+      }),
       headers: Object.freeze([
         'ID_SEMESTRE',
         'ANO',
         'SEMESTRE',
         'DATA_INICIO',
         'DATA_FIM',
-        'ID_PERIODO',
+        'ID_CICLO',
         'NUMERO_REUNIOES_PREVISTAS',
         'INICIO_MATRICULAS_ONLINE',
         'FIM_MATRICULAS_ONLINE',
@@ -268,12 +271,17 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
       ])
     }),
     Object.freeze({
-      sheetName: 'PERIODOS',
+      sheetName: 'CICLOS',
       classification: 'FONTE',
+      readAliases: Object.freeze({
+        ID_CICLO: Object.freeze(['ID_PERIODO']),
+        NOME_CICLO: Object.freeze(['NOME_PERIODO']),
+        TIPO_CICLO: Object.freeze(['TIPO_PERIODO'])
+      }),
       headers: Object.freeze([
-        'ID_PERIODO',
-        'NOME_PERIODO',
-        'TIPO_PERIODO',
+        'ID_CICLO',
+        'NOME_CICLO',
+        'TIPO_CICLO',
         'DATA_INICIO',
         'DATA_FIM',
         'NUMERO_MEMBROS_PREVISTOS',

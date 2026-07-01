@@ -106,7 +106,8 @@ Bloqueiam avanco para Portal:
 - vinculo ativo sem pessoa valida;
 - membro efetivo ativo sem RGA;
 - semestre ativo ausente ou duplicado;
-- periodo ativo ausente;
+- ciclo ativo ausente;
+- semestre com `ID_CICLO` sem correspondencia em `CICLOS`;
 - funcao vigente sem `ID_PESSOA`;
 - funcao vigente com pessoa inexistente;
 - `CARGO_KEY` vigente sem correspondencia em `CARGOS_CONFIG`;
@@ -144,7 +145,7 @@ Sequencia minima:
 
 3. `coreVigenciasV2ConferirConsistencia({ limit: 5 })`
    - Esperado: envelope padronizado com `totalVerificado`.
-   - Bloqueia: semestre/periodo ativo ausente, funcao vigente sem pessoa, cargo inexistente ou cargo exclusivo duplicado.
+   - Bloqueia: semestre/ciclo ativo ausente, semestre com ciclo inexistente, funcao vigente sem pessoa, cargo inexistente ou cargo exclusivo duplicado.
 
 4. `coreV2RunTestePessoasResumo()`
    - Esperado: `dryRun: true`, linhas calculadas e `totalEscrito` igual a zero.

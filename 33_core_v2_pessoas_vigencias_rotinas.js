@@ -24,7 +24,7 @@ var CORE_V2_ROTINAS_KEYS = Object.freeze({
   }),
   VIGENCIAS: Object.freeze({
     SEMESTRES: 'VIGENCIAS_V2_SEMESTRES',
-    PERIODOS: 'VIGENCIAS_V2_PERIODOS',
+    CICLOS: 'VIGENCIAS_V2_CICLOS',
     DIRETORIAS: 'VIGENCIAS_V2_DIRETORIAS',
     SEMESTRES_DIRETORIA: 'VIGENCIAS_V2_SEMESTRES_DIRETORIA',
     CARGOS: 'VIGENCIAS_V2_CARGOS_CONFIG',
@@ -174,6 +174,38 @@ function core_v2RotinasClone_(record) {
     if (key !== '__rowNumber') out[key] = record[key];
   });
   return out;
+}
+
+function core_v2RotinasCanonicalValue_(record, canonicalField, legacyFields) {
+  record = record || {};
+  var current = core_v2RotinasText_(record[canonicalField]);
+  if (current) return current;
+  for (var i = 0; i < (legacyFields || []).length; i++) {
+    var legacy = core_v2RotinasText_(record[legacyFields[i]]);
+    if (legacy) return legacy;
+  }
+  return '';
+}
+
+function core_vigenciasV2CanonicalizeData_(data) {
+  data = data || {};
+  ((data.SEMESTRES && data.SEMESTRES.records) || []).forEach(function(record) {
+    if (!core_v2RotinasText_(record.ID_CICLO)) {
+      record.ID_CICLO = core_v2RotinasCanonicalValue_(record, 'ID_CICLO', ['ID_PERIODO']);
+    }
+  });
+  ((data.CICLOS && data.CICLOS.records) || []).forEach(function(record) {
+    if (!core_v2RotinasText_(record.ID_CICLO)) {
+      record.ID_CICLO = core_v2RotinasCanonicalValue_(record, 'ID_CICLO', ['ID_PERIODO']);
+    }
+    if (!core_v2RotinasText_(record.NOME_CICLO)) {
+      record.NOME_CICLO = core_v2RotinasCanonicalValue_(record, 'NOME_CICLO', ['NOME_PERIODO']);
+    }
+    if (!core_v2RotinasText_(record.TIPO_CICLO)) {
+      record.TIPO_CICLO = core_v2RotinasCanonicalValue_(record, 'TIPO_CICLO', ['TIPO_PERIODO']);
+    }
+  });
+  return data;
 }
 
 function core_v2RotinasIndexFirstBy_(records, field) {
@@ -518,7 +550,7 @@ function core_vigenciasV2ConferirConsistencia_(options) {
   }
 
   try {
-    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS, execution.opts);
+    var data = core_vigenciasV2CanonicalizeData_(core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS, execution.opts));
     var pessoas = core_v2RotinasReadGroup_({ BASE: CORE_V2_ROTINAS_KEYS.PESSOAS.BASE }, execution.opts);
     data.PESSOAS_BASE = pessoas.BASE;
     core_v2RotinasAddUnavailableDataIssues_(envelope, data, 'VIGENCIAS');
@@ -654,20 +686,21 @@ function core_pessoasV2ConferirData_(envelope, data) {
 
 function core_vigenciasV2ConferirData_(envelope, data) {
   var semestres = data.SEMESTRES.records || [];
-  var periodos = data.PERIODOS.records || [];
+  var ciclos = data.CICLOS.records || [];
   var diretorias = data.DIRETORIAS.records || [];
   var cargos = data.CARGOS.records || [];
   var funcoes = data.FUNCOES.records || [];
   var pessoas = data.PESSOAS_BASE.records || [];
-  envelope.totalVerificado = semestres.length + periodos.length + diretorias.length + cargos.length + funcoes.length;
+  envelope.totalVerificado = semestres.length + ciclos.length + diretorias.length + cargos.length + funcoes.length;
 
   var today = new Date();
   var pessoasById = core_v2RotinasIndexFirstBy_(pessoas, 'ID_PESSOA');
   var cargosByKey = core_v2RotinasIndexFirstBy_(cargos, 'CARGO_KEY');
+  var ciclosById = core_v2RotinasIndexFirstBy_(ciclos, 'ID_CICLO');
   var activeSemestres = semestres.filter(function(record) {
     return core_v2RotinasTemporalAtivo_(record, 'STATUS', today);
   });
-  var activePeriodos = periodos.filter(function(record) {
+  var activeCycles = ciclos.filter(function(record) {
     return core_v2RotinasTemporalAtivo_(record, 'STATUS', today);
   });
   var activeFuncoes = funcoes.filter(core_v2RotinasFuncaoVigente_);
@@ -678,9 +711,16 @@ function core_vigenciasV2ConferirData_(envelope, data) {
   if (activeSemestres.length > 1) {
     core_v2RotinasAddInconsistency_(envelope, 'ERRO', 'VIGENCIA', activeSemestres.map(function(r) { return r.ID_SEMESTRE || r.__rowNumber; }).join('; '), 'STATUS', 'ATIVO', 'SEMESTRE_ATIVO_UNICO', 'Mais de um semestre ativo simultaneo.', 'Manter somente um semestre ativo.');
   }
-  if (!activePeriodos.length) {
-    core_v2RotinasAddInconsistency_(envelope, 'ERRO', 'VIGENCIA', 'PERIODOS', 'STATUS', '', 'PERIODO_ATIVO_PRESENTE', 'Periodo ativo ausente.', 'Marcar um periodo ativo ou ajustar datas/status.');
+  if (!activeCycles.length) {
+    core_v2RotinasAddInconsistency_(envelope, 'ERRO', 'VIGENCIA', 'CICLOS', 'STATUS', '', 'CICLO_ATIVO_PRESENTE', 'Ciclo ativo ausente.', 'Marcar um ciclo ativo ou ajustar datas/status.');
   }
+
+  semestres.forEach(function(semestre) {
+    var idCiclo = core_v2RotinasText_(semestre.ID_CICLO);
+    if (idCiclo && !ciclosById[idCiclo]) {
+      core_v2RotinasAddInconsistency_(envelope, 'ERRO', 'VIGENCIA', semestre.ID_SEMESTRE || semestre.__rowNumber, 'ID_CICLO', idCiclo, 'SEMESTRE_CICLO_EXISTENTE', 'Semestre referencia ciclo inexistente.', 'Corrigir SEMESTRES.ID_CICLO ou cadastrar o ciclo correspondente em CICLOS.');
+    }
+  });
 
   funcoes.forEach(function(funcao) {
     var idPessoa = core_v2RotinasText_(funcao.ID_PESSOA);
@@ -881,7 +921,7 @@ function core_vigenciasV2AtualizarResumoAtual_(options) {
   }
 
   try {
-    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS, execution.opts);
+    var data = core_vigenciasV2CanonicalizeData_(core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS, execution.opts));
     var pessoasData = core_v2RotinasReadGroup_({
       BASE: CORE_V2_ROTINAS_KEYS.PESSOAS.BASE,
       MEMBROS_DETALHES: CORE_V2_ROTINAS_KEYS.PESSOAS.MEMBROS_DETALHES

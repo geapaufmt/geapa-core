@@ -30,7 +30,7 @@ Abas criadas:
 Abas criadas:
 
 - `SEMESTRES`
-- `PERIODOS`
+- `CICLOS` (renomeada de `PERIODOS` apos a migracao inicial)
 - `DIRETORIAS`
 - `SEMESTRES_DIRETORIA`
 - `CARGOS_CONFIG`

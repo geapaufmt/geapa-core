@@ -83,9 +83,13 @@ Diagnostico operacional:
 
 Fonte de semestres, janelas academicas e parametros operacionais relacionados ao calendario, como reunioes previstas e periodos de matricula/ajuste.
 
-### PERIODOS
+### CICLOS
 
-Fonte de periodos de gestao/operacao e parametros congelados do periodo, incluindo membros previstos, limites de faltas, planejamento e dados SEI.
+Fonte de ciclos de gestao/operacao e parametros congelados do ciclo, incluindo membros previstos, limites de faltas, planejamento e dados SEI. O contrato usa `VIGENCIAS_V2_CICLOS`, `ID_CICLO`, `NOME_CICLO` e `TIPO_CICLO`.
+
+Durante a transicao, `ID_PERIODO`, `NOME_PERIODO` e `TIPO_PERIODO` sao aceitos
+somente como aliases de leitura. Novas escritas e configuracoes devem usar os
+nomes de ciclo.
 
 ### DIRETORIAS
 

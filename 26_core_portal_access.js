@@ -795,9 +795,7 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
   });
 }
 
-const CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION = 'portal-user-v1';
-const CORE_PORTAL_FIRESTORE_PROJECT_ID_PROPERTY = 'GEAPA_CORE_FIRESTORE_PROJECT_ID';
-const CORE_PORTAL_FIRESTORE_DATABASE_ID_PROPERTY = 'GEAPA_CORE_FIRESTORE_DATABASE_ID';
+const CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION = 'portal-user-v2';
 
 function corePortalNormalizeFirestoreStringArray_(values) {
   var seen = {};
@@ -849,6 +847,9 @@ function corePortalBuildFirestoreUserSnapshot_(entrada, opts) {
     email: corePortalNormalizeEmail_(sessao.email || ''),
     rga: String(sessao.rga || '').trim(),
     portalAtivo: sessao.portalAtivo === true,
+    modoAcesso: String(sessao.modoAcesso || '').trim(),
+    motivoBloqueio: String(sessao.motivoBloqueio || '').trim(),
+    mensagemBloqueio: String(sessao.mensagemBloqueio || '').trim(),
     perfilPortalEfetivo: String(sessao.perfilPortalEfetivo || '').trim(),
     perfisPortal: corePortalNormalizeFirestoreStringArray_(sessao.perfisPortal),
     permissoes: corePortalNormalizeFirestoreStringArray_(sessao.permissoes),
@@ -863,82 +864,6 @@ function corePortalBuildFirestoreUserSnapshot_(entrada, opts) {
   });
 }
 
-function corePortalGetFirestoreSyncConfig_(opts) {
-  opts = opts || {};
-  var props = PropertiesService.getScriptProperties();
-  return Object.freeze({
-    projectId: String(opts.projectId || props.getProperty(CORE_PORTAL_FIRESTORE_PROJECT_ID_PROPERTY) || '').trim(),
-    databaseId: String(opts.databaseId || props.getProperty(CORE_PORTAL_FIRESTORE_DATABASE_ID_PROPERTY) || '(default)').trim() || '(default)'
-  });
-}
-
-function corePortalFirestoreEncodePathSegment_(value) {
-  return encodeURIComponent(String(value || '').trim());
-}
-
-function corePortalFirestoreDatabasePathSegment_(databaseId) {
-  var id = String(databaseId || '(default)').trim() || '(default)';
-  return id === '(default)' ? '(default)' : corePortalFirestoreEncodePathSegment_(id);
-}
-
-function corePortalFirestoreValue_(value) {
-  if (typeof value === 'boolean') {
-    return { booleanValue: value };
-  }
-
-  if (Array.isArray(value)) {
-    return {
-      arrayValue: {
-        values: value.map(function(item) {
-          return { stringValue: String(item || '').trim() };
-        }).filter(function(item) {
-          return item.stringValue;
-        })
-      }
-    };
-  }
-
-  return { stringValue: String(value == null ? '' : value).trim() };
-}
-
-function corePortalFirestoreDocumentFromSnapshot_(snapshot) {
-  var fields = {};
-  Object.keys(snapshot || {}).forEach(function(key) {
-    fields[key] = corePortalFirestoreValue_(snapshot[key]);
-  });
-  return Object.freeze({ fields: fields });
-}
-
-function corePortalFirestoreDocumentUrl_(config, uid) {
-  var projectId = corePortalFirestoreEncodePathSegment_(config.projectId);
-  var databaseId = corePortalFirestoreDatabasePathSegment_(config.databaseId);
-  var docId = corePortalFirestoreEncodePathSegment_(uid);
-  return 'https://firestore.googleapis.com/v1/projects/' + projectId +
-    '/databases/' + databaseId + '/documents/portalUsers/' + docId;
-}
-
-function corePortalFirestoreSimpleValue_(value) {
-  value = value || {};
-  if (Object.prototype.hasOwnProperty.call(value, 'stringValue')) return String(value.stringValue || '');
-  if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return value.booleanValue === true;
-  if (Object.prototype.hasOwnProperty.call(value, 'integerValue')) return Number(value.integerValue || 0);
-  if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue || 0);
-  if (Object.prototype.hasOwnProperty.call(value, 'timestampValue')) return String(value.timestampValue || '');
-  if (value.arrayValue) {
-    return ((value.arrayValue && value.arrayValue.values) || []).map(corePortalFirestoreSimpleValue_);
-  }
-  return null;
-}
-
-function corePortalFirestoreSnapshotFromDocument_(document) {
-  var fields = (document && document.fields) || {};
-  var out = {};
-  Object.keys(fields).forEach(function(key) {
-    out[key] = corePortalFirestoreSimpleValue_(fields[key]);
-  });
-  return Object.freeze(out);
-}
-
 function corePortalReadFirestoreUserSnapshotByUid_(uid, opts) {
   opts = opts || {};
   var id = String(uid || '').trim();
@@ -946,65 +871,17 @@ function corePortalReadFirestoreUserSnapshotByUid_(uid, opts) {
     return Object.freeze({ ok: false, found: false, code: 'UID_FIREBASE_AUSENTE' });
   }
 
-  var config = corePortalGetFirestoreSyncConfig_(opts);
-  if (!config.projectId) {
-    return Object.freeze({
-      ok: true,
-      found: false,
-      code: 'FIRESTORE_PROJECT_ID_NAO_CONFIGURADO',
-      message: 'Configure GEAPA_CORE_FIRESTORE_PROJECT_ID em Script Properties.'
-    });
-  }
-
-  var response = UrlFetchApp.fetch(corePortalFirestoreDocumentUrl_(config, id), {
-    method: 'get',
-    headers: {
-      Authorization: 'Bearer ' + ScriptApp.getOAuthToken()
-    },
-    muteHttpExceptions: true
-  });
-  var httpStatus = response.getResponseCode();
-  var ok = httpStatus >= 200 && httpStatus < 300;
+  var response = coreFirestoreGetDocument_('portalUsers/' + id, opts);
   var result = {
-    ok: ok,
-    found: ok,
+    ok: response.ok,
+    found: response.found,
     reader: 'APPS_SCRIPT_FIRESTORE_REST',
-    code: ok ? 'FIRESTORE_READ_OK' : 'FIRESTORE_READ_FALHOU',
-    httpStatus: httpStatus
+    code: response.code === 'FIRESTORE_GET_OK' ? 'FIRESTORE_READ_OK' : response.code,
+    httpStatus: response.httpStatus || 0
   };
-  if (ok) {
-    result.snapshot = corePortalFirestoreSnapshotFromDocument_(JSON.parse(response.getContentText() || '{}'));
-  } else {
-    result.firestoreError = corePortalFirestoreSafeError_(response.getContentText());
-  }
+  if (response.found) result.snapshot = response.data;
+  if (response.firestoreError) result.firestoreError = response.firestoreError;
   return Object.freeze(result);
-}
-function corePortalFirestorePatchUrl_(config, uid, snapshot) {
-  var projectId = corePortalFirestoreEncodePathSegment_(config.projectId);
-  var databaseId = corePortalFirestoreDatabasePathSegment_(config.databaseId);
-  var docId = corePortalFirestoreEncodePathSegment_(uid);
-  var updateMask = Object.keys(snapshot || {}).map(function(field) {
-    return 'updateMask.fieldPaths=' + encodeURIComponent(field);
-  }).join('&');
-  return 'https://firestore.googleapis.com/v1/projects/' + projectId +
-    '/databases/' + databaseId + '/documents/portalUsers/' + docId +
-    (updateMask ? '?' + updateMask : '');
-}
-
-function corePortalFirestoreSafeError_(responseText) {
-  try {
-    var parsed = JSON.parse(String(responseText || '{}'));
-    var error = parsed.error || {};
-    return Object.freeze({
-      status: String(error.status || '').trim(),
-      message: String(error.message || '').trim().slice(0, 500)
-    });
-  } catch (err) {
-    return Object.freeze({
-      status: '',
-      message: String(responseText || '').trim().slice(0, 500)
-    });
-  }
 }
 function corePortalPostFirestoreUserSnapshot_(snapshot, opts) {
   opts = opts || {};
@@ -1021,41 +898,20 @@ function corePortalPostFirestoreUserSnapshot_(snapshot, opts) {
     });
   }
 
-  if (opts.dryRun === true) {
-    return Object.freeze({ ok: true, synced: false, code: 'DRY_RUN', snapshot: snapshot });
-  }
-
-  var config = corePortalGetFirestoreSyncConfig_(opts);
-  if (!config.projectId) {
-    return Object.freeze({
-      ok: true,
-      synced: false,
-      code: 'FIRESTORE_PROJECT_ID_NAO_CONFIGURADO',
-      message: 'Configure GEAPA_CORE_FIRESTORE_PROJECT_ID em Script Properties.'
-    });
-  }
-
-  var response = UrlFetchApp.fetch(corePortalFirestorePatchUrl_(config, snapshot.uid, snapshot), {
-    method: 'patch',
-    contentType: 'application/json; charset=utf-8',
-    payload: JSON.stringify(corePortalFirestoreDocumentFromSnapshot_(snapshot)),
-    headers: {
-      Authorization: 'Bearer ' + ScriptApp.getOAuthToken()
-    },
-    muteHttpExceptions: true
-  });
-  var httpStatus = response.getResponseCode();
-  var ok = httpStatus >= 200 && httpStatus < 300;
+  var response = coreFirestoreSetDocument_('portalUsers/' + snapshot.uid, snapshot, Object.assign({}, opts, {
+    dryRun: opts.dryRun === true
+  }));
   var result = {
-    ok: ok,
-    synced: ok,
+    ok: response.code === 'FIRESTORE_PROJECT_ID_NAO_CONFIGURADO' ? true : response.ok,
+    synced: response.written === true,
     writer: 'APPS_SCRIPT_FIRESTORE_REST',
-    code: ok ? 'FIRESTORE_SYNC_OK' : 'FIRESTORE_SYNC_FALHOU',
-    httpStatus: httpStatus
+    code: response.code === 'FIRESTORE_SET_OK'
+      ? 'FIRESTORE_SYNC_OK'
+      : (response.code === 'FIRESTORE_SET_FALHOU' ? 'FIRESTORE_SYNC_FALHOU' : response.code),
+    httpStatus: response.httpStatus || 0
   };
-  if (!ok) {
-    result.firestoreError = corePortalFirestoreSafeError_(response.getContentText());
-  }
+  if (opts.dryRun === true) result.snapshot = snapshot;
+  if (response.firestoreError) result.firestoreError = response.firestoreError;
 
   return Object.freeze(result);
 }

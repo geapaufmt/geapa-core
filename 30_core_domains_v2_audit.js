@@ -24,7 +24,7 @@ var CORE_DOMAINS_V2_CONTRACT_KEYS = Object.freeze({
   PESSOAS_V2_PORTAL_ACESSOS_EXCECOES: 'PORTAL_ACESSOS_EXCECOES',
   PESSOAS_V2_RESUMO_OPERACIONAL: 'PESSOAS_RESUMO_OPERACIONAL',
   VIGENCIAS_V2_SEMESTRES: 'SEMESTRES',
-  VIGENCIAS_V2_PERIODOS: 'PERIODOS',
+  VIGENCIAS_V2_CICLOS: 'CICLOS',
   VIGENCIAS_V2_DIRETORIAS: 'DIRETORIAS',
   VIGENCIAS_V2_SEMESTRES_DIRETORIA: 'SEMESTRES_DIRETORIA',
   VIGENCIAS_V2_CARGOS_CONFIG: 'CARGOS_CONFIG',
@@ -135,8 +135,21 @@ function core_domainsV2AuditOpenDomain_(domainKey, report) {
         })
       : [];
     var headerMap = core_buildHeaderIndexMap_(headers, { normalize: true, oneBased: false, keepFirst: true });
+    var readAliases = definition.readAliases || {};
     definition.headers.forEach(function(header) {
-      if (!Object.prototype.hasOwnProperty.call(headerMap, core_normalizeHeader_(header))) {
+      var canonicalKey = core_normalizeHeader_(header);
+      if (!Object.prototype.hasOwnProperty.call(headerMap, canonicalKey)) {
+        var aliases = readAliases[header] || [];
+        var aliasFound = aliases.some(function(alias) {
+          return Object.prototype.hasOwnProperty.call(headerMap, core_normalizeHeader_(alias));
+        });
+        if (aliasFound) {
+          core_domainsV2AuditIssue_(report, 'AVISO', 'CABECALHO_V2_ALIAS_LEGADO', 'Cabecalho v2 lido por alias temporario.', {
+            sheetName: definition.sheetName,
+            header: header
+          });
+          return;
+        }
         core_domainsV2AuditIssue_(report, 'ERRO', 'CABECALHO_V2_AUSENTE', 'Cabecalho esperado ausente.', {
           sheetName: definition.sheetName,
           header: header
@@ -144,9 +157,23 @@ function core_domainsV2AuditOpenDomain_(domainKey, report) {
       }
     });
 
+    var records = core_readSheetRecords_(sheet, { skipBlankRows: true });
+    records.forEach(function(record) {
+      Object.keys(readAliases).forEach(function(canonicalHeader) {
+        if (String(record[canonicalHeader] == null ? '' : record[canonicalHeader]).trim()) return;
+        var aliases = readAliases[canonicalHeader] || [];
+        for (var i = 0; i < aliases.length; i++) {
+          if (String(record[aliases[i]] == null ? '' : record[aliases[i]]).trim()) {
+            record[canonicalHeader] = record[aliases[i]];
+            break;
+          }
+        }
+      });
+    });
+
     out[definition.sheetName] = {
       sheet: sheet,
-      records: core_readSheetRecords_(sheet, { skipBlankRows: true }),
+      records: records,
       headers: headers
     };
   });

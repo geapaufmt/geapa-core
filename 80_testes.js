@@ -891,6 +891,30 @@ function test_core_portalFirestore_diagnosticarEscoposOAuth() {
     scopes: scopes
   }, null, 2));
 }
+
+function test_core_firestoreRest_encoderEDryRun() {
+  var encoded = coreFirestoreEncodeDocument_({
+    texto: 'ok',
+    ativo: true,
+    total: 2,
+    badges: ['A', 'B'],
+    flags: { publicado: true }
+  });
+  test_assert_(encoded.fields.texto.stringValue === 'ok', 'Firestore deveria codificar string.');
+  test_assert_(encoded.fields.ativo.booleanValue === true, 'Firestore deveria codificar boolean.');
+  test_assert_(encoded.fields.total.integerValue === '2', 'Firestore deveria codificar inteiro.');
+  test_assert_(encoded.fields.badges.arrayValue.values.length === 2, 'Firestore deveria codificar array.');
+  test_assert_(encoded.fields.flags.mapValue.fields.publicado.booleanValue === true, 'Firestore deveria codificar mapa.');
+
+  var dryRun = coreFirestoreSetDocument_('portalActivities/ATV-2026-1-0001', {
+    idAtividade: 'ATV-2026-1-0001'
+  }, {
+    dryRun: true,
+    projectId: 'projeto-teste'
+  });
+  test_assert_(dryRun.ok === true && dryRun.written === false, 'Dry-run Firestore nao deveria escrever.');
+  return { ok: true, encoded: encoded, dryRun: dryRun };
+}
 function test_core_portalFirestore_syncUsuarioEmailConfigurado() {
   var props = PropertiesService.getScriptProperties();
   var email = props.getProperty('GEAPA_CORE_PORTAL_TESTE_FIRESTORE_EMAIL') || '';
@@ -928,7 +952,7 @@ function test_core_portalFirestore_lerSnapshotUidConfigurado() {
   test_assert_(resultado.found === true, 'Leitura Firestore deveria encontrar portalUsers/{uid}.' + detalheErro);
   test_assert_(resultado.snapshot && resultado.snapshot.uid === uid, 'Snapshot Firestore deveria ter uid esperado.');
   test_assert_(resultado.snapshot.source === 'GEAPA_CORE_PESSOAS_V2', 'Snapshot Firestore deveria preservar source oficial.');
-  test_assert_(resultado.snapshot.schemaVersion === 'portal-user-v1', 'Snapshot Firestore deveria preservar schemaVersion.');
+  test_assert_(resultado.snapshot.schemaVersion === 'portal-user-v2', 'Snapshot Firestore deveria preservar schemaVersion.');
 }
 function test_core_portalV2_diagnosticarSessoesPortal() {
   var raw = PropertiesService

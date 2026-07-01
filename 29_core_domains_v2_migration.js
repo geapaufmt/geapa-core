@@ -1137,7 +1137,8 @@ function coreMigrarVigenciasV2_(options) {
 
   var report = {
     totalSemestresLidos: sourceRecords.semestres.length,
-    totalPeriodosLidos: sourceRecords.periodos.length,
+    totalPeriodosLegadosLidos: sourceRecords.periodos.length,
+    totalCiclosGerados: 0,
     totalDiretoriasLidas: sourceRecords.diretorias.length,
     totalCargosConfigLidos: sourceRecords.cargosConfig.length,
     totalVigenciasGeradas: 0,
@@ -1150,7 +1151,7 @@ function coreMigrarVigenciasV2_(options) {
   var semestres = core_domainsV2FilterNewRows_(
     core_domainsV2SimpleCopyRows_(sourceRecords.semestres, CORE_DOMAINS_V2_SCHEMAS.VIGENCIAS[0].headers, {
       ID_SEMESTRE: ['ID_SEMESTRE', 'ID_Semestre'],
-      ID_PERIODO: ['ID_PERIODO', 'ID_PerÃ­odo', 'ID_Periodo'],
+      ID_CICLO: ['ID_CICLO', 'ID_PERIODO', 'ID_PerÃ­odo', 'ID_Periodo'],
       NUMERO_REUNIOES_PREVISTAS: ['NUMERO_REUNIOES_PREVISTAS', 'NÃºmero reuniÃµes previstas', 'Numero reunioes previstas'],
       INICIO_MATRICULAS_ONLINE: ['INICIO_MATRICULAS_ONLINE', 'InÃ­cio MatrÃ­culas Online', 'Inicio Matriculas Online'],
       FIM_MATRICULAS_ONLINE: ['FIM_MATRICULAS_ONLINE', 'Fim MatrÃ­culas Online', 'Fim Matriculas Online'],
@@ -1166,11 +1167,11 @@ function coreMigrarVigenciasV2_(options) {
     dest.SEMESTRES.records,
     'ID_SEMESTRE'
   );
-  var periodos = core_domainsV2FilterNewRows_(
+  var ciclos = core_domainsV2FilterNewRows_(
     core_domainsV2SimpleCopyRows_(sourceRecords.periodos, CORE_DOMAINS_V2_SCHEMAS.VIGENCIAS[1].headers, {
-      ID_PERIODO: ['ID_PERIODO', 'ID_Período', 'ID_Periodo'],
-      NOME_PERIODO: ['NOME_PERIODO', 'ID_Período', 'ID_Periodo'],
-      TIPO_PERIODO: ['TIPO_PERIODO'],
+      ID_CICLO: ['ID_CICLO', 'ID_PERIODO', 'ID_Período', 'ID_Periodo'],
+      NOME_CICLO: ['NOME_CICLO', 'NOME_PERIODO', 'ID_Período', 'ID_Periodo'],
+      TIPO_CICLO: ['TIPO_CICLO', 'TIPO_PERIODO'],
       NUMERO_MEMBROS_PREVISTOS: ['NUMERO_MEMBROS_PREVISTOS', 'NÃºmero de membros previstos', 'Numero de membros previstos'],
       TOTAL_ATIVIDADES_QUE_CONTAM_FALTA_PLANEJADAS: ['TOTAL_ATIVIDADES_QUE_CONTAM_FALTA_PLANEJADAS'],
       LIMITE_FALTAS_PERIODO_CONGELADO: ['LIMITE_FALTAS_PERIODO_CONGELADO'],
@@ -1183,9 +1184,10 @@ function coreMigrarVigenciasV2_(options) {
       STATUS: ['STATUS'],
       OBS: ['OBS', 'NUMERO_SEI', 'ANO_SEI', 'COORDENADOR']
     }, opts.limit),
-    dest.PERIODOS.records,
-    'ID_PERIODO'
+    dest.CICLOS.records,
+    'ID_CICLO'
   );
+  report.totalCiclosGerados = ciclos.length;
   var diretorias = core_domainsV2FilterNewRows_(core_domainsV2SimpleCopyRows_(sourceRecords.diretorias, CORE_DOMAINS_V2_SCHEMAS.VIGENCIAS[2].headers, {
     ID_DIRETORIA: ['ID_DIRETORIA', 'ID_Diretoria'],
     NOME_GESTAO: ['NOME_GESTAO', 'NOME', 'Ordem_Diretoria'],
@@ -1278,7 +1280,7 @@ function coreMigrarVigenciasV2_(options) {
   report.totalVigenciasGeradas = funcoes.length;
 
   core_domainsV2AppendRows_(dest.SEMESTRES.sheet, semestres, opts.dryRun);
-  core_domainsV2AppendRows_(dest.PERIODOS.sheet, periodos, opts.dryRun);
+  core_domainsV2AppendRows_(dest.CICLOS.sheet, ciclos, opts.dryRun);
   core_domainsV2AppendRows_(dest.DIRETORIAS.sheet, diretorias, opts.dryRun);
   core_domainsV2AppendRows_(dest.SEMESTRES_DIRETORIA.sheet, semestresDiretoria, opts.dryRun);
   core_domainsV2AppendRows_(dest.CARGOS_CONFIG.sheet, cargosConfig, opts.dryRun);
