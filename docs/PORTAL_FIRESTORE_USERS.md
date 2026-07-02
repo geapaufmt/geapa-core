@@ -67,6 +67,14 @@ Se o projeto usar `oauthScopes` explicitos no `appsscript.json`, inclua esses es
 - `corePortalSyncFirestoreUserByEmail(email, opts)`
 - `corePortalSyncFirestoreUserByIdPessoa(idPessoa, opts)`
 - `corePortalSyncFirestoreUsersFromPessoasV2(opts)`
+- `corePortalDiagnosticarFirestoreUsersDev(opts)`
+
+`corePortalDiagnosticarFirestoreUsersDev()` e read-only e retorna somente totais
+de membros autorizados, documentos `portalUsers`, cobertura conhecida e codigos
+recentes de falha quando `PORTAL_LOG_ACESSOS` possui eventos persistidos. O
+diagnostico nao retorna e-mails, UIDs ou `ID_PESSOA`. Como parte dos erros de
+`portalLoginFirebase` existe apenas no Execution Log, o retorno informa quando
+essa trilha nao esta disponivel para consulta estruturada.
 
 Para escrever em `portalUsers/{uid}`, informe `uid` em `opts` ou use mapas `uidByEmail`/`uidByIdPessoa` no lote. O Core nao inventa UID a partir de e-mail ou `ID_PESSOA`.
 

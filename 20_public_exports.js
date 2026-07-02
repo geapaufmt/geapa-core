@@ -630,6 +630,10 @@ function corePortalSyncFirestoreUsersFromPessoasV2(opts) {
   return corePortalSyncFirestoreUsersFromPessoasV2_(opts || {});
 }
 
+function corePortalDiagnosticarFirestoreUsersDev(opts) {
+  return corePortalDiagnosticarFirestoreUsersDev_(opts || {});
+}
+
 function coreFirestoreSetDocument(path, data, options) {
   return coreFirestoreSetDocument_(path, data || {}, options || {});
 }

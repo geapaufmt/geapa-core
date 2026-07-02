@@ -1033,6 +1033,117 @@ function corePortalSyncFirestoreUsersFromPessoasV2_(opts) {
     erros: Object.freeze(erros.slice(0, 20))
   });
 }
+
+/** Diagnostico read-only da cobertura do cache portalUsers, sem expor PII. */
+function corePortalDiagnosticarFirestoreUsersDev_(opts) {
+  opts = opts || {};
+  var report = core_domainsV2NewReadReport_('PORTAL_FIRESTORE_USERS_DIAGNOSTICO');
+  var pessoasData;
+  try {
+    pessoasData = core_domainsV2OpenPessoas_(report);
+  } catch (pessoasErr) {
+    return Object.freeze({
+      ok: false,
+      errorCode: 'PESSOAS_V2_INDISPONIVEL',
+      message: String(pessoasErr && pessoasErr.message || pessoasErr || '').slice(0, 300)
+    });
+  }
+  if (report.totalErros) {
+    return Object.freeze({
+      ok: false,
+      errorCode: 'PESSOAS_V2_INDISPONIVEL',
+      totalErros: report.totalErros
+    });
+  }
+
+  var resumo = (pessoasData.PESSOAS_RESUMO_OPERACIONAL && pessoasData.PESSOAS_RESUMO_OPERACIONAL.records) || [];
+  var baseById = core_domainsV2IndexFirstBy_((pessoasData.PESSOAS_BASE && pessoasData.PESSOAS_BASE.records) || [], 'ID_PESSOA');
+  var authorized = {};
+  resumo.forEach(function(row) {
+    var idPessoa = String(row && row.ID_PESSOA || '').trim();
+    var base = baseById[idPessoa] || {};
+    var email = corePortalNormalizeEmail_(row && (row.EMAIL || row.EMAIL_PRINCIPAL) || base.EMAIL_PRINCIPAL || '');
+    if (!idPessoa || !corePortalIsYes_(row && row.PORTAL_ATIVO)) return;
+    authorized[idPessoa] = { idPessoa: idPessoa, email: email };
+  });
+
+  var firestoreDocuments = [];
+  var pageToken = '';
+  try {
+    do {
+      var page = coreFirestoreListDocuments_('portalUsers', { pageSize: 500, pageToken: pageToken });
+      if (!page || page.ok !== true) throw new Error(String(page && page.code || 'FIRESTORE_LIST_FALHOU'));
+      firestoreDocuments = firestoreDocuments.concat(page.documents || []);
+      pageToken = String(page.nextPageToken || '');
+      if (firestoreDocuments.length > 5000) throw new Error('LIMITE_DEFENSIVO_EXCEDIDO');
+    } while (pageToken);
+  } catch (firestoreErr) {
+    return Object.freeze({
+      ok: false,
+      errorCode: 'PORTAL_USERS_FIRESTORE_INDISPONIVEL',
+      message: String(firestoreErr && firestoreErr.message || firestoreErr || '').slice(0, 300),
+      totalUsuariosAutorizados: Object.keys(authorized).length
+    });
+  }
+
+  var cachedById = {};
+  var cachedByEmail = {};
+  var validCacheCount = 0;
+  firestoreDocuments.forEach(function(item) {
+    var data = item && item.data || {};
+    var idPessoa = String(data.idPessoa || '').trim();
+    var email = corePortalNormalizeEmail_(data.email || '');
+    if (idPessoa) cachedById[idPessoa] = true;
+    if (email) cachedByEmail[email] = true;
+    if (data.portalAtivo === true && String(data.schemaVersion || '') === CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION) {
+      validCacheCount++;
+    }
+  });
+
+  var covered = 0;
+  Object.keys(authorized).forEach(function(idPessoa) {
+    var person = authorized[idPessoa];
+    if (cachedById[idPessoa] || (person.email && cachedByEmail[person.email])) covered++;
+  });
+
+  var recentErrors = [];
+  var accessLogAvailable = false;
+  try {
+    var accessLogs = core_readRecordsByKey_('PORTAL_LOG_ACESSOS', { skipBlankRows: true }) || [];
+    accessLogAvailable = true;
+    recentErrors = accessLogs.filter(function(row) {
+      var action = corePortalNormalizeToken_(row.ACAO || '');
+      var result = corePortalNormalizeToken_(row.RESULTADO || '');
+      return action.indexOf('PORTAL_LOGIN') >= 0 && result && result !== 'AUTORIZADO' && result !== 'OK';
+    }).slice(-Math.max(1, Math.min(20, Number(opts.errorLimit || 10)))).reverse().map(function(row) {
+      return Object.freeze({
+        timestamp: String(row.TIMESTAMP || '').slice(0, 40),
+        resultado: corePortalNormalizeToken_(row.RESULTADO || ''),
+        motivo: String(row.MOTIVO || '').slice(0, 160),
+        origem: String(row.ORIGEM || '').slice(0, 80)
+      });
+    });
+  } catch (logErr) {}
+
+  var totalAuthorized = Object.keys(authorized).length;
+  return Object.freeze({
+    ok: true,
+    modo: 'DEV_READ_ONLY',
+    totalUsuariosAutorizados: totalAuthorized,
+    totalDocumentosPortalUsers: firestoreDocuments.length,
+    totalCachesValidos: validCacheCount,
+    totalUsuariosComCacheConhecido: covered,
+    totalUsuariosSemCacheConhecido: Math.max(0, totalAuthorized - covered),
+    ultimosErrosPortalLoginFirebase: Object.freeze(recentErrors),
+    logPersistidoDisponivel: accessLogAvailable,
+    observacoes: Object.freeze([
+      'portalUsers/{uid} depende do UID emitido pelo Firebase Auth; o Core nao inventa UID por e-mail.',
+      accessLogAvailable && recentErrors.length
+        ? 'Erros persistidos foram resumidos sem e-mail ou UID.'
+        : 'Erros do portalLoginFirebase podem existir apenas no Execution Log e nao estar disponiveis neste relatorio.'
+    ])
+  });
+}
 function corePortalValidarAcesso_(idPessoa, permissaoOuPerfil, opts) {
   opts = opts || {};
   var wanted = String(permissaoOuPerfil || '').trim();
