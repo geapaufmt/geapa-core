@@ -32,6 +32,8 @@ de autorizacao/configuracao, sem fallback para credencial privada.
 ## API publica controlada
 
 - `coreFirestoreSetDocument(path, data, options)`
+- `coreFirestoreGetDocument(path, options)`
+- `coreFirestoreListDocuments(collectionPath, options)`
 - `coreFirestoreDeleteDocument(path, options)`
 - `coreFirestoreBatchSetDocuments(items, options)`
 - `coreFirestoreDiagnosticar(options)`

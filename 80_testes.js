@@ -915,6 +915,17 @@ function test_core_firestoreRest_encoderEDryRun() {
   test_assert_(dryRun.ok === true && dryRun.written === false, 'Dry-run Firestore nao deveria escrever.');
   return { ok: true, encoded: encoded, dryRun: dryRun };
 }
+
+function test_core_firestoreRest_validarCaminhosDeColecao() {
+  var collection = coreFirestoreNormalizeCollectionPath_('portalActivities');
+  var nested = coreFirestoreNormalizeCollectionPath_('parents/P1/children');
+  test_assert_(collection.length === 1, 'Colecao raiz deveria ser aceita.');
+  test_assert_(nested.length === 3, 'Colecao aninhada deveria ser aceita.');
+  var rejected = false;
+  try { coreFirestoreNormalizeCollectionPath_('portalActivities/ATV-1'); } catch (err) { rejected = true; }
+  test_assert_(rejected, 'Caminho de documento nao deveria ser aceito como colecao.');
+  return { ok: true };
+}
 function test_core_portalFirestore_syncUsuarioEmailConfigurado() {
   var props = PropertiesService.getScriptProperties();
   var email = props.getProperty('GEAPA_CORE_PORTAL_TESTE_FIRESTORE_EMAIL') || '';

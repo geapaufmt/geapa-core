@@ -1596,7 +1596,8 @@ O GEAPA-CORE pode gerar snapshots seguros para `portalUsers/{uid}` usando PESSOA
 Funcoes principais: `corePortalGerarSnapshotFirestoreUsuario`, `corePortalSincronizarUsuarioFirestore`, `corePortalInvalidarCacheFirestoreUsuario`, `corePortalSyncFirestoreUserByEmail`, `corePortalSyncFirestoreUserByIdPessoa` e `corePortalSyncFirestoreUsersFromPessoasV2`. A escrita atual usa Apps Script + Firestore REST no plano Spark, configurada por Script Properties (`GEAPA_CORE_FIRESTORE_PROJECT_ID` e opcionalmente `GEAPA_CORE_FIRESTORE_DATABASE_ID`), sem Cloud Functions, Secret Manager, service account ou segredo no repositorio.
 
 O transporte REST compartilhado fica em `24_core_firestore_rest.js` e tambem
-expoe `coreFirestoreSetDocument`, `coreFirestoreDeleteDocument`,
+expoe `coreFirestoreSetDocument`, `coreFirestoreGetDocument`,
+`coreFirestoreListDocuments`, `coreFirestoreDeleteDocument`,
 `coreFirestoreBatchSetDocuments` e `coreFirestoreDiagnosticar`. Essas funcoes
 usam `dryRun: true` por padrao e suportam os read models de Atividades sem
 transformar o Firestore em fonte oficial. Consulte

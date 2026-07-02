@@ -204,6 +204,8 @@ const GEAPA_CORE = Object.freeze({
     encodeValue: coreFirestoreEncodeValue_,
     encodeDocument: coreFirestoreEncodeDocument_,
     setDocument: coreFirestoreSetDocument_,
+    getDocument: coreFirestoreGetDocument_,
+    listDocuments: coreFirestoreListDocuments_,
     deleteDocument: coreFirestoreDeleteDocument_,
     batchSetDocuments: coreFirestoreBatchSetDocuments_,
     diagnosticar: coreFirestoreDiagnosticar_

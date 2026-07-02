@@ -31,6 +31,18 @@ function coreFirestoreNormalizeDocumentPath_(path) {
   return segments;
 }
 
+function coreFirestoreNormalizeCollectionPath_(path) {
+  var text = String(path || '').trim().replace(/^\/+|\/+$/g, '');
+  var segments = text ? text.split('/') : [];
+  if (!segments.length || segments.length % 2 === 0) {
+    throw new Error('O caminho Firestore deve apontar para uma colecao.');
+  }
+  segments.forEach(function(segment) {
+    if (!String(segment || '').trim()) throw new Error('Caminho Firestore invalido.');
+  });
+  return segments;
+}
+
 function coreFirestoreDatabasePath_(config) {
   var projectId = encodeURIComponent(String(config.projectId || '').trim());
   var databaseId = String(config.databaseId || '(default)').trim() || '(default)';
@@ -219,6 +231,64 @@ function coreFirestoreGetDocument_(path, options) {
     return Object.freeze(result);
   } catch (err) {
     return Object.freeze({ ok: false, found: false, code: 'FIRESTORE_GET_INVALIDO', message: String(err && err.message || err || '').slice(0, 500) });
+  }
+}
+
+/** Lista uma pagina de documentos sem expor token ou identificadores do projeto. */
+function coreFirestoreListDocuments_(collectionPath, options) {
+  options = options || {};
+  try {
+    var config = coreFirestoreGetConfig_(options);
+    if (!config.projectId) {
+      return Object.freeze({ ok: false, documents: Object.freeze([]), code: 'FIRESTORE_PROJECT_ID_NAO_CONFIGURADO' });
+    }
+    var segments = coreFirestoreNormalizeCollectionPath_(collectionPath).map(function(segment) {
+      return encodeURIComponent(String(segment).trim());
+    });
+    var pageSize = Math.floor(Number(options.pageSize || 500));
+    if (!isFinite(pageSize) || pageSize < 1) pageSize = 500;
+    pageSize = Math.min(pageSize, 500);
+    var query = ['pageSize=' + pageSize];
+    if (String(options.pageToken || '').trim()) query.push('pageToken=' + encodeURIComponent(String(options.pageToken).trim()));
+    var url = CORE_FIRESTORE_API_BASE + '/' + coreFirestoreDatabasePath_(config) + '/documents/' + segments.join('/') + '?' + query.join('&');
+    var response = coreFirestoreRequest_(url, { method: 'get' });
+    if (!response.ok) {
+      return Object.freeze({
+        ok: false,
+        documents: Object.freeze([]),
+        code: 'FIRESTORE_LIST_FALHOU',
+        httpStatus: response.httpStatus,
+        firestoreError: response.firestoreError || undefined
+      });
+    }
+    var payload = JSON.parse(response.body || '{}');
+    var documents = (payload.documents || []).map(function(document) {
+      var fullName = String(document && document.name || '');
+      var marker = '/documents/';
+      var markerIndex = fullName.indexOf(marker);
+      var relativePath = markerIndex >= 0 ? fullName.slice(markerIndex + marker.length) : '';
+      return Object.freeze({
+        path: relativePath,
+        id: relativePath ? relativePath.split('/').pop() : '',
+        data: coreFirestoreDecodeDocument_(document || {}),
+        createTime: String(document && document.createTime || ''),
+        updateTime: String(document && document.updateTime || '')
+      });
+    });
+    return Object.freeze({
+      ok: true,
+      documents: Object.freeze(documents),
+      nextPageToken: String(payload.nextPageToken || ''),
+      code: 'FIRESTORE_LIST_OK',
+      httpStatus: response.httpStatus
+    });
+  } catch (err) {
+    return Object.freeze({
+      ok: false,
+      documents: Object.freeze([]),
+      code: 'FIRESTORE_LIST_INVALIDO',
+      message: String(err && err.message || err || '').slice(0, 500)
+    });
   }
 }
 

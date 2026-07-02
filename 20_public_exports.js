@@ -634,6 +634,14 @@ function coreFirestoreSetDocument(path, data, options) {
   return coreFirestoreSetDocument_(path, data || {}, options || {});
 }
 
+function coreFirestoreGetDocument(path, options) {
+  return coreFirestoreGetDocument_(path, options || {});
+}
+
+function coreFirestoreListDocuments(collectionPath, options) {
+  return coreFirestoreListDocuments_(collectionPath, options || {});
+}
+
 function coreFirestoreDeleteDocument(path, options) {
   return coreFirestoreDeleteDocument_(path, options || {});
 }
