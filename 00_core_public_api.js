@@ -160,6 +160,8 @@ const GEAPA_CORE = Object.freeze({
       buildFirestoreUserSnapshot: corePortalBuildFirestoreUserSnapshot_,
       gerarSnapshotFirestoreUsuario: corePortalBuildFirestoreUserSnapshot_,
       sincronizarUsuarioFirestore: corePortalSincronizarUsuarioFirestore_,
+      provisionarFirestoreUserAutenticado: corePortalProvisionarFirestoreUserAutenticado_,
+      marcarFirestoreUserInativoPorUid: corePortalMarcarFirestoreUserInativoPorUid_,
       invalidarCacheFirestoreUsuario: corePortalInvalidarCacheFirestoreUsuario_,
       syncFirestoreUserByEmail: corePortalSyncFirestoreUserByEmail_,
       syncFirestoreUserByIdPessoa: corePortalSyncFirestoreUserByIdPessoa_,

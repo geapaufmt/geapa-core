@@ -1591,7 +1591,7 @@ Fluxo manual sugerido para validar o Mail Hub:
 
 ### Cache Firestore do login do Portal
 
-O GEAPA-CORE pode gerar snapshots seguros para `portalUsers/{uid}` usando PESSOAS v2 como fonte oficial. O Firestore e apenas cache operacional do Portal: o documento deve conter somente os campos minimos de interface (`uid`, `idPessoa`, `nomeExibicao`, `email`, `rga`, `portalAtivo`, perfis, permissoes, vinculo atual, `source`, `sourceUpdatedAt`, `cacheUpdatedAt`, `cacheExpiresAt` e `schemaVersion`).
+O GEAPA-CORE pode gerar snapshots seguros para `portalUsers/{uid}` usando PESSOAS v2 como fonte oficial. O Firestore e apenas cache operacional do Portal: o documento contem identidade minima, perfil/permissoes calculados no backend e os controles `ativo`, `podeAcessarPortal`, `podeLerDadosPrivados` e `stale`. RGA, CPF, telefone, tokens, frequencia e justificativas nao fazem parte desse snapshot. O provisionamento automatico ocorre somente depois da validacao do Firebase ID token e da autorizacao oficial; pessoas que nunca autenticaram ficam como `AGUARDANDO_PRIMEIRO_LOGIN_FIREBASE` no diagnostico.
 
 Funcoes principais: `corePortalGerarSnapshotFirestoreUsuario`, `corePortalSincronizarUsuarioFirestore`, `corePortalInvalidarCacheFirestoreUsuario`, `corePortalSyncFirestoreUserByEmail`, `corePortalSyncFirestoreUserByIdPessoa` e `corePortalSyncFirestoreUsersFromPessoasV2`. A escrita atual usa Apps Script + Firestore REST no plano Spark, configurada por Script Properties (`GEAPA_CORE_FIRESTORE_PROJECT_ID` e opcionalmente `GEAPA_CORE_FIRESTORE_DATABASE_ID`), sem Cloud Functions, Secret Manager, service account ou segredo no repositorio.
 

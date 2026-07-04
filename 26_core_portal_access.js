@@ -797,6 +797,38 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
 
 const CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION = 'portal-user-v2';
 
+function corePortalMaskEmailForDiagnostic_(email) {
+  var normalized = corePortalNormalizeEmail_(email || '');
+  var parts = normalized.split('@');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return '';
+  return parts[0].slice(0, Math.min(2, parts[0].length)) + '***@' + parts[1];
+}
+
+function corePortalTruncateUidForLog_(uid) {
+  var value = String(uid || '').trim();
+  if (!value) return '';
+  return value.length <= 10 ? value : value.slice(0, 6) + '...' + value.slice(-4);
+}
+
+function corePortalFirestoreOperationalProfile_(session) {
+  var profiles = corePortalNormalizeFirestoreStringArray_((session && session.perfisPortal) || []);
+  var effective = corePortalNormalizeToken_(session && session.perfilPortalEfetivo || '');
+  var candidates = [effective].concat(profiles.map(corePortalNormalizeToken_));
+  if (candidates.indexOf('ADMIN_TECNICO') >= 0 || candidates.indexOf('ADMIN') >= 0) return 'ADMIN_TECNICO';
+  if (candidates.indexOf('SECRETARIA') >= 0) return 'SECRETARIA';
+  if (candidates.indexOf('DIRETORIA') >= 0) return 'DIRETORIA';
+  if (candidates.indexOf('ORIENTADOR') >= 0) return 'ORIENTADOR';
+  return 'MEMBRO';
+}
+
+function corePortalFirestorePermissionMap_(permissions) {
+  var out = {};
+  corePortalNormalizeFirestoreStringArray_(permissions).forEach(function(permission) {
+    out[permission] = true;
+  });
+  return Object.freeze(out);
+}
+
 function corePortalNormalizeFirestoreStringArray_(values) {
   var seen = {};
   var out = [];
@@ -839,27 +871,45 @@ function corePortalBuildFirestoreUserSnapshot_(entrada, opts) {
   var sourceUpdatedAt = isNaN(sourceUpdatedAtDate.getTime())
     ? cacheUpdatedAt
     : sourceUpdatedAtDate.toISOString();
+  var existingSnapshot = opts.existingSnapshot || {};
+  var permissions = corePortalNormalizeFirestoreStringArray_(sessao.permissoes);
+  var roles = corePortalNormalizeFirestoreStringArray_(sessao.perfisPortal);
+  var active = sessao.portalAtivo === true;
+  var normalizedEmail = corePortalNormalizeEmail_(sessao.email || '');
+  var lastLoginAtValue = opts.lastLoginAt || cacheUpdatedAt;
+  var lastLoginAtDate = new Date(lastLoginAtValue);
+  var lastLoginAt = isNaN(lastLoginAtDate.getTime()) ? cacheUpdatedAt : lastLoginAtDate.toISOString();
+  var provisionedAtValue = existingSnapshot.provisionedAt || opts.provisionedAt || cacheUpdatedAt;
+  var provisionedAtDate = new Date(provisionedAtValue);
+  var provisionedAt = isNaN(provisionedAtDate.getTime()) ? cacheUpdatedAt : provisionedAtDate.toISOString();
+  var effectiveProfile = String(sessao.perfilPortalEfetivo || '').trim();
 
   return Object.freeze({
     uid: uid,
     idPessoa: String(sessao.idPessoa || '').trim(),
+    nomePublico: String(sessao.nomeExibicao || '').trim(),
     nomeExibicao: String(sessao.nomeExibicao || '').trim(),
-    email: corePortalNormalizeEmail_(sessao.email || ''),
-    rga: String(sessao.rga || '').trim(),
-    portalAtivo: sessao.portalAtivo === true,
-    modoAcesso: String(sessao.modoAcesso || '').trim(),
-    motivoBloqueio: String(sessao.motivoBloqueio || '').trim(),
-    mensagemBloqueio: String(sessao.mensagemBloqueio || '').trim(),
-    perfilPortalEfetivo: String(sessao.perfilPortalEfetivo || '').trim(),
-    perfisPortal: corePortalNormalizeFirestoreStringArray_(sessao.perfisPortal),
-    permissoes: corePortalNormalizeFirestoreStringArray_(sessao.permissoes),
-    tipoVinculoAtual: String(sessao.tipoVinculoAtual || '').trim(),
-    statusVinculoAtual: String(sessao.statusVinculoAtual || '').trim(),
-    cargoFuncaoAtual: String(sessao.cargoFuncaoAtual || '').trim(),
-    source: 'GEAPA_CORE_PESSOAS_V2',
+    email: normalizedEmail,
+    emailNormalizado: normalizedEmail,
+    perfilOperacional: corePortalFirestoreOperationalProfile_(sessao),
+    ativo: active,
+    podeAcessarPortal: active,
+    podeLerDadosPrivados: active,
+    roles: roles,
+    permissions: corePortalFirestorePermissionMap_(permissions),
+    portalAtivo: active,
+    perfilPortalEfetivo: effectiveProfile,
+    perfisPortal: roles,
+    permissoes: permissions,
+    source: 'PESSOAS_V2',
+    sourceSystem: 'geapa-core',
     sourceUpdatedAt: sourceUpdatedAt,
     cacheUpdatedAt: cacheUpdatedAt,
     cacheExpiresAt: cacheExpiresAt,
+    lastLoginAt: lastLoginAt,
+    provisionedAt: provisionedAt,
+    stale: !active,
+    staleReason: active ? '' : String(opts.staleReason || sessao.motivoBloqueio || 'USUARIO_NAO_AUTORIZADO').trim(),
     schemaVersion: CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION
   });
 }
@@ -917,8 +967,81 @@ function corePortalPostFirestoreUserSnapshot_(snapshot, opts) {
 }
 function corePortalSincronizarUsuarioFirestore_(entrada, opts) {
   opts = opts || {};
-  var snapshot = corePortalBuildFirestoreUserSnapshot_(entrada || {}, opts);
-  return corePortalPostFirestoreUserSnapshot_(snapshot, opts);
+  var entradaObj = entrada && typeof entrada === 'object' ? entrada : {};
+  var uid = String(opts.uid || entradaObj.uid || entradaObj.firebaseUid || '').trim();
+  var existingSnapshot = opts.existingSnapshot || null;
+  if (!existingSnapshot && uid) {
+    var existingResult = corePortalReadFirestoreUserSnapshotByUid_(uid, opts);
+    if (existingResult && existingResult.found) existingSnapshot = existingResult.snapshot;
+  }
+  var snapshot = corePortalBuildFirestoreUserSnapshot_(entradaObj, Object.assign({}, opts, {
+    existingSnapshot: existingSnapshot || {}
+  }));
+  return corePortalPostFirestoreUserSnapshot_(snapshot, Object.assign({}, opts, {
+    merge: opts.merge === true
+  }));
+}
+
+function corePortalProvisionarFirestoreUserAutenticado_(firebaseIdentity, opts) {
+  opts = opts || {};
+  var identity = firebaseIdentity || {};
+  var uid = String(identity.uid || '').trim();
+  var email = corePortalNormalizeEmail_(identity.email || '');
+  if (opts.identityVerified !== true) {
+    return Object.freeze({ ok: false, synced: false, code: 'IDENTIDADE_FIREBASE_NAO_VERIFICADA' });
+  }
+  if (!uid || !email) {
+    return Object.freeze({ ok: false, synced: false, code: 'IDENTIDADE_FIREBASE_INCOMPLETA' });
+  }
+  if (identity.emailVerified !== true) {
+    return Object.freeze({ ok: false, synced: false, code: 'FIREBASE_EMAIL_NAO_VERIFICADO' });
+  }
+
+  var session = opts.sessao || corePortalResolverUsuarioAtual_({ email: email }, opts);
+  var sessionEmail = corePortalNormalizeEmail_(session && session.email || '');
+  if (!session || session.ok === false || session.autenticado === false || sessionEmail !== email) {
+    return Object.freeze({ ok: false, synced: false, code: 'IDENTIDADE_FIREBASE_DIVERGENTE' });
+  }
+  if (session.portalAtivo !== true) {
+    return Object.freeze({ ok: false, synced: false, code: 'USUARIO_NAO_AUTORIZADO' });
+  }
+
+  return corePortalSincronizarUsuarioFirestore_({ email: email, uid: uid }, Object.assign({}, opts, {
+    uid: uid,
+    sessao: session,
+    lastLoginAt: opts.lastLoginAt || new Date().toISOString()
+  }));
+}
+
+function corePortalMarcarFirestoreUserInativoPorUid_(uid, opts) {
+  opts = opts || {};
+  var id = String(uid || '').trim();
+  if (opts.identityVerified !== true) {
+    return Object.freeze({ ok: false, synced: false, code: 'IDENTIDADE_FIREBASE_NAO_VERIFICADA' });
+  }
+  if (!id) return Object.freeze({ ok: false, synced: false, code: 'UID_FIREBASE_AUSENTE' });
+
+  var existing = corePortalReadFirestoreUserSnapshotByUid_(id, opts);
+  if (!existing.ok) return Object.freeze({ ok: false, synced: false, code: existing.code || 'FIRESTORE_READ_FALHOU' });
+  if (!existing.found) {
+    return Object.freeze({ ok: true, synced: false, skipped: true, code: 'PORTAL_USER_INEXISTENTE_NAO_CRIADO' });
+  }
+
+  var now = new Date().toISOString();
+  var inactive = Object.freeze({
+    uid: id,
+    ativo: false,
+    podeAcessarPortal: false,
+    podeLerDadosPrivados: false,
+    portalAtivo: false,
+    stale: true,
+    staleReason: String(opts.staleReason || 'USUARIO_NAO_AUTORIZADO').trim().slice(0, 120),
+    cacheUpdatedAt: now,
+    cacheExpiresAt: new Date(Date.now() - 1000).toISOString(),
+    sourceSystem: 'geapa-core',
+    schemaVersion: CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION
+  });
+  return corePortalPostFirestoreUserSnapshot_(inactive, Object.assign({}, opts, { merge: true }));
 }
 
 function corePortalSyncFirestoreUserByEmail_(email, opts) {
@@ -955,7 +1078,12 @@ function corePortalInvalidarCacheFirestoreUsuario_(idPessoaOuEmail, opts) {
   }
 
   var invalidado = Object.assign({}, snapshot, {
+    ativo: false,
+    podeAcessarPortal: false,
+    podeLerDadosPrivados: false,
     portalAtivo: false,
+    stale: true,
+    staleReason: String(opts.staleReason || 'CACHE_INVALIDADO').trim().slice(0, 120),
     cacheUpdatedAt: new Date().toISOString(),
     cacheExpiresAt: new Date(Date.now() - 1000).toISOString()
   });
@@ -1058,13 +1186,53 @@ function corePortalDiagnosticarFirestoreUsersDev_(opts) {
 
   var resumo = (pessoasData.PESSOAS_RESUMO_OPERACIONAL && pessoasData.PESSOAS_RESUMO_OPERACIONAL.records) || [];
   var baseById = core_domainsV2IndexFirstBy_((pessoasData.PESSOAS_BASE && pessoasData.PESSOAS_BASE.records) || [], 'ID_PESSOA');
+  var ambiente = '';
+  try { ambiente = corePortalNormalizeToken_(core_getCurrentEnv_()); } catch (envErr) {}
+  var includeEmails = opts.includeEmails === true &&
+    ['DEV', 'DESENVOLVIMENTO', 'HOMOLOG', 'HOMOLOGACAO', 'PREVIEW'].indexOf(ambiente) >= 0;
+  var detailLimit = Math.max(1, Math.min(200, Number(opts.limit || 50)));
   var authorized = {};
-  resumo.forEach(function(row) {
-    var idPessoa = String(row && row.ID_PESSOA || '').trim();
+  var officialByEmail = {};
+  var officialById = {};
+  var totalMembrosEfetivosAtivos = 0;
+  var totalDiretoriaSecretariaAdminTecnico = 0;
+  var totalOrientadoresAutorizados = 0;
+
+  function addIndex(index, key, value) {
+    if (!key) return;
+    if (!index[key]) index[key] = [];
+    index[key].push(value);
+  }
+
+  function displayEmail(email) {
+    var value = String(email || '').trim().toLowerCase();
+    if (value.indexOf('***@') > 0) return value;
+    return includeEmails ? value : corePortalMaskEmailForDiagnostic_(value);
+  }
+
+  resumo.forEach(function(row, index) {
+    row = row || {};
+    var idPessoa = String(row.ID_PESSOA || '').trim();
     var base = baseById[idPessoa] || {};
-    var email = corePortalNormalizeEmail_(row && (row.EMAIL || row.EMAIL_PRINCIPAL) || base.EMAIL_PRINCIPAL || '');
-    if (!idPessoa || !corePortalIsYes_(row && row.PORTAL_ATIVO)) return;
-    authorized[idPessoa] = { idPessoa: idPessoa, email: email };
+    var email = corePortalNormalizeEmail_(row.EMAIL || row.EMAIL_PRINCIPAL || base.EMAIL_PRINCIPAL || '');
+    var profileRaw = row.PERFIL_PORTAL_CALCULADO || row.PERFIL_PORTAL_BASE || row.PERFIL_PORTAL || '';
+    var profiles = corePortalSplitProfiles_(profileRaw);
+    var profile = profiles[0] || corePortalNormalizeToken_(profileRaw);
+    var linkType = corePortalNormalizeToken_(row.TIPO_VINCULO_ATUAL || row.TIPO_VINCULO || '');
+    var linkStatus = corePortalNormalizeToken_(row.STATUS_VINCULO_ATUAL || row.STATUS_VINCULO || '');
+    var item = { idPessoa: idPessoa, email: email, profile: profile, linkType: linkType, line: index + 2 };
+    addIndex(officialById, idPessoa, item);
+    addIndex(officialByEmail, email, item);
+    if (!idPessoa || !corePortalIsYes_(row.PORTAL_ATIVO)) return;
+    if (!authorized[idPessoa]) authorized[idPessoa] = item;
+    if ((linkType === 'MEMBRO_EFETIVO' || linkType === 'MEMBRO') && (linkStatus === 'ATIVO' || linkStatus === 'ATIVA')) {
+      totalMembrosEfetivosAtivos++;
+    }
+    if (profiles.some(function(value) { return ['DIRETORIA', 'SECRETARIA', 'ADMIN', 'ADMIN_TECNICO'].indexOf(value) >= 0; }) ||
+      ['DIRETORIA', 'SECRETARIA', 'ADMIN', 'ADMIN_TECNICO'].indexOf(profile) >= 0) {
+      totalDiretoriaSecretariaAdminTecnico++;
+    }
+    if (profiles.indexOf('ORIENTADOR') >= 0 || profile === 'ORIENTADOR' || linkType === 'ORIENTADOR') totalOrientadoresAutorizados++;
   });
 
   var firestoreDocuments = [];
@@ -1088,23 +1256,75 @@ function corePortalDiagnosticarFirestoreUsersDev_(opts) {
 
   var cachedById = {};
   var cachedByEmail = {};
-  var validCacheCount = 0;
+  var totalAtivos = 0;
+  var totalInativos = 0;
   firestoreDocuments.forEach(function(item) {
     var data = item && item.data || {};
     var idPessoa = String(data.idPessoa || '').trim();
-    var email = corePortalNormalizeEmail_(data.email || '');
-    if (idPessoa) cachedById[idPessoa] = true;
-    if (email) cachedByEmail[email] = true;
-    if (data.portalAtivo === true && String(data.schemaVersion || '') === CORE_PORTAL_FIRESTORE_USER_SNAPSHOT_VERSION) {
-      validCacheCount++;
-    }
+    var email = corePortalNormalizeEmail_(data.emailNormalizado || data.email || '');
+    addIndex(cachedById, idPessoa, item);
+    addIndex(cachedByEmail, email, item);
+    var active = data.ativo === true && data.podeAcessarPortal === true;
+    if (typeof data.ativo === 'undefined' && typeof data.podeAcessarPortal === 'undefined') active = data.portalAtivo === true;
+    if (active) totalAtivos++;
+    else totalInativos++;
   });
 
   var covered = 0;
+  var missingAuthorizedEmails = 0;
+  var waitingFirstLogin = [];
   Object.keys(authorized).forEach(function(idPessoa) {
     var person = authorized[idPessoa];
-    if (cachedById[idPessoa] || (person.email && cachedByEmail[person.email])) covered++;
+    if ((cachedById[idPessoa] && cachedById[idPessoa].length) || (person.email && cachedByEmail[person.email] && cachedByEmail[person.email].length)) {
+      covered++;
+      return;
+    }
+    if (person.email) missingAuthorizedEmails++;
+    if (waitingFirstLogin.length < detailLimit) {
+      waitingFirstLogin.push(Object.freeze({
+        idPessoa: idPessoa,
+        email: displayEmail(person.email),
+        status: 'AGUARDANDO_PRIMEIRO_LOGIN_FIREBASE'
+      }));
+    }
   });
+
+  var orphanUsers = [];
+  var orphanUsersCount = 0;
+  firestoreDocuments.forEach(function(item) {
+    var data = item && item.data || {};
+    var idPessoa = String(data.idPessoa || '').trim();
+    var email = corePortalNormalizeEmail_(data.emailNormalizado || data.email || '');
+    if ((idPessoa && officialById[idPessoa]) || (email && officialByEmail[email])) return;
+    orphanUsersCount++;
+    if (orphanUsers.length < detailLimit) {
+      orphanUsers.push(Object.freeze({
+        uid: corePortalTruncateUidForLog_(item && item.id || data.uid || ''),
+        idPessoa: idPessoa,
+        email: displayEmail(email),
+        status: 'SEM_CORRESPONDENCIA_BASE_OFICIAL'
+      }));
+    }
+  });
+
+  function collectDuplicates(index, source) {
+    return Object.keys(index).filter(function(key) {
+      return key && index[key].length > 1;
+    }).slice(0, detailLimit).map(function(key) {
+      return Object.freeze({
+        origem: source,
+        valor: key.indexOf('@') >= 0 ? displayEmail(key) : key,
+        quantidade: index[key].length
+      });
+    });
+  }
+
+  var duplicateEmails = collectDuplicates(officialByEmail, 'PESSOAS_V2').concat(
+    collectDuplicates(cachedByEmail, 'FIRESTORE_PORTAL_USERS')
+  ).slice(0, detailLimit);
+  var duplicateIds = collectDuplicates(officialById, 'PESSOAS_V2').concat(
+    collectDuplicates(cachedById, 'FIRESTORE_PORTAL_USERS')
+  ).slice(0, detailLimit);
 
   var recentErrors = [];
   var accessLogAvailable = false;
@@ -1114,33 +1334,64 @@ function corePortalDiagnosticarFirestoreUsersDev_(opts) {
     recentErrors = accessLogs.filter(function(row) {
       var action = corePortalNormalizeToken_(row.ACAO || '');
       var result = corePortalNormalizeToken_(row.RESULTADO || '');
-      return action.indexOf('PORTAL_LOGIN') >= 0 && result && result !== 'AUTORIZADO' && result !== 'OK';
+      return action.indexOf('PORTAL_FIRESTORE_USER_PROVISION_') === 0 &&
+        (result === 'ERROR' || result === 'ERRO' || result === 'DENY' || result === 'RECUSADO');
     }).slice(-Math.max(1, Math.min(20, Number(opts.errorLimit || 10)))).reverse().map(function(row) {
       return Object.freeze({
         timestamp: String(row.TIMESTAMP || '').slice(0, 40),
         resultado: corePortalNormalizeToken_(row.RESULTADO || ''),
         motivo: String(row.MOTIVO || '').slice(0, 160),
-        origem: String(row.ORIGEM || '').slice(0, 80)
+        origem: String(row.ORIGEM || '').slice(0, 80),
+        email: displayEmail(row.EMAIL || ''),
+        uid: corePortalTruncateUidForLog_(row.UID_FIREBASE || '')
       });
     });
   } catch (logErr) {}
 
   var totalAuthorized = Object.keys(authorized).length;
+  var totalMissing = Math.max(0, totalAuthorized - covered);
+  var recommendations = [];
+  if (totalMissing) recommendations.push('Orientar os usuarios pendentes a realizar o primeiro login Firebase; nao criar UID manualmente.');
+  if (orphanUsers.length) recommendations.push('Revisar portalUsers sem correspondencia oficial e manter esses documentos inativos.');
+  if (duplicateEmails.length) recommendations.push('Corrigir duplicidades de e-mail antes de liberar read models privados.');
+  if (duplicateIds.length) recommendations.push('Corrigir duplicidades de ID_PESSOA antes de liberar read models privados.');
+  if (!recommendations.length) recommendations.push('Cobertura consistente; manter provisionamento automatico no login.');
+  var structurallyReady = orphanUsersCount === 0 && !duplicateEmails.length && !duplicateIds.length;
   return Object.freeze({
     ok: true,
     modo: 'DEV_READ_ONLY',
+    ambiente: ambiente || 'NAO_INFORMADO',
+    includeEmails: includeEmails,
+    prontoParaHomologacao: structurallyReady,
+    coberturaCompleta: totalMissing === 0 && totalInativos === 0,
+    status: structurallyReady ? 'PRONTO_PARA_HOMOLOGACAO' : 'REQUER_CORRECAO',
+    totalPessoasAutorizadas: totalAuthorized,
     totalUsuariosAutorizados: totalAuthorized,
+    totalMembrosEfetivosAtivos: totalMembrosEfetivosAtivos,
+    totalDiretoriaSecretariaAdminTecnico: totalDiretoriaSecretariaAdminTecnico,
+    totalOrientadoresAutorizados: totalOrientadoresAutorizados,
     totalDocumentosPortalUsers: firestoreDocuments.length,
-    totalCachesValidos: validCacheCount,
+    totalPortalUsersAtivos: totalAtivos,
+    totalPortalUsersInativos: totalInativos,
+    totalCachesValidos: totalAtivos,
     totalUsuariosComCacheConhecido: covered,
-    totalUsuariosSemCacheConhecido: Math.max(0, totalAuthorized - covered),
+    totalUsuariosSemCacheConhecido: totalMissing,
+    totalEmailsAutorizadosSemPortalUsers: missingAuthorizedEmails,
+    totalPortalUsersSemCorrespondenciaOficial: orphanUsersCount,
+    aguardandoPrimeiroLoginFirebase: Object.freeze(waitingFirstLogin),
+    portalUsersSemCorrespondenciaOficial: Object.freeze(orphanUsers),
+    duplicidadesPorEmail: Object.freeze(duplicateEmails),
+    duplicidadesPorIdPessoa: Object.freeze(duplicateIds),
+    ultimosErrosProvisionamento: Object.freeze(recentErrors),
     ultimosErrosPortalLoginFirebase: Object.freeze(recentErrors),
+    recomendacoes: Object.freeze(recommendations),
     logPersistidoDisponivel: accessLogAvailable,
     observacoes: Object.freeze([
       'portalUsers/{uid} depende do UID emitido pelo Firebase Auth; o Core nao inventa UID por e-mail.',
+      'Usuarios sem documento sao classificados como AGUARDANDO_PRIMEIRO_LOGIN_FIREBASE, nao como erro.',
       accessLogAvailable && recentErrors.length
-        ? 'Erros persistidos foram resumidos sem e-mail ou UID.'
-        : 'Erros do portalLoginFirebase podem existir apenas no Execution Log e nao estar disponiveis neste relatorio.'
+        ? 'Erros persistidos foram resumidos com e-mail mascarado e UID truncado.'
+        : 'Erros de provisionamento podem existir apenas no Execution Log e nao estar disponiveis neste relatorio.'
     ])
   });
 }
@@ -1981,9 +2232,11 @@ function corePortalHasPermission_(sessionOrEmail, permission, opts) {
 
 function corePortalSanitizeLogPayload_(payload) {
   payload = payload || {};
+  var rawEmail = String(payload.email || payload.EMAIL || '').trim().toLowerCase();
+  var safeEmail = rawEmail.indexOf('***@') > 0 ? rawEmail : corePortalNormalizeEmail_(rawEmail);
   return {
     TIMESTAMP: payload.timestamp || payload.TIMESTAMP || new Date(),
-    EMAIL: corePortalNormalizeEmail_(payload.email || payload.EMAIL || ''),
+    EMAIL: safeEmail,
     UID_FIREBASE: String(payload.uidFirebase || payload.UID_FIREBASE || '').trim(),
     NOME: String(payload.nome || payload.NOME || '').trim(),
     PERFIL_PORTAL: corePortalNormalizeToken_(payload.perfilPortal || payload.PERFIL_PORTAL || ''),

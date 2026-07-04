@@ -937,7 +937,15 @@ function test_core_portalFirestore_syncUsuarioEmailConfigurado() {
     throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_FIRESTORE_UID com o uid Firebase desse usuario.');
   }
 
-  var resultado = corePortalSyncFirestoreUserByEmail(email, { uid: uid });
+  var resultado = corePortalProvisionarFirestoreUserAutenticado({
+    uid: uid,
+    email: email,
+    emailVerified: true
+  }, {
+    uid: uid,
+    identityVerified: true,
+    dryRun: false
+  });
   Logger.log(JSON.stringify(resultado, null, 2));
   var detalheErro = resultado.firestoreError
     ? ' Detalhe Firestore: ' + JSON.stringify(resultado.firestoreError)
@@ -946,6 +954,43 @@ function test_core_portalFirestore_syncUsuarioEmailConfigurado() {
   test_assert_(resultado.synced === true, 'Sync Firestore deveria gravar portalUsers/{uid}.' + detalheErro);
   test_assert_(resultado.code === 'FIRESTORE_SYNC_OK', 'Sync Firestore deveria retornar FIRESTORE_SYNC_OK.' + detalheErro);
 }
+
+function test_core_portalFirestore_snapshotSeguroMinimo() {
+  var snapshot = corePortalBuildFirestoreUserSnapshot_({ uid: 'uid-teste-123' }, {
+    sessao: {
+      ok: true,
+      autenticado: true,
+      idPessoa: 'P-TESTE',
+      nomeExibicao: 'Pessoa Teste',
+      email: 'pessoa@example.org',
+      rga: 'DADO-NAO-PERMITIDO',
+      portalAtivo: true,
+      perfilPortalEfetivo: 'MEMBRO',
+      perfisPortal: ['MEMBRO'],
+      permissoes: ['portal:acessar']
+    },
+    cacheUpdatedAt: '2026-07-04T12:00:00.000Z'
+  });
+  test_assert_(snapshot.uid === 'uid-teste-123', 'Snapshot deve preservar UID validado.');
+  test_assert_(snapshot.ativo === true && snapshot.podeAcessarPortal === true, 'Snapshot deve liberar apenas sessao ativa.');
+  test_assert_(snapshot.permissions['portal:acessar'] === true, 'Snapshot deve mapear permissoes no backend.');
+  test_assert_(snapshot.source === 'PESSOAS_V2' && snapshot.sourceSystem === 'geapa-core', 'Snapshot deve identificar fonte oficial.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot, 'rga'), 'Snapshot nao deve gravar RGA.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot, 'cpf'), 'Snapshot nao deve gravar CPF.');
+  return { ok: true, snapshot: snapshot };
+}
+
+function test_core_portalFirestore_negarIdentidadeNaoVerificada() {
+  var result = corePortalProvisionarFirestoreUserAutenticado_({
+    uid: 'uid-teste-123',
+    email: 'pessoa@example.org',
+    emailVerified: true
+  }, {});
+  test_assert_(result.ok === false, 'Provisionamento deve negar identidade nao marcada como verificada pelo backend.');
+  test_assert_(result.code === 'IDENTIDADE_FIREBASE_NAO_VERIFICADA', 'Codigo de negacao inesperado.');
+  return result;
+}
+
 function test_core_portalFirestore_lerSnapshotUidConfigurado() {
   var uid = PropertiesService
     .getScriptProperties()
@@ -962,7 +1007,7 @@ function test_core_portalFirestore_lerSnapshotUidConfigurado() {
   test_assert_(resultado.ok === true, 'Leitura Firestore deveria retornar ok=true.' + detalheErro);
   test_assert_(resultado.found === true, 'Leitura Firestore deveria encontrar portalUsers/{uid}.' + detalheErro);
   test_assert_(resultado.snapshot && resultado.snapshot.uid === uid, 'Snapshot Firestore deveria ter uid esperado.');
-  test_assert_(resultado.snapshot.source === 'GEAPA_CORE_PESSOAS_V2', 'Snapshot Firestore deveria preservar source oficial.');
+  test_assert_(resultado.snapshot.source === 'PESSOAS_V2', 'Snapshot Firestore deveria preservar source oficial.');
   test_assert_(resultado.snapshot.schemaVersion === 'portal-user-v2', 'Snapshot Firestore deveria preservar schemaVersion.');
 }
 function test_core_portalV2_diagnosticarSessoesPortal() {

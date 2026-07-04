@@ -614,6 +614,14 @@ function corePortalSincronizarUsuarioFirestore(entrada, opts) {
   return corePortalSincronizarUsuarioFirestore_(entrada, opts || {});
 }
 
+function corePortalProvisionarFirestoreUserAutenticado(firebaseIdentity, opts) {
+  return corePortalProvisionarFirestoreUserAutenticado_(firebaseIdentity || {}, opts || {});
+}
+
+function corePortalMarcarFirestoreUserInativoPorUid(uid, opts) {
+  return corePortalMarcarFirestoreUserInativoPorUid_(uid, opts || {});
+}
+
 function corePortalInvalidarCacheFirestoreUsuario(idPessoaOuEmail, opts) {
   return corePortalInvalidarCacheFirestoreUsuario_(idPessoaOuEmail, opts || {});
 }
