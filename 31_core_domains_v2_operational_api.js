@@ -129,6 +129,8 @@ function core_domainsV2PessoaBundle_(pessoasData, idPessoa) {
     pessoa: core_domainsV2CloneRecord_(pessoa),
     identificadores: byPessoa('PESSOAS_IDENTIFICADORES'),
     membrosDetalhes: byPessoa('MEMBROS_DETALHES')[0] || null,
+    colaboradoresAcademicos: byPessoa('COLABORADORES_ACADEMICOS'),
+    participantesExternosDetalhes: byPessoa('PARTICIPANTES_EXTERNOS_DETALHES'),
     vinculos: byPessoa('VINCULOS_GEAPA'),
     resumoOperacional: byPessoa('PESSOAS_RESUMO_OPERACIONAL')[0] || null,
     comunicacaoConsentimentos: byPessoa('PESSOAS_COMUNICACAO_CONSENTIMENTOS'),
@@ -362,11 +364,18 @@ function core_domainsV2Date_(value) {
   if (!value) return null;
   if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) return value;
   var text = String(value || '').trim();
-  var m = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  var m = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
   if (m) {
     var year = Number(m[3]);
     if (year < 100) year += 2000;
-    return new Date(year, Number(m[2]) - 1, Number(m[1]));
+    return new Date(
+      year,
+      Number(m[2]) - 1,
+      Number(m[1]),
+      Number(m[4] || 0),
+      Number(m[5] || 0),
+      Number(m[6] || 0)
+    );
   }
   var parsed = new Date(text);
   return isNaN(parsed.getTime()) ? null : parsed;
@@ -396,17 +405,49 @@ function core_domainsV2FormatDuration_(days) {
   return days + ' dias';
 }
 
+/**
+ * Mescla intervalos sobrepostos ou contiguos para evitar dupla contagem.
+ *
+ * @param {Array<Object>} intervals
+ * @return {Array<Object>}
+ */
+function core_domainsV2MergeIntervals_(intervals) {
+  var sorted = (intervals || []).slice().sort(function(a, b) {
+    return a.start.getTime() - b.start.getTime();
+  });
+  var merged = [];
+  sorted.forEach(function(interval) {
+    if (!merged.length) {
+      merged.push({ start: interval.start, end: interval.end });
+      return;
+    }
+    var current = merged[merged.length - 1];
+    var nextDay = new Date(current.end.getTime());
+    nextDay.setDate(nextDay.getDate() + 1);
+    if (interval.start.getTime() <= nextDay.getTime()) {
+      if (interval.end.getTime() > current.end.getTime()) current.end = interval.end;
+      return;
+    }
+    merged.push({ start: interval.start, end: interval.end });
+  });
+  return merged;
+}
+
 function core_domainsV2EffectiveMemberIntervals_(vinculos, today) {
-  return (vinculos || []).filter(function(vinculo) {
+  var intervals = (vinculos || []).filter(function(vinculo) {
     return core_domainsV2NormalizeTipoVinculo_(vinculo.TIPO_VINCULO) === 'MEMBRO_EFETIVO';
   }).map(function(vinculo) {
     var start = core_domainsV2Date_(vinculo.DATA_INICIO);
+    if (!start || start > today) return null;
     var end = core_domainsV2Date_(vinculo.DATA_FIM);
-    if (!end && core_domainsV2Active_(vinculo)) end = today;
-    return start ? { start: start, end: end || start } : null;
+    if (!end) end = core_domainsV2Active_(vinculo) ? today : start;
+    if (end > today) end = today;
+    if (end < start) return null;
+    return { start: start, end: end };
   }).filter(function(interval) {
     return !!interval;
   });
+  return core_domainsV2MergeIntervals_(intervals);
 }
 
 function core_domainsV2CountIntervalDays_(intervals) {
@@ -418,7 +459,8 @@ function core_domainsV2CountIntervalDays_(intervals) {
 function core_domainsV2CountSemestersForIntervals_(vigenciasData, intervals) {
   if (!intervals.length) return '';
   var records = ((vigenciasData.SEMESTRES && vigenciasData.SEMESTRES.records) || []);
-  if (!records.length) records = ((vigenciasData.CICLOS && vigenciasData.CICLOS.records) || []);
+  // QTD_SEMESTRES_NO_GRUPO deve seguir exclusivamente os semestres letivos oficiais de Vigencias v2.
+  if (!records.length) return '';
   var seen = {};
   records.forEach(function(record) {
     var start = core_domainsV2Date_(record.DATA_INICIO);
@@ -428,7 +470,7 @@ function core_domainsV2CountSemestersForIntervals_(vigenciasData, intervals) {
       return core_domainsV2IntervalsOverlap_(interval.start, interval.end, start, end);
     });
     if (crosses) {
-      var key = record.ID_SEMESTRE || record.ID_CICLO || record.ID_PERIODO || record.NOME_CICLO || record.NOME_PERIODO || [record.ANO, record.SEMESTRE].join('/');
+      var key = record.ID_SEMESTRE || record.ID_PERIODO || record.NOME_PERIODO || [record.ANO, record.SEMESTRE].join('/');
       seen[String(key || record.__rowNumber || '').trim()] = true;
     }
   });
@@ -598,19 +640,38 @@ function core_domainsV2BuildPortalState_(vinculo, vigResumo, exceptions) {
 function core_domainsV2ReadRecordsByKeySoft_(key, unavailable) {
   try {
     return core_readRecordsByKey_(key, { skipBlankRows: true }) || [];
-  } catch (err) {
-    unavailable[key] = err && err.message ? err.message : String(err);
+  } catch (primaryErr) {
+    try {
+      if (typeof core_v2RotinasGetSheetByKey_ === 'function') {
+        return core_readSheetRecords_(core_v2RotinasGetSheetByKey_(key, 'DEV'), {
+          skipBlankRows: true
+        }) || [];
+      }
+    } catch (fallbackErr) {
+      unavailable[key] = fallbackErr && fallbackErr.message ? fallbackErr.message : String(fallbackErr);
+      return [];
+    }
+    unavailable[key] = primaryErr && primaryErr.message ? primaryErr.message : String(primaryErr);
     return [];
   }
 }
 
+/**
+ * Le as fontes operacionais de Atividades v2 usadas pelo resumo de Pessoas.
+ *
+ * @return {Object}
+ */
 function core_domainsV2ActivityData_() {
   var unavailable = {};
   return {
+    atividades: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_DB', unavailable),
     apresentacoes: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_APRESENTACOES', unavailable),
+    envolvidos: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_ENVOLVIDOS', unavailable),
     portalAtividadesDetalhes: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES', unavailable),
     presencas: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PRESENCAS_REGISTROS', unavailable),
     portalFrequencia: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PORTAL_FREQUENCIA_MEMBROS', unavailable),
+    justificativas: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_JUSTIFICATIVAS', unavailable),
+    portalJustificativas: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PORTAL_JUSTIFICATIVAS', unavailable),
     unavailable: unavailable
   };
 }
@@ -639,7 +700,9 @@ function core_domainsV2PresentationRecordsFromPortalDetails_(details) {
     var base = {
       ID_ATIVIDADE: core_domainsV2LegacyValue_(detail, ['ID_ATIVIDADE', 'idAtividade']),
       DATA_ATIVIDADE: core_domainsV2LegacyValue_(detail, ['DATA_ATIVIDADE', 'dataAtividade', 'DATA']),
-      PERIODO: core_domainsV2LegacyValue_(detail, ['PERIODO', 'ID_PERIODO', 'periodo'])
+      CICLO: core_domainsV2LegacyValue_(detail, ['CICLO', 'ID_CICLO']),
+      SEMESTRE: core_domainsV2LegacyValue_(detail, ['SEMESTRE']),
+      ROTULO_SEMESTRE: core_domainsV2LegacyValue_(detail, ['ROTULO_SEMESTRE', 'PERIODO', 'ID_PERIODO', 'periodo'])
     };
     presentations.forEach(function(item) {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return;
@@ -654,6 +717,52 @@ function core_domainsV2PresentationRecordsFromPortalDetails_(details) {
     });
   });
   return records;
+}
+
+/**
+ * Enriquece apresentacoes com identidade e periodo vindos da atividade.
+ *
+ * A extensao Atividades_Apresentacoes guarda o estado operacional, enquanto
+ * a identidade do apresentador permanece em Atividades. A view publica e
+ * usada como complemento, inclusive para bases historicas migradas.
+ *
+ * @param {Object} activityData
+ * @return {Array<Object>}
+ */
+function core_domainsV2EnrichedPresentationRecords_(activityData) {
+  var activitiesById = core_domainsV2IndexFirstBy_(activityData.atividades || [], 'ID_ATIVIDADE');
+  var portalRecords = core_domainsV2PresentationRecordsFromPortalDetails_(activityData.portalAtividadesDetalhes || []);
+  var byId = {};
+  var withoutId = [];
+
+  portalRecords.forEach(function(record) {
+    var id = String(core_domainsV2LegacyValue_(record, ['ID_APRESENTACAO', 'idApresentacao']) || '').trim();
+    if (id) byId[id] = record;
+    else withoutId.push(record);
+  });
+
+  (activityData.apresentacoes || []).forEach(function(record) {
+    var id = String(core_domainsV2LegacyValue_(record, ['ID_APRESENTACAO']) || '').trim();
+    var idAtividade = String(core_domainsV2LegacyValue_(record, ['ID_ATIVIDADE']) || '').trim();
+    var atividade = activitiesById[idAtividade] || {};
+    var enriched = Object.assign({}, id && byId[id] ? byId[id] : {}, record, {
+      ID_ATIVIDADE: idAtividade,
+      ID_PESSOA: core_domainsV2LegacyValue_(record, ['ID_PESSOA', 'ID_PESSOA_APRESENTADOR']) || atividade.ID_PESSOA_PRINCIPAL || '',
+      RGA: core_domainsV2LegacyValue_(record, ['RGA', 'RGA_APRESENTADOR']) || atividade.RGA_PESSOA_PRINCIPAL || '',
+      EMAIL: core_domainsV2LegacyValue_(record, ['EMAIL', 'EMAIL_APRESENTADOR']) || atividade.EMAIL_PESSOA_PRINCIPAL || '',
+      DATA_ATIVIDADE: core_domainsV2LegacyValue_(record, ['DATA_ATIVIDADE', 'DATA_APRESENTACAO']) || atividade.DATA_ATIVIDADE || atividade.DATA_REALIZACAO || '',
+      CICLO: core_domainsV2LegacyValue_(record, ['CICLO']) || atividade.CICLO || '',
+      SEMESTRE: core_domainsV2LegacyValue_(record, ['SEMESTRE']) || atividade.SEMESTRE || '',
+      ROTULO_SEMESTRE: core_domainsV2LegacyValue_(record, ['ROTULO_SEMESTRE', 'PERIODO_REFERENCIA']) ||
+        atividade.ROTULO_SEMESTRE ||
+        atividade.PERIODO_REFERENCIA ||
+        ([atividade.ANO, atividade.SEMESTRE].filter(String).join('/') || '')
+    });
+    if (id) byId[id] = enriched;
+    else withoutId.push(enriched);
+  });
+
+  return Object.keys(byId).map(function(id) { return byId[id]; }).concat(withoutId);
 }
 
 function core_domainsV2RecordMatchesPessoa_(record, ctx) {
@@ -689,16 +798,14 @@ function core_domainsV2StatusPendente_(value) {
 }
 
 function core_domainsV2PresentationSummary_(activityData, ctx) {
-  var records = activityData.apresentacoes && activityData.apresentacoes.length
-    ? activityData.apresentacoes
-    : core_domainsV2PresentationRecordsFromPortalDetails_(activityData.portalAtividadesDetalhes || []);
+  var records = core_domainsV2EnrichedPresentationRecords_(activityData);
   var concluded = [];
   var pending = false;
   var filePending = false;
   records.forEach(function(record) {
     if (!core_domainsV2RecordMatchesPessoa_(record, ctx)) return;
     var status = core_domainsV2LegacyValue_(record, ['STATUS_APRESENTACAO', 'STATUS', 'SITUACAO']);
-    var fileStatus = core_domainsV2LegacyValue_(record, ['STATUS_ARQUIVO', 'ARQUIVO_STATUS', 'STATUS_DRIVE']);
+    var fileStatus = core_domainsV2LegacyValue_(record, ['STATUS_ENVIO_MATERIAL', 'STATUS_ARQUIVO', 'ARQUIVO_STATUS', 'STATUS_DRIVE']);
     if (core_domainsV2StatusConcluido_(status)) concluded.push(record);
     if (core_domainsV2StatusPendente_(status)) pending = true;
     if (core_domainsV2StatusPendente_(fileStatus)) filePending = true;
@@ -711,7 +818,8 @@ function core_domainsV2PresentationSummary_(activityData, ctx) {
   var last = concluded[0] || {};
   return {
     count: concluded.length,
-    lastPeriod: core_domainsV2LegacyValue_(last, ['PERIODO', 'CICLO', 'SEMESTRE', 'ID_PERIODO', 'PERIODO_REFERENCIA']),
+    lastCycle: core_domainsV2LegacyValue_(last, ['CICLO', 'ID_CICLO', 'NOME_CICLO']),
+    lastPeriod: core_domainsV2LegacyValue_(last, ['ROTULO_SEMESTRE', 'PERIODO', 'PERIODO_REFERENCIA', 'ID_PERIODO', 'SEMESTRE']),
     hasPending: pending,
     hasFilePending: filePending
   };
@@ -722,19 +830,26 @@ function core_domainsV2FrequencySummary_(activityData, ctx, periodoReferencia) {
   for (var i = 0; i < portal.length; i++) {
     var record = portal[i];
     if (!core_domainsV2RecordMatchesPessoa_(record, ctx)) continue;
-    var periodo = core_domainsV2LegacyValue_(record, ['PERIODO', 'PERIODO_REFERENCIA', 'ID_PERIODO', 'SEMESTRE']);
+    var periodo = core_domainsV2LegacyValue_(record, ['CICLO', 'ROTULO_SEMESTRE', 'PERIODO', 'PERIODO_REFERENCIA', 'ID_PERIODO', 'SEMESTRE']);
     if (periodoReferencia && String(periodo || '').trim() !== String(periodoReferencia || '').trim()) continue;
     var ready = core_domainsV2LegacyValue_(record, ['FREQUENCIA_RESUMIDA', 'RESUMO_FREQUENCIA', 'FREQUENCIA', 'STATUS_FREQUENCIA']);
     if (ready) return String(ready);
     var percentual = core_domainsV2LegacyValue_(record, ['PERCENTUAL_FREQUENCIA', 'FREQUENCIA_PERCENTUAL']);
-    var presencas = core_domainsV2LegacyValue_(record, ['PRESENCAS', 'QTD_PRESENCAS']);
-    var faltas = core_domainsV2LegacyValue_(record, ['FALTAS', 'QTD_FALTAS']);
-    var justificadas = core_domainsV2LegacyValue_(record, ['JUSTIFICADAS', 'FALTAS_JUSTIFICADAS']);
+    var presencas = core_domainsV2LegacyValue_(record, ['TOTAL_PRESENCAS', 'PRESENCAS', 'QTD_PRESENCAS']);
+    var faltas = core_domainsV2LegacyValue_(record, ['TOTAL_FALTAS', 'FALTAS', 'QTD_FALTAS']);
+    var justificadas = core_domainsV2LegacyValue_(record, ['TOTAL_JUSTIFICADAS', 'JUSTIFICADAS', 'FALTAS_JUSTIFICADAS']);
+    var abonadas = core_domainsV2LegacyValue_(record, ['TOTAL_ABONADAS', 'ABONADAS']);
+    var faltasLiquidas = core_domainsV2LegacyValue_(record, ['FALTAS_LIQUIDAS']);
+    var situacao = core_domainsV2LegacyValue_(record, ['SITUACAO_DISCIPLINAR', 'STATUS_DISCIPLINAR']);
+    var percentualText = String(percentual === '' ? '' : percentual).trim();
     return [
-      percentual ? 'Frequencia ' + percentual : '',
+      percentualText ? 'Frequencia ' + percentualText + (percentualText.indexOf('%') >= 0 ? '' : '%') : '',
       presencas !== '' ? 'Presencas ' + presencas : '',
       faltas !== '' ? 'Faltas ' + faltas : '',
-      justificadas !== '' ? 'Justificadas ' + justificadas : ''
+      justificadas !== '' ? 'Justificadas ' + justificadas : '',
+      abonadas !== '' ? 'Abonadas ' + abonadas : '',
+      faltasLiquidas !== '' ? 'Faltas liquidas ' + faltasLiquidas : '',
+      situacao ? 'Situacao ' + situacao : ''
     ].filter(String).join('; ');
   }
   var counts = { presenca: 0, falta: 0, justificada: 0 };
@@ -749,6 +864,31 @@ function core_domainsV2FrequencySummary_(activityData, ctx, periodoReferencia) {
   });
   if (!counts.presenca && !counts.falta && !counts.justificada) return '';
   return 'Presencas ' + counts.presenca + '; Faltas ' + counts.falta + '; Justificadas ' + counts.justificada;
+}
+
+/**
+ * Conta justificativas ainda abertas para a pessoa.
+ *
+ * @param {Object} activityData
+ * @param {Object} ctx
+ * @return {number}
+ */
+function core_domainsV2PendingJustifications_(activityData, ctx) {
+  var records = activityData.justificativas && activityData.justificativas.length
+    ? activityData.justificativas
+    : (activityData.portalJustificativas || []);
+  return records.filter(function(record) {
+    if (!core_domainsV2RecordMatchesPessoa_(record, ctx)) return false;
+    var ativo = core_domainsV2AuditStatus_(core_domainsV2LegacyValue_(record, ['ATIVO']));
+    if (ativo === 'NAO' || ativo === 'INATIVO') return false;
+    var status = core_domainsV2AuditStatus_(core_domainsV2LegacyValue_(record, [
+      'STATUS_ANALISE',
+      'STATUS_ANALISE_JUSTIFICATIVA',
+      'STATUS'
+    ]));
+    if (['DEFERIDA', 'DEFERIDO', 'INDEFERIDA', 'INDEFERIDO', 'APROVADA', 'APROVADO', 'RECUSADA', 'RECUSADO'].indexOf(status) >= 0) return false;
+    return !status || ['PENDENTE', 'EM_ANALISE', 'AGUARDANDO_ANALISE', 'AJUSTE_SOLICITADO'].indexOf(status) >= 0;
+  }).length;
 }
 
 function core_domainsV2HasCriticalFrequency_(frequencyText) {
@@ -780,6 +920,7 @@ function core_domainsV2BuildPessoasResumoRows_(pessoasData, vigenciasData, optio
   var today = new Date();
   var detalhesById = core_domainsV2IndexFirstBy_((pessoasData.MEMBROS_DETALHES && pessoasData.MEMBROS_DETALHES.records) || [], 'ID_PESSOA');
   var vinculosById = core_domainsV2IndexManyBy_((pessoasData.VINCULOS_GEAPA && pessoasData.VINCULOS_GEAPA.records) || [], 'ID_PESSOA');
+  var existingResumoById = core_domainsV2IndexFirstBy_((pessoasData.PESSOAS_RESUMO_OPERACIONAL && pessoasData.PESSOAS_RESUMO_OPERACIONAL.records) || [], 'ID_PESSOA');
   var vigResumoById = core_domainsV2IndexFirstBy_((vigenciasData.VIGENCIAS_RESUMO_ATUAL && vigenciasData.VIGENCIAS_RESUMO_ATUAL.records) || [], 'ID_PESSOA');
   var eventos = (pessoasData.MEMBROS_EVENTOS_VINCULO && pessoasData.MEMBROS_EVENTOS_VINCULO.records) || [];
   var activityData = core_domainsV2ActivityData_();
@@ -793,6 +934,7 @@ function core_domainsV2BuildPessoasResumoRows_(pessoasData, vigenciasData, optio
     var detalhes = detalhesById[idPessoa] || {};
     var vinculos = vinculosById[idPessoa] || [];
     var vinculo = core_domainsV2PickCurrentVinculo_(vinculos) || {};
+    var existingResumo = existingResumoById[idPessoa] || {};
     var vigResumo = vigResumoById[idPessoa] || {};
     var rga = core_domainsV2GetRga_(pessoasData, idPessoa, detalhes);
     var email = pessoa.EMAIL_PRINCIPAL || '';
@@ -800,6 +942,7 @@ function core_domainsV2BuildPessoasResumoRows_(pessoasData, vigenciasData, optio
     var intervals = core_domainsV2EffectiveMemberIntervals_(vinculos, today);
     var presentation = core_domainsV2PresentationSummary_(activityData, ctx);
     var frequency = core_domainsV2FrequencySummary_(activityData, ctx, options.periodoReferencia);
+    var pendingJustifications = core_domainsV2PendingJustifications_(activityData, ctx);
     var portal = core_domainsV2BuildPortalState_(vinculo, vigResumo, core_domainsV2ActivePortalExceptions_(pessoasData, idPessoa, today));
     var tipoAtual = vinculo.TIPO_VINCULO || '';
     var normalizedTipoAtual = core_domainsV2NormalizeTipoVinculo_(tipoAtual);
@@ -813,6 +956,7 @@ function core_domainsV2BuildPessoasResumoRows_(pessoasData, vigenciasData, optio
     if (presentation.hasFilePending) pendencias.push('ARQUIVO_APRESENTACAO_PENDENTE');
     if (core_domainsV2HasCriticalFrequency_(frequency)) pendencias.push('FREQUENCIA_CRITICA');
     if (frequency && core_domainsV2AuditStatus_(frequency).indexOf('JUSTIFICATIVA_PENDENTE') >= 0) pendencias.push('JUSTIFICATIVA_PENDENTE');
+    if (pendingJustifications > 0 && pendencias.indexOf('JUSTIFICATIVA_PENDENTE') < 0) pendencias.push('JUSTIFICATIVA_PENDENTE');
     if (!cargoAtual && normalizedTipoAtual === 'MEMBRO_EFETIVO' && activeCurrent) cargoAtual = 'Membro';
 
     return {
@@ -828,18 +972,17 @@ function core_domainsV2BuildPessoasResumoRows_(pessoasData, vigenciasData, optio
       TEMPO_EFETIVO_NO_GRUPO: core_domainsV2FormatDuration_(core_domainsV2CountIntervalDays_(intervals)),
       QTD_SEMESTRES_NO_GRUPO: core_domainsV2CountSemestersForIntervals_(vigenciasData, intervals),
       QTD_APRESENTACOES_REALIZADAS: presentation.count,
+      CICLO_ULTIMA_APRESENTACAO: presentation.lastCycle || '',
       PERIODO_ULTIMA_APRESENTACAO: presentation.lastPeriod || '',
       FREQUENCIA_RESUMIDA: frequency || '',
       PENDENCIAS_ABERTAS: pendencias.length ? pendencias.join('; ') : 'SEM_PENDENCIAS',
       FLAG_JA_FOI_SUSPENSO: core_domainsV2SuspensionFlag_(eventos, idPessoa),
-      STATUS_ELEGIBILIDADE_DIRETORIA: core_domainsV2Eligibility_(vinculo),
-      DATA_LIMITE_ESTIMADA_DIRETORIA: '',
+      STATUS_ELEGIBILIDADE_DIRETORIA: existingResumo.STATUS_ELEGIBILIDADE_DIRETORIA || core_domainsV2Eligibility_(vinculo),
+      DATA_LIMITE_ESTIMADA_DIRETORIA: existingResumo.DATA_LIMITE_ESTIMADA_DIRETORIA || '',
       ULTIMA_ATUALIZACAO: new Date()
     };
   });
-  report.camposNaoCalculaveis = Object.keys(unavailable).map(function(key) {
-    return { campo: key, motivo: unavailable[key] };
-  });
+  report.fontesIndisponiveis = unavailable;
   return rows;
 }
 
@@ -860,6 +1003,8 @@ function coreRecalcularPessoasResumoOperacionalV2_(options) {
   var rows = core_domainsV2BuildPessoasResumoRows_(pessoasData, vigenciasData, opts, report);
   var headers = pessoasData.PESSOAS_RESUMO_OPERACIONAL.headers || [];
   var stats = core_domainsV2PessoasResumoStats_(rows);
+  var fieldStats = core_domainsV2PessoasResumoFieldStats_(rows, report.fontesIndisponiveis || {});
+  report.camposNaoCalculaveis = fieldStats.naoCalculaveis;
   report.resumoQuantitativo = {
     totalPessoasAnalisadas: rows.length,
     totalMembrosAtivos: stats.totalMembrosAtivos,
@@ -868,7 +1013,9 @@ function coreRecalcularPessoasResumoOperacionalV2_(options) {
     pessoasBase: (pessoasData.PESSOAS_BASE.records || []).length,
     linhasCalculadas: rows.length,
     linhasExistentesAntes: (pessoasData.PESSOAS_RESUMO_OPERACIONAL.records || []).length,
-    resumosAtualizados: opts.dryRun ? 0 : rows.length
+    resumosAtualizados: opts.dryRun ? 0 : rows.length,
+    camposPreenchidos: fieldStats.preenchidos,
+    camposSemValor: fieldStats.semValor
   };
   report.options = {
     idPessoa: opts.idPessoa || null,
@@ -918,6 +1065,59 @@ function core_domainsV2PessoasResumoStats_(rows) {
   return stats;
 }
 
+/**
+ * Resume o preenchimento dos campos derivados do cache operacional.
+ *
+ * @param {Array<Object>} rows
+ * @param {Object} unavailable
+ * @return {Object}
+ */
+function core_domainsV2PessoasResumoFieldStats_(rows, unavailable) {
+  var fields = [
+    'ID_PESSOA',
+    'RGA',
+    'NOME_EXIBICAO',
+    'EMAIL',
+    'TIPO_VINCULO_ATUAL',
+    'STATUS_VINCULO_ATUAL',
+    'CARGO_FUNCAO_ATUAL',
+    'PERFIL_PORTAL_CALCULADO',
+    'PORTAL_ATIVO',
+    'TEMPO_EFETIVO_NO_GRUPO',
+    'QTD_SEMESTRES_NO_GRUPO',
+    'QTD_APRESENTACOES_REALIZADAS',
+    'CICLO_ULTIMA_APRESENTACAO',
+    'FREQUENCIA_RESUMIDA',
+    'PENDENCIAS_ABERTAS',
+    'STATUS_ELEGIBILIDADE_DIRETORIA'
+  ];
+  var preenchidos = {};
+  var semValor = {};
+  fields.forEach(function(field) {
+    preenchidos[field] = 0;
+    semValor[field] = 0;
+  });
+  (rows || []).forEach(function(row) {
+    fields.forEach(function(field) {
+      if (row[field] === 0 || String(row[field] || '').trim() !== '') preenchidos[field]++;
+      else semValor[field]++;
+    });
+  });
+  var naoCalculaveis = fields.filter(function(field) {
+    return semValor[field] > 0;
+  }).map(function(field) {
+    return {
+      campo: field,
+      linhasSemValor: semValor[field],
+      motivo: unavailable[field] || 'Fonte ausente, identidade nao conciliada ou campo nao aplicavel para parte das pessoas.'
+    };
+  });
+  Object.keys(unavailable || {}).forEach(function(source) {
+    naoCalculaveis.push({ campo: source, linhasSemValor: null, motivo: unavailable[source] });
+  });
+  return { preenchidos: preenchidos, semValor: semValor, naoCalculaveis: naoCalculaveis };
+}
+
 function core_domainsV2WritePessoasResumoRows_(targetData, headers, rows, opts) {
   var sheet = targetData.sheet;
   if (opts.idPessoa) {
@@ -925,7 +1125,8 @@ function core_domainsV2WritePessoasResumoRows_(targetData, headers, rows, opts) 
     rows.forEach(function(row) {
       var existingRow = existingById[String(row.ID_PESSOA || '').trim()];
       if (existingRow && existingRow.__rowNumber) {
-        sheet.getRange(existingRow.__rowNumber, 1, 1, headers.length).setValues([core_buildRowFromObjectByHeaders_(headers, row)]);
+        var mergedRow = Object.assign({}, core_domainsV2CloneRecord_(existingRow), row);
+        sheet.getRange(existingRow.__rowNumber, 1, 1, headers.length).setValues([core_buildRowFromObjectByHeaders_(headers, mergedRow)]);
       } else {
         sheet.appendRow(core_buildRowFromObjectByHeaders_(headers, row));
       }
@@ -945,7 +1146,7 @@ function core_domainsV2WritePessoasResumoRows_(targetData, headers, rows, opts) 
   rows.forEach(function(row) {
     var id = String(row.ID_PESSOA || '').trim();
     if (Object.prototype.hasOwnProperty.call(existingIndexById, id)) {
-      existing[existingIndexById[id]] = row;
+      existing[existingIndexById[id]] = Object.assign({}, existing[existingIndexById[id]], row);
     } else {
       appendRows.push(row);
     }

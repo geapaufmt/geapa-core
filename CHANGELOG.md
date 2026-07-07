@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-07-06
+
+- Corrigido o recalculo central de `PESSOAS_RESUMO_OPERACIONAL` para conciliar identidade de `Atividades` com registros de `Atividades_Apresentacoes`.
+- Incluidos frequencia consolidada, justificativas pendentes, mescla de intervalos de vinculo e diagnostico por campo.
+- A escrita do cache passa a preservar colunas extras e valores manuais fora do contrato derivado.
+- `CICLO_ULTIMA_APRESENTACAO` passa a ser o cabecalho canonico, mantendo leitura temporaria de `PERIODO_ULTIMA_APRESENTACAO`.
+- Adicionado fallback explicito para leitura das fontes de Atividades v2 no ambiente DEV.
+- Campos transitorios `PODE_*` em `CARGOS_CONFIG` deixam de bloquear o recalculo de `PESSOAS_RESUMO_OPERACIONAL` quando ausentes.
+- `QTD_SEMESTRES_NO_GRUPO` passa a usar exclusivamente os semestres letivos de `VIGENCIAS_V2_SEMESTRES`, sem fallback para `CICLOS`.
+- `CICLO_ULTIMA_APRESENTACAO` passa a gravar o ciclo real da ultima apresentacao, separado do alias legado de periodo/semestre.
+- Criada API `geapaCoreBuscarMeuPerfilParaPortal` para expor, com escopo proprio e somente leitura, os dados cadastrais usados pela nova tela "Meu perfil" do Portal.
+
 ## 2026-06-02
 
 - Removidas da API publica do core as funcoes temporarias da migracao inicial legado -> v2.

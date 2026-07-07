@@ -68,7 +68,7 @@ const CORE_MEMBERS_CFG = Object.freeze({
       "STATUS_VINCULO",
       "TIPO_VINCULO"
     ]),
-    periodoUltimaApresentacao: Object.freeze(["PERIODO_ULTIMA_APRESENTACAO"]),
+    periodoUltimaApresentacao: Object.freeze(["CICLO_ULTIMA_APRESENTACAO", "PERIODO_ULTIMA_APRESENTACAO"]),
     qtdApresentacoesRealizadas: Object.freeze(["QTD_APRESENTACOES_REALIZADAS"]),
     qtdDiasQueContamParaLimiteDiretoria: Object.freeze(["QTD_DIAS_QUE_CONTAM_PARA_LIMITE_DIRETORIA"]),
     limiteDiasDiretoria: Object.freeze(["LIMITE_DIAS_DIRETORIA"]),
@@ -773,7 +773,7 @@ function core_buildMinhaSituacaoPortalV2_(resumo) {
       frequenciaGeral: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
       atividadesRecentes: Object.freeze([]),
       apresentacoes: Object.freeze({
-        periodoUltimaApresentacao: String(resumo.PERIODO_ULTIMA_APRESENTACAO || "").trim(),
+        periodoUltimaApresentacao: String(resumo.CICLO_ULTIMA_APRESENTACAO || resumo.PERIODO_ULTIMA_APRESENTACAO || "").trim(),
         quantidadeRealizadas: core_parsePortalNonNegativeNumber_(resumo.QTD_APRESENTACOES_REALIZADAS)
       })
     }),
@@ -876,6 +876,114 @@ function core_buscarMinhaSituacaoParaPortal_(emailOuRga) {
   const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
 
   return core_buildMinhaSituacaoPortalResponse_(membro, usuario, sessao);
+}
+
+/**
+ * Retorna o primeiro valor nao vazio de um registro por lista de cabecalhos.
+ *
+ * @param {Object} record Registro fonte.
+ * @param {string[]} aliases Cabecalhos aceitos.
+ * @return {string}
+ */
+function core_getMeuPerfilPortalValue_(record, aliases) {
+  const source = record || {};
+  for (let i = 0; i < aliases.length; i++) {
+    const value = source[aliases[i]];
+    if (String(value == null ? "" : value).trim()) return String(value).trim();
+  }
+  return "";
+}
+
+/**
+ * Localiza o primeiro valor nao vazio em uma lista de registros.
+ *
+ * @param {Array<Object>} records Registros fonte.
+ * @param {string[]} aliases Cabecalhos aceitos.
+ * @return {string}
+ */
+function core_getMeuPerfilPortalValueFromRecords_(records, aliases) {
+  const list = Array.isArray(records) ? records : [];
+  for (let i = 0; i < list.length; i++) {
+    const value = core_getMeuPerfilPortalValue_(list[i], aliases);
+    if (value) return value;
+  }
+  return "";
+}
+
+/**
+ * Monta o contrato seguro da tela "Meu perfil" para o proprio usuario autenticado.
+ *
+ * @param {Object} sessao Sessao oficial resolvida pelo Core.
+ * @param {Object} bundle Pacote Pessoas v2 da pessoa resolvida.
+ * @return {Object}
+ */
+function core_buildMeuPerfilPortalResponse_(sessao, bundle) {
+  const pessoa = (bundle && bundle.pessoa) || {};
+  const detalhes = (bundle && bundle.membrosDetalhes) || {};
+  const resumo = (bundle && bundle.resumoOperacional) || {};
+  const colaboradores = (bundle && bundle.colaboradoresAcademicos) || [];
+  const externos = (bundle && bundle.participantesExternosDetalhes) || [];
+  const linkLattes = core_getMeuPerfilPortalValue_(pessoa, ["LINK_LATTES", "CURRICULO_LATTES"]) ||
+    core_getMeuPerfilPortalValue_(detalhes, ["LINK_LATTES", "CURRICULO_LATTES"]) ||
+    core_getMeuPerfilPortalValueFromRecords_(colaboradores, ["LINK_LATTES", "CURRICULO_LATTES"]) ||
+    core_getMeuPerfilPortalValueFromRecords_(externos, ["LINK_LATTES", "CURRICULO_LATTES"]);
+
+  return Object.freeze({
+    ok: true,
+    fonteDados: "PESSOAS_V2",
+    somenteLeitura: true,
+    perfil: Object.freeze({
+      idPessoa: String(sessao.idPessoa || pessoa.ID_PESSOA || "").trim(),
+      nomeCompleto: String(pessoa.NOME_COMPLETO || "").trim(),
+      nomeExibicao: String(pessoa.NOME_EXIBICAO || resumo.NOME_EXIBICAO || sessao.nomeExibicao || "").trim(),
+      rga: String(sessao.rga || detalhes.RGA || resumo.RGA || "").trim(),
+      cpf: String(pessoa.CPF || "").trim(),
+      dataNascimento: String(pessoa.DATA_NASCIMENTO || "").trim(),
+      telefone: String(pessoa.TELEFONE_PRINCIPAL || "").trim(),
+      email: String(pessoa.EMAIL_PRINCIPAL || resumo.EMAIL || sessao.email || "").trim(),
+      instagram: String(pessoa.INSTAGRAM || "").trim(),
+      linkLattes: String(linkLattes || "").trim(),
+      cidadeOrigem: String(pessoa.CIDADE_NATAL || "").trim(),
+      ufOrigem: String(pessoa.UF_ORIGEM || "").trim(),
+      historicoAcademico: String(detalhes.HISTORICO_ATIVIDADES_ACADEMICAS || "").trim(),
+      statusCadastral: String(pessoa.STATUS_CADASTRAL || resumo.STATUS_VINCULO_ATUAL || "").trim()
+    }),
+    sessao: sessao,
+    avisos: Object.freeze([
+      "Dados pessoais retornados apenas para o usuario autenticado pelo Portal GEAPA.",
+      "Edicao cadastral ainda nao esta habilitada nesta tela."
+    ])
+  });
+}
+
+/**
+ * Busca o perfil cadastral do proprio usuario para exibicao no Portal GEAPA.
+ *
+ * A autenticacao/token continua sendo responsabilidade do Portal. Esta funcao
+ * resolve apenas uma pessoa por identificador e nao retorna listas ou dados de
+ * terceiros.
+ *
+ * @param {string|Object} emailOuRga Identificador da propria sessao.
+ * @return {Object}
+ */
+function core_buscarMeuPerfilParaPortal_(emailOuRga) {
+  const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
+  if (!sessao || !sessao.idPessoa) {
+    return core_buildPortalError_(
+      "PERFIL_NAO_ENCONTRADO",
+      "Nao foi possivel localizar o perfil do usuario autenticado."
+    );
+  }
+
+  const bundle = corePessoasGetById_(sessao.idPessoa);
+  if (!bundle || !bundle.pessoa) {
+    return core_buildPortalError_(
+      "PERFIL_NAO_ENCONTRADO",
+      "Nao foi possivel localizar o cadastro em Pessoas v2."
+    );
+  }
+
+  return core_buildMeuPerfilPortalResponse_(sessao, bundle);
 }
 
 function core_normalizePortalCargoKeyFallback_(value) {

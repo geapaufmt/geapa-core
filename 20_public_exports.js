@@ -470,6 +470,18 @@ function geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga) {
   }
 }
 
+function geapaCoreBuscarMeuPerfilParaPortal(emailOuRga) {
+  try {
+    return core_buscarMeuPerfilParaPortal_(emailOuRga);
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreBuscarMeuPerfilParaPortal: falha interna ao consultar perfil do usuario para portal.');
+    return core_buildPortalError_(
+      'ERRO_BUSCAR_MEU_PERFIL',
+      'Nao foi possivel buscar o perfil do usuario.'
+    );
+  }
+}
+
 function geapaCoreListarMembrosParaChamada(dataAtividade, contexto) {
   try {
     return core_listarMembrosParaChamada_(dataAtividade, contexto || {});

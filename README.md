@@ -442,12 +442,20 @@ var resultadoPessoas = coreRecalcularPessoasResumoOperacionalV2({
 });
 ```
 
-O recalculo usa `PESSOAS_BASE`, `PESSOAS_IDENTIFICADORES`, `MEMBROS_DETALHES`, `VINCULOS_GEAPA`, `MEMBROS_EVENTOS_VINCULO`, `PORTAL_ACESSOS_EXCECOES`, `VIGENCIAS_RESUMO_ATUAL`, `SEMESTRES`/`CICLOS` e, quando disponiveis via Registry, as views de Atividades v2:
+O recalculo usa `PESSOAS_BASE`, `PESSOAS_IDENTIFICADORES`, `MEMBROS_DETALHES`, `VINCULOS_GEAPA`, `MEMBROS_EVENTOS_VINCULO`, `PORTAL_ACESSOS_EXCECOES`, `VIGENCIAS_RESUMO_ATUAL`, `SEMESTRES` e, quando disponiveis via Registry, as views de Atividades v2:
 
+`QTD_SEMESTRES_NO_GRUPO` e calculado apenas por intersecao do vinculo efetivo com os semestres letivos oficiais de `VIGENCIAS_V2_SEMESTRES`; `CICLOS` nao e usado como substituto para essa contagem. `CICLO_ULTIMA_APRESENTACAO` guarda o ciclo real da ultima apresentacao, enquanto `PERIODO_ULTIMA_APRESENTACAO` permanece apenas como alias legado de periodo/semestre quando a coluna ainda existir.
+
+- `ATIVIDADES_V2_DB` (`Atividades`)
 - `ATIVIDADES_V2_APRESENTACOES`
+- `ATIVIDADES_V2_ENVOLVIDOS`
 - `ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES`
 - `ATIVIDADES_V2_PRESENCAS_REGISTROS`
 - `ATIVIDADES_V2_PORTAL_FREQUENCIA_MEMBROS`
+- `ATIVIDADES_V2_JUSTIFICATIVAS`
+- `ATIVIDADES_V2_PORTAL_JUSTIFICATIVAS`
+
+As colunas transitorias `PODE_*` em `CARGOS_CONFIG` sao lidas quando existirem, mas nao bloqueiam o recalculo quando ausentes. A fonte final de autorizacao do Portal continua sendo `PORTAL_PERMISSOES`.
 
 `ATIVIDADES_V2_PORTAL_APRESENTACOES` nao e mais contrato ativo do Portal: apresentacoes publicas devem ser derivadas de `ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES.APRESENTACOES_PUBLICAS_JSON`.
 
@@ -456,11 +464,13 @@ Campos recalculados:
 - vinculo atual por prioridade operacional: membro efetivo ativo, membro em espera ativo, egresso, outros vinculos;
 - cargo atual e perfil portal a partir de Vigencias, com fallback `Membro` para membro efetivo ativo sem funcao vigente;
 - `PORTAL_ATIVO` a partir de vinculo, perfil e excecoes explicitas;
-- tempo efetivo e quantidade de semestres considerando apenas vinculos `MEMBRO_EFETIVO`;
-- apresentacoes realizadas, periodo da ultima apresentacao e frequencia resumida quando Atividades v2 tiver dados/views acessiveis;
-- pendencias iniciais, flag de suspensao e elegibilidade basica para diretoria.
+- tempo efetivo e quantidade de semestres considerando apenas vinculos `MEMBRO_EFETIVO`, com mescla de intervalos sobrepostos;
+- apresentacoes realizadas e `CICLO_ULTIMA_APRESENTACAO`, conciliando identidade de `Atividades` com estado de `Atividades_Apresentacoes`;
+- frequencia resumida a partir de `PORTAL_FREQUENCIA_MEMBROS`, com fallback para registros de presenca;
+- pendencias de apresentacao, material, frequencia e justificativas abertas;
+- flag de suspensao e elegibilidade basica para diretoria.
 
-O recalc real faz upsert por `ID_PESSOA`: atualiza linhas existentes e adiciona ausentes, preservando cabecalhos e sem limpar a aba inteira. `DATA_LIMITE_ESTIMADA_DIRETORIA` fica vazia nesta V1 quando a regra de limite nao estiver suficientemente segura; o relatorio retorna `camposNaoCalculaveis` e um resumo `divergenciasLegado` somente leitura quando a comparacao for possivel.
+O recalc real faz upsert por `ID_PESSOA`: atualiza linhas existentes e adiciona ausentes, preservando cabecalhos, colunas extras e valores manuais fora do contrato derivado, sem limpar a aba inteira. `DATA_LIMITE_ESTIMADA_DIRETORIA` e a elegibilidade existente sao preservadas quando ja estiverem calculadas por um modulo especializado. O relatorio retorna contagens por campo em `resumoQuantitativo.camposPreenchidos`, `resumoQuantitativo.camposSemValor`, `camposNaoCalculaveis` e um resumo `divergenciasLegado` somente leitura quando a comparacao for possivel.
 
 Diagnostico somente leitura:
 
@@ -1007,6 +1017,7 @@ Funcao publica exportada pela Library:
 - `geapaCoreBuscarMembroParaPortal(emailOuRga)`
 - `geapaCoreBuscarUsuarioPortal(emailOuRga)`
 - `geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga)`
+- `geapaCoreBuscarMeuPerfilParaPortal(emailOuRga)`
 - `geapaCoreListarMembrosParaChamada(dataAtividade, contexto)`
 - `geapaCoreRunTesteUsuarioPortal()`
 - `geapaCoreRunTesteListarMembrosParaChamada()`
@@ -1020,6 +1031,7 @@ Regras do contrato:
 - a consulta cadastral retorna um unico membro ou `null`;
 - a consulta de usuario retorna dados basicos seguros, cargos atuais do proprio usuario, perfis e permissoes iniciais;
 - a consulta de "Minha situacao" retorna `ok: true` ou erro controlado com `ok: false`;
+- a consulta de "Meu perfil" retorna somente o perfil da pessoa resolvida pela propria sessao do Portal, em modo somente leitura;
 - nao retorna listas completas, dados sensiveis, frequencia detalhada, pendencias sensiveis, certificados ou historico;
 - em caso de erro interno, nao expoe identificadores ou detalhes da planilha ao chamador.
 
@@ -1461,7 +1473,7 @@ Regras das pendencias:
 
 Bloco de participacao por apresentacoes:
 
-- `minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacao` vem de `PERIODO_ULTIMA_APRESENTACAO`;
+- `minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacao` vem de `CICLO_ULTIMA_APRESENTACAO`, aceitando `PERIODO_ULTIMA_APRESENTACAO` apenas como alias legado;
 - `minhaSituacao.participacao.apresentacoes.quantidadeRealizadas` vem de `QTD_APRESENTACOES_REALIZADAS`;
 - `QTD_APRESENTACOES_REALIZADAS` ja e o total consolidado entre a base legado e as apresentacoes atuais;
 - os campos `*_BASE_LEGADO` nao sao expostos ao portal para evitar dupla contagem ou interpretacao ambigua;
