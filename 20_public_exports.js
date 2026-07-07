@@ -54,6 +54,194 @@ function coreGetRegistryMetaByKey(key) {
 }
 
 /* ============================================================
+ * CONFIG_GEAPA
+ * ============================================================ */
+
+function coreGetGeapaConfigValue(key, opts) {
+  return core_getGeapaConfigValue_(key, arguments.length >= 2 ? opts : {});
+}
+
+function coreGetGeapaConfigMap(opts) {
+  return core_getGeapaConfigMap_(opts || {});
+}
+
+function coreGetGeapaConfigObject(opts) {
+  return core_getGeapaConfigObject_(opts || {});
+}
+
+function coreDebugGeapaConfig(opts) {
+  return core_debugGeapaConfig_(opts || {});
+}
+
+/* ============================================================
+ * DOMINIOS CENTRAIS V2
+ * ============================================================ */
+
+function coreGetDomainsV2Schemas() {
+  return core_getDomainsV2Schemas_();
+}
+
+function coreGetDomainsV2ContractKeys() {
+  return core_getDomainsV2ContractKeys_();
+}
+
+function coreAuditarPessoasV2() {
+  return coreAuditarPessoasV2_();
+}
+
+function coreAuditarVigenciasV2() {
+  return coreAuditarVigenciasV2_();
+}
+
+function coreAuditarDominiosCentraisV2() {
+  return coreAuditarDominiosCentraisV2_();
+}
+
+function corePessoasV2Diagnostico(options) {
+  return core_pessoasV2Diagnostico_(options || {});
+}
+
+function corePessoasV2ConferirConsistencia(options) {
+  return core_pessoasV2ConferirConsistencia_(options || {});
+}
+
+function coreVigenciasV2Diagnostico(options) {
+  return core_vigenciasV2Diagnostico_(options || {});
+}
+
+function coreVigenciasV2ConferirConsistencia(options) {
+  return core_vigenciasV2ConferirConsistencia_(options || {});
+}
+
+function coreV2DiagnosticoGeral(options) {
+  return core_v2DiagnosticoGeral_(options || {});
+}
+
+function corePessoasV2AtualizarResumoOperacional(options) {
+  return core_pessoasV2AtualizarResumoOperacional_(options || {});
+}
+
+function coreVigenciasV2AtualizarResumoAtual(options) {
+  return core_vigenciasV2AtualizarResumoAtual_(options || {});
+}
+
+function coreV2RunTesteDiagnosticoGeral() {
+  return coreV2RunTesteDiagnosticoGeral_();
+}
+
+function coreV2RunTestePessoasResumo() {
+  return coreV2RunTestePessoasResumo_();
+}
+
+function coreV2RunTesteVigenciasResumo() {
+  return coreV2RunTesteVigenciasResumo_();
+}
+
+function coreV2_runTesteJobDiarioDryRun() {
+  return coreV2_runTesteJobDiarioDryRun_();
+}
+
+function coreV2_jobDiarioManutencao(options) {
+  return coreV2_jobDiarioManutencao_(options || {});
+}
+
+function coreV2InstalarTriggerJobDiario(options) {
+  return coreV2_instalarTriggerJobDiario_(options || {});
+}
+
+function coreV2RemoverTriggerJobDiario() {
+  return coreV2_removerTriggerJobDiario_();
+}
+
+function coreV2ListarTriggerJobDiario() {
+  return coreV2_listarTriggerJobDiario_();
+}
+
+function coreV2_conferirConfiguracao(options) {
+  return coreV2_conferirConfiguracao_(options || {});
+}
+
+function coreV2_bootstrapConfiguracao(options) {
+  return coreV2_bootstrapConfiguracao_(options || {});
+}
+
+function coreV2_runTesteBootstrapDryRun() {
+  return coreV2_runTesteBootstrapDryRun_();
+}
+
+function coreV2_runTesteResolverRegistryV2() {
+  return coreV2_runTesteResolverRegistryV2_();
+}
+
+function coreCompararLegadoComV2(opts) {
+  return coreCompararLegadoComV2_(opts || {});
+}
+
+function coreRecalcularVigenciasResumoAtualV2(options) {
+  return coreRecalcularVigenciasResumoAtualV2_(options || {});
+}
+
+function coreRecalcularPessoasResumoOperacionalV2(options) {
+  return coreRecalcularPessoasResumoOperacionalV2_(options || {});
+}
+
+function coreRecalcularMembrosDetalhesSemestreAtualV2(options) {
+  return coreRecalcularMembrosDetalhesSemestreAtualV2_(options || {});
+}
+
+function coreDiagnosticarPessoasResumoOperacionalV2(options) {
+  return coreDiagnosticarPessoasResumoOperacionalV2_(options || {});
+}
+
+function corePessoasGetById(idPessoa) {
+  return corePessoasGetById_(idPessoa);
+}
+
+function corePessoasFindByEmail(email) {
+  return corePessoasFindByEmail_(email);
+}
+
+function corePessoasFindByRga(rga) {
+  return corePessoasFindByRga_(rga);
+}
+
+function corePessoasGetOperationalSummary(idPessoa) {
+  return corePessoasGetOperationalSummary_(idPessoa);
+}
+
+function corePessoasListCurrentMembers(opts) {
+  return corePessoasListCurrentMembers_(opts || {});
+}
+
+function corePessoasListExMembers(opts) {
+  return corePessoasListExMembers_(opts || {});
+}
+
+function corePessoasListWaitingMembers(opts) {
+  return corePessoasListWaitingMembers_(opts || {});
+}
+
+function corePessoasListAcademicCollaborators(opts) {
+  return corePessoasListAcademicCollaborators_(opts || {});
+}
+
+function corePessoasListExternalParticipants(opts) {
+  return corePessoasListExternalParticipants_(opts || {});
+}
+
+function coreVigenciasGetCurrentFunctionByPessoa(idPessoa) {
+  return coreVigenciasGetCurrentFunctionByPessoa_(idPessoa);
+}
+
+function coreVigenciasListCurrentFunctions(opts) {
+  return coreVigenciasListCurrentFunctions_(opts || {});
+}
+
+function coreVigenciasGetPortalPermissionsByPessoa(idPessoa) {
+  return coreVigenciasGetPortalPermissionsByPessoa_(idPessoa);
+}
+
+/* ============================================================
  * MODULOS_CONFIG
  * ============================================================ */
 
@@ -282,6 +470,18 @@ function geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga) {
   }
 }
 
+function geapaCoreBuscarMeuPerfilParaPortal(emailOuRga) {
+  try {
+    return core_buscarMeuPerfilParaPortal_(emailOuRga);
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreBuscarMeuPerfilParaPortal: falha interna ao consultar perfil do usuario para portal.');
+    return core_buildPortalError_(
+      'ERRO_BUSCAR_MEU_PERFIL',
+      'Nao foi possivel buscar o perfil do usuario.'
+    );
+  }
+}
+
 function geapaCoreListarMembrosParaChamada(dataAtividade, contexto) {
   try {
     return core_listarMembrosParaChamada_(dataAtividade, contexto || {});
@@ -292,6 +492,22 @@ function geapaCoreListarMembrosParaChamada(dataAtividade, contexto) {
       'Nao foi possivel listar membros para chamada.'
     );
   }
+}
+
+function coreListarMembrosParaChamada(dataAtividade, contexto) {
+  return geapaCoreListarMembrosParaChamada(dataAtividade, contexto || {});
+}
+
+function listarMembrosParaChamada(dataAtividade, contexto) {
+  return geapaCoreListarMembrosParaChamada(dataAtividade, contexto || {});
+}
+
+function geapaCoreInvalidarCacheMembrosChamada(dataAtividade) {
+  return core_invalidarCacheMembrosChamada_(dataAtividade);
+}
+
+function coreInvalidarCacheMembrosChamada(dataAtividade) {
+  return geapaCoreInvalidarCacheMembrosChamada(dataAtividade);
 }
 
 function geapaCoreRunTesteUsuarioPortal() {
@@ -352,6 +568,242 @@ function geapaCoreRunTesteMinhaSituacaoParaPortal() {
       'Nao foi possivel executar o teste de Minha situacao do portal.'
     );
   }
+}
+
+/* ============================================================
+ * PORTAL GEAPA / ACESSO, PERFIS E PERMISSOES
+ * ============================================================ */
+
+function corePortalGetConfig() {
+  return corePortalReadConfig_();
+}
+
+function corePortalGetOperationalConfig(opts) {
+  return corePortalReadConfig_(opts || {});
+}
+
+function corePortalClearConfigCache() {
+  return corePortalConfigCacheClear_();
+}
+
+function corePortalGetProfiles() {
+  return corePortalReadProfiles_();
+}
+
+function corePortalGetPermissionsByProfile(perfilPortal) {
+  return corePortalBuildPermissionsForProfile_(perfilPortal);
+}
+
+function corePortalAuthorizeEmail(email, opts) {
+  return corePortalAuthorizeEmail_(email, opts || {});
+}
+
+function corePortalHasPermission(sessionOrEmail, permission, opts) {
+  return corePortalHasPermission_(sessionOrEmail, permission, opts || {});
+}
+
+function corePortalLogAccess(payload) {
+  return corePortalAppendAccessLog_(payload || {});
+}
+
+function corePortalDiagnostics() {
+  return corePortalDiagnostics_();
+}
+
+function corePortalResolverUsuarioAtual(entrada, opts) {
+  return corePortalResolverUsuarioAtual_(entrada, opts || {});
+}
+
+function corePortalBuildFirestoreUserSnapshot(entrada, opts) {
+  return corePortalBuildFirestoreUserSnapshot_(entrada, opts || {});
+}
+
+function corePortalGerarSnapshotFirestoreUsuario(entrada, opts) {
+  return corePortalBuildFirestoreUserSnapshot_(entrada, opts || {});
+}
+
+function corePortalSincronizarUsuarioFirestore(entrada, opts) {
+  return corePortalSincronizarUsuarioFirestore_(entrada, opts || {});
+}
+
+function corePortalProvisionarFirestoreUserAutenticado(firebaseIdentity, opts) {
+  return corePortalProvisionarFirestoreUserAutenticado_(firebaseIdentity || {}, opts || {});
+}
+
+function corePortalMarcarFirestoreUserInativoPorUid(uid, opts) {
+  return corePortalMarcarFirestoreUserInativoPorUid_(uid, opts || {});
+}
+
+function corePortalInvalidarCacheFirestoreUsuario(idPessoaOuEmail, opts) {
+  return corePortalInvalidarCacheFirestoreUsuario_(idPessoaOuEmail, opts || {});
+}
+
+function corePortalSyncFirestoreUserByEmail(email, opts) {
+  return corePortalSyncFirestoreUserByEmail_(email, opts || {});
+}
+
+function corePortalSyncFirestoreUserByIdPessoa(idPessoa, opts) {
+  return corePortalSyncFirestoreUserByIdPessoa_(idPessoa, opts || {});
+}
+
+function corePortalSyncFirestoreUsersFromPessoasV2(opts) {
+  return corePortalSyncFirestoreUsersFromPessoasV2_(opts || {});
+}
+
+function corePortalDiagnosticarFirestoreUsersDev(opts) {
+  return corePortalDiagnosticarFirestoreUsersDev_(opts || {});
+}
+
+function coreFirestoreSetDocument(path, data, options) {
+  return coreFirestoreSetDocument_(path, data || {}, options || {});
+}
+
+function coreFirestoreGetDocument(path, options) {
+  return coreFirestoreGetDocument_(path, options || {});
+}
+
+function coreFirestoreListDocuments(collectionPath, options) {
+  return coreFirestoreListDocuments_(collectionPath, options || {});
+}
+
+function coreFirestoreDeleteDocument(path, options) {
+  return coreFirestoreDeleteDocument_(path, options || {});
+}
+
+function coreFirestoreBatchSetDocuments(items, options) {
+  return coreFirestoreBatchSetDocuments_(items || [], options || {});
+}
+
+function coreFirestoreDiagnosticar(options) {
+  return coreFirestoreDiagnosticar_(options || {});
+}
+
+function corePortalCalcularPerfilEfetivo(idPessoa, opts) {
+  return corePortalCalcularPerfilEfetivo_(idPessoa, opts || {});
+}
+
+function corePortalListarPermissoesEfetivas(idPessoa, opts) {
+  return corePortalListarPermissoesEfetivas_(idPessoa, opts || {});
+}
+
+function corePortalValidarAcesso(idPessoa, permissaoOuPerfil, opts) {
+  return corePortalValidarAcesso_(idPessoa, permissaoOuPerfil, opts || {});
+}
+
+function corePortalGetMeuResumo(email, opts) {
+  return corePortalGetMeuResumo_(email, opts || {});
+}
+
+function corePortalListarApresentacoesPermitidas(email, options) {
+  return corePortalListarApresentacoesPermitidas_(email, options || {});
+}
+
+function corePortalListarApresentacoesParaEgresso(idPessoa, opts) {
+  return corePortalListarApresentacoesParaEgresso_(idPessoa, opts || {});
+}
+
+function corePortalDiagnosticarPerfisEPermissoes(opts) {
+  return corePortalDiagnosticarPerfisEPermissoes_(opts || {});
+}
+
+function corePortalDiagnosticarAcessoPortalDev(opts) {
+  return corePortalDiagnosticarAcessoPortalDev_(opts || {});
+}
+
+function geapaCore_diagnosticarAcessoPortalDev_(opts) {
+  return corePortalDiagnosticarAcessoPortalDev_(opts || {});
+}
+
+function corePrepararPortalParaV2(opts) {
+  return corePrepararPortalParaV2_(opts || {});
+}
+
+/* ============================================================
+ * PORTAL GEAPA / CONTEUDO PUBLICO EDITORIAL
+ * ============================================================ */
+
+function corePortalPublicContentGetDefinitions() {
+  return corePortalPublicContentGetDefinitions_();
+}
+
+function corePortalPublicContentEnsureStructure(options) {
+  return corePortalPublicContentEnsureStructure_(options || {});
+}
+
+function corePortalPublicContentCreateSpreadsheet(options) {
+  return corePortalPublicContentCreateSpreadsheet_(options || {});
+}
+
+function corePortalPublicContentEnsureSheets(options) {
+  return corePortalPublicContentEnsureSheets_(options || {});
+}
+
+function corePortalPublicContentEnsureHeaders(options) {
+  return corePortalPublicContentEnsureHeaders_(options || {});
+}
+
+function corePortalPublicContentDiagnostics(options) {
+  return corePortalPublicContentDiagnostics_(options || {});
+}
+
+function corePortalPublicContentReadRows(key, options) {
+  return corePortalPublicContentReadRows_(key, options || {});
+}
+
+function corePortalPublicContentGetPage(slug, options) {
+  return corePortalPublicContentGetPage_(slug, options || {});
+}
+
+function corePortalPublicContentGetHome(options) {
+  return corePortalPublicContentGetHome_(options || {});
+}
+
+function corePortalPublicContentGetSobre(options) {
+  return corePortalPublicContentGetSobre_(options || {});
+}
+
+function corePortalPublicContentGetHistoria(options) {
+  return corePortalPublicContentGetHistoria_(options || {});
+}
+
+function corePortalPublicContentGetParceiros(options) {
+  return corePortalPublicContentGetParceiros_(options || {});
+}
+
+function corePortalPublicContentGetDocumentos(options) {
+  return corePortalPublicContentGetDocumentos_(options || {});
+}
+
+function corePortalPublicContentGetConfig(options) {
+  return corePortalPublicContentGetConfig_(options || {});
+}
+
+function corePortalPublicContentGetMidias(options) {
+  return corePortalPublicContentGetMidias_(options || {});
+}
+
+function corePortalPublicContentGetDiretoriaComplementos(options) {
+  return corePortalPublicContentGetDiretoriaComplementos_(options || {});
+}
+
+function corePortalPublicContentGetPessoasComplementos(options) {
+  return corePortalPublicContentGetPessoasComplementos_(options || {});
+}
+
+function corePortalPublicContentGetGestoesComplementos(options) {
+  return corePortalPublicContentGetGestoesComplementos_(options || {});
+}
+
+function corePortalPublicContentGetPessoasConfig(options) {
+  return corePortalPublicContentGetPessoasConfig_(options || {});
+}
+
+function corePortalPublicContentBuildPublicSnapshot(options) {
+  return corePortalPublicContentBuildPublicSnapshot_(options || {});
+}
+
+function corePortalPublicContentBuildPublicBoard(options) {
+  return corePortalPublicContentBuildPublicBoard_(options || {});
 }
 
 /* ============================================================

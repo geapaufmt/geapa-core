@@ -26,8 +26,6 @@ var CORE_MAIL_RENDERER_BRAND = Object.freeze({
   shadowColor: 'rgba(22,125,10,0.08)'
 });
 
-var CORE_MAIL_RENDERER_OFFICIAL_DATA_KEY = 'DADOS_OFICIAIS_GEAPA';
-
 var CORE_MAIL_RENDERER_TEMPLATES = Object.freeze({
   GEAPA_COMEMORATIVO: Object.freeze({
     templateKey: 'GEAPA_COMEMORATIVO',
@@ -129,10 +127,9 @@ function coreMailRendererShouldShowShortName_(brand) {
 
 function coreMailRendererGetOfficialGroupData_() {
   try {
-    var records = core_readRecordsByKey_(CORE_MAIL_RENDERER_OFFICIAL_DATA_KEY, {
-      skipBlankRows: true
-    });
-    var record = records && records.length ? records[0] : {};
+    var record = typeof core_getGeapaConfigObject_ === 'function'
+      ? core_getGeapaConfigObject_()
+      : {};
 
     return {
       orgName: String(record.NOME_OFICIAL_GRUPO || CORE_MAIL_RENDERER_BRAND.orgName || '').trim() || CORE_MAIL_RENDERER_BRAND.orgName,
@@ -143,9 +140,9 @@ function coreMailRendererGetOfficialGroupData_() {
       blackColor: coreMailRendererNormalizeHexColor_(record.PRETO_OFICIAL, CORE_MAIL_RENDERER_BRAND.textColor),
       universityName: String(record.UNIVERSIDADE_MAE || '').trim(),
       universityShortName: String(record.SIGLA_UNIVERSIDADE_MAE || '').trim(),
-      instituteName: String(record['INSTITUTO MAE'] || '').trim(),
-      instituteShortName: String(record['SIGLA INSTITUTO MAE'] || '').trim(),
-      courseName: String(record['CURSO MAE'] || '').trim()
+      instituteName: String(record.INSTITUTO_MAE || '').trim(),
+      instituteShortName: String(record.SIGLA_INSTITUTO_MAE || '').trim(),
+      courseName: String(record.CURSO_MAE || '').trim()
     };
   } catch (err) {
     return {

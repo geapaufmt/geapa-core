@@ -28,7 +28,7 @@ const CORE_GOVERNANCE_CFG = Object.freeze({
     boardId: "ID_Diretoria",
     start: "Início_Mandato",
     end: "Fim_Mandato",
-    slogan: "Slogan"
+    slogan: Object.freeze(["LEMA", "Slogan"])
   }),
 
   boardMemberHeaders: Object.freeze({

@@ -12,6 +12,83 @@ function test_core_exMembersCommunicationRecipients_eixoI() {
   }), null, 2));
 }
 
+function teste_getGeapaConfigValue_EMAIL_OFICIAL() {
+  Logger.log(core_getGeapaConfigValue_('EMAIL_OFICIAL', {
+    required: true
+  }));
+}
+
+function teste_getGeapaConfigMap() {
+  Logger.log(JSON.stringify(core_getGeapaConfigMap_(), null, 2));
+}
+
+function diagnosticarConfigGeapa() {
+  Logger.log(JSON.stringify(core_debugGeapaConfig_(), null, 2));
+}
+
+function test_core_domainsV2_auditarPessoas() {
+  Logger.log(JSON.stringify(coreAuditarPessoasV2_(), null, 2));
+}
+
+function test_core_domainsV2_auditarVigencias() {
+  Logger.log(JSON.stringify(coreAuditarVigenciasV2_(), null, 2));
+}
+
+function test_core_domainsV2_auditarDominiosCentrais() {
+  Logger.log(JSON.stringify(coreAuditarDominiosCentraisV2_(), null, 2));
+}
+
+function test_core_domainsV2_compararLegadoComV2() {
+  Logger.log(JSON.stringify(coreCompararLegadoComV2_(), null, 2));
+}
+
+function test_core_domainsV2_recalcularVigenciasResumoAtual_dryRun() {
+  Logger.log(JSON.stringify(coreRecalcularVigenciasResumoAtualV2_({
+    dryRun: true
+  }), null, 2));
+}
+
+function test_core_domainsV2_recalcularPessoasResumoOperacional_dryRun() {
+  Logger.log(JSON.stringify(coreRecalcularPessoasResumoOperacionalV2_({
+    dryRun: true
+  }), null, 2));
+}
+
+function test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_dryRun() {
+  Logger.log(JSON.stringify(coreRecalcularMembrosDetalhesSemestreAtualV2_({
+    dryRun: true
+  }), null, 2));
+}
+
+function test_core_domainsV2_diagnosticarPessoasResumoOperacional() {
+  Logger.log(JSON.stringify(coreDiagnosticarPessoasResumoOperacionalV2_(), null, 2));
+}
+
+function test_core_domainsV2_recalcularPessoasResumoOperacional_REAL_CONFIRMADO() {
+  Logger.log(JSON.stringify(coreRecalcularPessoasResumoOperacionalV2_({
+    dryRun: false,
+    confirmacao: 'RECALCULAR_PESSOAS_RESUMO_V2'
+  }), null, 2));
+}
+
+function test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_REAL_CONFIRMADO() {
+  Logger.log(JSON.stringify(coreRecalcularMembrosDetalhesSemestreAtualV2_({
+    dryRun: false,
+    confirmacao: 'RECALCULAR_MEMBROS_DETALHES_SEMESTRE_ATUAL_V2'
+  }), null, 2));
+}
+
+function test_core_domainsV2_pessoasListCurrentMembers() {
+  Logger.log(JSON.stringify(corePessoasListCurrentMembers_(), null, 2));
+}
+
+function test_core_domainsV2_recalcularVigenciasResumoAtual_REAL_CONFIRMADO() {
+  Logger.log(JSON.stringify(coreRecalcularVigenciasResumoAtualV2_({
+    dryRun: false,
+    confirmacao: 'RECALCULAR_RESUMO_ATUAL_V2'
+  }), null, 2));
+}
+
 function test_core_modulesConfig_debug() {
   Logger.log(JSON.stringify(core_debugModulesConfig_(), null, 2));
 }
@@ -296,6 +373,7 @@ function test_core_listarMembrosParaChamada_fakeSheet() {
   var result = core_listarMembrosParaChamadaInSheet_(sheet, '2026-04-16', {
     perfil: 'DIRETORIA'
   }, {
+    identityMaps: {},
     lifecycleByRga: {
       'RGA-005': [
         {
@@ -320,17 +398,21 @@ function test_core_listarMembrosParaChamada_fakeSheet() {
   var denied = core_listarMembrosParaChamadaInSheet_(sheet, '2026-04-16', {
     perfil: 'MEMBRO'
   }, {
+    identityMaps: {},
     lifecycleByRga: {}
   });
   var missingDate = core_listarMembrosParaChamadaInSheet_(sheet, '', {
     perfil: 'DIRETORIA'
   }, {
+    identityMaps: {},
     lifecycleByRga: {}
   });
   var safeKeys = [
     'aplicavelNaData',
     'contaFalta',
     'contaPresenca',
+    'email',
+    'idPessoa',
     'motivoNaoAplicavel',
     'nomeExibicao',
     'rga',
@@ -341,8 +423,12 @@ function test_core_listarMembrosParaChamada_fakeSheet() {
 
   test_assert_(result.ok === true, 'Lista de membros para chamada deveria retornar ok=true.');
   test_assert_(result.meta.total === 3, 'A chamada deveria incluir ativo, historico e suspenso/N/A, excluindo futuro e desligado.');
+  test_assert_(result.meta.totalAplicaveis === 2, 'A chamada deveria ter dois membros aplicaveis.');
+  test_assert_(result.meta.totalNaoAplicaveis === 1, 'A chamada deveria ter um membro nao aplicavel.');
+  test_assert_(result.meta.cacheHit === false, 'Resultado direto em sheet fake nao deveria vir do cache.');
   test_assert_(result.meta.dataReferencia === '2026-04-16', 'Data de referencia deveria ser ISO local.');
   test_assert_(result.data[0].nomeExibicao === 'Membro Ativo', 'Ordenacao por nome incorreta.');
+  test_assert_(result.data[0].email === 'ativo@example.com', 'Email seguro da chamada deveria ser normalizado.');
   test_assert_(result.data[0].situacao === 'ATIVO', 'Situacao ativa deveria ser normalizada.');
   test_assert_(result.data[0].contaPresenca === true, 'Membro ativo deve contar presenca.');
   test_assert_(result.data[0].contaFalta === true, 'Membro ativo deve contar falta.');
@@ -350,14 +436,617 @@ function test_core_listarMembrosParaChamada_fakeSheet() {
   test_assert_(result.data[1].situacao === 'ATIVO', 'Membro historico deveria estar ativo na data.');
   test_assert_(result.data[2].nomeExibicao === 'Membro Suspenso', 'Membro suspenso deveria aparecer como N/A seguro.');
   test_assert_(result.data[2].situacao === 'SUSPENSO', 'Situacao suspensa deveria ser normalizada.');
+  test_assert_(result.data[2].aplicavelNaData === false, 'Suspenso deve aparecer como nao aplicavel na data.');
   test_assert_(result.data[2].contaPresenca === false, 'Suspenso nao deve contar presenca.');
   test_assert_(result.data[2].contaFalta === false, 'Suspenso nao deve contar falta.');
   test_assert_(result.data[2].motivoNaoAplicavel === 'SITUACAO_NAO_CONTABILIZA_CHAMADA', 'Motivo seguro de suspensao incorreto.');
   test_assert_(Object.keys(result.data[0]).sort().join(',') === safeKeys, 'Contrato retornou campos nao seguros.');
-  test_assert_(!Object.prototype.hasOwnProperty.call(result.data[0], 'EMAIL'), 'Nao deve expor email.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(result.data[0], 'EMAIL'), 'Nao deve expor cabecalho bruto EMAIL.');
   test_assert_(!Object.prototype.hasOwnProperty.call(result.data[0], 'Telefone'), 'Nao deve expor telefone.');
   test_assert_(denied.ok === false && denied.errorCode === 'PERMISSAO_NEGADA', 'Perfil MEMBRO nao deve listar chamada quando contexto e informado.');
   test_assert_(missingDate.ok === false && missingDate.errorCode === 'DATA_ATIVIDADE_OBRIGATORIA', 'Data ausente deveria retornar erro controlado.');
+}
+
+function test_core_portalAccess_authorizeEmail_fakeSheets() {
+  var profiles = [
+    { PERFIL_PORTAL: 'MEMBRO', NOME: 'Membro', ATIVO: 'SIM' },
+    { PERFIL_PORTAL: 'ADMIN', NOME: 'Administrador', ATIVO: 'SIM' }
+  ];
+  var permissions = [
+    { PERFIL_PORTAL: 'MEMBRO', PERMISSAO: 'portal:acessar', ATIVO: 'SIM' },
+    { PERFIL_PORTAL: 'MEMBRO', PERMISSAO: 'situacao:ver_propria', ATIVO: 'SIM' },
+    { PERFIL_PORTAL: 'ADMIN', PERMISSAO: 'portal:acessar', ATIVO: 'SIM' },
+    { PERFIL_PORTAL: 'ADMIN', PERMISSAO: 'sistema:admin', ATIVO: 'SIM' }
+  ];
+  var config = {
+    PORTAL_MODO_ACESSO: 'MEMBROS_ATIVOS',
+    PORTAL_EMAILS_TESTE: 'teste@example.com',
+    PORTAL_BLOCK_INACTIVE_MEMBERS: 'SIM',
+    PORTAL_DEFAULT_PROFILE: 'MEMBRO'
+  };
+  var currentSheet = test_createFakeSheet_([
+    ['NOME', 'RGA', 'EMAIL', 'STATUS', 'PORTAL_ATIVO', 'PERFIL_PORTAL', 'PORTAL_OBS', 'TELEFONE'],
+    ['Membro Ativo', 'RGA-001', 'ativo@example.com', 'ATIVO', 'SIM', 'MEMBRO', 'obs interna', '(00) 0000-0000'],
+    ['Membro Bloqueado', 'RGA-002', 'bloqueado@example.com', 'ATIVO', 'NAO', 'MEMBRO', '', '(00) 0000-0001'],
+    ['Admin Explicito', 'RGA-003', 'admin@example.com', 'ATIVO', 'SIM', 'ADMIN', '', '(00) 0000-0002']
+  ], 'Membros Atuais');
+  var formerSheet = test_createFakeSheet_([
+    ['NOME', 'RGA', 'EMAIL', 'STATUS', 'PORTAL_ATIVO', 'PERFIL_PORTAL'],
+    ['Ex Membro', 'RGA-004', 'ex@example.com', 'DESLIGADO', 'SIM', 'MEMBRO']
+  ], 'Ex-Membros');
+  var waitingSheet = test_createFakeSheet_([
+    ['NOME', 'RGA', 'EMAIL', 'STATUS', 'PORTAL_ATIVO', 'PERFIL_PORTAL'],
+    ['Membro Espera', 'RGA-005', 'espera@example.com', 'ESPERA', 'SIM', 'MEMBRO']
+  ], 'Membros em Espera');
+  var sources = [
+    { type: 'MEMBROS_ATUAIS', sourceSheet: 'Membros Atuais', sheet: currentSheet },
+    { type: 'MEMBROS_EM_ESPERA', sourceSheet: 'Membros em Espera', sheet: waitingSheet },
+    { type: 'EX_MEMBROS', sourceSheet: 'Ex-Membros', sheet: formerSheet }
+  ];
+  var opts = {
+    sources: sources,
+    profiles: corePortalReadProfiles_({ records: profiles }),
+    permissions: corePortalReadPermissions_({ records: permissions }),
+    config: config
+  };
+
+  var active = corePortalAuthorizeEmail_(' Ativo@Example.com ', opts);
+  var missing = corePortalAuthorizeEmail_('ausente@example.com', opts);
+  var former = corePortalAuthorizeEmail_('ex@example.com', opts);
+  var blocked = corePortalAuthorizeEmail_('bloqueado@example.com', opts);
+  var admin = corePortalAuthorizeEmail_('admin@example.com', opts);
+  var waiting = corePortalAuthorizeEmail_('espera@example.com', opts);
+  var waitingAllowed = corePortalAuthorizeEmail_('espera@example.com', Object.assign({}, opts, {
+    includeWaiting: true
+  }));
+  var testeBloqueado = corePortalAuthorizeEmail_('ativo@example.com', Object.assign({}, opts, {
+    config: Object.assign({}, config, { PORTAL_MODO_ACESSO: 'TESTE' })
+  }));
+  var testeLiberado = corePortalAuthorizeEmail_('ativo@example.com', Object.assign({}, opts, {
+    config: Object.assign({}, config, {
+      PORTAL_MODO_ACESSO: 'TESTE',
+      PORTAL_EMAILS_TESTE: 'ativo@example.com'
+    })
+  }));
+
+  test_assert_(active.authorized === true, 'Membro ativo deveria ser autorizado.');
+  test_assert_(active.modoAcesso === 'MEMBROS_ATIVOS', 'Modo MEMBROS_ATIVOS deveria aparecer na autorizacao.');
+  test_assert_(active.authMode === 'EMAIL_LEGACY', 'Modo transitorio de auth incorreto.');
+  test_assert_(active.email === 'ativo@example.com', 'Email deveria ser normalizado.');
+  test_assert_(active.perfilPortal === 'MEMBRO', 'Perfil do membro ativo incorreto.');
+  test_assert_(active.permissions.indexOf('situacao:ver_propria') >= 0, 'Permissao de membro ausente.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(active, 'rawRecord'), 'Sessao publica nao deve expor rawRecord.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(active, 'telefone'), 'Sessao publica nao deve expor telefone.');
+  test_assert_(missing.authorized === false && missing.reason === 'PESSOA_NAO_ENCONTRADA', 'Email inexistente deveria bloquear.');
+  test_assert_(former.authorized === false && former.reason === 'EX_MEMBRO_NAO_AUTORIZADO', 'Ex-membro deve bloquear por padrao.');
+  test_assert_(blocked.authorized === false && blocked.reason === 'PORTAL_ATIVO_NAO', 'PORTAL_ATIVO=NAO deveria bloquear.');
+  test_assert_(admin.authorized === true, 'ADMIN explicito e ativo deveria autorizar quando perfil/permissoes existem.');
+  test_assert_(corePortalHasPermission_(admin, 'sistema:admin') === true, 'ADMIN deveria ter sistema:admin.');
+  test_assert_(waiting.authorized === false && waiting.reason === 'MEMBRO_EM_ESPERA_NAO_AUTORIZADO', 'Espera deveria bloquear por padrao.');
+  test_assert_(waitingAllowed.authorized === true, 'Espera deveria autorizar quando includeWaiting=true.');
+  test_assert_(testeBloqueado.authorized === false && testeBloqueado.reason === 'EMAIL_FORA_PORTAL_EMAILS_TESTE', 'Modo TESTE deveria aplicar PORTAL_EMAILS_TESTE.');
+  test_assert_(testeLiberado.authorized === true, 'Modo TESTE deveria autorizar e-mail listado em PORTAL_EMAILS_TESTE.');
+}
+
+function test_core_portalAccess_logAccess_fakeSheet() {
+  var sheet = test_createFakeSheet_([
+    ['TIMESTAMP', 'EMAIL', 'UID_FIREBASE', 'NOME', 'PERFIL_PORTAL', 'ACAO', 'RESULTADO', 'MOTIVO', 'ORIGEM', 'USER_AGENT', 'OBS']
+  ], 'PORTAL_LOG_ACESSOS');
+
+  corePortalAppendAccessLogToSheet_(sheet, {
+    email: 'Pessoa@Example.com',
+    uidFirebase: 'uid-futuro',
+    nome: 'Pessoa Teste',
+    perfilPortal: 'MEMBRO',
+    acao: 'login',
+    resultado: 'permitido',
+    motivo: 'teste',
+    origem: 'teste_unitario',
+    userAgent: 'UnitTest',
+    obs: 'sem segredo',
+    token: 'NAO_DEVE_SER_REGISTRADO'
+  });
+
+  var row = sheet.getRange(2, 1, 1, 11).getValues()[0];
+
+  test_assert_(row[1] === 'pessoa@example.com', 'Log deveria normalizar email.');
+  test_assert_(row[2] === 'uid-futuro', 'UID futuro deveria ser registrado quando informado.');
+  test_assert_(row[5] === 'LOGIN', 'Acao deveria ser normalizada.');
+  test_assert_(row.join('|').indexOf('NAO_DEVE_SER_REGISTRADO') < 0, 'Log nao deve registrar token/segredo fora do contrato.');
+}
+
+function test_core_portalPublicContent_ensureStructure_fakeSpreadsheet() {
+  var sheets = {
+    PUBLIC_HOME: test_createFakeSheet_([
+      ['ID_BLOCO', 'COLUNA_EXTRA'],
+      ['home-1', 'valor manual']
+    ], 'PUBLIC_HOME')
+  };
+  var fakeSpreadsheet = {
+    getName: function() {
+      return 'PORTAL_CONTEUDO_PUBLICO_FAKE';
+    },
+    getSheetByName: function(name) {
+      return sheets[name] || null;
+    },
+    insertSheet: function(name) {
+      sheets[name] = test_createFakeSheet_([], name);
+      return sheets[name];
+    }
+  };
+
+  var definitions = corePortalPublicContentGetDefinitions_();
+  var first = corePortalPublicContentEnsureHeadersNoLock_({
+    spreadsheet: fakeSpreadsheet,
+    applyUx: false
+  });
+  var second = corePortalPublicContentEnsureHeadersNoLock_({
+    spreadsheet: fakeSpreadsheet,
+    applyUx: false
+  });
+  var homeHeaders = sheets.PUBLIC_HOME
+    .getRange(1, 1, 1, sheets.PUBLIC_HOME.getLastColumn())
+    .getValues()[0]
+    .map(function(value) { return String(value || '').trim(); });
+  var homeData = sheets.PUBLIC_HOME
+    .getRange(2, 1, 1, 2)
+    .getValues()[0];
+  var homeHeaderCount = homeHeaders.filter(function(header) {
+    return header === 'ID_BLOCO';
+  }).length;
+
+  test_assert_(definitions.sheets.length === 11, 'Deveria haver 11 abas editoriais definidas.');
+  test_assert_(!!sheets.PUBLIC_CONFIG, 'PUBLIC_CONFIG deveria ter sido criada.');
+  test_assert_(!!sheets.PUBLIC_PESSOAS_COMPLEMENTOS, 'PUBLIC_PESSOAS_COMPLEMENTOS deveria ter sido criada.');
+  test_assert_(!!sheets.PUBLIC_GESTOES_COMPLEMENTOS, 'PUBLIC_GESTOES_COMPLEMENTOS deveria ter sido criada.');
+  test_assert_(!!sheets.PUBLIC_PESSOAS_CONFIG, 'PUBLIC_PESSOAS_CONFIG deveria ter sido criada.');
+  test_assert_(homeHeaders.indexOf('COLUNA_EXTRA') >= 0, 'Coluna extra existente deve ser preservada.');
+  test_assert_(homeHeaders.indexOf('TIPO_BLOCO') >= 0, 'Coluna faltante deveria ser adicionada ao final.');
+  test_assert_(homeHeaderCount === 1, 'Rodar duas vezes nao deve duplicar cabecalhos.');
+  test_assert_(homeData[0] === 'home-1' && homeData[1] === 'valor manual', 'Dados existentes nao devem ser apagados.');
+  test_assert_(first.actions.length === 11 && second.actions.length === 11, 'Relatorio deve cobrir todas as abas.');
+}
+
+function test_core_portalPublicContent_buildPublicSnapshot_fakeRecords() {
+  var recordsByKey = {
+    PORTAL_PUBLIC_HOME: [
+      {
+        ID_BLOCO: 'hero',
+        TIPO_BLOCO: 'destaque',
+        TITULO: 'Portal GEAPA',
+        SUBTITULO: 'Publico',
+        TEXTO: 'Texto <script>alert(1)</script> seguro',
+        IMAGEM_URL: 'https://example.com/img.png',
+        BOTAO_TEXTO: 'Saiba mais',
+        BOTAO_URL: 'javascript:alert(1)',
+        ORDEM: '2',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-01',
+        EMAIL_INTERNO: 'nao-vaza@example.com'
+      },
+      {
+        ID_BLOCO: 'rascunho',
+        TIPO_BLOCO: 'destaque',
+        TITULO: 'Rascunho',
+        ORDEM: '1',
+        STATUS_PUBLICACAO: 'RASCUNHO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM'
+      }
+    ],
+    PORTAL_PUBLIC_SOBRE: [
+      {
+        ID_BLOCO: 'sobre-1',
+        TITULO: 'Sobre',
+        TEXTO: 'Descricao',
+        ORDEM: '1',
+        STATUS_PUBLICACAO: 'PUBLICADA',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-05-30'
+      }
+    ],
+    PORTAL_PUBLIC_HISTORIA: [],
+    PORTAL_PUBLIC_PARCEIROS: [
+      {
+        ID_PARCEIRO: 'p1',
+        NOME: 'Parceiro',
+        TIPO_PARCEIRO: 'institucional',
+        DESCRICAO: 'Desc',
+        LOGO_URL: 'https://example.com/logo.png',
+        SITE_URL: 'https://example.com',
+        INSTAGRAM_URL: '/instagram-local',
+        ORDEM: '1',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-02'
+      }
+    ],
+    PORTAL_PUBLIC_DOCUMENTOS: [
+      {
+        ID_DOCUMENTO: 'doc-1',
+        TITULO: 'Regimento',
+        TIPO_DOCUMENTO: 'pdf',
+        VERSAO: '1',
+        DATA_PUBLICACAO: '2026-01-15',
+        DESCRICAO: 'Documento publico',
+        URL_DOCUMENTO: 'https://example.com/doc.pdf',
+        ORDEM: '1',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-03',
+        OBS_INTERNA: 'nao deve vazar'
+      }
+    ],
+    PORTAL_PUBLIC_CONFIG: [
+      { KEY: 'TEMA', VALOR: 'claro', TIPO: 'texto', ATIVO: 'SIM' },
+      { KEY: 'INATIVO', VALOR: 'nao', TIPO: 'texto', ATIVO: 'NAO' }
+    ],
+    PORTAL_PUBLIC_MIDIAS: [
+      {
+        ID_MIDIA: 'm1',
+        NOME: 'Foto',
+        TIPO: 'imagem',
+        URL: 'https://example.com/foto.jpg',
+        DESCRICAO: 'Foto publica',
+        CATEGORIA: 'home',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-04'
+      }
+    ],
+    PORTAL_PUBLIC_PESSOAS_COMPLEMENTOS: [
+      {
+        ID_PESSOA: 'P-1',
+        GRUPO_PUBLICO: 'DIRETORIA',
+        ID_DIRETORIA: '2026-2027',
+        CARGO_PUBLICO: 'Presidencia',
+        NOME_PUBLICO: 'Pessoa Publica',
+        FOTO_URL: 'https://example.com/foto-pessoa.jpg',
+        DESCRICAO_PUBLICA: 'Descricao publica de pessoa',
+        PERIODO_PUBLICO: '2026-2027',
+        DESTAQUE_HISTORICO: 'SIM',
+        EXIBIR_NO_HISTORICO: 'SIM',
+        AUTORIZACAO_PUBLICACAO: 'SIM',
+        LINK_LATTES: 'https://lattes.cnpq.br/123',
+        LINK_INSTAGRAM_PUBLICO: 'https://instagram.com/geapa',
+        LINK_LINKEDIN_PUBLICO: 'javascript:alert(1)',
+        ORDEM_PUBLICA: '1',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-05',
+        EMAIL: 'nao-vaza@example.com'
+      }
+    ],
+    PORTAL_PUBLIC_GESTOES_COMPLEMENTOS: [
+      {
+        ID_DIRETORIA: '2026-2027',
+        NOME_PUBLICO_GESTAO: 'Gestao Publica',
+        LEMA_PUBLICO: 'Lema',
+        DESCRICAO_GESTAO: 'Descricao de gestao',
+        FOTO_GESTAO_URL: 'https://example.com/gestao.jpg',
+        LINK_ATA_POSSE_PUBLICA: 'https://example.com/ata.pdf',
+        LINK_RELATORIO_GESTAO: 'https://example.com/relatorio.pdf',
+        URL_GALERIA: 'https://example.com/galeria',
+        ORDEM_PUBLICA: '1',
+        STATUS_PUBLICACAO: 'PUBLICADA',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-06'
+      }
+    ],
+    PORTAL_PUBLIC_PESSOAS_CONFIG: [
+      { KEY: 'EXIBIR_MEMBROS_PUBLICOS', VALOR: 'SIM', TIPO: 'texto', ATIVO: 'SIM' }
+    ],
+    PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS: [
+      {
+        ID_PESSOA: 'P-1',
+        ID_DIRETORIA: '2026-2027',
+        FOTO_URL: 'https://example.com/foto-diretoria.jpg',
+        DESCRICAO_PUBLICA: 'Descricao publica',
+        LINK_LATTES: 'https://lattes.cnpq.br/123',
+        LINK_INSTAGRAM_PUBLICO: 'https://instagram.com/geapa',
+        ORDEM_PUBLICA: '1',
+        STATUS_PUBLICACAO: 'PUBLICADO',
+        PUBLICAR: 'SIM',
+        ATIVO: 'SIM',
+        ATUALIZADO_EM: '2026-06-05',
+        EMAIL: 'nao-vaza@example.com'
+      }
+    ],
+    PORTAL_PUBLIC_LOG_PUBLICACAO: [
+      { ID_LOG: 'L1', EXECUTADO_POR: 'Pessoa Interna', STATUS: 'OK' }
+    ]
+  };
+  var snapshot = corePortalPublicContentBuildPublicSnapshot_({
+    recordsByKey: recordsByKey,
+    dryRun: true,
+    disableCache: true
+  });
+  var logRead = corePortalPublicContentReadRows_('PORTAL_PUBLIC_LOG_PUBLICACAO', {
+    recordsByKey: recordsByKey,
+    dryRun: true,
+    disableCache: true
+  });
+
+  test_assert_(snapshot.ok === true, 'Snapshot publico deveria montar ok=true.');
+  test_assert_(snapshot.data.pages.home.blocos.length === 1, 'Rascunho nao deve aparecer no home.');
+  test_assert_(snapshot.data.pages.home.blocos[0].botaoUrl === '', 'URL insegura deveria ser removida.');
+  test_assert_(snapshot.data.pages.home.blocos[0].texto.indexOf('<script>') < 0, 'Script tag deveria ser removida.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.pages.home.blocos[0], 'EMAIL_INTERNO'), 'Coluna extra nao deve vazar.');
+  test_assert_(snapshot.data.documents.length === 1, 'Documento publicado deveria aparecer.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.documents[0], 'OBS_INTERNA'), 'Observacao interna nao deve vazar.');
+  test_assert_(snapshot.data.config.TEMA === 'claro', 'Config ativa deveria aparecer.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.config, 'INATIVO'), 'Config inativa nao deve aparecer.');
+  test_assert_(snapshot.data.peopleComplements[0].idPessoa === 'P-1', 'Complemento publico de pessoa deveria aparecer.');
+  test_assert_(snapshot.data.peopleComplements[0].linkLinkedinPublico === '', 'URL insegura de pessoa deveria ser removida.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.peopleComplements[0], 'EMAIL'), 'Email nao deve vazar em complemento de pessoa.');
+  test_assert_(snapshot.data.managementComplements[0].idDiretoria === '2026-2027', 'Complemento publico de gestao deveria aparecer.');
+  test_assert_(snapshot.data.peopleConfig.EXIBIR_MEMBROS_PUBLICOS === 'SIM', 'Config publica de pessoas deveria aparecer.');
+  test_assert_(snapshot.data.boardComplements[0].ID_PESSOA === 'P-1', 'Complemento legado de diretoria deveria continuar disponivel.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot.data.boardComplements[0], 'EMAIL'), 'Email nao deve vazar em complemento legado de diretoria.');
+  test_assert_(logRead.ok === false && logRead.errorCode === 'PORTAL_PUBLIC_KEY_NAO_EXPONIVEL', 'Log de publicacao nao deve ser exposto por leitura publica.');
+}
+
+function test_core_portalV2_diagnosticarPerfisEPermissoes() {
+  Logger.log(JSON.stringify(corePortalDiagnosticarPerfisEPermissoes_(), null, 2));
+}
+
+function test_core_portalV2_prepararPortalParaV2() {
+  Logger.log(JSON.stringify(corePrepararPortalParaV2_(), null, 2));
+}
+
+function test_core_portalConfig_normalizacao_fakeRecords() {
+  var config = corePortalReadConfig_({
+    records: [
+      { CHAVE: 'ATIVIDADES_CHAMADA_ANTECEDENCIA_MINUTOS', VALOR: '60', ATIVO: 'SIM', DESCRICAO: 'Numero' },
+      { CHAVE: 'ATIVIDADES_PRELOAD_DETALHES', VALOR: 'SIM', ATIVO: 'SIM', DESCRICAO: 'Boolean' },
+      { CHAVE: 'PORTAL_TEMA', VALOR: 'claro', ATIVO: 'SIM', DESCRICAO: 'Texto' },
+      { CHAVE: 'CONFIG_INATIVA', VALOR: 'SIM', ATIVO: 'NAO', DESCRICAO: 'Ignorar' },
+      { CHAVE: 'API_SECRET', VALOR: 'NAO_DEVE_SAIR', ATIVO: 'SIM', DESCRICAO: 'Sensivel' }
+    ]
+  });
+  test_assert_(config.ATIVIDADES_CHAMADA_ANTECEDENCIA_MINUTOS === 60, 'Numero deveria ser normalizado.');
+  test_assert_(config.ATIVIDADES_PRELOAD_DETALHES === true, 'SIM deveria virar boolean true.');
+  test_assert_(config.PORTAL_TEMA === 'claro', 'Texto deveria ser preservado.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(config, 'CONFIG_INATIVA'), 'Linha inativa nao deveria sair.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(config, 'API_SECRET'), 'Chave sensivel nao deveria sair.');
+  Logger.log(JSON.stringify(config, null, 2));
+}
+
+function test_core_portalConfig_lerOperacional() {
+  Logger.log(JSON.stringify(corePortalReadConfig_({ forceRefresh: true }), null, 2));
+}
+
+function test_core_portalV2_resolverUsuarioAtual_emailExemplo() {
+  Logger.log(JSON.stringify(corePortalResolverUsuarioAtual_('email@exemplo.com'), null, 2));
+}
+
+function test_core_portalV2_resolverUsuarioAtual_entradaObjeto() {
+  Logger.log(JSON.stringify(corePortalResolverUsuarioAtual_({
+    email: 'email@exemplo.com'
+  }), null, 2));
+}
+
+function test_core_portalV2_resolverUsuarioAtual_rgaConfigurado() {
+  var rga = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_RGA');
+  if (!String(rga || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_RGA com um RGA existente em Pessoas v2.');
+  }
+  Logger.log(JSON.stringify(corePortalResolverUsuarioAtual_({ rga: rga }), null, 2));
+}
+
+function test_core_portalV2_resolverUsuarioAtual_idPessoaConfigurado() {
+  var idPessoa = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_ID_PESSOA');
+  if (!String(idPessoa || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_ID_PESSOA com um ID_PESSOA existente em Pessoas v2.');
+  }
+  Logger.log(JSON.stringify(corePortalResolverUsuarioAtual_({ idPessoa: idPessoa }), null, 2));
+}
+
+function test_core_portalV2_buscarMembroLegado_identificadorConfigurado() {
+  var identificador = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR');
+  if (!String(identificador || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR com e-mail, RGA ou ID_PESSOA.');
+  }
+  Logger.log(JSON.stringify(geapaCoreBuscarMembroParaPortal(identificador), null, 2));
+}
+
+function test_core_portalV2_buscarUsuarioLegado_identificadorConfigurado() {
+  var identificador = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR');
+  if (!String(identificador || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR com e-mail, RGA ou ID_PESSOA.');
+  }
+  Logger.log(JSON.stringify(geapaCoreBuscarUsuarioPortal(identificador), null, 2));
+}
+
+function test_core_portalFirestore_diagnosticarEscoposOAuth() {
+  var token = ScriptApp.getOAuthToken();
+  var response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo', {
+    method: 'post',
+    payload: { access_token: token },
+    muteHttpExceptions: true
+  });
+  var body = JSON.parse(response.getContentText() || '{}');
+  var scopes = String(body.scope || '').split(/\s+/).filter(String).sort();
+  Logger.log(JSON.stringify({
+    ok: response.getResponseCode() >= 200 && response.getResponseCode() < 300,
+    httpStatus: response.getResponseCode(),
+    hasDatastore: scopes.indexOf('https://www.googleapis.com/auth/datastore') >= 0,
+    hasCloudPlatform: scopes.indexOf('https://www.googleapis.com/auth/cloud-platform') >= 0,
+    scopes: scopes
+  }, null, 2));
+}
+
+function test_core_firestoreRest_encoderEDryRun() {
+  var encoded = coreFirestoreEncodeDocument_({
+    texto: 'ok',
+    ativo: true,
+    total: 2,
+    badges: ['A', 'B'],
+    flags: { publicado: true }
+  });
+  test_assert_(encoded.fields.texto.stringValue === 'ok', 'Firestore deveria codificar string.');
+  test_assert_(encoded.fields.ativo.booleanValue === true, 'Firestore deveria codificar boolean.');
+  test_assert_(encoded.fields.total.integerValue === '2', 'Firestore deveria codificar inteiro.');
+  test_assert_(encoded.fields.badges.arrayValue.values.length === 2, 'Firestore deveria codificar array.');
+  test_assert_(encoded.fields.flags.mapValue.fields.publicado.booleanValue === true, 'Firestore deveria codificar mapa.');
+
+  var dryRun = coreFirestoreSetDocument_('portalActivities/ATV-2026-1-0001', {
+    idAtividade: 'ATV-2026-1-0001'
+  }, {
+    dryRun: true,
+    projectId: 'projeto-teste'
+  });
+  test_assert_(dryRun.ok === true && dryRun.written === false, 'Dry-run Firestore nao deveria escrever.');
+  return { ok: true, encoded: encoded, dryRun: dryRun };
+}
+
+function test_core_firestoreRest_validarCaminhosDeColecao() {
+  var collection = coreFirestoreNormalizeCollectionPath_('portalActivities');
+  var nested = coreFirestoreNormalizeCollectionPath_('parents/P1/children');
+  test_assert_(collection.length === 1, 'Colecao raiz deveria ser aceita.');
+  test_assert_(nested.length === 3, 'Colecao aninhada deveria ser aceita.');
+  var rejected = false;
+  try { coreFirestoreNormalizeCollectionPath_('portalActivities/ATV-1'); } catch (err) { rejected = true; }
+  test_assert_(rejected, 'Caminho de documento nao deveria ser aceito como colecao.');
+  return { ok: true };
+}
+function test_core_portalFirestore_syncUsuarioEmailConfigurado() {
+  var props = PropertiesService.getScriptProperties();
+  var email = props.getProperty('GEAPA_CORE_PORTAL_TESTE_FIRESTORE_EMAIL') || '';
+  var uid = props.getProperty('GEAPA_CORE_PORTAL_TESTE_FIRESTORE_UID') || '';
+  if (!String(email || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_FIRESTORE_EMAIL com um e-mail existente em Pessoas v2.');
+  }
+  if (!String(uid || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_FIRESTORE_UID com o uid Firebase desse usuario.');
+  }
+
+  var resultado = corePortalProvisionarFirestoreUserAutenticado({
+    uid: uid,
+    email: email,
+    emailVerified: true
+  }, {
+    uid: uid,
+    identityVerified: true,
+    dryRun: false
+  });
+  Logger.log(JSON.stringify(resultado, null, 2));
+  var detalheErro = resultado.firestoreError
+    ? ' Detalhe Firestore: ' + JSON.stringify(resultado.firestoreError)
+    : '';
+  test_assert_(resultado.ok === true, 'Sync Firestore deveria retornar ok=true.' + detalheErro);
+  test_assert_(resultado.synced === true, 'Sync Firestore deveria gravar portalUsers/{uid}.' + detalheErro);
+  test_assert_(resultado.code === 'FIRESTORE_SYNC_OK', 'Sync Firestore deveria retornar FIRESTORE_SYNC_OK.' + detalheErro);
+}
+
+function test_core_portalFirestore_snapshotSeguroMinimo() {
+  var snapshot = corePortalBuildFirestoreUserSnapshot_({ uid: 'uid-teste-123' }, {
+    sessao: {
+      ok: true,
+      autenticado: true,
+      idPessoa: 'P-TESTE',
+      nomeExibicao: 'Pessoa Teste',
+      email: 'pessoa@example.org',
+      rga: 'DADO-NAO-PERMITIDO',
+      portalAtivo: true,
+      perfilPortalEfetivo: 'MEMBRO',
+      perfisPortal: ['MEMBRO'],
+      permissoes: ['portal:acessar']
+    },
+    cacheUpdatedAt: '2026-07-04T12:00:00.000Z'
+  });
+  test_assert_(snapshot.uid === 'uid-teste-123', 'Snapshot deve preservar UID validado.');
+  test_assert_(snapshot.ativo === true && snapshot.podeAcessarPortal === true, 'Snapshot deve liberar apenas sessao ativa.');
+  test_assert_(snapshot.permissions['portal:acessar'] === true, 'Snapshot deve mapear permissoes no backend.');
+  test_assert_(snapshot.source === 'PESSOAS_V2' && snapshot.sourceSystem === 'geapa-core', 'Snapshot deve identificar fonte oficial.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot, 'rga'), 'Snapshot nao deve gravar RGA.');
+  test_assert_(!Object.prototype.hasOwnProperty.call(snapshot, 'cpf'), 'Snapshot nao deve gravar CPF.');
+  return { ok: true, snapshot: snapshot };
+}
+
+function test_core_portalFirestore_negarIdentidadeNaoVerificada() {
+  var result = corePortalProvisionarFirestoreUserAutenticado_({
+    uid: 'uid-teste-123',
+    email: 'pessoa@example.org',
+    emailVerified: true
+  }, {});
+  test_assert_(result.ok === false, 'Provisionamento deve negar identidade nao marcada como verificada pelo backend.');
+  test_assert_(result.code === 'IDENTIDADE_FIREBASE_NAO_VERIFICADA', 'Codigo de negacao inesperado.');
+  return result;
+}
+
+function test_core_portalFirestore_lerSnapshotUidConfigurado() {
+  var uid = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_FIRESTORE_UID') || '';
+  if (!String(uid || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_FIRESTORE_UID com o uid Firebase desse usuario.');
+  }
+
+  var resultado = corePortalReadFirestoreUserSnapshotByUid_(uid);
+  Logger.log(JSON.stringify(resultado, null, 2));
+  var detalheErro = resultado.firestoreError
+    ? ' Detalhe Firestore: ' + JSON.stringify(resultado.firestoreError)
+    : '';
+  test_assert_(resultado.ok === true, 'Leitura Firestore deveria retornar ok=true.' + detalheErro);
+  test_assert_(resultado.found === true, 'Leitura Firestore deveria encontrar portalUsers/{uid}.' + detalheErro);
+  test_assert_(resultado.snapshot && resultado.snapshot.uid === uid, 'Snapshot Firestore deveria ter uid esperado.');
+  test_assert_(resultado.snapshot.source === 'PESSOAS_V2', 'Snapshot Firestore deveria preservar source oficial.');
+  test_assert_(resultado.snapshot.schemaVersion === 'portal-user-v2', 'Snapshot Firestore deveria preservar schemaVersion.');
+}
+function test_core_portalV2_diagnosticarSessoesPortal() {
+  var raw = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_SESSOES');
+  var entradas = raw ? JSON.parse(raw) : {
+    MEMBRO: '',
+    DIRETORIA: '',
+    SECRETARIA: '',
+    COMUNICACAO: '',
+    CONSELHO: '',
+    EGRESSO: '',
+    COLABORADOR: '',
+    EXTERNO: '',
+    VISITANTE: '',
+    ADMIN: '',
+    SEM_PORTAL_ATIVO: '',
+    EXCECAO_ACESSO: '',
+    NAO_ENCONTRADO: 'usuario-nao-encontrado@example.invalid'
+  };
+  var out = {};
+  Object.keys(entradas).forEach(function(label) {
+    var entrada = entradas[label];
+    out[label] = entrada
+      ? corePortalResolverUsuarioAtual_(entrada)
+      : { ok: false, skipped: true, motivo: 'ENTRADA_NAO_CONFIGURADA' };
+  });
+  Logger.log(JSON.stringify(out, null, 2));
+}
+
+function test_core_portalV2_minhaSituacaoV2_identificadorConfigurado() {
+  var identificador = PropertiesService
+    .getScriptProperties()
+    .getProperty('GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR');
+  if (!String(identificador || '').trim()) {
+    throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_IDENTIFICADOR com e-mail, RGA ou ID_PESSOA.');
+  }
+  Logger.log(JSON.stringify(core_buscarMinhaSituacaoParaPortal_(identificador), null, 2));
 }
 
 function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {

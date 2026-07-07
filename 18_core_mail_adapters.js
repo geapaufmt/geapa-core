@@ -155,6 +155,8 @@ function coreMailEnsureDefaultAdaptersRegistered_() {
     keywordHints: ['membro', 'membros', 'ingressar no geapa', 'aceito', 'recuso']
   }));
 
+  registerIfMissing(coreMailCreateDesligamentosAdapter_());
+
   __core_mail_default_adapters_bootstrapped = true;
 }
 
@@ -700,6 +702,172 @@ function coreMailCreateExampleModuleAdapter_(opts) {
         moduleCode: moduleCode,
         eventId: eventRow['Id Evento'] || '',
         correlationKey: eventRow['Chave de Correlacao'] || '',
+        subject: eventRow.Assunto || '',
+        fromEmail: eventRow['Email Remetente'] || ''
+      };
+    }
+  };
+}
+
+function coreMailCreateDesligamentosAdapter_() {
+  var moduleName = 'DESLIGAMENTOS';
+  var moduleCode = 'DES';
+  var entityType = 'SOLICITACAO_VINCULO';
+  var keywordHints = [
+    'desligamento',
+    'desligamentos',
+    'suspensao',
+    'suspensoes',
+    'suspensão',
+    'suspensões',
+    'pedido de vinculo',
+    'pedido de vínculo',
+    'solicitacao de vinculo',
+    'solicitação de vínculo'
+  ];
+
+  function parseDesKey(key) {
+    var rawKey = coreMailNormalizeCorrelationToken_(coreMailStripWrappedCorrelationKey_(key));
+    if (!rawKey || rawKey.indexOf(moduleCode + '-') !== 0) {
+      return { isValid: false };
+    }
+
+    var entityId = rawKey.slice((moduleCode + '-').length);
+    if (!entityId) {
+      return { isValid: false };
+    }
+
+    return {
+      isValid: true,
+      moduleCode: moduleCode,
+      moduleName: moduleName,
+      businessId: entityId,
+      entityType: entityType,
+      entityId: entityId,
+      targetKey: rawKey
+    };
+  }
+
+  return {
+    moduleName: moduleName,
+    moduleCode: moduleCode,
+
+    buildCorrelationKey: function(ctx) {
+      ctx = ctx || {};
+      var rawId = ctx.entityId || ctx.idSolicitacao || ctx.requestId || ctx.businessId || ctx.targetKey;
+      var entityId = coreMailNormalizeCorrelationToken_(rawId);
+
+      if (!entityId) {
+        throw new Error('Adapter DES: informe ctx.entityId, ctx.idSolicitacao, ctx.requestId, ctx.businessId ou ctx.targetKey.');
+      }
+
+      if (entityId.indexOf(moduleCode + '-') === 0) {
+        return entityId;
+      }
+
+      return moduleCode + '-' + entityId;
+    },
+
+    parseCorrelationKey: function(key) {
+      return parseDesKey(key);
+    },
+
+    matchMessage: function(msgCtx) {
+      var haystack = core_normalizeText_(coreMailBuildMessageTextForMatching_(msgCtx || {}), {
+        removeAccents: true,
+        collapseWhitespace: true,
+        caseMode: 'lower'
+      });
+
+      for (var i = 0; i < keywordHints.length; i++) {
+        var hint = core_normalizeText_(keywordHints[i], {
+          removeAccents: true,
+          collapseWhitespace: true,
+          caseMode: 'lower'
+        });
+
+        if (hint && haystack.indexOf(hint) !== -1) {
+          return {
+            matched: true,
+            confidence: 0.7,
+            reason: 'KEYWORD:' + keywordHints[i]
+          };
+        }
+      }
+
+      return {
+        matched: false,
+        confidence: 0
+      };
+    },
+
+    resolveRouting: function(msgCtx) {
+      var keyInSubject = coreMailExtractCorrelationKey_(msgCtx && msgCtx.subject ? msgCtx.subject : '');
+      var parsed = keyInSubject ? parseDesKey(keyInSubject) : { isValid: false };
+
+      if (parsed.isValid) {
+        return {
+          matched: true,
+          moduleName: moduleName,
+          moduleCode: moduleCode,
+          correlationKey: parsed.targetKey,
+          entityType: entityType,
+          entityId: parsed.entityId,
+          stage: '',
+          flowCode: '',
+          confidence: 1,
+          reason: 'CORRELATION_KEY'
+        };
+      }
+
+      var match = this.matchMessage(msgCtx || {});
+      if (!match.matched) {
+        return {
+          matched: false,
+          confidence: 0
+        };
+      }
+
+      return {
+        matched: true,
+        moduleName: moduleName,
+        moduleCode: moduleCode,
+        correlationKey: '',
+        entityType: entityType,
+        entityId: '',
+        stage: '',
+        flowCode: '',
+        confidence: Number(match.confidence || 0),
+        reason: match.reason || 'MATCH_MESSAGE'
+      };
+    },
+
+    normalizeOutgoingSubject: function(subject, ctx) {
+      var correlationKey = String((ctx && ctx.correlationKey) || '').trim();
+      if (!correlationKey) {
+        correlationKey = this.buildCorrelationKey(ctx || {});
+      }
+
+      var cleanSubject = String(subject || '').trim();
+      var tag = '[GEAPA][' + correlationKey + ']';
+      if (!cleanSubject) return tag;
+
+      if (/\[GEAPA\]\[[^\]]+\]/i.test(cleanSubject)) {
+        return cleanSubject.replace(/\[GEAPA\]\[[^\]]+\]/i, tag).trim();
+      }
+
+      return (tag + ' ' + cleanSubject).trim();
+    },
+
+    summarizeForHistory: function(eventRow) {
+      eventRow = eventRow || {};
+      return {
+        moduleName: moduleName,
+        moduleCode: moduleCode,
+        eventId: eventRow['Id Evento'] || '',
+        correlationKey: eventRow['Chave de Correlacao'] || '',
+        entityType: eventRow['Tipo Entidade'] || entityType,
+        entityId: eventRow['Id Entidade'] || '',
         subject: eventRow.Assunto || '',
         fromEmail: eventRow['Email Remetente'] || ''
       };

@@ -1128,8 +1128,8 @@ function coreMailHubEnvelopeOfficialEmail_() {
   var officialData = typeof coreMailRendererGetOfficialGroupData_ === 'function'
     ? coreMailRendererGetOfficialGroupData_()
     : null;
-  var officialEmail = officialData && officialData.email
-    ? core_extractEmailAddress_(officialData.email)
+  var officialEmail = officialData && officialData.officialEmail
+    ? core_extractEmailAddress_(officialData.officialEmail)
     : '';
   if (officialEmail) return officialEmail;
 
@@ -1178,7 +1178,7 @@ function coreMailHubNormalizeOutgoingContract_(contract) {
     toList = [coreMailHubEnvelopeOfficialEmail_()].filter(function(item) { return !!item; });
     if (!toList.length) {
       throw new Error(
-        'coreMailQueueOutgoing_: envio em BCC requer EMAIL_OFICIAL em DADOS_OFICIAIS_GEAPA ' +
+        'coreMailQueueOutgoing_: envio em BCC requer EMAIL_OFICIAL em Config_GEAPA ' +
         'ou uma conta ativa disponivel para servir como envelope principal.'
       );
     }

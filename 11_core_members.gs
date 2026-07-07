@@ -44,6 +44,7 @@ const CORE_MEMBERS_CFG = Object.freeze({
    * Se os nomes reais forem diferentes, altere aqui.
    */
   headers: Object.freeze({
+    idPessoa: Object.freeze(["ID_PESSOA", "Id Pessoa", "idPessoa"]),
     name: Object.freeze(["Membro", "MEMBRO", "NOME_MEMBRO", "Nome"]),
     occupation: core_getOccupationHeaderAliases_('currentOccupation'),
     phone: Object.freeze(["Telefone", "TELEFONE"]),
@@ -67,7 +68,7 @@ const CORE_MEMBERS_CFG = Object.freeze({
       "STATUS_VINCULO",
       "TIPO_VINCULO"
     ]),
-    periodoUltimaApresentacao: Object.freeze(["PERIODO_ULTIMA_APRESENTACAO"]),
+    periodoUltimaApresentacao: Object.freeze(["CICLO_ULTIMA_APRESENTACAO", "PERIODO_ULTIMA_APRESENTACAO"]),
     qtdApresentacoesRealizadas: Object.freeze(["QTD_APRESENTACOES_REALIZADAS"]),
     qtdDiasQueContamParaLimiteDiretoria: Object.freeze(["QTD_DIAS_QUE_CONTAM_PARA_LIMITE_DIRETORIA"]),
     limiteDiasDiretoria: Object.freeze(["LIMITE_DIAS_DIRETORIA"]),
@@ -112,6 +113,9 @@ const CORE_MEMBERS_CFG = Object.freeze({
     diretorComunicacao: "Diretor(a) de Comunicação"
   })
 });
+
+const CORE_CHAMADA_MEMBROS_CACHE_PREFIX = "CORE_MEMBROS_CHAMADA_V2:";
+const CORE_CHAMADA_MEMBROS_CACHE_TTL_SECONDS = 10 * 60;
 
 
 /* ======================================================================
@@ -263,7 +267,9 @@ function core_getAttendanceMemberHeaderIndexMap_(headers) {
   const occupationAliases = core_getOccupationHeaderAliases_('currentOccupation');
 
   return {
+    idPessoa: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.idPessoa),
     name: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.name),
+    email: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.email),
     rga: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.rga),
     status: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.status),
     situacaoGeral: core_findMemberHeaderIndex_(normalized, CORE_MEMBERS_CFG.headers.situacaoGeral),
@@ -444,6 +450,107 @@ function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, opts) {
   return null;
 }
 
+function core_resolverSessaoPortalCompatDetalhada_(emailOuRga) {
+  try {
+    if (typeof corePortalResolverUsuarioAtual_ !== "function") {
+      return Object.freeze({ status: "indisponivel", sessao: null });
+    }
+
+    const sessao = corePortalResolverUsuarioAtual_(emailOuRga);
+    if (!sessao) {
+      return Object.freeze({ status: "indisponivel", sessao: null });
+    }
+
+    if (sessao.ok === false || sessao.autenticado === false) {
+      return Object.freeze({
+        status: sessao.motivoBloqueio === "PESSOA_NAO_ENCONTRADA" ? "nao_encontrada" : "bloqueada",
+        sessao: sessao
+      });
+    }
+
+    return Object.freeze({ status: "resolvida", sessao: sessao });
+  } catch (err) {
+    return Object.freeze({ status: "indisponivel", sessao: null });
+  }
+}
+
+function core_buildMembroPortalFromSessaoV2_(sessao) {
+  if (!sessao || (!sessao.idPessoa && !sessao.email && !sessao.rga)) return null;
+
+  return Object.freeze({
+    id: String(sessao.idPessoa || sessao.rga || sessao.email || "").trim(),
+    nomeExibicao: String(sessao.nomeExibicao || "").trim(),
+    emailCadastrado: String(sessao.email || "").trim(),
+    rga: String(sessao.rga || "").trim(),
+    situacaoGeral: String(sessao.statusVinculoAtual || "").trim(),
+    vinculo: String(sessao.tipoVinculoAtual || "").trim()
+  });
+}
+
+function core_buildPermissoesLegadasFromSessaoV2_(sessao) {
+  const legacy = Object.assign({}, core_derivePortalPermissions_(sessao && sessao.perfisPortal ? sessao.perfisPortal : []));
+  const canonical = (sessao && Array.isArray(sessao.permissoes)) ? sessao.permissoes : [];
+
+  if (canonical.indexOf("sistema:admin") >= 0) {
+    Object.keys(legacy).forEach(function(chave) {
+      legacy[chave] = true;
+    });
+    return Object.freeze(legacy);
+  }
+
+  if (canonical.indexOf("membros:ler") >= 0 || canonical.indexOf("logs:ler") >= 0) {
+    legacy.podeVerAreaDiretoria = true;
+  }
+
+  if (canonical.indexOf("atividades:gerir") >= 0) {
+    legacy.podeVerAreaDiretoria = true;
+    legacy.podeGerenciarAtividades = true;
+    legacy.podeEditarAtividade = true;
+  }
+
+  if (canonical.indexOf("presencas:gerir") >= 0) {
+    legacy.podeRegistrarChamada = true;
+  }
+
+  if (canonical.indexOf("certificados:gerir") >= 0) {
+    legacy.podeGerenciarCertificados = true;
+  }
+
+  if (canonical.indexOf("comunicacao:gerir") >= 0) {
+    legacy.podeGerenciarComunicacao = true;
+  }
+
+  if (canonical.indexOf("portal:configurar") >= 0 || canonical.indexOf("configuracoes:gerir") >= 0) {
+    legacy.podeGerenciarConfiguracoes = true;
+  }
+
+  return Object.freeze(legacy);
+}
+
+function core_buildUsuarioPortalFromSessaoV2_(sessao) {
+  const perfis = ((sessao.perfisPortal || []).length ? sessao.perfisPortal : [sessao.perfilPortalEfetivo || "MEMBRO"]).slice();
+
+  return Object.freeze({
+    id: String(sessao.idPessoa || sessao.rga || sessao.email || "").trim(),
+    idPessoa: String(sessao.idPessoa || "").trim(),
+    nomeExibicao: String(sessao.nomeExibicao || "").trim(),
+    rga: String(sessao.rga || "").trim(),
+    emailCadastrado: String(sessao.email || "").trim(),
+    email: String(sessao.email || "").trim(),
+    perfilPrincipal: String(sessao.perfilPortalEfetivo || "MEMBRO").trim(),
+    perfilPortalEfetivo: String(sessao.perfilPortalEfetivo || "MEMBRO").trim(),
+    perfis: Object.freeze(perfis),
+    perfisPortal: Object.freeze(perfis.slice()),
+    cargosAtuais: Object.freeze((sessao.cargosAtuais || []).slice()),
+    permissoes: core_buildPermissoesLegadasFromSessaoV2_(sessao),
+    permissoesEfetivas: Object.freeze((sessao.permissoes || []).slice()),
+    portalAtivo: sessao.portalAtivo !== false,
+    tipoVinculoAtual: String(sessao.tipoVinculoAtual || "").trim(),
+    statusVinculoAtual: String(sessao.statusVinculoAtual || "").trim(),
+    cargoFuncaoAtual: String(sessao.cargoFuncaoAtual || "").trim()
+  });
+}
+
 /**
  * Contrato inicial com o geapa-portal.
  *
@@ -458,6 +565,13 @@ function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, opts) {
  * @return {Object|null}
  */
 function core_buscarMembroParaPortal_(emailOuRga) {
+  const sessaoResult = core_resolverSessaoPortalCompatDetalhada_(emailOuRga);
+  if (sessaoResult.status === "resolvida") {
+    return sessaoResult.sessao.portalAtivo === false
+      ? null
+      : core_buildMembroPortalFromSessaoV2_(sessaoResult.sessao);
+  }
+
   return core_buscarMembroParaPortalInSheet_(core_getMembersSheet_(), emailOuRga);
 }
 
@@ -585,7 +699,7 @@ function core_getPortalPendenciasCadastro_(membro) {
   return Object.freeze(pendencias);
 }
 
-function core_buildMinhaSituacaoPortalResponse_(membro, usuario) {
+function core_buildMinhaSituacaoPortalResponse_(membro, usuario, sessao) {
   const pendencias = core_getPortalPendenciasCadastro_(membro);
   const apresentacoes = membro._portalApresentacoes || core_buildPortalApresentacoesVazio_();
   const diretoria = membro._portalDiretoria || core_buildPortalDiretoriaVazio_();
@@ -607,7 +721,98 @@ function core_buildMinhaSituacaoPortalResponse_(membro, usuario) {
     response.usuario = usuario;
   }
 
+  if (sessao) {
+    response.sessao = sessao;
+  }
+
   return Object.freeze(response);
+}
+
+function core_resolverSessaoPortalCompat_(emailOuRga) {
+  const resultado = core_resolverSessaoPortalCompatDetalhada_(emailOuRga);
+  return resultado.status === "resolvida" ? resultado.sessao : null;
+}
+
+function core_parsePortalPendingCountV2_(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "SEM_PENDENCIAS") return 0;
+  const numeric = Number(text);
+  if (isFinite(numeric) && !isNaN(numeric)) return Math.max(0, numeric);
+  return text.split(/[;,|]/).filter(function(part) {
+    const normalized = String(part || "").trim();
+    return normalized && normalized !== "SEM_PENDENCIAS";
+  }).length;
+}
+
+function core_buildPortalPendenciasFromResumoV2_(resumo) {
+  const raw = String((resumo && resumo.PENDENCIAS_ABERTAS) || "").trim();
+  if (!raw || raw === "SEM_PENDENCIAS") return Object.freeze([]);
+  return Object.freeze(raw.split(/[;,|]/).map(function(part) {
+    const code = String(part || "").trim();
+    if (!code || code === "SEM_PENDENCIAS") return null;
+    return core_buildPortalPendencia_(
+      "operacional",
+      code.replace(/_/g, " "),
+      "Pendencia operacional indicada em PESSOAS_RESUMO_OPERACIONAL.",
+      "media"
+    );
+  }).filter(Boolean));
+}
+
+function core_buildMinhaSituacaoPortalV2_(resumo) {
+  resumo = resumo || {};
+  const pendencias = core_buildPortalPendenciasFromResumoV2_(resumo);
+  return Object.freeze({
+    resumo: Object.freeze({
+      frequencia: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
+      pendenciasAbertas: core_parsePortalPendingCountV2_(resumo.PENDENCIAS_ABERTAS),
+      certificadosDisponiveis: 0
+    }),
+    pendencias: pendencias,
+    participacao: Object.freeze({
+      frequenciaGeral: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
+      atividadesRecentes: Object.freeze([]),
+      apresentacoes: Object.freeze({
+        periodoUltimaApresentacao: String(resumo.CICLO_ULTIMA_APRESENTACAO || resumo.PERIODO_ULTIMA_APRESENTACAO || "").trim(),
+        quantidadeRealizadas: core_parsePortalNonNegativeNumber_(resumo.QTD_APRESENTACOES_REALIZADAS)
+      })
+    }),
+    diretoria: Object.freeze({
+      statusElegibilidade: String(resumo.STATUS_ELEGIBILIDADE_DIRETORIA || "").trim(),
+      diasComputados: 0,
+      limiteDias: 0,
+      saldoDias: 0,
+      dataLimiteEstimada: String(resumo.DATA_LIMITE_ESTIMADA_DIRETORIA || "").trim()
+    }),
+    certificados: Object.freeze([]),
+    avisos: Object.freeze([
+      "Dados carregados de Pessoas v2 pelo GEAPA-CORE."
+    ])
+  });
+}
+
+function core_buscarMinhaSituacaoParaPortalV2_(emailOuRga) {
+  const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
+  if (!sessao || !sessao.idPessoa) return null;
+
+  const resumo = corePessoasGetOperationalSummary_(sessao.idPessoa) || {};
+  const membro = Object.freeze({
+    id: String(sessao.idPessoa || "").trim(),
+    nomeExibicao: String(sessao.nomeExibicao || resumo.NOME_EXIBICAO || "").trim(),
+    emailCadastrado: String(sessao.email || resumo.EMAIL || "").trim(),
+    rga: String(sessao.rga || resumo.RGA || "").trim(),
+    vinculo: String(sessao.tipoVinculoAtual || resumo.TIPO_VINCULO_ATUAL || "").trim(),
+    situacaoGeral: String(sessao.statusVinculoAtual || resumo.STATUS_VINCULO_ATUAL || "").trim()
+  });
+
+  return Object.freeze({
+    ok: true,
+    fonteDados: "PESSOAS_V2",
+    membro: membro,
+    usuario: sessao,
+    sessao: sessao,
+    minhaSituacao: core_buildMinhaSituacaoPortalV2_(resumo)
+  });
 }
 
 function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
@@ -631,11 +836,13 @@ function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
 /**
  * Contrato inicial da tela "Minha situacao" do geapa-portal.
  *
- * Esta V1 usa somente fontes oficiais ja centralizadas no Core para localizar
- * o proprio membro. As pendencias retornadas sao apenas cadastrais objetivas
- * derivadas desse proprio registro. Enquanto frequencia, certificados e
- * atividades recentes nao tiverem uma fonte confiavel integrada ao Core, esses
- * blocos ficam vazios ou zerados. Nao inventar dados nesta funcao.
+ * Esta versao tenta primeiro Pessoas v2 via `corePortalResolverUsuarioAtual`
+ * e `PESSOAS_RESUMO_OPERACIONAL`. `MEMBERS_ATUAIS` permanece apenas como
+ * fallback de compatibilidade quando a v2 ainda nao resolver a pessoa.
+ *
+ * Enquanto certificados e atividades recentes nao tiverem uma fonte confiavel
+ * integrada ao Core, esses blocos ficam vazios ou zerados. Nao inventar dados
+ * nesta funcao.
  *
  * Regras de seguranca para futuras diretorias:
  * - retornar apenas dados do membro localizado;
@@ -647,6 +854,9 @@ function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
  * @return {Object}
  */
 function core_buscarMinhaSituacaoParaPortal_(emailOuRga) {
+  const situacaoV2 = core_buscarMinhaSituacaoParaPortalV2_(emailOuRga);
+  if (situacaoV2 && situacaoV2.ok) return situacaoV2;
+
   const membro = core_buscarMembroParaPortalInSheet_(core_getMembersSheet_(), emailOuRga, {
     requireValidEmail: false,
     useDefaultLabels: false,
@@ -663,8 +873,117 @@ function core_buscarMinhaSituacaoParaPortal_(emailOuRga) {
 
   const usuarioResult = core_buscarUsuarioPortalFromMember_(membro);
   const usuario = usuarioResult && usuarioResult.ok ? usuarioResult.usuario : null;
+  const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
 
-  return core_buildMinhaSituacaoPortalResponse_(membro, usuario);
+  return core_buildMinhaSituacaoPortalResponse_(membro, usuario, sessao);
+}
+
+/**
+ * Retorna o primeiro valor nao vazio de um registro por lista de cabecalhos.
+ *
+ * @param {Object} record Registro fonte.
+ * @param {string[]} aliases Cabecalhos aceitos.
+ * @return {string}
+ */
+function core_getMeuPerfilPortalValue_(record, aliases) {
+  const source = record || {};
+  for (let i = 0; i < aliases.length; i++) {
+    const value = source[aliases[i]];
+    if (String(value == null ? "" : value).trim()) return String(value).trim();
+  }
+  return "";
+}
+
+/**
+ * Localiza o primeiro valor nao vazio em uma lista de registros.
+ *
+ * @param {Array<Object>} records Registros fonte.
+ * @param {string[]} aliases Cabecalhos aceitos.
+ * @return {string}
+ */
+function core_getMeuPerfilPortalValueFromRecords_(records, aliases) {
+  const list = Array.isArray(records) ? records : [];
+  for (let i = 0; i < list.length; i++) {
+    const value = core_getMeuPerfilPortalValue_(list[i], aliases);
+    if (value) return value;
+  }
+  return "";
+}
+
+/**
+ * Monta o contrato seguro da tela "Meu perfil" para o proprio usuario autenticado.
+ *
+ * @param {Object} sessao Sessao oficial resolvida pelo Core.
+ * @param {Object} bundle Pacote Pessoas v2 da pessoa resolvida.
+ * @return {Object}
+ */
+function core_buildMeuPerfilPortalResponse_(sessao, bundle) {
+  const pessoa = (bundle && bundle.pessoa) || {};
+  const detalhes = (bundle && bundle.membrosDetalhes) || {};
+  const resumo = (bundle && bundle.resumoOperacional) || {};
+  const colaboradores = (bundle && bundle.colaboradoresAcademicos) || [];
+  const externos = (bundle && bundle.participantesExternosDetalhes) || [];
+  const linkLattes = core_getMeuPerfilPortalValue_(pessoa, ["LINK_LATTES", "CURRICULO_LATTES"]) ||
+    core_getMeuPerfilPortalValue_(detalhes, ["LINK_LATTES", "CURRICULO_LATTES"]) ||
+    core_getMeuPerfilPortalValueFromRecords_(colaboradores, ["LINK_LATTES", "CURRICULO_LATTES"]) ||
+    core_getMeuPerfilPortalValueFromRecords_(externos, ["LINK_LATTES", "CURRICULO_LATTES"]);
+
+  return Object.freeze({
+    ok: true,
+    fonteDados: "PESSOAS_V2",
+    somenteLeitura: true,
+    perfil: Object.freeze({
+      idPessoa: String(sessao.idPessoa || pessoa.ID_PESSOA || "").trim(),
+      nomeCompleto: String(pessoa.NOME_COMPLETO || "").trim(),
+      nomeExibicao: String(pessoa.NOME_EXIBICAO || resumo.NOME_EXIBICAO || sessao.nomeExibicao || "").trim(),
+      rga: String(sessao.rga || detalhes.RGA || resumo.RGA || "").trim(),
+      cpf: String(pessoa.CPF || "").trim(),
+      dataNascimento: String(pessoa.DATA_NASCIMENTO || "").trim(),
+      telefone: String(pessoa.TELEFONE_PRINCIPAL || "").trim(),
+      email: String(pessoa.EMAIL_PRINCIPAL || resumo.EMAIL || sessao.email || "").trim(),
+      instagram: String(pessoa.INSTAGRAM || "").trim(),
+      linkLattes: String(linkLattes || "").trim(),
+      cidadeOrigem: String(pessoa.CIDADE_NATAL || "").trim(),
+      ufOrigem: String(pessoa.UF_ORIGEM || "").trim(),
+      historicoAcademico: String(detalhes.HISTORICO_ATIVIDADES_ACADEMICAS || "").trim(),
+      statusCadastral: String(pessoa.STATUS_CADASTRAL || resumo.STATUS_VINCULO_ATUAL || "").trim()
+    }),
+    sessao: sessao,
+    avisos: Object.freeze([
+      "Dados pessoais retornados apenas para o usuario autenticado pelo Portal GEAPA.",
+      "Edicao cadastral ainda nao esta habilitada nesta tela."
+    ])
+  });
+}
+
+/**
+ * Busca o perfil cadastral do proprio usuario para exibicao no Portal GEAPA.
+ *
+ * A autenticacao/token continua sendo responsabilidade do Portal. Esta funcao
+ * resolve apenas uma pessoa por identificador e nao retorna listas ou dados de
+ * terceiros.
+ *
+ * @param {string|Object} emailOuRga Identificador da propria sessao.
+ * @return {Object}
+ */
+function core_buscarMeuPerfilParaPortal_(emailOuRga) {
+  const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
+  if (!sessao || !sessao.idPessoa) {
+    return core_buildPortalError_(
+      "PERFIL_NAO_ENCONTRADO",
+      "Nao foi possivel localizar o perfil do usuario autenticado."
+    );
+  }
+
+  const bundle = corePessoasGetById_(sessao.idPessoa);
+  if (!bundle || !bundle.pessoa) {
+    return core_buildPortalError_(
+      "PERFIL_NAO_ENCONTRADO",
+      "Nao foi possivel localizar o cadastro em Pessoas v2."
+    );
+  }
+
+  return core_buildMeuPerfilPortalResponse_(sessao, bundle);
 }
 
 function core_normalizePortalCargoKeyFallback_(value) {
@@ -929,6 +1248,22 @@ function core_buscarUsuarioPortalFromMember_(membro, refDate) {
 }
 
 function core_buscarUsuarioPortal_(emailOuRga) {
+  const sessaoResult = core_resolverSessaoPortalCompatDetalhada_(emailOuRga);
+  if (sessaoResult.status === "resolvida") {
+    if (sessaoResult.sessao.portalAtivo === false) {
+      return core_buildPortalError_(
+        sessaoResult.sessao.motivoBloqueio || "USUARIO_SEM_ACESSO_PORTAL",
+        "Usuario sem acesso ativo ao Portal."
+      );
+    }
+
+    return Object.freeze({
+      ok: true,
+      usuario: core_buildUsuarioPortalFromSessaoV2_(sessaoResult.sessao),
+      sessao: sessaoResult.sessao
+    });
+  }
+
   const membro = core_buscarMembroParaPortal_(emailOuRga);
 
   if (!membro) {
@@ -1231,10 +1566,238 @@ function core_getChamadaLifecycleDisplayEvent_(events, refDate) {
   return selected || (events && events.length ? events[0] : null);
 }
 
+function core_chamadaPerformanceNew_(enabled) {
+  const now = Date.now();
+  return {
+    enabled: enabled !== false,
+    startedAt: now,
+    lastAt: now,
+    etapas: []
+  };
+}
+
+function core_chamadaPerformanceStep_(perf, etapa) {
+  if (!perf || perf.enabled === false) return;
+  const now = Date.now();
+  perf.etapas.push(Object.freeze({
+    etapa: String(etapa || "etapa").trim(),
+    ms: Math.max(0, now - perf.lastAt),
+    totalMs: Math.max(0, now - perf.startedAt)
+  }));
+  perf.lastAt = now;
+}
+
+function core_chamadaPerformanceSnapshot_(perf) {
+  if (!perf || perf.enabled === false) {
+    return Object.freeze({ totalMs: 0, etapas: Object.freeze([]) });
+  }
+  return Object.freeze({
+    totalMs: Math.max(0, Date.now() - perf.startedAt),
+    etapas: Object.freeze((perf.etapas || []).slice())
+  });
+}
+
+function core_chamadaWithPerformance_(result, perf) {
+  if (!result || typeof result !== "object") return result;
+  const out = {};
+  Object.keys(result).forEach(function(key) {
+    out[key] = result[key];
+  });
+  out.performance = core_chamadaPerformanceSnapshot_(perf);
+  return Object.freeze(out);
+}
+
+function core_chamadaWithMeta_(result, metaExtra) {
+  if (!result || result.ok !== true) return result;
+  const out = {};
+  Object.keys(result).forEach(function(key) {
+    out[key] = result[key];
+  });
+  out.meta = Object.freeze(Object.assign({}, result.meta || {}, metaExtra || {}));
+  return Object.freeze(out);
+}
+
+function core_chamadaCurrentEnv_() {
+  try {
+    return String(core_getCurrentEnv_() || "DEV").trim().toUpperCase() || "DEV";
+  } catch (err) {
+    return "DEV";
+  }
+}
+
+function core_chamadaCacheKey_(dateIso) {
+  return CORE_CHAMADA_MEMBROS_CACHE_PREFIX + core_chamadaCurrentEnv_() + ":" + String(dateIso || "").trim();
+}
+
+function core_chamadaCacheGet_(cacheKey) {
+  try {
+    const raw = CacheService.getScriptCache().get(cacheKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function core_chamadaCacheSet_(cacheKey, payload) {
+  try {
+    CacheService.getScriptCache().put(
+      cacheKey,
+      JSON.stringify(payload),
+      CORE_CHAMADA_MEMBROS_CACHE_TTL_SECONDS
+    );
+  } catch (err) {}
+}
+
+function core_invalidarCacheMembrosChamada_(dataAtividade) {
+  const refDate = core_parseChamadaReferenceDate_(dataAtividade);
+  if (!refDate) {
+    return Object.freeze({
+      ok: false,
+      errorCode: "DATA_ATIVIDADE_OBRIGATORIA",
+      message: "Informe a data da atividade para invalidar o cache de chamada."
+    });
+  }
+  const dateIso = core_formatChamadaDateIso_(refDate);
+  const cacheKey = core_chamadaCacheKey_(dateIso);
+  try {
+    CacheService.getScriptCache().remove(cacheKey);
+  } catch (err) {}
+  return Object.freeze({
+    ok: true,
+    cacheCleared: true,
+    cacheKey: cacheKey,
+    ttlSeconds: CORE_CHAMADA_MEMBROS_CACHE_TTL_SECONDS
+  });
+}
+
+function core_chamadaNormalizeEmail_(value) {
+  const email = core_extractEmailAddress_(value);
+  return email && core_isValidEmail_(email) ? email.toLowerCase() : "";
+}
+
+function core_chamadaGetLegacyValue_(record, headers) {
+  const keys = Object.keys(record || {});
+  for (let i = 0; i < headers.length; i++) {
+    const target = core_normalizeHeader_(headers[i]);
+    for (let j = 0; j < keys.length; j++) {
+      if (core_normalizeHeader_(keys[j]) === target) return record[keys[j]];
+    }
+  }
+  return "";
+}
+
+function core_chamadaIndexPessoaIdentity_(maps, identity) {
+  const idPessoa = String((identity && identity.idPessoa) || "").trim();
+  const rga = String((identity && identity.rga) || "").trim();
+  const email = core_chamadaNormalizeEmail_((identity && identity.email) || "");
+  if (!idPessoa && !rga && !email) return;
+
+  const value = Object.freeze({
+    idPessoa: idPessoa,
+    rga: rga,
+    email: email,
+    nomeExibicao: String((identity && identity.nomeExibicao) || "").trim()
+  });
+  if (idPessoa && !maps.byIdPessoa[idPessoa]) maps.byIdPessoa[idPessoa] = value;
+  if (rga) maps.byRga[core_normalizeIdentityKey_(rga)] = value;
+  if (email) maps.byEmail[email] = value;
+}
+
+function core_getChamadaIdentityMaps_(observacoes, perf) {
+  const maps = {
+    byIdPessoa: {},
+    byRga: {},
+    byEmail: {}
+  };
+
+  try {
+    const pessoas = core_readRecordsByKey_("PESSOAS_V2_BASE", { skipBlankRows: true }) || [];
+    pessoas.forEach(function(record) {
+      core_chamadaIndexPessoaIdentity_(maps, {
+        idPessoa: core_chamadaGetLegacyValue_(record, ["ID_PESSOA", "idPessoa"]),
+        email: core_chamadaGetLegacyValue_(record, ["EMAIL_PRINCIPAL", "EMAIL", "email"]),
+        nomeExibicao: core_chamadaGetLegacyValue_(record, ["NOME_EXIBICAO", "NOME_COMPLETO", "nomeExibicao"])
+      });
+    });
+    core_chamadaPerformanceStep_(perf, "ler_pessoas_v2_base");
+  } catch (err) {
+    observacoes.push("PESSOAS_V2_BASE indisponivel; identidade canonica usa campos da base de membros quando existirem.");
+  }
+
+  try {
+    const detalhes = core_readRecordsByKey_("PESSOAS_V2_MEMBROS_DETALHES", { skipBlankRows: true }) || [];
+    detalhes.forEach(function(record) {
+      const idPessoa = String(core_chamadaGetLegacyValue_(record, ["ID_PESSOA", "idPessoa"]) || "").trim();
+      const base = idPessoa ? maps.byIdPessoa[idPessoa] : null;
+      core_chamadaIndexPessoaIdentity_(maps, {
+        idPessoa: idPessoa,
+        rga: core_chamadaGetLegacyValue_(record, ["RGA", "rga"]),
+        email: base ? base.email : "",
+        nomeExibicao: base ? base.nomeExibicao : ""
+      });
+    });
+    core_chamadaPerformanceStep_(perf, "ler_membros_detalhes_v2");
+  } catch (err) {
+    observacoes.push("PESSOAS_V2_MEMBROS_DETALHES indisponivel; RGA canonico usa MEMBERS_ATUAIS quando necessario.");
+  }
+
+  try {
+    const identificadores = core_readRecordsByKey_("PESSOAS_V2_IDENTIFICADORES", { skipBlankRows: true }) || [];
+    identificadores.forEach(function(record) {
+      const ativo = core_normalizeChamadaToken_(core_chamadaGetLegacyValue_(record, ["ATIVO", "ativo"]));
+      if (ativo && ["SIM", "S", "TRUE", "ATIVO", "ATIVA"].indexOf(ativo) < 0) return;
+
+      const idPessoa = String(core_chamadaGetLegacyValue_(record, ["ID_PESSOA", "idPessoa"]) || "").trim();
+      const tipo = core_normalizeChamadaToken_(core_chamadaGetLegacyValue_(record, ["TIPO_IDENTIFICADOR", "tipo"]));
+      const valor = core_chamadaGetLegacyValue_(record, ["VALOR_IDENTIFICADOR", "valor"]);
+      const base = idPessoa ? maps.byIdPessoa[idPessoa] : null;
+      core_chamadaIndexPessoaIdentity_(maps, {
+        idPessoa: idPessoa,
+        rga: tipo === "RGA" ? valor : "",
+        email: tipo === "EMAIL" ? valor : (base ? base.email : ""),
+        nomeExibicao: base ? base.nomeExibicao : ""
+      });
+    });
+    core_chamadaPerformanceStep_(perf, "ler_identificadores_v2");
+  } catch (err) {
+    observacoes.push("PESSOAS_V2_IDENTIFICADORES indisponivel; enriquecimento por identificadores foi ignorado.");
+  }
+
+  return maps;
+}
+
+function core_resolveChamadaIdentity_(idPessoa, rga, email, identityMaps) {
+  const directId = String(idPessoa || "").trim();
+  const directRga = String(rga || "").trim();
+  const directEmail = core_chamadaNormalizeEmail_(email || "");
+  const maps = identityMaps || {};
+  const fromId = directId && maps.byIdPessoa ? maps.byIdPessoa[directId] : null;
+  const fromRga = directRga && maps.byRga ? maps.byRga[core_normalizeIdentityKey_(directRga)] : null;
+  const fromEmail = directEmail && maps.byEmail ? maps.byEmail[directEmail] : null;
+  const found = fromId || fromRga || fromEmail || {};
+
+  return Object.freeze({
+    idPessoa: String(directId || found.idPessoa || "").trim(),
+    rga: String(directRga || found.rga || "").trim(),
+    email: core_chamadaNormalizeEmail_(directEmail || found.email || "")
+  });
+}
+
+function core_chamadaMemberDedupeKey_(item) {
+  if (!item) return "";
+  if (item.idPessoa) return "ID:" + item.idPessoa;
+  if (item.rga) return "RGA:" + core_normalizeIdentityKey_(item.rga);
+  if (item.email) return "EMAIL:" + core_chamadaNormalizeEmail_(item.email);
+  return "";
+}
+
 // Monta somente os campos permitidos para o Portal. Qualquer dado de contato,
 // documento, observacao interna ou motivo sensivel fica fora deste contrato.
-function core_buildChamadaMemberFromRow_(displayRow, rawRow, idx, refDate, lifecycleState) {
+function core_buildChamadaMemberFromRow_(displayRow, rawRow, idx, refDate, lifecycleState, identityMaps) {
+  const idPessoaRaw = core_getChamadaCell_(displayRow, idx.idPessoa, "");
   const rga = core_getChamadaCell_(displayRow, idx.rga, "");
+  const emailRaw = core_getChamadaCell_(displayRow, idx.email, "");
+  const identity = core_resolveChamadaIdentity_(idPessoaRaw, rga, emailRaw, identityMaps);
   const nomeExibicao = core_getChamadaCell_(displayRow, idx.name, "");
   const situacaoPlanilha = core_getChamadaCell_(displayRow, idx.situacaoGeral, "") ||
     core_getChamadaCell_(displayRow, idx.status, "") ||
@@ -1268,30 +1831,35 @@ function core_buildChamadaMemberFromRow_(displayRow, rawRow, idx, refDate, lifec
   }
 
   return Object.freeze({
+    idPessoa: identity.idPessoa,
     tipoParticipante: "MEMBRO",
-    rga: String(rga || "").trim(),
+    rga: identity.rga,
+    email: identity.email,
     nomeExibicao: String(nomeExibicao || "").trim(),
     situacao: situacao,
     vinculo: String(vinculo || "Membro").trim(),
-    aplicavelNaData: true,
+    aplicavelNaData: counting.contaPresenca !== false || counting.contaFalta !== false,
     contaPresenca: counting.contaPresenca !== false,
     contaFalta: counting.contaFalta !== false,
     motivoNaoAplicavel: String(counting.motivoNaoAplicavel || "").trim()
   });
 }
 
-function core_buildChamadaMemberFromLifecycle_(events, refDate, lifecycleState) {
+function core_buildChamadaMemberFromLifecycle_(events, refDate, lifecycleState, identityMaps) {
   const displayEvent = core_getChamadaLifecycleDisplayEvent_(events, refDate);
   if (!displayEvent || !displayEvent.rga || !displayEvent.memberName) return null;
   if (!lifecycleState || lifecycleState.isMemberOnDate !== true) return null;
+  const identity = core_resolveChamadaIdentity_("", displayEvent.rga, "", identityMaps);
 
   return Object.freeze({
+    idPessoa: identity.idPessoa,
     tipoParticipante: "MEMBRO",
-    rga: String(displayEvent.rga || "").trim(),
+    rga: identity.rga,
+    email: identity.email,
     nomeExibicao: String(displayEvent.memberName || "").trim(),
     situacao: lifecycleState.situacao || "ATIVO",
     vinculo: "Membro",
-    aplicavelNaData: true,
+    aplicavelNaData: lifecycleState.contaPresenca !== false || lifecycleState.contaFalta !== false,
     contaPresenca: lifecycleState.contaPresenca !== false,
     contaFalta: lifecycleState.contaFalta !== false,
     motivoNaoAplicavel: String(lifecycleState.motivoNaoAplicavel || "").trim()
@@ -1300,8 +1868,10 @@ function core_buildChamadaMemberFromLifecycle_(events, refDate, lifecycleState) 
 
 function core_hasOnlySafeChamadaFields_(item) {
   const allowed = [
+    "idPessoa",
     "tipoParticipante",
     "rga",
+    "email",
     "nomeExibicao",
     "situacao",
     "vinculo",
@@ -1316,43 +1886,48 @@ function core_hasOnlySafeChamadaFields_(item) {
 
 function core_listarMembrosParaChamadaInSheet_(sheet, dataAtividade, contexto, opts) {
   opts = opts || {};
+  const perf = opts.perf || core_chamadaPerformanceNew_(opts.performance !== false);
   const refDate = core_parseChamadaReferenceDate_(dataAtividade);
 
   if (!refDate) {
-    return core_buildChamadaError_(
+    return core_chamadaWithPerformance_(core_buildChamadaError_(
       "DATA_ATIVIDADE_OBRIGATORIA",
       "Informe a data da atividade."
-    );
+    ), perf);
   }
 
   if (!core_isChamadaAuthorizedContext_(contexto)) {
-    return core_buildChamadaError_(
+    return core_chamadaWithPerformance_(core_buildChamadaError_(
       "PERMISSAO_NEGADA",
       "Usuario sem permissao para listar membros para chamada."
-    );
+    ), perf);
   }
 
   if (!sheet) {
-    return core_buildChamadaError_(
+    return core_chamadaWithPerformance_(core_buildChamadaError_(
       "BASE_MEMBROS_INDISPONIVEL",
       "Base de membros indisponivel para chamada."
-    );
+    ), perf);
   }
 
   const observacoes = [];
   const lastRow = sheet.getLastRow();
   const lastCol = sheet.getLastColumn();
   if (lastRow <= CORE_MEMBERS_CFG.headerRow || lastCol < 1) {
-    return Object.freeze({
+    return core_chamadaWithPerformance_(Object.freeze({
       ok: true,
       data: Object.freeze([]),
       meta: Object.freeze({
         total: 0,
+        totalAplicaveis: 0,
+        totalNaoAplicaveis: 0,
         dataReferencia: core_formatChamadaDateIso_(refDate),
+        origem: "geapa-core",
         origemDados: "GEAPA_CORE",
+        cacheHit: false,
         observacoes: Object.freeze(["MEMBERS_ATUAIS sem linhas de membros para chamada."])
       })
-    });
+    }), perf);
   }
 
   const headers = sheet
@@ -1362,12 +1937,13 @@ function core_listarMembrosParaChamadaInSheet_(sheet, dataAtividade, contexto, o
       return String(header || "").trim();
     });
   const idx = core_getAttendanceMemberHeaderIndexMap_(headers);
+  core_chamadaPerformanceStep_(perf, "ler_cabecalhos_members_atuais");
 
   if (idx.name < 0 || idx.rga < 0) {
-    return core_buildChamadaError_(
+    return core_chamadaWithPerformance_(core_buildChamadaError_(
       "SCHEMA_MEMBROS_INVALIDO",
       "Base de membros sem cabecalhos obrigatorios para chamada."
-    );
+    ), perf);
   }
 
   if (idx.dataIntegracao < 0) {
@@ -1388,9 +1964,13 @@ function core_listarMembrosParaChamadaInSheet_(sheet, dataAtividade, contexto, o
   const displayValues = typeof range.getDisplayValues === "function"
     ? range.getDisplayValues()
     : values;
+  core_chamadaPerformanceStep_(perf, "ler_members_atuais");
+  const identityMaps = opts.identityMaps || core_getChamadaIdentityMaps_(observacoes, perf);
   const lifecycleByRga = opts.lifecycleByRga || core_getChamadaLifecycleEventsByRga_(observacoes);
+  core_chamadaPerformanceStep_(perf, "ler_eventos_vinculo");
   const out = [];
   const seenRga = {};
+  const seenIdentity = {};
 
   for (let i = 0; i < values.length; i++) {
     const rawRow = values[i];
@@ -1410,12 +1990,17 @@ function core_listarMembrosParaChamadaInSheet_(sheet, dataAtividade, contexto, o
       rawRow,
       idx,
       refDate,
-      lifecycleState
+      lifecycleState,
+      identityMaps
     );
 
     if (!item) continue;
+    const dedupeKey = core_chamadaMemberDedupeKey_(item);
+    if (dedupeKey && seenIdentity[dedupeKey]) continue;
+    if (dedupeKey) seenIdentity[dedupeKey] = true;
     out.push(item);
   }
+  core_chamadaPerformanceStep_(perf, "resolver_membros_members_atuais");
 
   let addedFromLifecycle = 0;
   Object.keys(lifecycleByRga).forEach(function(rgaKey) {
@@ -1423,8 +2008,11 @@ function core_listarMembrosParaChamadaInSheet_(sheet, dataAtividade, contexto, o
 
     const events = lifecycleByRga[rgaKey] || [];
     const lifecycleState = core_resolveChamadaLifecycleState_(events, refDate);
-    const item = core_buildChamadaMemberFromLifecycle_(events, refDate, lifecycleState);
+    const item = core_buildChamadaMemberFromLifecycle_(events, refDate, lifecycleState, identityMaps);
     if (!item) return;
+    const dedupeKey = core_chamadaMemberDedupeKey_(item);
+    if (dedupeKey && seenIdentity[dedupeKey]) return;
+    if (dedupeKey) seenIdentity[dedupeKey] = true;
 
     seenRga[rgaKey] = true;
     addedFromLifecycle++;
@@ -1440,33 +2028,106 @@ function core_listarMembrosParaChamadaInSheet_(sheet, dataAtividade, contexto, o
   out.sort(function(a, b) {
     return String(a.nomeExibicao || "").localeCompare(String(b.nomeExibicao || ""), "pt-BR");
   });
+  core_chamadaPerformanceStep_(perf, "montar_retorno");
 
-  return Object.freeze({
+  const totalAplicaveis = out.filter(function(item) {
+    return item.aplicavelNaData === true;
+  }).length;
+  const totalNaoAplicaveis = out.length - totalAplicaveis;
+
+  return core_chamadaWithPerformance_(Object.freeze({
     ok: true,
     data: Object.freeze(out),
     meta: Object.freeze({
       total: out.length,
+      totalAplicaveis: totalAplicaveis,
+      totalNaoAplicaveis: totalNaoAplicaveis,
       dataReferencia: core_formatChamadaDateIso_(refDate),
+      origem: "geapa-core",
       origemDados: "GEAPA_CORE",
+      cacheHit: false,
+      cacheTtlSeconds: CORE_CHAMADA_MEMBROS_CACHE_TTL_SECONDS,
       observacoes: Object.freeze(observacoes)
     })
-  });
+  }), perf);
 }
 
 function core_listarMembrosParaChamada_(dataAtividade, contexto) {
-  return core_listarMembrosParaChamadaInSheet_(
+  contexto = contexto || {};
+  const perf = core_chamadaPerformanceNew_(contexto.debugPerformance !== false);
+  const refDate = core_parseChamadaReferenceDate_(dataAtividade);
+  if (!refDate) {
+    return core_chamadaWithPerformance_(core_buildChamadaError_(
+      "DATA_ATIVIDADE_OBRIGATORIA",
+      "Informe a data da atividade."
+    ), perf);
+  }
+  if (!core_isChamadaAuthorizedContext_(contexto)) {
+    return core_chamadaWithPerformance_(core_buildChamadaError_(
+      "PERMISSAO_NEGADA",
+      "Usuario sem permissao para listar membros para chamada."
+    ), perf);
+  }
+
+  const dateIso = core_formatChamadaDateIso_(refDate);
+  const cacheKey = core_chamadaCacheKey_(dateIso);
+  if (contexto.disableCache !== true) {
+    const cached = core_chamadaCacheGet_(cacheKey);
+    if (cached && cached.ok === true) {
+      const meta = Object.assign({}, cached.meta || {}, {
+        cacheHit: true,
+        cacheKey: cacheKey,
+        cacheTtlSeconds: CORE_CHAMADA_MEMBROS_CACHE_TTL_SECONDS
+      });
+      core_chamadaPerformanceStep_(perf, "cache_hit_membros_chamada");
+      return core_chamadaWithPerformance_(Object.freeze({
+        ok: true,
+        data: Object.freeze(cached.data || []),
+        meta: Object.freeze(meta)
+      }), perf);
+    }
+  }
+
+  core_chamadaPerformanceStep_(perf, "cache_miss_membros_chamada");
+  const result = core_listarMembrosParaChamadaInSheet_(
     core_getMembersSheet_(),
     dataAtividade,
-    contexto || {}
+    contexto,
+    { perf: perf }
   );
+  if (result && result.ok === true) {
+    const finalResult = core_chamadaWithMeta_(result, {
+      cacheHit: false,
+      cacheKey: cacheKey,
+      cacheTtlSeconds: CORE_CHAMADA_MEMBROS_CACHE_TTL_SECONDS
+    });
+    if (contexto.disableCache !== true) {
+      core_chamadaCacheSet_(cacheKey, {
+        ok: true,
+        data: finalResult.data || [],
+        meta: Object.assign({}, finalResult.meta || {}, {
+          cacheHit: false,
+          cacheKey: cacheKey,
+          cacheTtlSeconds: CORE_CHAMADA_MEMBROS_CACHE_TTL_SECONDS
+        })
+      });
+    }
+    return finalResult;
+  }
+  return result;
 }
 
 function core_runTesteListarMembrosParaChamada_() {
-  const result = core_listarMembrosParaChamada_(core_formatChamadaDateIso_(new Date()), {
+  const dataReferencia = core_formatChamadaDateIso_(new Date());
+  core_invalidarCacheMembrosChamada_(dataReferencia);
+  const result = core_listarMembrosParaChamada_(dataReferencia, {
     perfil: "DIRETORIA"
   });
 
   if (!result || !result.ok) return result;
+  const segundoResultado = core_listarMembrosParaChamada_(dataReferencia, {
+    perfil: "DIRETORIA"
+  });
 
   const primeiraPessoa = result.data && result.data.length ? result.data[0] : "";
   const camposSeguros = !primeiraPessoa || core_hasOnlySafeChamadaFields_(primeiraPessoa);
@@ -1474,6 +2135,11 @@ function core_runTesteListarMembrosParaChamada_() {
   return Object.freeze({
     ok: true,
     total: result.meta ? result.meta.total : 0,
+    totalAplicaveis: result.meta ? result.meta.totalAplicaveis : 0,
+    totalNaoAplicaveis: result.meta ? result.meta.totalNaoAplicaveis : 0,
+    primeiraExecucaoCacheHit: result.meta ? result.meta.cacheHit === true : false,
+    segundaExecucaoCacheHit: segundoResultado && segundoResultado.meta ? segundoResultado.meta.cacheHit === true : false,
+    performanceTotalMs: result.performance ? result.performance.totalMs : 0,
     primeiraPessoa: primeiraPessoa || "",
     camposSeguros: camposSeguros
   });

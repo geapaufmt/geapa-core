@@ -195,6 +195,18 @@ Observacoes desta V1:
 - ainda nao ha janela deslizante real de 24 horas;
 - a escrita e feita por cabecalho, sem depender de indice fixo de coluna.
 
+### Rotinas V2 de Pessoas e Vigencias
+
+As rotinas manuais de diagnostico, conferencia e atualizacao segura de `PESSOAS_RESUMO_OPERACIONAL` e `VIGENCIAS_RESUMO_ATUAL` estao documentadas em [`docs/rotinas-v2-pessoas-vigencias.md`](docs/rotinas-v2-pessoas-vigencias.md).
+
+Estas rotinas usam Registry, `dryRun` por padrao, `MODULOS_CONFIG` quando disponivel e `MODULOS_STATUS` em best effort. Consumidores externos devem usar uma versao/implantacao publicada do Core.
+
+O job coordenado `coreV2_jobDiarioManutencao(options)` executa diagnostico, atualizacao e conferencia de Pessoas/Vigencias e pode receber callbacks do modulo Atividades. O trigger correspondente so e instalado por chamada manual a `coreV2InstalarTriggerJobDiario(options)`. A homologacao manual esta em [`docs/jobs-v2-manutencao.md`](docs/jobs-v2-manutencao.md).
+
+O bootstrap seguro `coreV2_bootstrapConfiguracao(options)` confere e, quando explicitamente autorizado em DEV, cria apenas linhas ausentes em `MODULOS_CONFIG` e `MODULOS_STATUS`. A operacao esta documentada em [`docs/bootstrap-configuracao-v2.md`](docs/bootstrap-configuracao-v2.md).
+
+O diagnostico `coreV2_runTesteResolverRegistryV2()` verifica, em modo somente leitura, se as keys de Pessoas/Vigencias V2 existem no Registry bruto em `AMBIENTE=DEV`, com IDs mascarados. Detalhes: [`docs/core-v2-registry-diagnostico.md`](docs/core-v2-registry-diagnostico.md).
+
 ### Sheets e records
 
 Camada reutilizavel para leitura e escrita sem depender de colunas fixas.
@@ -271,14 +283,237 @@ Observacao operacional:
 - as funcoes em lote saneiam bases ja existentes;
 - as funcoes por linha permitem que modulos ou projetos consumidores garantam IDs automaticamente em novos registros.
 
-### Ex-membros para comunicacoes abertas
+### Config_GEAPA
 
-API oficial para consultar destinatarios de ex-membros com consentimento ativo de comunicacao.
+A aba `Config_GEAPA` da PLANILHA GERAL passa a ser lida pelo core no formato vertical, uma configuracao por linha.
+
+Colunas esperadas:
+
+- `KEY`
+- `VALOR`
+- `TIPO`
+- `GRUPO`
+- `ATIVO`
+- `DESCRICAO`
+- `OBSERVACOES`
+
+Funcoes publicas:
+
+- `coreGetGeapaConfigValue(key, opts)`
+- `coreGetGeapaConfigMap(opts)`
+- `coreGetGeapaConfigObject(opts)`
+- `coreDebugGeapaConfig(opts)`
+
+Exemplo:
+
+```javascript
+var emailOficial = coreGetGeapaConfigValue('EMAIL_OFICIAL', {
+  required: true
+});
+```
+
+Regras da V1:
+
+- a aba e resolvida pelo Registry, preferencialmente por `CONFIG_GEAPA`, mantendo compatibilidade com a chave legada `DADOS_OFICIAIS_GEAPA`;
+- por padrao, apenas linhas com `ATIVO = SIM` entram no mapa;
+- chaves sao normalizadas para caixa alta, sem acentos e com `_`, como `CURSO_MAE` e `LOCAL_PADRAO_REUNIOES`;
+- `TIPO` preserva o valor como texto, mas aplica validacoes simples para `EMAIL`, `URL`, `DATA` e `COR_HEX`;
+- o modelo horizontal antigo, com chaves na linha 1 e valores na linha 2, ainda e aceito temporariamente como fallback legado, mas esta depreciado.
+
+### Dominios centrais v2 em DEV
+
+O core trata `PESSOAS v2 - DEV` e `VIGENCIAS v2 - DEV` como contratos operacionais consumiveis em DEV. A migracao inicial e a conferencia manual ja foram concluidas; as funcoes permanentes agora devem ler, auditar e recalcular caches v2 sem refazer migracao legado -> v2.
+
+Planilhas DEV preparadas:
+
+- `PESSOAS v2 - DEV`
+- `VIGENCIAS v2 - DEV`
+
+Funcoes publicas:
+
+- `coreGetDomainsV2Schemas()`
+- `coreGetDomainsV2ContractKeys()`
+- `coreAuditarPessoasV2()`
+- `coreAuditarVigenciasV2()`
+- `coreAuditarDominiosCentraisV2()`
+- `coreCompararLegadoComV2(opts)`
+- `coreRecalcularVigenciasResumoAtualV2(options)`
+- `coreRecalcularPessoasResumoOperacionalV2(options)`
+- `coreRecalcularMembrosDetalhesSemestreAtualV2(options)`
+- `coreDiagnosticarPessoasResumoOperacionalV2(options)`
+- `corePessoasGetById(idPessoa)`
+- `corePessoasFindByEmail(email)`
+- `corePessoasFindByRga(rga)`
+- `corePessoasGetOperationalSummary(idPessoa)`
+- `corePessoasListCurrentMembers(opts)`
+- `corePessoasListExMembers(opts)`
+- `corePessoasListWaitingMembers(opts)`
+- `corePessoasListAcademicCollaborators(opts)`
+- `corePessoasListExternalParticipants(opts)`
+- `coreVigenciasGetCurrentFunctionByPessoa(idPessoa)`
+- `coreVigenciasListCurrentFunctions(opts)`
+- `coreVigenciasGetPortalPermissionsByPessoa(idPessoa)`
+
+Comportamento permanente:
+
+- expoe contratos/schemas v2;
+- executa auditorias somente leitura;
+- executa recalculos controlados de caches v2;
+- expoe APIs publicas de leitura para Pessoas v2 e Vigencias v2;
+- as funcoes temporarias de setup/migracao inicial foram removidas da API publica e documentadas em `docs/MIGRACAO_V2_HISTORICO.md`.
+
+- as auditorias v2 sao somente leitura e retornam `ok`, `totalErros`, `totalAvisos`, `erros`, `avisos`, `recomendacoes` e `resumoQuantitativo`.
+- `coreCompararLegadoComV2(opts)` e apenas diagnostico de cobertura entre fontes legadas e v2; nao altera dados e nao reabre a migracao.
+
+Abas de `PESSOAS v2`:
+
+- `PESSOAS_BASE`
+- `PESSOAS_IDENTIFICADORES`
+- `MEMBROS_DETALHES`
+- `COLABORADORES_ACADEMICOS`
+- `PARTICIPANTES_EXTERNOS_DETALHES`
+- `VINCULOS_GEAPA`
+- `MEMBROS_EVENTOS_VINCULO`
+- `PESSOAS_COMUNICACAO_CONSENTIMENTOS`
+- `PORTAL_ACESSOS_EXCECOES`
+- `PESSOAS_RESUMO_OPERACIONAL`
+
+Abas de `VIGENCIAS v2`:
+
+- `SEMESTRES`
+- `CICLOS`
+- `DIRETORIAS`
+- `SEMESTRES_DIRETORIA`
+- `CARGOS_CONFIG`
+- `VIGENCIAS_FUNCOES`
+- `VIGENCIAS_RESUMO_ATUAL`
+
+Observacoes normativas:
+
+- `PESSOAS_RESUMO_OPERACIONAL` e cache/visao, nao fonte normativa;
+- `COLABORADORES_ACADEMICOS` preserva `EIXO_ASSOCIADO` como dado cadastral academico, nao como fonte de destinatarios/divulgacao;
+- `PESSOAS_COMUNICACAO_CONSENTIMENTOS` e a fonte de comunicacao segmentada; professores/tecnicos, externos e egressos devem registrar ali consentimento, status de comunicacao e interesses por eixo;
+- `PESSOAS` nao passa a decidir presenca, falta, justificativa ou apresentacao;
+- `VIGENCIAS_FUNCOES` registra funcao temporal e nao cria nova categoria de membro;
+- `VIGENCIAS_RESUMO_ATUAL` e cache calculado: deve ser reconstruido por `coreRecalcularVigenciasResumoAtualV2`, nao editado manualmente como fonte normativa;
+- permissao e perfil de portal devem continuar derivados de contratos oficiais, nao de edicao manual isolada em cache.
+
+Leituras operacionais:
+
+- buscas de pessoa retornam o cadastro base e, quando existir, identificadores, detalhes de membro, vinculos, resumo operacional, consentimentos e excecoes de portal;
+- listas de membros atuais, egressos e membros em espera usam `VINCULOS_GEAPA` e, por padrao, apenas vinculos ativos;
+- colaboradores academicos e participantes externos sao listados pelas abas de detalhe correspondentes, sem usa-las como base de comunicacao;
+- funcoes vigentes usam `VIGENCIAS_FUNCOES` e agregam a configuracao correspondente em `CARGOS_CONFIG`;
+- permissoes de portal por pessoa sao calculadas a partir de cargos vigentes e campos de permissao em `CARGOS_CONFIG`.
+
+Recalculo seguro de `VIGENCIAS_RESUMO_ATUAL`:
+
+```javascript
+var previa = coreRecalcularVigenciasResumoAtualV2({
+  dryRun: true
+});
+```
+
+Se a amostra estiver correta e a auditoria estrutural estiver aceitavel:
+
+```javascript
+var resultado = coreRecalcularVigenciasResumoAtualV2({
+  dryRun: false,
+  confirmacao: 'RECALCULAR_RESUMO_ATUAL_V2'
+});
+```
+
+O recalculo usa `VIGENCIAS_FUNCOES`, `CARGOS_CONFIG`, `PESSOAS_BASE` e `MEMBROS_DETALHES`; ele limpa apenas as linhas de dados do cache `VIGENCIAS_RESUMO_ATUAL` e reescreve o resumo atual por cabecalho.
+
+Recalculo seguro de `PESSOAS_RESUMO_OPERACIONAL`:
+
+```javascript
+var previaPessoas = coreRecalcularPessoasResumoOperacionalV2({
+  dryRun: true
+});
+```
+
+Se a amostra estiver correta:
+
+```javascript
+var resultadoPessoas = coreRecalcularPessoasResumoOperacionalV2({
+  dryRun: false,
+  confirmacao: 'RECALCULAR_PESSOAS_RESUMO_V2'
+});
+```
+
+O recalculo usa `PESSOAS_BASE`, `PESSOAS_IDENTIFICADORES`, `MEMBROS_DETALHES`, `VINCULOS_GEAPA`, `MEMBROS_EVENTOS_VINCULO`, `PORTAL_ACESSOS_EXCECOES`, `VIGENCIAS_RESUMO_ATUAL`, `SEMESTRES` e, quando disponiveis via Registry, as views de Atividades v2:
+
+`QTD_SEMESTRES_NO_GRUPO` e calculado apenas por intersecao do vinculo efetivo com os semestres letivos oficiais de `VIGENCIAS_V2_SEMESTRES`; `CICLOS` nao e usado como substituto para essa contagem. `CICLO_ULTIMA_APRESENTACAO` guarda o ciclo real da ultima apresentacao, enquanto `PERIODO_ULTIMA_APRESENTACAO` permanece apenas como alias legado de periodo/semestre quando a coluna ainda existir.
+
+- `ATIVIDADES_V2_DB` (`Atividades`)
+- `ATIVIDADES_V2_APRESENTACOES`
+- `ATIVIDADES_V2_ENVOLVIDOS`
+- `ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES`
+- `ATIVIDADES_V2_PRESENCAS_REGISTROS`
+- `ATIVIDADES_V2_PORTAL_FREQUENCIA_MEMBROS`
+- `ATIVIDADES_V2_JUSTIFICATIVAS`
+- `ATIVIDADES_V2_PORTAL_JUSTIFICATIVAS`
+
+As colunas transitorias `PODE_*` em `CARGOS_CONFIG` sao lidas quando existirem, mas nao bloqueiam o recalculo quando ausentes. A fonte final de autorizacao do Portal continua sendo `PORTAL_PERMISSOES`.
+
+`ATIVIDADES_V2_PORTAL_APRESENTACOES` nao e mais contrato ativo do Portal: apresentacoes publicas devem ser derivadas de `ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES.APRESENTACOES_PUBLICAS_JSON`.
+
+Campos recalculados:
+
+- vinculo atual por prioridade operacional: membro efetivo ativo, membro em espera ativo, egresso, outros vinculos;
+- cargo atual e perfil portal a partir de Vigencias, com fallback `Membro` para membro efetivo ativo sem funcao vigente;
+- `PORTAL_ATIVO` a partir de vinculo, perfil e excecoes explicitas;
+- tempo efetivo e quantidade de semestres considerando apenas vinculos `MEMBRO_EFETIVO`, com mescla de intervalos sobrepostos;
+- apresentacoes realizadas e `CICLO_ULTIMA_APRESENTACAO`, conciliando identidade de `Atividades` com estado de `Atividades_Apresentacoes`;
+- frequencia resumida a partir de `PORTAL_FREQUENCIA_MEMBROS`, com fallback para registros de presenca;
+- pendencias de apresentacao, material, frequencia e justificativas abertas;
+- flag de suspensao e elegibilidade basica para diretoria.
+
+O recalc real faz upsert por `ID_PESSOA`: atualiza linhas existentes e adiciona ausentes, preservando cabecalhos, colunas extras e valores manuais fora do contrato derivado, sem limpar a aba inteira. `DATA_LIMITE_ESTIMADA_DIRETORIA` e a elegibilidade existente sao preservadas quando ja estiverem calculadas por um modulo especializado. O relatorio retorna contagens por campo em `resumoQuantitativo.camposPreenchidos`, `resumoQuantitativo.camposSemValor`, `camposNaoCalculaveis` e um resumo `divergenciasLegado` somente leitura quando a comparacao for possivel.
+
+Diagnostico somente leitura:
+
+```javascript
+var diagnostico = coreDiagnosticarPessoasResumoOperacionalV2();
+```
+
+O diagnostico verifica pessoas sem resumo, resumos sem pessoa, membro ativo sem portal/RGA/e-mail, egresso com portal ativo, divergencias contra `VIGENCIAS_RESUMO_ATUAL` e campos operacionais vazios.
+
+Recalculo seguro de `MEMBROS_DETALHES.SEMESTRE_ATUAL`:
+
+```javascript
+var previaSemestreAtual = coreRecalcularMembrosDetalhesSemestreAtualV2({
+  dryRun: true
+});
+```
+
+Se a amostra estiver correta:
+
+```javascript
+var resultadoSemestreAtual = coreRecalcularMembrosDetalhesSemestreAtualV2({
+  dryRun: false,
+  confirmacao: 'RECALCULAR_MEMBROS_DETALHES_SEMESTRE_ATUAL_V2'
+});
+```
+
+Esse recalc preenche somente `SEMESTRE_ATUAL` em `MEMBROS_DETALHES`, interpretando o ingresso no curso pelo RGA e o semestre vigente pela aba `SEMESTRES` de Vigencias v2. Ele nao altera `SEMESTRE_ENTRADA`, que representa o semestre de entrada do membro no GEAPA.
+
+Historico da migracao inicial v2:
+
+- a migracao legado -> v2 foi concluida e revisada manualmente;
+- as funcoes temporarias de criacao, dry-run, migracao e reset foram removidas da API publica;
+- o registro historico da fase fica em `docs/MIGRACAO_V2_HISTORICO.md`;
+- o arquivo `29_core_domains_v2_migration.js` fica apenas como referencia interna temporaria e nao deve ser chamado em producao.
+
+### Egressos para comunicacoes abertas
+
+API oficial para consultar destinatarios egressos com consentimento ativo de comunicacao. O nome historico de funcao ainda usa `ExMembers` por compatibilidade temporaria.
 
 Fonte de verdade:
 
 - planilha `PESSOAS`;
-- aba oficial `Ex-Membros`;
+- aba oficial legada `Ex-Membros`;
 - nunca usar fila administrativa de pedidos como fonte de destinatarios futuros.
 
 Funcao publica:
@@ -317,7 +552,7 @@ Formato retornado:
   rga: '202000000000',
   email: 'pessoa@email.com',
   eixosInteresse: ['EIXO_I', 'EIXO_III'],
-  origem: 'EX_MEMBROS'
+  origem: 'EX_MEMBROS' // alias legado para publico de egressos
 }
 ```
 
@@ -483,8 +718,8 @@ Observacao:
 
 - os modulos continuam donos do conteudo de negocio;
 - o renderer devolve `htmlBody`, `bodyText` e `emailOptions`, e agora tambem alimenta a V1 da `MAIL_SAIDA`;
-- o slogan exibido no rodape nao e fixo: ele e buscado da coluna `Slogan` da diretoria vigente em `VIGENCIA_DIRETORIAS`, com fallback seguro quando estiver vazio.
-- a identidade oficial do grupo usada no renderer passa a ser lida de `DADOS_OFICIAIS_GEAPA`, incluindo nome oficial, sigla, e-mail oficial e cores institucionais;
+- o lema exibido no rodape nao e fixo: ele e buscado da coluna `LEMA` da diretoria vigente em `VIGENCIA_DIRETORIAS`, com fallback temporario para a coluna legada `Slogan` e fallback seguro quando estiver vazio.
+- a identidade oficial do grupo usada no renderer passa a ser lida pela camada central `Config_GEAPA`, incluindo nome oficial, sigla, e-mail oficial e cores institucionais;
 - nesta etapa, `LOGO_OFICIAL` fica reservado para evolucao posterior; o renderer continua usando a imagem institucional padrao ja servida pelo core.
 - `GEAPA_CLASSICO` preserva a linguagem mais simples do template historico de aniversarios: card unico, borda verde, lista linear de itens e rodape mais leve.
 
@@ -584,7 +819,15 @@ MAIL_SAIDA (V1 minima):
 - `coreMailProcessOutbox()` processa a fila central, monta o assunto final com `[GEAPA][CHAVE]`, renderiza o HTML institucional, envia tecnicamente e atualiza `Id Thread Gmail`, `Id Mensagem Gmail`, `Enviado Em`, `Tentativas`, `Ultimo Erro` e `Status Envio`;
 - ao enviar com sucesso, o core tambem registra `EMAIL_ENVIADO` em `MAIL_EVENTOS` e recompõe `MAIL_INDICE`;
 - nesta V1, o contrato do modulo pode incluir `moduleName`, `templateKey`, `correlationKey`, `entityType`, `entityId`, `flowCode`, `stage`, `to`, `cc`, `bcc`, `subjectHuman`, `payload`, `priority`, `sendAfter` e `metadata`;
-- quando o modulo optar por envio em massa via `bcc`, o core usa `EMAIL_OFICIAL` em `DADOS_OFICIAIS_GEAPA` como envelope principal de seguranca.
+- quando o modulo optar por envio em massa via `bcc`, o core usa `EMAIL_OFICIAL` da camada central `Config_GEAPA` como envelope principal de seguranca.
+
+Adapters institucionais da Mail Hub:
+
+- `ATV` / `ATIVIDADES`
+- `APR` / `APRESENTACOES`
+- `SEL` / `SELETIVO`
+- `MEM` / `MEMBROS`
+- `DES` / `DESLIGAMENTOS`: usa chaves `DES-{ID_SOLICITACAO}`, roteia replies para `Modulo Dono = DESLIGAMENTOS` e preenche `Tipo Entidade = SOLICITACAO_VINCULO` / `Id Entidade = ID_SOLICITACAO`.
 
 Higiene de ingestao e consistencia semantica:
 
@@ -637,6 +880,21 @@ Semantica pratica dessas configuracoes:
 
 Testes manuais no projeto:
 
+- `teste_getGeapaConfigValue_EMAIL_OFICIAL()`
+- `teste_getGeapaConfigMap()`
+- `diagnosticarConfigGeapa()`
+- `test_core_domainsV2_auditarPessoas()`
+- `test_core_domainsV2_auditarVigencias()`
+- `test_core_domainsV2_auditarDominiosCentrais()`
+- `test_core_domainsV2_compararLegadoComV2()`
+- `test_core_domainsV2_recalcularVigenciasResumoAtual_dryRun()`
+- `test_core_domainsV2_recalcularPessoasResumoOperacional_dryRun()`
+- `test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_dryRun()`
+- `test_core_domainsV2_diagnosticarPessoasResumoOperacional()`
+- `test_core_domainsV2_recalcularPessoasResumoOperacional_REAL_CONFIRMADO()`
+- `test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_REAL_CONFIRMADO()`
+- `test_core_domainsV2_pessoasListCurrentMembers()`
+- `test_core_domainsV2_recalcularVigenciasResumoAtual_REAL_CONFIRMADO()`
 - `test_core_modulesConfig_debug()`
 - `test_core_modulesConfig_clearCacheAndDebug()`
 - `test_core_modulesConfig_applySheetUx()`
@@ -682,6 +940,9 @@ Testes manuais no projeto:
 - `test_core_memberLifecycle_updateEvent_invalidStatus_fakeSheet()`
 - `test_core_portalBuscarMembroParaPortal_fakeSheet()`
 - `test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet()`
+- `test_core_portalV2_diagnosticarPerfisEPermissoes()`
+- `test_core_portalV2_prepararPortalParaV2()`
+- `test_core_portalV2_resolverUsuarioAtual_emailExemplo()`
 - `test_core_mailHub_listPendingAttachments()`
 - `test_core_mailHub_getLatestPendingEventWithAttachment()`
 - `test_core_mailHub_getAttachmentById_example(attachmentId)`
@@ -756,6 +1017,7 @@ Funcao publica exportada pela Library:
 - `geapaCoreBuscarMembroParaPortal(emailOuRga)`
 - `geapaCoreBuscarUsuarioPortal(emailOuRga)`
 - `geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga)`
+- `geapaCoreBuscarMeuPerfilParaPortal(emailOuRga)`
 - `geapaCoreListarMembrosParaChamada(dataAtividade, contexto)`
 - `geapaCoreRunTesteUsuarioPortal()`
 - `geapaCoreRunTesteListarMembrosParaChamada()`
@@ -769,6 +1031,7 @@ Regras do contrato:
 - a consulta cadastral retorna um unico membro ou `null`;
 - a consulta de usuario retorna dados basicos seguros, cargos atuais do proprio usuario, perfis e permissoes iniciais;
 - a consulta de "Minha situacao" retorna `ok: true` ou erro controlado com `ok: false`;
+- a consulta de "Meu perfil" retorna somente o perfil da pessoa resolvida pela propria sessao do Portal, em modo somente leitura;
 - nao retorna listas completas, dados sensiveis, frequencia detalhada, pendencias sensiveis, certificados ou historico;
 - em caso de erro interno, nao expoe identificadores ou detalhes da planilha ao chamador.
 
@@ -868,8 +1131,10 @@ Retorno de sucesso:
   ok: true,
   data: [
     {
+      idPessoa: string,
       tipoParticipante: "MEMBRO",
       rga: string,
+      email: string,
       nomeExibicao: string,
       situacao: "ATIVO" | "SUSPENSO" | "LICENCA" | "AFASTADO",
       vinculo: string,
@@ -881,9 +1146,20 @@ Retorno de sucesso:
   ],
   meta: {
     total: number,
+    totalAplicaveis: number,
+    totalNaoAplicaveis: number,
     dataReferencia: "yyyy-MM-dd",
+    origem: "geapa-core",
     origemDados: "GEAPA_CORE",
+    cacheHit: boolean,
+    cacheTtlSeconds: 600,
     observacoes: []
+  },
+  performance: {
+    totalMs: number,
+    etapas: [
+      { etapa: string, ms: number, totalMs: number }
+    ]
   }
 }
 ```
@@ -892,13 +1168,24 @@ Regras da chamada:
 
 - funcao somente leitura, segura para uso indireto pelo Portal via Apps Script/backend, como `geapa-atividades`;
 - nao escreve em planilhas e nao altera producao;
-- usa `MEMBERS_ATUAIS` como base principal de membros e, quando disponivel, `MEMBER_EVENTOS_VINCULO` para historico de ingresso, desligamento, suspensao e retorno;
-- retorna apenas campos seguros: `tipoParticipante`, `rga`, `nomeExibicao`, `situacao`, `vinculo`, `aplicavelNaData`, `contaPresenca`, `contaFalta` e `motivoNaoAplicavel`;
-- nao retorna e-mail completo, CPF, telefone, endereco, documentos, observacoes internas, dados disciplinares, logs ou IDs privados de planilhas;
+- usa `MEMBERS_ATUAIS` como base principal de membros e, quando disponiveis via Registry, `PESSOAS_V2_BASE`, `PESSOAS_V2_MEMBROS_DETALHES` e `PESSOAS_V2_IDENTIFICADORES` para enriquecer identidade canonica;
+- quando disponivel, usa `MEMBER_EVENTOS_VINCULO` para historico de ingresso, desligamento, suspensao e retorno;
+- retorna apenas campos seguros para a chamada: `idPessoa`, `tipoParticipante`, `rga`, `email`, `nomeExibicao`, `situacao`, `vinculo`, `aplicavelNaData`, `contaPresenca`, `contaFalta` e `motivoNaoAplicavel`;
+- a identidade canonica prioriza `ID_PESSOA`, depois `RGA`, depois e-mail, evitando duplicidade do mesmo membro real;
+- nao retorna CPF, telefone, endereco, documentos, observacoes internas, dados disciplinares, logs ou IDs privados de planilhas;
 - exclui pessoas que ingressaram depois da data da atividade ou que tiveram vinculo encerrado antes da data;
 - quando situacao confiavel indicar suspensao, licenca ou afastamento, a pessoa pode retornar como N/A seguro, com `contaPresenca: false`, `contaFalta: false` e motivo padronizado, sem expor motivo sensivel;
 - se o contexto trouxer perfil sem permissao operacional, retorna `PERMISSAO_NEGADA`;
 - se `MEMBER_EVENTOS_VINCULO` ou campos oficiais de datas ainda nao estiverem disponiveis, a resposta inclui limitacoes em `meta.observacoes` e nao inventa dados ausentes.
+- usa cache curto por ambiente/data com chave `CORE_MEMBROS_CHAMADA_V2:<AMBIENTE>:<yyyy-MM-dd>` e TTL de 10 minutos;
+- o cache pode ser ignorado com `contexto.disableCache === true` e invalidado por data com `geapaCoreInvalidarCacheMembrosChamada(dataAtividade)`;
+- retorna diagnostico de performance em `performance.totalMs` e `performance.etapas`.
+
+Observacao operacional para o Pacote 3.1:
+
+- `SALVAR` chamada em `geapa-atividades` e apenas rascunho operacional em `Portal_Acoes` (`CHAMADA_RASCUNHO_SALVO`) e nao deve ser tratado pelo Core como presenca oficial;
+- apenas `FINALIZAR` produz presenca oficial em `Atividades_Presencas_Registros`;
+- a listagem de membros do Core nao recalcula frequencia/justificativas e nao espera atualizacao dessas visoes apos `SALVAR`.
 
 Erros controlados da chamada:
 
@@ -906,6 +1193,207 @@ Erros controlados da chamada:
 - perfil sem permissao: `{ ok: false, errorCode: "PERMISSAO_NEGADA", message: "Usuario sem permissao para listar membros para chamada." }`
 - schema invalido: `{ ok: false, errorCode: "SCHEMA_MEMBROS_INVALIDO", message: "Base de membros sem cabecalhos obrigatorios para chamada." }`
 - erro inesperado: `{ ok: false, errorCode: "ERRO_LISTAR_MEMBROS_CHAMADA", message: "Nao foi possivel listar membros para chamada." }`
+
+### Portal GEAPA - perfis e permissoes
+
+Camada inicial para ler autorizacao e permissoes do Portal GEAPA na planilha `PESSOAS`, sem Firebase Auth nesta etapa.
+
+Abas oficiais esperadas via Registry:
+
+- `PORTAL_PERFIS`
+- `PORTAL_PERMISSOES`
+- `PORTAL_CONFIG`
+- `PORTAL_LOG_ACESSOS`
+
+Abas de pessoas usadas para localizar e-mail:
+
+- `Membros Atuais`
+- `Membros em Espera`
+- `Ex-Membros`
+
+Colunas novas esperadas nas abas de pessoas:
+
+- `PORTAL_ATIVO`
+- `PERFIL_PORTAL`
+- `PORTAL_OBS`
+
+Funcoes publicas:
+
+- `corePortalGetConfig()`
+- `corePortalGetOperationalConfig(opts)` - le `PORTAL_CONFIG` com cache, filtra `ATIVO = SIM`, normaliza booleanos/numeros e oculta chaves sensiveis
+- `corePortalClearConfigCache()`
+- `corePortalGetProfiles()`
+- `corePortalGetPermissionsByProfile(perfilPortal)`
+- `corePortalAuthorizeEmail(email, opts)`
+- `corePortalHasPermission(sessionOrEmail, permission, opts)`
+- `corePortalLogAccess(payload)`
+- `corePortalDiagnostics()`
+- `corePortalResolverUsuarioAtual(entrada, opts)` - aceita e-mail, RGA, `ID_PESSOA` ou objeto com `email`, `rga`, `idPessoa`, `identificador`/`emailOuRga`
+- `corePortalCalcularPerfilEfetivo(idPessoa, opts)`
+- `corePortalListarPermissoesEfetivas(idPessoa, opts)`
+- `corePortalValidarAcesso(idPessoa, permissaoOuPerfil, opts)`
+- `corePortalGetMeuResumo(email, opts)`
+- `corePortalListarApresentacoesPermitidas(email, options)`
+- `corePortalListarApresentacoesParaEgresso(idPessoa, opts)`
+- `corePortalDiagnosticarPerfisEPermissoes(opts)`
+- `corePortalDiagnosticarAcessoPortalDev(opts)`
+- `corePrepararPortalParaV2(opts)`
+
+Regras principais:
+
+- `corePortalAuthorizeEmail` e transitoria/legada enquanto nao ha Firebase Auth;
+- a autorizacao por e-mail nao substitui autenticacao real e nao deve proteger acoes administrativas sensiveis sozinha;
+- as funcoes v2 resolvem usuario, perfil e permissoes a partir de Pessoas v2, Vigencias v2 e `PORTAL_PERMISSOES`;
+- `corePortalResolverUsuarioAtual` usa `PESSOAS_RESUMO_OPERACIONAL` como base principal de identidade/vinculo/perfil e `VIGENCIAS_RESUMO_ATUAL` como base principal de cargos atuais;
+- `geapaCoreBuscarMembroParaPortal`, `geapaCoreBuscarUsuarioPortal` e `geapaCoreBuscarMinhaSituacaoParaPortal` usam Pessoas v2 como fonte principal e deixam `MEMBERS_ATUAIS` apenas como fallback de compatibilidade;
+- `PORTAL_PERMISSOES` e a fonte oficial de permissoes efetivas;
+- `CARGOS_CONFIG` define cargo e `PERFIL_PORTAL_PADRAO`, mas nao e fonte final de permissao;
+- colunas `PODE_*` em `CARGOS_CONFIG` sao transitorias/depreciadas para autorizacao final;
+- `ADMIN` deve vir de excecao explicita ativa em `PORTAL_ACESSOS_EXCECOES`, nao de cargo;
+- `corePortalResolverUsuarioAtual` retorna a sessao canonica segura do Portal com `autenticado`, `idPessoa`, `perfilPortalEfetivo`, `perfisPortal`, `permissoes`, vinculo atual e cargos atuais sanitizados;
+- `PORTAL_MODO_ACESSO` controla a liberacao geral: `TESTE` aplica `PORTAL_EMAILS_TESTE`; `MEMBROS_ATIVOS` ignora a whitelist de teste e libera membros ativos com `portal:acessar`; `PUBLICO_LIMITADO` so deve ser usado com fluxo publico seguro;
+- para liberar aos membros hoje, configure `PORTAL_MODO_ACESSO = MEMBROS_ATIVOS`, `AUTH_ALLOW_VISITANTE = NAO` e `PORTAL_BLOCK_INACTIVE_MEMBERS = SIM`;
+- apos alterar `PORTAL_MODO_ACESSO`, rode `corePortalClearConfigCache()` e force nova validacao de sessao no Portal;
+- `EGRESSO` pode acessar apresentacoes ate a data de saida por `apresentacoes:ver_ate_saida`;
+- `PORTAL_ATIVO = SIM` permite avaliar o perfil;
+- `PORTAL_ATIVO = NAO` bloqueia;
+- `PORTAL_ATIVO` vazio bloqueia por padrao, salvo configuracao explicita em `PORTAL_CONFIG`;
+- `PERFIL_PORTAL` vazio usa `PORTAL_DEFAULT_PROFILE`, se existir, ou `MEMBRO` apenas para `Membros Atuais`;
+- `Ex-Membros` bloqueiam por padrao;
+- `Membros em Espera` so autorizam com `opts.includeWaiting === true` ou configuracao explicita;
+- `VISITANTE` so e aceito com `AUTH_ALLOW_VISITANTE = SIM`;
+- `ADMIN` nao e usado como padrao; precisa estar explicitamente em `PERFIL_PORTAL`;
+- permissoes sempre vem de `PORTAL_PERMISSOES`, nao de codigo hardcoded.
+
+Logs de acesso:
+
+- `corePortalLogAccess(payload)` escreve somente em `PORTAL_LOG_ACESSOS`;
+- nunca registre senha, token, segredo ou ID Token;
+- campos usados: `TIMESTAMP`, `EMAIL`, `UID_FIREBASE`, `NOME`, `PERFIL_PORTAL`, `ACAO`, `RESULTADO`, `MOTIVO`, `ORIGEM`, `USER_AGENT`, `OBS`.
+
+Firebase futuro:
+
+- Firebase Hosting/Auth, validacao de ID Token, API key e service account ficam fora desta etapa;
+- em PR futuro, a autenticacao Firebase deve chamar a mesma camada de perfis/permissoes, trocando a entrada `corePortalAuthorizeEmail(email)` por uma entrada autenticada como `corePortalAuthorizeFirebaseUser(idToken)`.
+
+Diagnostico v2:
+
+- `corePortalDiagnosticarPerfisEPermissoes()` verifica perfis obrigatorios, permissoes por perfil, usuarios sem perfil, egressos sem perfil `EGRESSO` e excecoes `ADMIN`;
+- `corePortalDiagnosticarAcessoPortalDev()` verifica o modo de acesso, membros ativos com/sem e-mail, perfis sem `portal:acessar` e e-mails que ficariam bloqueados por `PORTAL_EMAILS_TESTE` no modo `TESTE`;
+- `corePrepararPortalParaV2()` retorna `PRONTO`, `PARCIAL` ou `BLOQUEADO` antes de qualquer alteracao no `geapa-portal`;
+- detalhes da arquitetura ficam em `docs/PORTAL_AUTORIZACAO_V2.md`.
+
+### Portal GEAPA - conteudo publico editorial
+
+`PORTAL_CONTEUDO_PUBLICO` e a planilha CMS editorial do Portal GEAPA. Ela serve para conteudo publico editavel em Google Sheets, como home, sobre, historia, parceiros, documentos, midias e complementos publicos de pessoas/gestoes.
+
+Ela nao e fonte oficial para atividades, apresentacoes, membros, diretoria, frequencia ou permissoes. Esses dados continuam vindo dos modulos de dominio e de views/contratos `PORTAL_*` especificos.
+
+Funcoes publicas:
+
+- `corePortalPublicContentGetDefinitions()`
+- `corePortalPublicContentEnsureStructure(options)`
+- `corePortalPublicContentCreateSpreadsheet(options)`
+- `corePortalPublicContentEnsureSheets(options)`
+- `corePortalPublicContentEnsureHeaders(options)`
+- `corePortalPublicContentDiagnostics(options)`
+- `corePortalPublicContentReadRows(key, options)`
+- `corePortalPublicContentGetPage(slug, options)`
+- `corePortalPublicContentGetHome(options)`
+- `corePortalPublicContentGetSobre(options)`
+- `corePortalPublicContentGetHistoria(options)`
+- `corePortalPublicContentGetParceiros(options)`
+- `corePortalPublicContentGetDocumentos(options)`
+- `corePortalPublicContentGetConfig(options)`
+- `corePortalPublicContentGetMidias(options)`
+- `corePortalPublicContentGetDiretoriaComplementos(options)`
+- `corePortalPublicContentGetPessoasComplementos(options)`
+- `corePortalPublicContentGetGestoesComplementos(options)`
+- `corePortalPublicContentGetPessoasConfig(options)`
+- `corePortalPublicContentBuildPublicSnapshot(options)`
+
+Abas editoriais garantidas:
+
+- `PUBLIC_HOME`
+- `PUBLIC_SOBRE`
+- `PUBLIC_HISTORIA`
+- `PUBLIC_PARCEIROS`
+- `PUBLIC_DOCUMENTOS`
+- `PUBLIC_CONFIG`
+- `PUBLIC_MIDIAS`
+- `PUBLIC_PESSOAS_COMPLEMENTOS`
+- `PUBLIC_GESTOES_COMPLEMENTOS`
+- `PUBLIC_PESSOAS_CONFIG`
+- `PUBLIC_LOG_PUBLICACAO`
+
+`PUBLIC_DIRETORIA_COMPLEMENTOS` e `PORTAL_PUBLIC_DIRETORIA_COMPLEMENTOS` ficam apenas como legado defensivo de leitura. A rotina estrutural nova nao cria essa aba antiga.
+
+Regras da rotina estrutural:
+
+- usa Registry para resolver a planilha quando as keys ja existem;
+- se a aba nao existir, cria a aba;
+- se a aba existir, preserva dados e colunas extras;
+- se faltarem colunas, adiciona ao final;
+- rodar duas vezes nao duplica abas nem cabecalhos;
+- usa `LockService` via helper do Core para evitar concorrencia;
+- nao escreve no Registry automaticamente nesta etapa;
+- `corePortalPublicContentCreateSpreadsheet({ confirm: true })` existe para criacao administrativa explicita e retorna linhas sugeridas para cadastro manual no Registry.
+
+Firestore futuro:
+
+- o Firestore sera espelho publico futuro, nao fonte editorial principal nesta etapa;
+- proximas atividades e proximas apresentacoes nao devem virar abas editoriais principais aqui;
+- no futuro, uma rotina deve montar snapshot publico, como `publicAgenda/upcoming`, a partir de fontes oficiais ja sanitizadas, sem RGA, e-mail privado, presencas, faltas, justificativas ou observacoes internas.
+
+Leitura publica sanitizada:
+
+- resolve abas pelo Registry usando as keys `PORTAL_PUBLIC_*`;
+- le por cabecalho, nunca por indice fixo;
+- considera publicaveis somente linhas com `ATIVO = SIM`, `PUBLICAR = SIM` e `STATUS_PUBLICACAO = PUBLICADO/PUBLICADA`, quando essas colunas existirem;
+- ordena por `ORDEM` ou `ORDEM_PUBLICA`, quando existir;
+- retorna arrays vazios para abas vazias;
+- nao retorna colunas extras automaticamente;
+- sanitiza textos e URLs;
+- nao escreve em planilhas;
+- usa cache curto para snapshot/linhas no caminho real;
+- `PUBLIC_LOG_PUBLICACAO` nao e exposto pela leitura publica sanitizada.
+
+Contrato do snapshot editorial:
+
+```javascript
+{
+  ok: true,
+  data: {
+    pages: {
+      home: { blocos: [], atualizadoEm: "" },
+      sobre: { blocos: [], atualizadoEm: "" },
+      historia: { marcos: [], atualizadoEm: "" },
+      parceiros: { itens: [], atualizadoEm: "" }
+    },
+    documents: [],
+    media: [],
+    config: {},
+    boardComplements: [],
+    peopleComplements: [],
+    managementComplements: [],
+    peopleConfig: {}
+  },
+  meta: {
+    origem: "GEAPA_CORE",
+    fonte: "PORTAL_CONTEUDO_PUBLICO",
+    atualizadoEm: ""
+  }
+}
+```
+
+Diretoria:
+
+- `corePortalPublicContentGetPessoasComplementos()` retorna complementos editoriais publicos de `PUBLIC_PESSOAS_COMPLEMENTOS`;
+- `corePortalPublicContentGetGestoesComplementos()` retorna complementos editoriais publicos de `PUBLIC_GESTOES_COMPLEMENTOS`;
+- `corePortalPublicContentGetPessoasConfig()` retorna configuracoes publicas de `PUBLIC_PESSOAS_CONFIG`;
+- `corePortalPublicContentGetDiretoriaComplementos()` existe apenas como fallback legado para `PUBLIC_DIRETORIA_COMPLEMENTOS`;
+- nao monta a diretoria completa nesta etapa, porque isso exigiria cruzamento com Vigencias/Pessoas;
+- a funcao futura documentada para isso e `corePortalPublicContentBuildPublicBoard(options)`.
 
 Observacao de seguranca:
 
@@ -985,7 +1473,7 @@ Regras das pendencias:
 
 Bloco de participacao por apresentacoes:
 
-- `minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacao` vem de `PERIODO_ULTIMA_APRESENTACAO`;
+- `minhaSituacao.participacao.apresentacoes.periodoUltimaApresentacao` vem de `CICLO_ULTIMA_APRESENTACAO`, aceitando `PERIODO_ULTIMA_APRESENTACAO` apenas como alias legado;
 - `minhaSituacao.participacao.apresentacoes.quantidadeRealizadas` vem de `QTD_APRESENTACOES_REALIZADAS`;
 - `QTD_APRESENTACOES_REALIZADAS` ja e o total consolidado entre a base legado e as apresentacoes atuais;
 - os campos `*_BASE_LEGADO` nao sao expostos ao portal para evitar dupla contagem ou interpretacao ambigua;
@@ -1059,7 +1547,7 @@ O core depende do Registry e, conforme a funcao chamada, pode acessar chaves com
 - `MAIL_ANEXOS`
 - `MAIL_REGRAS`
 - `MAIL_CONFIG`
-- `DADOS_OFICIAIS_GEAPA`
+- `CONFIG_GEAPA` ou chave legada `DADOS_OFICIAIS_GEAPA`
 
 Modulos consumidores podem acessar outras `KEYS` via `coreGetSheetByKey`, desde que estejam cadastradas no Registry.
 
@@ -1112,3 +1600,17 @@ Fluxo manual sugerido para validar o Mail Hub:
 8. use `test_core_mailHub_markLatestPending_membros_processed()` para marcar o ultimo pendente sem copiar `eventId` na mao.
 9. para validar a fila central, rode `test_core_mailOutbox_queue_operacional()` e confira a nova linha em `MAIL_SAIDA`.
 10. em seguida rode `test_core_mailOutbox_process()` e confirme `Status Envio = ENVIADO`, `Enviado Em`, `Id Thread Gmail`, `Id Mensagem Gmail` e o reflexo em `MAIL_EVENTOS` / `MAIL_INDICE`.
+
+### Cache Firestore do login do Portal
+
+O GEAPA-CORE pode gerar snapshots seguros para `portalUsers/{uid}` usando PESSOAS v2 como fonte oficial. O Firestore e apenas cache operacional do Portal: o documento contem identidade minima, perfil/permissoes calculados no backend e os controles `ativo`, `podeAcessarPortal`, `podeLerDadosPrivados` e `stale`. RGA, CPF, telefone, tokens, frequencia e justificativas nao fazem parte desse snapshot. O provisionamento automatico ocorre somente depois da validacao do Firebase ID token e da autorizacao oficial; pessoas que nunca autenticaram ficam como `AGUARDANDO_PRIMEIRO_LOGIN_FIREBASE` no diagnostico.
+
+Funcoes principais: `corePortalGerarSnapshotFirestoreUsuario`, `corePortalSincronizarUsuarioFirestore`, `corePortalInvalidarCacheFirestoreUsuario`, `corePortalSyncFirestoreUserByEmail`, `corePortalSyncFirestoreUserByIdPessoa` e `corePortalSyncFirestoreUsersFromPessoasV2`. A escrita atual usa Apps Script + Firestore REST no plano Spark, configurada por Script Properties (`GEAPA_CORE_FIRESTORE_PROJECT_ID` e opcionalmente `GEAPA_CORE_FIRESTORE_DATABASE_ID`), sem Cloud Functions, Secret Manager, service account ou segredo no repositorio.
+
+O transporte REST compartilhado fica em `24_core_firestore_rest.js` e tambem
+expoe `coreFirestoreSetDocument`, `coreFirestoreGetDocument`,
+`coreFirestoreListDocuments`, `coreFirestoreDeleteDocument`,
+`coreFirestoreBatchSetDocuments` e `coreFirestoreDiagnosticar`. Essas funcoes
+usam `dryRun: true` por padrao e suportam os read models de Atividades sem
+transformar o Firestore em fonte oficial. Consulte
+`docs/firestore-read-models-atividades.md`.
