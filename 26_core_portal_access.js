@@ -1435,7 +1435,7 @@ function corePortalGetMeuResumo_(email, opts) {
       tempoEfetivoNoGrupo: resumo.TEMPO_EFETIVO_NO_GRUPO || '',
       qtdSemestresNoGrupo: resumo.QTD_SEMESTRES_NO_GRUPO || '',
       qtdApresentacoesRealizadas: resumo.QTD_APRESENTACOES_REALIZADAS || '',
-      periodoUltimaApresentacao: resumo.PERIODO_ULTIMA_APRESENTACAO || '',
+      periodoUltimaApresentacao: resumo.CICLO_ULTIMA_APRESENTACAO || resumo.PERIODO_ULTIMA_APRESENTACAO || '',
       frequenciaResumida: resumo.FREQUENCIA_RESUMIDA || '',
       pendenciasAbertas: resumo.PENDENCIAS_ABERTAS || '',
       flagJaFoiSuspenso: resumo.FLAG_JA_FOI_SUSPENSO || '',

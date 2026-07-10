@@ -759,15 +759,40 @@ function core_buildPortalPendenciasFromResumoV2_(resumo) {
   }).filter(Boolean));
 }
 
+/**
+ * Monta o resumo operacional seguro da tela "Minha situacao".
+ *
+ * @param {Object} resumo Linha de PESSOAS_RESUMO_OPERACIONAL.
+ * @return {Object}
+ */
+function core_buildResumoOperacionalMinhaSituacaoV2_(resumo) {
+  resumo = resumo || {};
+  return Object.freeze({
+    statusVinculo: String(resumo.STATUS_VINCULO_ATUAL || "").trim(),
+    tipoVinculo: String(resumo.TIPO_VINCULO_ATUAL || "").trim(),
+    cargoFuncaoAtual: String(resumo.CARGO_FUNCAO_ATUAL || "").trim(),
+    tempoEfetivoNoGrupo: String(resumo.TEMPO_EFETIVO_NO_GRUPO || "").trim(),
+    qtdSemestresNoGrupo: core_parsePortalNonNegativeNumber_(resumo.QTD_SEMESTRES_NO_GRUPO),
+    frequenciaResumida: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
+    qtdApresentacoesRealizadas: core_parsePortalNonNegativeNumber_(resumo.QTD_APRESENTACOES_REALIZADAS),
+    cicloUltimaApresentacao: String(resumo.CICLO_ULTIMA_APRESENTACAO || "").trim(),
+    periodoUltimaApresentacao: String(resumo.PERIODO_ULTIMA_APRESENTACAO || "").trim(),
+    certificadosDisponiveis: 0,
+    pendenciasAbertas: String(resumo.PENDENCIAS_ABERTAS || "").trim()
+  });
+}
+
 function core_buildMinhaSituacaoPortalV2_(resumo) {
   resumo = resumo || {};
   const pendencias = core_buildPortalPendenciasFromResumoV2_(resumo);
+  const resumoOperacional = core_buildResumoOperacionalMinhaSituacaoV2_(resumo);
   return Object.freeze({
     resumo: Object.freeze({
       frequencia: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
       pendenciasAbertas: core_parsePortalPendingCountV2_(resumo.PENDENCIAS_ABERTAS),
       certificadosDisponiveis: 0
     }),
+    resumoOperacional: resumoOperacional,
     pendencias: pendencias,
     participacao: Object.freeze({
       frequenciaGeral: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),

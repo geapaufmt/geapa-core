@@ -872,39 +872,20 @@ function core_pessoasV2AtualizarResumoOperacional_(options) {
   }
 
   try {
-    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.PESSOAS, execution.opts);
-    var vigenciasResumo = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.VIGENCIAS.RESUMO, execution.opts);
-    var unavailable = core_v2RotinasUnavailableKeys_(data);
-    if (unavailable.length) {
-      throw new Error('Keys V2 indisponiveis: ' + unavailable.join(', '));
+    var centralOptions = {
+      dryRun: execution.opts.dryRun,
+      idPessoa: options && options.idPessoa ? options.idPessoa : '',
+      periodoReferencia: options && options.periodoReferencia ? options.periodoReferencia : ''
+    };
+    if (!centralOptions.dryRun) {
+      centralOptions.confirmacao = 'RECALCULAR_PESSOAS_RESUMO_V2';
     }
-
-    var consistencia = core_pessoasV2ConferirConsistencia_({ dryRun: true, ambiente: execution.opts.ambiente });
-    var rows = core_pessoasV2BuildResumoRows_(data, vigenciasResumo.ok ? vigenciasResumo.records : []);
-    var result = core_v2RotinasUpdateEnvelope_(fluxo.modulo, fluxo.fluxo, execution, rows, consistencia);
-
-    if (!execution.opts.dryRun && consistencia.ok === false && !execution.opts.allowWriteWithErrors) {
-      result.ok = false;
-      result.bloqueado = true;
-      result.mensagem = 'Escrita bloqueada por inconsistencias de Pessoas v2. Use allowWriteWithErrors apenas com decisao operacional explicita.';
-      core_v2RotinasFinishError_(execution, fluxo.modulo, fluxo.fluxo, 'SYNC', result.mensagem);
-      result.status = execution.status;
-      return result;
+    var result = coreRecalcularPessoasResumoOperacionalV2_(centralOptions);
+    if (result && result.ok === false) {
+      core_v2RotinasFinishError_(execution, fluxo.modulo, fluxo.fluxo, 'SYNC', 'Recalculo central de Pessoas v2 retornou erro.');
+    } else {
+      core_v2RotinasFinishSuccess_(execution, fluxo.modulo, fluxo.fluxo, 'SYNC', 'Resumo operacional de Pessoas v2 calculado pela API central.');
     }
-
-    if (!execution.opts.dryRun) {
-      result.escrita = core_v2RotinasWriteWithLock_(function() {
-        var target = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.RESUMO, execution.opts);
-        if (!target.ok) throw new Error(target.error);
-        return core_v2RotinasUpsertRows_(target.sheet, rows, {
-          primaryKey: 'ID_PESSOA',
-          requiredHeaders: CORE_V2_ROTINAS_PESSOAS_RESUMO_HEADERS,
-          dryRun: false
-        });
-      });
-    }
-
-    core_v2RotinasFinishSuccess_(execution, fluxo.modulo, fluxo.fluxo, 'SYNC', 'Resumo operacional de Pessoas v2 calculado.');
     result.status = execution.status;
     return result;
   } catch (err) {

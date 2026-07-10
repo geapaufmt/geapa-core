@@ -235,7 +235,7 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
         'TEMPO_EFETIVO_NO_GRUPO',
         'QTD_SEMESTRES_NO_GRUPO',
         'QTD_APRESENTACOES_REALIZADAS',
-        'PERIODO_ULTIMA_APRESENTACAO',
+        'CICLO_ULTIMA_APRESENTACAO',
         'FREQUENCIA_RESUMIDA',
         'PENDENCIAS_ABERTAS',
         'FLAG_JA_FOI_SUSPENSO',
@@ -360,6 +360,15 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
         'ATIVO',
         'BASE_NORMATIVA',
         'OBS'
+      ]),
+      optionalHeaders: Object.freeze([
+        'PODE_VER_AREA_DIRETORIA',
+        'PODE_GERENCIAR_ATIVIDADES',
+        'PODE_REGISTRAR_CHAMADA',
+        'PODE_EDITAR_ATIVIDADE',
+        'PODE_ANALISAR_JUSTIFICATIVAS',
+        'PODE_GERENCIAR_CERTIFICADOS',
+        'PODE_GERENCIAR_COMUNICACAO'
       ])
     }),
     Object.freeze({

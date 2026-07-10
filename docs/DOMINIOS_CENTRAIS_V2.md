@@ -59,9 +59,11 @@ Recalculo operacional:
 
 - usar `coreRecalcularPessoasResumoOperacionalV2({ dryRun: true })` para validar a amostra;
 - usar `coreRecalcularPessoasResumoOperacionalV2({ dryRun: false, confirmacao: 'RECALCULAR_PESSOAS_RESUMO_V2' })` somente depois de conferir a amostra;
-- a funcao atualiza por `ID_PESSOA` e adiciona linhas ausentes, preservando cabecalhos e sem limpar a aba inteira;
+- a funcao atualiza por `ID_PESSOA` e adiciona linhas ausentes, preservando cabecalhos, colunas extras e valores manuais fora do contrato derivado;
 - identidade, RGA, vinculo, portal, tempo efetivo, semestres, apresentacoes, frequencia, pendencias, suspensao e elegibilidade basica sao recalculados a partir das fontes oficiais disponiveis;
-- Atividades v2 e lida por Registry quando as keys/views estiverem acessiveis;
+- `CICLO_ULTIMA_APRESENTACAO` e o cabecalho canonico; `PERIODO_ULTIMA_APRESENTACAO` e aceito apenas durante a transicao;
+- Atividades v2 e lida por Registry no mesmo ambiente DEV de Pessoas/Vigencias durante a homologacao;
+- o relatorio inclui contagens de campos preenchidos/sem valor e motivos de fontes indisponiveis;
 - campos sem regra segura, como `DATA_LIMITE_ESTIMADA_DIRETORIA`, ficam vazios e aparecem em `camposNaoCalculaveis`.
 - o relatorio inclui `divergenciasLegado` como resumo diagnostico somente leitura quando a comparacao com legado for possivel.
 
@@ -102,6 +104,8 @@ Fonte de janelas de diretoria. Guarda datas, ordem, total de dias e peso operaci
 ### CARGOS_CONFIG
 
 Fonte de configuracao de cargos/funcoes, grupos, hierarquia, permissao de portal, obrigatoriedade, e-mails de grupo e regras de composicao.
+
+As colunas transitorias `PODE_*` podem existir para compatibilidade com rotinas antigas, mas nao sao obrigatorias para recalculos operacionais. A fonte final de autorizacao do Portal e `PORTAL_PERMISSOES`.
 
 ### VIGENCIAS_FUNCOES
 

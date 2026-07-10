@@ -60,6 +60,73 @@ function test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_dryRun() {
   }), null, 2));
 }
 
+/**
+ * Testa os consolidadores puros usados por PESSOAS_RESUMO_OPERACIONAL.
+ *
+ * @return {Object}
+ */
+function test_core_domainsV2_pessoasResumoOperationalHelpers() {
+  var ctx = { idPessoa: 'PES-TESTE', rga: '202611801001', email: 'teste@example.com' };
+  var activityData = {
+    atividades: [{
+      ID_ATIVIDADE: 'ATV-TESTE',
+      ID_PESSOA_PRINCIPAL: ctx.idPessoa,
+      RGA_PESSOA_PRINCIPAL: ctx.rga,
+      EMAIL_PESSOA_PRINCIPAL: ctx.email,
+      DATA_ATIVIDADE: '23/04/2026 18:30:00',
+      ANO: 2026,
+      SEMESTRE: 1,
+      CICLO: 'GEAPA_2026'
+    }],
+    apresentacoes: [{
+      ID_APRESENTACAO: 'APR-TESTE',
+      ID_ATIVIDADE: 'ATV-TESTE',
+      STATUS_APRESENTACAO: 'REALIZADA',
+      STATUS_ENVIO_MATERIAL: 'RECEBIDO'
+    }],
+    portalAtividadesDetalhes: [],
+    portalFrequencia: [{
+      ID_PESSOA: ctx.idPessoa,
+      CICLO: 'GEAPA_2026',
+      TOTAL_PRESENCAS: 8,
+      TOTAL_FALTAS: 2,
+      TOTAL_JUSTIFICADAS: 1,
+      FALTAS_LIQUIDAS: 1,
+      PERCENTUAL_FREQUENCIA: 80,
+      SITUACAO_DISCIPLINAR: 'REGULAR'
+    }],
+    presencas: [],
+    justificativas: [{ ID_PESSOA: ctx.idPessoa, STATUS_ANALISE: '', ATIVO: 'SIM' }],
+    portalJustificativas: []
+  };
+  var presentation = core_domainsV2PresentationSummary_(activityData, ctx);
+  var frequency = core_domainsV2FrequencySummary_(activityData, ctx, 'GEAPA_2026');
+  var pending = core_domainsV2PendingJustifications_(activityData, ctx);
+  if (presentation.count !== 1 || presentation.lastCycle !== 'GEAPA_2026' || presentation.lastPeriod !== '2026/1') throw new Error('Resumo de apresentacoes incorreto.');
+  if (frequency.indexOf('Presencas 8') < 0 || frequency.indexOf('Situacao REGULAR') < 0) throw new Error('Resumo de frequencia incorreto.');
+  if (pending !== 1) throw new Error('Contagem de justificativas pendentes incorreta.');
+  if (!core_domainsV2Date_('23/04/2026 18:30:00')) throw new Error('Parser de data brasileira com hora falhou.');
+  var refDate = new Date(2026, 6, 6);
+  var intervals = core_domainsV2EffectiveMemberIntervals_([
+    { TIPO_VINCULO: 'MEMBRO_EFETIVO', DATA_INICIO: new Date(2026, 6, 1), DATA_FIM: new Date(2026, 6, 31), STATUS_VINCULO: 'ATIVO' },
+    { TIPO_VINCULO: 'MEMBRO_EFETIVO', DATA_INICIO: new Date(2026, 7, 1), STATUS_VINCULO: 'ATIVO' },
+    { TIPO_VINCULO: 'MEMBRO_EFETIVO', DATA_INICIO: new Date(2025, 0, 1), STATUS_VINCULO: 'ENCERRADO' }
+  ], refDate);
+  if (core_domainsV2CountIntervalDays_(intervals) !== 7) throw new Error('Tempo efetivo incluiu dias futuros ou prolongou vinculo encerrado sem fim.');
+  var semesters = core_domainsV2CountSemestersForIntervals_({
+    SEMESTRES: { records: [{ ID_SEMESTRE: '2026/1', DATA_INICIO: new Date(2026, 0, 1), DATA_FIM: new Date(2026, 6, 31) }] },
+    CICLOS: { records: [{ ID_CICLO: 'GEAPA_2026', DATA_INICIO: new Date(2026, 0, 1), DATA_FIM: new Date(2026, 11, 31) }] }
+  }, intervals);
+  var semestersWithoutOfficialRows = core_domainsV2CountSemestersForIntervals_({
+    SEMESTRES: { records: [] },
+    CICLOS: { records: [{ ID_CICLO: 'GEAPA_2026', DATA_INICIO: new Date(2026, 0, 1), DATA_FIM: new Date(2026, 11, 31) }] }
+  }, intervals);
+  if (semesters !== 1 || semestersWithoutOfficialRows !== '') throw new Error('QTD_SEMESTRES_NO_GRUPO deve usar apenas SEMESTRES de Vigencias v2.');
+  var result = { ok: true, presentation: presentation, frequency: frequency, pendingJustifications: pending };
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
 function test_core_domainsV2_diagnosticarPessoasResumoOperacional() {
   Logger.log(JSON.stringify(coreDiagnosticarPessoasResumoOperacionalV2_(), null, 2));
 }
@@ -1059,7 +1126,7 @@ function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
       'Status',
       'Cargo/fun\u00E7\u00E3o atual',
       'Telefone',
-      'PERIODO_ULTIMA_APRESENTACAO',
+      'CICLO_ULTIMA_APRESENTACAO',
       'QTD_APRESENTACOES_REALIZADAS',
       'QTD_DIAS_QUE_CONTAM_PARA_LIMITE_DIRETORIA',
       'LIMITE_DIAS_DIRETORIA',

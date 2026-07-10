@@ -875,7 +875,7 @@ function core_domainsV2ProcessMemberLikeItem_(state, report, item) {
       TEMPO_EFETIVO_NO_GRUPO: '',
       QTD_SEMESTRES_NO_GRUPO: core_domainsV2GetByAliases_(record, ['QTD_SEMESTRES_NO_GRUPO']),
       QTD_APRESENTACOES_REALIZADAS: '',
-      PERIODO_ULTIMA_APRESENTACAO: '',
+      CICLO_ULTIMA_APRESENTACAO: '',
       FREQUENCIA_RESUMIDA: '',
       PENDENCIAS_ABERTAS: '',
       FLAG_JA_FOI_SUSPENSO: '',

@@ -136,9 +136,14 @@ function core_domainsV2AuditOpenDomain_(domainKey, report) {
       : [];
     var headerMap = core_buildHeaderIndexMap_(headers, { normalize: true, oneBased: false, keepFirst: true });
     var readAliases = definition.readAliases || {};
+    var optionalHeaders = (definition.optionalHeaders || []).reduce(function(acc, header) {
+      acc[core_normalizeHeader_(header)] = true;
+      return acc;
+    }, {});
     definition.headers.forEach(function(header) {
       var canonicalKey = core_normalizeHeader_(header);
       if (!Object.prototype.hasOwnProperty.call(headerMap, canonicalKey)) {
+        if (optionalHeaders[canonicalKey]) return;
         var aliases = readAliases[header] || [];
         var aliasFound = aliases.some(function(alias) {
           return Object.prototype.hasOwnProperty.call(headerMap, core_normalizeHeader_(alias));

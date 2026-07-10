@@ -139,15 +139,6 @@ function coreV2_jobDiarioManutencao_(options) {
     core_v2JobRunStep_(result, 'REGISTRY_DIAGNOSTICO', function() {
       return core_v2DiagnosticoGeral_({ limit: prepared.opts.limit });
     });
-    core_v2JobRunStep_(result, 'PESSOAS_ATUALIZAR_RESUMO', function() {
-      return core_pessoasV2AtualizarResumoOperacional_({
-        dryRun: prepared.opts.dryRun,
-        limit: prepared.opts.limit
-      });
-    });
-    core_v2JobRunStep_(result, 'PESSOAS_CONFERIR', function() {
-      return core_pessoasV2ConferirConsistencia_({ limit: prepared.opts.limit });
-    });
     core_v2JobRunStep_(result, 'VIGENCIAS_ATUALIZAR_RESUMO', function() {
       return core_vigenciasV2AtualizarResumoAtual_({
         dryRun: prepared.opts.dryRun,
@@ -162,6 +153,15 @@ function coreV2_jobDiarioManutencao_(options) {
     });
     core_v2JobRunStep_(result, 'ATIVIDADES_CONFERIR', function() {
       return core_v2JobRunAtividadesConferencia_(prepared.opts);
+    });
+    core_v2JobRunStep_(result, 'PESSOAS_ATUALIZAR_RESUMO', function() {
+      return core_pessoasV2AtualizarResumoOperacional_({
+        dryRun: prepared.opts.dryRun,
+        limit: prepared.opts.limit
+      });
+    });
+    core_v2JobRunStep_(result, 'PESSOAS_CONFERIR', function() {
+      return core_pessoasV2ConferirConsistencia_({ limit: prepared.opts.limit });
     });
   } catch (err) {
     result.steps.push(core_v2JobStepError_('JOB_DIARIO_ERRO_CONTROLADO', err));
