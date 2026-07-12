@@ -203,6 +203,11 @@ Estas rotinas usam Registry, `dryRun` por padrao, `MODULOS_CONFIG` quando dispon
 
 O job coordenado `coreV2_jobDiarioManutencao(options)` executa diagnostico, atualizacao e conferencia de Pessoas/Vigencias e pode receber callbacks do modulo Atividades. O trigger correspondente so e instalado por chamada manual a `coreV2InstalarTriggerJobDiario(options)`. A homologacao manual esta em [`docs/jobs-v2-manutencao.md`](docs/jobs-v2-manutencao.md).
 
+Os contratos de edicao do proprio perfil, solicitacao de correcao sensivel e
+analise administrativa para o Portal HOMOLOG estao documentados em
+[`docs/perfil-editavel-homolog.md`](docs/perfil-editavel-homolog.md). O setup e
+restrito a `GEAPA_ENV=DEV` e nao publica nem altera configuracoes PROD.
+
 O bootstrap seguro `coreV2_bootstrapConfiguracao(options)` confere e, quando explicitamente autorizado em DEV, cria apenas linhas ausentes em `MODULOS_CONFIG` e `MODULOS_STATUS`. A operacao esta documentada em [`docs/bootstrap-configuracao-v2.md`](docs/bootstrap-configuracao-v2.md).
 
 O diagnostico `coreV2_runTesteResolverRegistryV2()` verifica, em modo somente leitura, se as keys de Pessoas/Vigencias V2 existem no Registry bruto em `AMBIENTE=DEV`, com IDs mascarados. Detalhes: [`docs/core-v2-registry-diagnostico.md`](docs/core-v2-registry-diagnostico.md).

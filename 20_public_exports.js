@@ -518,6 +518,46 @@ function geapaCoreBuscarMeuPerfilParaPortal(emailOuRga) {
   }
 }
 
+/** Atualiza somente campos cadastrais de baixo risco do usuario autenticado. */
+function geapaCoreAtualizarMeuPerfilParaPortal(payload, contexto) {
+  return core_atualizarMeuPerfilParaPortal_(payload || {}, contexto || {});
+}
+
+/** Registra uma solicitacao, sem alterar diretamente campos sensiveis. */
+function geapaCoreSolicitarCorrecaoMeuPerfilParaPortal(payload, contexto) {
+  return core_solicitarCorrecaoMeuPerfilParaPortal_(payload || {}, contexto || {});
+}
+
+/** Lista exclusivamente as solicitacoes da pessoa autenticada. */
+function geapaCoreListarMinhasSolicitacoesCadastraisPortal(contexto) {
+  return core_listarMinhasSolicitacoesCadastraisPortal_(contexto || {});
+}
+
+/** Lista solicitacoes para Secretaria/Diretoria autorizada no backend. */
+function geapaCoreListarSolicitacoesCadastraisAdministracaoPortal(filtros, contexto) {
+  return core_listarSolicitacoesCadastraisAdministracaoPortal_(filtros || {}, contexto || {});
+}
+
+/** Registra a decisao administrativa; aprovacao nao aplica automaticamente. */
+function geapaCoreAnalisarSolicitacaoCadastralPortal(payload, contexto) {
+  return core_analisarSolicitacaoCadastralPortal_(payload || {}, contexto || {});
+}
+
+/** Aplica explicitamente uma solicitacao previamente aprovada. */
+function geapaCoreAplicarSolicitacaoCadastralAprovadaPortal(payload, contexto) {
+  return core_aplicarSolicitacaoCadastralAprovadaPortal_(payload || {}, contexto || {});
+}
+
+/** Setup idempotente e protegido da base DEV usada pelo projeto HOMOLOG. */
+function geapaCoreSetupSolicitacoesAtualizacaoCadastralDev(options) {
+  return core_setupSolicitacoesAtualizacaoCadastralDev_(options || {});
+}
+
+/** Entrada manual do editor para o setup real, ainda recusada quando GEAPA_ENV=PROD. */
+function geapaCoreSetupSolicitacoesAtualizacaoCadastralDevReal() {
+  return core_setupSolicitacoesAtualizacaoCadastralDevReal_();
+}
+
 /** Lista membros administrativos para o Portal com autorizacao e sanitizacao no Core. */
 function geapaCoreListarMembrosAdministracaoPortal(filtros, contexto) {
   try {
