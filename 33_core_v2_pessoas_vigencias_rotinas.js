@@ -18,6 +18,8 @@ var CORE_V2_ROTINAS_KEYS = Object.freeze({
     BASE: 'PESSOAS_V2_BASE',
     IDENTIFICADORES: 'PESSOAS_V2_IDENTIFICADORES',
     MEMBROS_DETALHES: 'PESSOAS_V2_MEMBROS_DETALHES',
+    COLABORADORES: 'PESSOAS_V2_COLABORADORES_ACADEMICOS',
+    LINKS_PERFIS: 'PESSOAS_V2_LINKS_PERFIS',
     VINCULOS: 'PESSOAS_V2_VINCULOS_GEAPA',
     EVENTOS: 'PESSOAS_V2_MEMBROS_EVENTOS_VINCULO',
     RESUMO: 'PESSOAS_V2_RESUMO_OPERACIONAL'
@@ -1251,6 +1253,298 @@ function core_v2RotinasUpsertRows_(sheet, rows, opts) {
     addedHeaders: headerResult.addedHeaders,
     missingHeadersBeforeWrite: headerResult.missingHeaders
   };
+}
+
+/** Retorna os cabecalhos do contrato geral de links e perfis de Pessoas V2. */
+function core_pessoasV2LinksPerfisHeaders_() {
+  var definition = CORE_DOMAINS_V2_SCHEMAS.PESSOAS.filter(function(item) {
+    return item.sheetName === 'PESSOAS_V2_LINKS_PERFIS';
+  })[0];
+  return definition ? definition.headers.slice() : [];
+}
+
+/** Normaliza a chave de idempotencia de um link por pessoa, tipo e URL. */
+function core_pessoasV2LinksPerfisKey_(idPessoa, tipoLink, url) {
+  return [
+    core_v2RotinasText_(idPessoa),
+    core_domainsV2NormalizeLinkPerfilType_(tipoLink),
+    core_v2RotinasText_(url).toLowerCase().replace(/\/$/, '')
+  ].join('|');
+}
+
+/** Gera o proximo ID_LINK sequencial sem depender de linhas legadas. */
+function core_pessoasV2LinksPerfisId_(sequence) {
+  return 'LNK-' + ('000000' + Number(sequence || 0)).slice(-6);
+}
+
+/** Prepara Lattes legados que ainda nao possuem registro geral equivalente. */
+function core_pessoasV2BuildLegacyLattesRows_(colaboradores, linksExistentes, now) {
+  var keys = {};
+  var nextSequence = 0;
+  (linksExistentes || []).forEach(function(link) {
+    var key = core_pessoasV2LinksPerfisKey_(link.ID_PESSOA, link.TIPO_LINK, link.URL);
+    if (key !== '||') keys[key] = true;
+    var match = String(link.ID_LINK || '').match(/^LNK-(\d+)$/i);
+    if (match) nextSequence = Math.max(nextSequence, Number(match[1]));
+  });
+
+  var rows = [];
+  var skipped = 0;
+  var duplicate = 0;
+  var invalidUrl = 0;
+  (colaboradores || []).forEach(function(colaborador) {
+    var idPessoa = core_v2RotinasText_(colaborador.ID_PESSOA);
+    var url = core_v2RotinasText_(colaborador.LINK_LATTES || colaborador.CURRICULO_LATTES);
+    if (!idPessoa || !url) {
+      skipped++;
+      return;
+    }
+    var key = core_pessoasV2LinksPerfisKey_(idPessoa, 'LATTES', url);
+    if (keys[key]) {
+      duplicate++;
+      return;
+    }
+    keys[key] = true;
+    nextSequence++;
+    if (!core_domainsV2NormalizeProfileUrl_(url)) invalidUrl++;
+    rows.push({
+      ID_LINK: core_pessoasV2LinksPerfisId_(nextSequence),
+      ID_PESSOA: idPessoa,
+      TIPO_LINK: 'LATTES',
+      URL: url,
+      ROTULO: 'Curriculo Lattes',
+      // O legado nao comprova autorizacao publica; a diretoria decide depois.
+      PUBLICAVEL: 'NAO',
+      VISIVEL_PORTAL: 'NAO',
+      FONTE: 'MIGRACAO_COLABORADORES_ACADEMICOS',
+      VALIDADO_EM: '',
+      ATIVO: core_v2RotinasIsNao_(colaborador.ATIVO) ? 'NAO' : 'SIM',
+      CRIADO_EM: now,
+      ATUALIZADO_EM: now,
+      OBS: 'Migrado de COLABORADORES_ACADEMICOS.LINK_LATTES; elegivel para remocao apos validacao.'
+    });
+  });
+
+  return {
+    rows: rows,
+    totalJaMigrados: duplicate,
+    totalIgnoradosSemPessoaOuUrl: skipped,
+    totalUrlsPendentesValidacao: invalidUrl
+  };
+}
+
+/**
+ * Migra Lattes de COLABORADORES_ACADEMICOS para PESSOAS_V2_LINKS_PERFIS.
+ * A rotina e manual, idempotente, usa Registry e preserva integralmente a coluna legado.
+ *
+ * @param {Object=} options `dryRun` e padrao; escrita requer confirmacao explicita.
+ * @return {Object} Relatorio de leitura, linhas preparadas e escrita quando autorizada.
+ */
+function corePessoasV2MigrarLinksPerfisLegados_(options) {
+  var opts = options || {};
+  var dryRun = opts.dryRun !== false;
+  var ambiente = core_v2RotinasNormalize_(opts.ambiente || 'DEV') || 'DEV';
+  var colaboradoresData = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.COLABORADORES, {
+    ambiente: ambiente,
+    dryRun: dryRun
+  });
+  var linksData = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.LINKS_PERFIS, {
+    ambiente: ambiente,
+    dryRun: dryRun
+  });
+  var report = {
+    ok: colaboradoresData.ok && linksData.ok,
+    dryRun: dryRun,
+    ambiente: ambiente,
+    fonte: CORE_V2_ROTINAS_KEYS.PESSOAS.COLABORADORES,
+    destino: CORE_V2_ROTINAS_KEYS.PESSOAS.LINKS_PERFIS,
+    totalColaboradoresLidos: colaboradoresData.records.length,
+    totalLinksExistentes: linksData.records.length,
+    totalLinhasPreparadas: 0,
+    totalJaMigrados: 0,
+    totalIgnoradosSemPessoaOuUrl: 0,
+    totalUrlsPendentesValidacao: 0,
+    linhas: [],
+    escrita: null,
+    erros: []
+  };
+
+  if (!colaboradoresData.ok) report.erros.push(colaboradoresData.error || 'COLABORADORES_INDISPONIVEL');
+  if (!linksData.ok) report.erros.push(linksData.error || 'LINKS_PERFIS_INDISPONIVEL');
+  if (!report.ok) return report;
+
+  var prepared = core_pessoasV2BuildLegacyLattesRows_(
+    colaboradoresData.records,
+    linksData.records,
+    new Date()
+  );
+  report.linhas = prepared.rows;
+  report.totalLinhasPreparadas = prepared.rows.length;
+  report.totalJaMigrados = prepared.totalJaMigrados;
+  report.totalIgnoradosSemPessoaOuUrl = prepared.totalIgnoradosSemPessoaOuUrl;
+  report.totalUrlsPendentesValidacao = prepared.totalUrlsPendentesValidacao;
+
+  if (dryRun) return report;
+  if (String(opts.confirmacao || '').trim() !== 'MIGRAR_LATTES_LEGADO_PESSOAS_V2') {
+    report.ok = false;
+    report.blocked = true;
+    report.reason = 'CONFIRMACAO_OBRIGATORIA';
+    return report;
+  }
+
+  report.escrita = core_v2RotinasWriteWithLock_(function() {
+    return core_v2RotinasUpsertRows_(linksData.sheet, prepared.rows, {
+      primaryKey: 'ID_LINK',
+      requiredHeaders: core_pessoasV2LinksPerfisHeaders_(),
+      dryRun: false
+    });
+  });
+  return report;
+}
+
+/**
+ * Executa a migracao real de Lattes legados sem exigir parametros no editor.
+ *
+ * @return {Object} Relatorio da migracao idempotente.
+ */
+function corePessoasV2MigrarLinksPerfisLegadosReal_() {
+  var report = corePessoasV2MigrarLinksPerfisLegados_({
+    dryRun: false,
+    ambiente: 'DEV',
+    confirmacao: 'MIGRAR_LATTES_LEGADO_PESSOAS_V2'
+  });
+  Logger.log('[geapa-core][PESSOAS_V2_LINKS_PERFIS][MIGRATION] ' + JSON.stringify(report));
+  return report;
+}
+
+/**
+ * Confere se cada Lattes legado possui copia equivalente na fonte geral antes da remocao da coluna.
+ *
+ * @param {Object=} options Aceita ambiente; nao realiza escrita.
+ * @return {Object} Diagnostico idempotente e seguro para a exclusao.
+ */
+function corePessoasV2VerificarRemocaoLinkLattesLegado_(options) {
+  var opts = options || {};
+  var ambiente = core_v2RotinasNormalize_(opts.ambiente || 'DEV') || 'DEV';
+  var colaboradoresData = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.COLABORADORES, {
+    ambiente: ambiente,
+    dryRun: true
+  });
+  var linksData = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.LINKS_PERFIS, {
+    ambiente: ambiente,
+    dryRun: true
+  });
+  var report = {
+    ok: colaboradoresData.ok && linksData.ok,
+    ambiente: ambiente,
+    colunaLegado: 'LINK_LATTES',
+    colunaEncontrada: false,
+    prontoParaRemocao: false,
+    totalLattesLegados: 0,
+    totalCobertos: 0,
+    pendencias: [],
+    erros: []
+  };
+  if (!colaboradoresData.ok) report.erros.push(colaboradoresData.error || 'COLABORADORES_INDISPONIVEL');
+  if (!linksData.ok) report.erros.push(linksData.error || 'LINKS_PERFIS_INDISPONIVEL');
+  if (!report.ok) return report;
+
+  var headers = colaboradoresData.headers || [];
+  var legacyHeader = headers.filter(function(header) {
+    return core_v2RotinasNormalize_(header) === 'LINK_LATTES';
+  })[0] || '';
+  report.colunaEncontrada = !!legacyHeader;
+  if (!legacyHeader) {
+    report.prontoParaRemocao = true;
+    report.reason = 'COLUNA_JA_AUSENTE';
+    return report;
+  }
+
+  var linksByKey = {};
+  (linksData.records || []).forEach(function(link) {
+    var key = core_pessoasV2LinksPerfisKey_(link.ID_PESSOA, link.TIPO_LINK, link.URL);
+    if (key !== '||') linksByKey[key] = true;
+  });
+  (colaboradoresData.records || []).forEach(function(colaborador) {
+    var idPessoa = core_v2RotinasText_(colaborador.ID_PESSOA);
+    var url = core_v2RotinasText_(colaborador[legacyHeader]);
+    if (!url) return;
+    report.totalLattesLegados++;
+    var key = core_pessoasV2LinksPerfisKey_(idPessoa, 'LATTES', url);
+    if (idPessoa && linksByKey[key]) {
+      report.totalCobertos++;
+      return;
+    }
+    report.pendencias.push({
+      idPessoa: idPessoa,
+      idProfessor: core_v2RotinasText_(colaborador.ID_PROFESSOR),
+      url: url,
+      motivo: idPessoa ? 'LATTES_AUSENTE_EM_LINKS_PERFIS' : 'ID_PESSOA_AUSENTE_NO_LEGADO'
+    });
+  });
+  report.prontoParaRemocao = report.pendencias.length === 0;
+  if (!report.prontoParaRemocao) report.reason = 'MIGRACAO_PENDENTE';
+  return report;
+}
+
+/**
+ * Remove exclusivamente a coluna legado apos a verificacao integral de cobertura.
+ *
+ * @param {Object=} options A escrita exige a confirmacao explicita de seguranca.
+ * @return {Object} Relatorio da verificacao e da exclusao, quando autorizada.
+ */
+function corePessoasV2RemoverColunaLinkLattesLegado_(options) {
+  var opts = options || {};
+  var dryRun = opts.dryRun !== false;
+  var report = corePessoasV2VerificarRemocaoLinkLattesLegado_({ ambiente: opts.ambiente || 'DEV' });
+  report.dryRun = dryRun;
+  report.removida = false;
+  if (!report.ok || !report.prontoParaRemocao || !report.colunaEncontrada || dryRun) return report;
+  if (String(opts.confirmacao || '').trim() !== 'REMOVER_COLUNA_LEGADO_LINK_LATTES_V2') {
+    report.ok = false;
+    report.blocked = true;
+    report.reason = 'CONFIRMACAO_OBRIGATORIA';
+    return report;
+  }
+  var data = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.COLABORADORES, {
+    ambiente: report.ambiente,
+    dryRun: false
+  });
+  if (!data.ok) {
+    report.ok = false;
+    report.erros.push(data.error || 'COLABORADORES_INDISPONIVEL');
+    return report;
+  }
+  report.escrita = core_v2RotinasWriteWithLock_(function() {
+    // Revalida no mesmo trecho critico antes de executar uma operacao destrutiva.
+    var recheck = corePessoasV2VerificarRemocaoLinkLattesLegado_({ ambiente: report.ambiente });
+    if (!recheck.ok || !recheck.prontoParaRemocao || !recheck.colunaEncontrada) {
+      return { ok: false, blocked: true, reason: recheck.reason || 'REVALIDACAO_FALHOU', verificacao: recheck };
+    }
+    var headers = data.sheet.getRange(1, 1, 1, data.sheet.getLastColumn()).getValues()[0];
+    var index = headers.map(core_v2RotinasNormalize_).indexOf('LINK_LATTES');
+    if (index < 0) return { ok: true, removida: false, reason: 'COLUNA_JA_AUSENTE' };
+    data.sheet.deleteColumn(index + 1);
+    return { ok: true, removida: true, columnIndex: index + 1 };
+  });
+  report.removida = report.escrita && report.escrita.removida === true;
+  if (report.escrita && report.escrita.blocked) {
+    report.ok = false;
+    report.blocked = true;
+    report.reason = report.escrita.reason;
+  }
+  return report;
+}
+
+/** Executa a exclusao real com confirmacao fixa para o editor Apps Script. */
+function corePessoasV2RemoverColunaLinkLattesLegadoReal_() {
+  var report = corePessoasV2RemoverColunaLinkLattesLegado_({
+    dryRun: false,
+    ambiente: 'DEV',
+    confirmacao: 'REMOVER_COLUNA_LEGADO_LINK_LATTES_V2'
+  });
+  Logger.log('[geapa-core][PESSOAS_V2_LINKS_PERFIS][REMOVE_LEGACY] ' + JSON.stringify(report));
+  return report;
 }
 
 function coreV2RunTesteDiagnosticoGeral_() {

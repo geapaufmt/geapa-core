@@ -528,6 +528,15 @@ function core_domainsV2CreatePessoasState_(dest) {
     var key = String(record.ID_PESSOA || '').trim() || ('ID_PROFESSOR:' + String(record.ID_PROFESSOR || '').trim());
     if (key) colaboradorKeys[key] = true;
   });
+  var linkPerfilKeys = {};
+  dest.PESSOAS_V2_LINKS_PERFIS.records.forEach(function(record) {
+    var key = [
+      String(record.ID_PESSOA || '').trim(),
+      core_domainsV2NormalizeLinkPerfilType_(record.TIPO_LINK),
+      String(record.URL || '').trim().toLowerCase().replace(/\/$/, '')
+    ].join('|');
+    if (key !== '||') linkPerfilKeys[key] = true;
+  });
   var externoKeys = {};
   dest.PARTICIPANTES_EXTERNOS_DETALHES.records.forEach(function(record) {
     var key = String(record.ID_PESSOA || '').trim() || ('ID_EXTERNO:' + String(record.ID_PARTICIPANTE_EXTERNO || '').trim());
@@ -562,6 +571,7 @@ function core_domainsV2CreatePessoasState_(dest) {
     identificadores: [],
     membrosDetalhes: [],
     colaboradores: [],
+    linksPerfis: [],
     externos: [],
     vinculos: [],
     eventos: [],
@@ -575,13 +585,42 @@ function core_domainsV2CreatePessoasState_(dest) {
     consentimentoKeys: consentimentoKeys,
     memberDetailKeys: memberDetailKeys,
     colaboradorKeys: colaboradorKeys,
+    linkPerfilKeys: linkPerfilKeys,
     externoKeys: externoKeys,
     eventoKeys: eventoKeys,
     resumoKeys: resumoKeys,
     nextPessoa: core_domainsV2MaxSeq_(dest.PESSOAS_BASE.records, 'ID_PESSOA', 'PES'),
     nextIdentificador: core_domainsV2MaxSeq_(dest.PESSOAS_IDENTIFICADORES.records, 'ID_IDENTIFICADOR', 'IDE'),
+    nextLinkPerfil: core_domainsV2MaxSeq_(dest.PESSOAS_V2_LINKS_PERFIS.records, 'ID_LINK', 'LNK'),
     nextVinculo: core_domainsV2MaxSeq_(dest.VINCULOS_GEAPA.records, 'ID_VINCULO', 'VIN')
   };
+}
+
+/** Inclui um link de perfil geral apenas quando a chave pessoa/tipo/URL ainda nao existir. */
+function core_domainsV2AddLinkPerfil_(state, idPessoa, tipoLink, url, fonte) {
+  var normalizedUrl = core_domainsV2NormalizeProfileUrl_(url);
+  if (!idPessoa || !normalizedUrl) return;
+  var normalizedType = core_domainsV2NormalizeLinkPerfilType_(tipoLink);
+  var key = [idPessoa, normalizedType, normalizedUrl.toLowerCase().replace(/\/$/, '')].join('|');
+  if (state.linkPerfilKeys[key]) return;
+  state.linkPerfilKeys[key] = true;
+  state.nextLinkPerfil++;
+  var now = new Date();
+  state.linksPerfis.push({
+    ID_LINK: core_domainsV2SeqId_('LNK', state.nextLinkPerfil),
+    ID_PESSOA: idPessoa,
+    TIPO_LINK: normalizedType,
+    URL: normalizedUrl,
+    ROTULO: normalizedType === 'LATTES' ? 'Curriculo Lattes' : '',
+    PUBLICAVEL: 'NAO',
+    VISIVEL_PORTAL: 'NAO',
+    FONTE: fonte || 'MIGRACAO_PESSOAS_V2',
+    VALIDADO_EM: '',
+    ATIVO: 'SIM',
+    CRIADO_EM: now,
+    ATUALIZADO_EM: now,
+    OBS: 'Migrado de fonte cadastral; visibilidade publica pendente de decisao institucional.'
+  });
 }
 
 function core_domainsV2PessoasReport_() {
@@ -957,6 +996,7 @@ function coreMigrarPessoasV2_(options) {
       core_domainsV2GetByAliases_(record, ['EIXO_ASSOCIADO_1', 'EIXO_TEMATICO_1', 'EIXO TEMATICO 1']),
       core_domainsV2GetByAliases_(record, ['EIXO_ASSOCIADO_2', 'EIXO_TEMATICO_2', 'EIXO TEMATICO 2'])
     ], ' | ');
+    var lattes = core_domainsV2GetByAliases_(record, ['LINK_LATTES', 'LATTES', 'CURRICULO_LATTES']);
     state.colaboradores.push({
       ID_PESSOA: idPessoa,
       ID_PROFESSOR: core_domainsV2GetByAliases_(record, ['ID_PROFESSOR']),
@@ -967,7 +1007,6 @@ function coreMigrarPessoasV2_(options) {
       AREA_ATUACAO: core_domainsV2GetByAliases_(record, ['AREA_ATUACAO', 'ÁREA_ATUAÇÃO', 'DISCIPLINAS_AREAS']),
       EIXO_ASSOCIADO: eixoAssociado,
       EMAIL_INSTITUCIONAL: core_domainsV2NormalizeEmail_(core_domainsV2GetByAliases_(record, ['EMAIL_INSTITUCIONAL', 'EMAIL', 'E-mail'])),
-      LINK_LATTES: core_domainsV2GetByAliases_(record, ['LINK_LATTES', 'LATTES', 'CURRICULO_LATTES']),
       OBS_ACADEMICA: core_domainsV2JoinNonEmpty_([
         'Migrado de Dados dos Professores/Tecnicos.',
         core_domainsV2GetByAliases_(record, ['VINCULO_GEAPA']) ? 'VINCULO_GEAPA=' + core_domainsV2GetByAliases_(record, ['VINCULO_GEAPA']) : '',
@@ -976,6 +1015,7 @@ function coreMigrarPessoasV2_(options) {
       ], ' | '),
       ATIVO: 'SIM'
     });
+    core_domainsV2AddLinkPerfil_(state, idPessoa, 'LATTES', lattes, 'MIGRACAO_DADOS_PROFESSORES_TECNICOS');
     var vinculoGeapa = core_domainsV2NormalizeText_(core_domainsV2GetByAliases_(record, ['VINCULO_GEAPA']));
     if (vinculoGeapa && vinculoGeapa !== 'SEM_VINCULO_ATIVO') {
       core_domainsV2AddVinculo_(state, idPessoa, vinculoGeapa, 'ATIVO', record, 'Dados dos Professores/Tecnicos');
@@ -1053,6 +1093,7 @@ function coreMigrarPessoasV2_(options) {
   core_domainsV2AppendRows_(dest.PESSOAS_IDENTIFICADORES.sheet, state.identificadores, opts.dryRun);
   core_domainsV2AppendRows_(dest.MEMBROS_DETALHES.sheet, state.membrosDetalhes, opts.dryRun);
   core_domainsV2AppendRows_(dest.COLABORADORES_ACADEMICOS.sheet, state.colaboradores, opts.dryRun);
+  core_domainsV2AppendRows_(dest.PESSOAS_V2_LINKS_PERFIS.sheet, state.linksPerfis, opts.dryRun);
   core_domainsV2AppendRows_(dest.PARTICIPANTES_EXTERNOS_DETALHES.sheet, state.externos, opts.dryRun);
   core_domainsV2AppendRows_(dest.VINCULOS_GEAPA.sheet, state.vinculos, opts.dryRun);
   core_domainsV2AppendRows_(dest.PESSOAS_COMUNICACAO_CONSENTIMENTOS.sheet, state.consentimentos, opts.dryRun);

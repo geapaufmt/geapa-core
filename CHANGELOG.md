@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-11
+
+- Criado `geapaCoreListarMembrosAdministracaoPortal` para a area administrativa somente leitura do Portal.
+- A listagem revalida `membros:ler`, filtra apenas vinculos de membro, pagina resultados e usa lista branca de campos de `PESSOAS_V2_RESUMO_OPERACIONAL`.
+- Incluidos filtros por identidade, vinculo, perfil, acesso ao Portal, pendencias e frequencia, sem expor dados cadastrais sensiveis.
+
 ## 2026-07-06
 
 - Corrigido o recalculo central de `PESSOAS_RESUMO_OPERACIONAL` para conciliar identidade de `Atividades` com registros de `Atividades_Apresentacoes`.

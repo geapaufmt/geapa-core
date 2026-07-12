@@ -27,7 +27,50 @@ Fonte complementar do dominio de membros. Guarda RGA, semestre, data de integrac
 
 ### COLABORADORES_ACADEMICOS
 
-Fonte cadastral de professores, tecnicos e colaboradores academicos. Guarda instituicao, titulacao, area de atuacao, eixo associado e Lattes. Nao e base de destinatarios de comunicacao.
+Fonte cadastral de professores, tecnicos e colaboradores academicos. Guarda instituicao, titulacao, area de atuacao e eixo associado. Nao e base de destinatarios de comunicacao nem de links de perfil.
+
+### PESSOAS_V2_LINKS_PERFIS
+
+Fonte geral de links academicos e perfis por `ID_PESSOA`. Ela atende membros,
+egressos, conselheiros, colaboradores academicos, participantes externos e
+outros perfis sem repetir colunas de link em cada detalhe cadastral.
+
+Campos do contrato: `ID_LINK`, `ID_PESSOA`, `TIPO_LINK`, `URL`, `ROTULO`,
+`PUBLICAVEL`, `VISIVEL_PORTAL`, `FONTE`, `VALIDADO_EM`, `ATIVO`, `CRIADO_EM`,
+`ATUALIZADO_EM` e `OBS`. Os tipos iniciais sao `LATTES`, `LINKEDIN`, `ORCID`,
+`INSTAGRAM`, `SITE_PESSOAL`, `GOOGLE_SCHOLAR`, `RESEARCHGATE` e `OUTRO`.
+
+Durante o rollout a aba e opcional para leitura. Depois de provisionada, ela e
+a fonte exclusiva de links para o contrato autenticado de Meu Perfil. A coluna
+legada em `COLABORADORES_ACADEMICOS` so pode ser removida apos a verificacao
+integral por pessoa, tipo e URL.
+
+Visibilidade:
+
+- o proprio usuario autenticado pode receber seus links ativos no contrato de
+  `Meu perfil`;
+- leituras para superficies publicas usam somente registros ativos com
+  `PUBLICAVEL = SIM` e `VISIVEL_PORTAL = SIM`;
+- `OBS` e `FONTE` nao fazem parte do payload exibido pelo Portal.
+
+Provisionamento e migracao manual em DEV:
+
+1. Rode `corePessoasV2PrepareLinksPerfis({ dryRun: true })`.
+2. Rode `corePessoasV2PrepareLinksPerfis({ dryRun: false, confirmacao: 'PREPARAR_PESSOAS_V2_LINKS_PERFIS' })`.
+3. Cadastre no Registry a key `PESSOAS_V2_LINKS_PERFIS`, apontando para a nova
+   aba no ambiente DEV.
+4. Rode `corePessoasV2MigrarLinksPerfisLegados({ dryRun: true, ambiente: 'DEV' })`.
+5. Depois de conferir as linhas, rode a mesma funcao com `dryRun: false` e
+   `confirmacao: 'MIGRAR_LATTES_LEGADO_PESSOAS_V2'`.
+6. Rode `corePessoasV2VerificarRemocaoLinkLattesLegado({ ambiente: 'DEV' })`.
+7. Somente com `prontoParaRemocao: true`, execute
+   `corePessoasV2RemoverColunaLinkLattesLegadoReal()`.
+
+A migracao e idempotente por `ID_PESSOA + TIPO_LINK + URL`, cria apenas
+`LATTES` ainda ausentes e inicia `PUBLICAVEL`/`VISIVEL_PORTAL` como `NAO`.
+Edicao pelo membro permanece fora do escopo desta etapa. A remocao nao atinge
+o campo-fonte `CURRICULO_LATTES` dos formularios de docentes/tecnicos nem os
+campos de links das abas editoriais publicas.
 
 ### PARTICIPANTES_EXTERNOS_DETALHES
 

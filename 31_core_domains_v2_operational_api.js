@@ -40,6 +40,87 @@ function core_domainsV2Rga_(value) {
   return String(value || '').trim();
 }
 
+var CORE_PESSOAS_V2_LINKS_PERFIS_TYPES = Object.freeze([
+  'LATTES',
+  'LINKEDIN',
+  'ORCID',
+  'INSTAGRAM',
+  'SITE_PESSOAL',
+  'GOOGLE_SCHOLAR',
+  'RESEARCHGATE',
+  'OUTRO'
+]);
+
+var CORE_PESSOAS_V2_LINKS_PERFIS_LABELS = Object.freeze({
+  LATTES: 'Curriculo Lattes',
+  LINKEDIN: 'LinkedIn',
+  ORCID: 'ORCID',
+  INSTAGRAM: 'Instagram',
+  SITE_PESSOAL: 'Site pessoal',
+  GOOGLE_SCHOLAR: 'Google Scholar',
+  RESEARCHGATE: 'ResearchGate',
+  OUTRO: 'Link externo'
+});
+
+/** Normaliza tipos de links para o catalogo canonico de Pessoas V2. */
+function core_domainsV2NormalizeLinkPerfilType_(value) {
+  var normalized = core_domainsV2AuditStatus_(value).replace(/[\s-]+/g, '_');
+  if (normalized === 'CURRICULO_LATTES' || normalized === 'CURRICULO') normalized = 'LATTES';
+  if (normalized === 'GOOGLE_SCHOLAR_PROFILE') normalized = 'GOOGLE_SCHOLAR';
+  return CORE_PESSOAS_V2_LINKS_PERFIS_TYPES.indexOf(normalized) >= 0 ? normalized : 'OUTRO';
+}
+
+/** Retorna somente URLs HTTP(S) seguras para contratos consumidos pelo Portal. */
+function core_domainsV2NormalizeProfileUrl_(value) {
+  var raw = String(value || '').trim();
+  if (!raw || /[\s<>]/.test(raw)) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s<>]*)?$/i.test(raw)) return 'https://' + raw;
+  return '';
+}
+
+/** Indica se o registro de link esta ativo para leitura. */
+function core_domainsV2IsLinkPerfilActive_(record) {
+  return core_domainsV2AuditIsSim_((record || {}).ATIVO);
+}
+
+/** Converte um registro bruto de link no formato seguro para consumidores. */
+function core_domainsV2MapLinkPerfil_(record) {
+  var source = record || {};
+  var url = core_domainsV2NormalizeProfileUrl_(source.URL);
+  if (!url) return null;
+  var tipo = core_domainsV2NormalizeLinkPerfilType_(source.TIPO_LINK);
+  return {
+    idLink: String(source.ID_LINK || '').trim(),
+    tipo: tipo,
+    url: url,
+    rotulo: String(source.ROTULO || CORE_PESSOAS_V2_LINKS_PERFIS_LABELS[tipo] || 'Link externo').trim(),
+    publicavel: core_domainsV2AuditIsSim_(source.PUBLICAVEL),
+    visivelPortal: core_domainsV2AuditIsSim_(source.VISIVEL_PORTAL)
+  };
+}
+
+/** Lista links de uma pessoa, aplicando o filtro publico quando solicitado. */
+function core_domainsV2LinksPerfisByPessoa_(pessoasData, idPessoa, options) {
+  var opts = options || {};
+  var id = String(idPessoa || '').trim();
+  if (!id) return [];
+  var records = (pessoasData.PESSOAS_V2_LINKS_PERFIS && pessoasData.PESSOAS_V2_LINKS_PERFIS.records) || [];
+  return records.filter(function(record) {
+    if (String(record.ID_PESSOA || '').trim() !== id) return false;
+    if (opts.includeInactive !== true && !core_domainsV2IsLinkPerfilActive_(record)) return false;
+    if (opts.publicOnly === true && !(core_domainsV2AuditIsSim_(record.PUBLICAVEL) && core_domainsV2AuditIsSim_(record.VISIVEL_PORTAL))) return false;
+    return true;
+  }).map(core_domainsV2MapLinkPerfil_).filter(function(link) {
+    return !!link;
+  }).sort(function(a, b) {
+    var aPriority = a.tipo === 'LATTES' ? 0 : 1;
+    var bPriority = b.tipo === 'LATTES' ? 0 : 1;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    return String(a.rotulo || a.tipo).localeCompare(String(b.rotulo || b.tipo));
+  });
+}
+
 function core_domainsV2Active_(record) {
   return core_domainsV2AuditStatus_(record.STATUS_VINCULO || record.STATUS || record.STATUS_VIGENCIA) === 'ATIVO' ||
     core_domainsV2AuditStatus_(record.STATUS_VINCULO || record.STATUS || record.STATUS_VIGENCIA) === 'ATIVA' ||
@@ -129,6 +210,7 @@ function core_domainsV2PessoaBundle_(pessoasData, idPessoa) {
     pessoa: core_domainsV2CloneRecord_(pessoa),
     identificadores: byPessoa('PESSOAS_IDENTIFICADORES'),
     membrosDetalhes: byPessoa('MEMBROS_DETALHES')[0] || null,
+    linksPerfis: core_domainsV2LinksPerfisByPessoa_(pessoasData, id, { includeInactive: false }),
     colaboradoresAcademicos: byPessoa('COLABORADORES_ACADEMICOS'),
     participantesExternosDetalhes: byPessoa('PARTICIPANTES_EXTERNOS_DETALHES'),
     vinculos: byPessoa('VINCULOS_GEAPA'),
@@ -171,6 +253,216 @@ function corePessoasGetOperationalSummary_(idPessoa) {
     if (String(resumo[i].ID_PESSOA || '').trim() === id) return core_domainsV2CloneRecord_(resumo[i]);
   }
   return null;
+}
+
+/** Normaliza texto para busca e comparacao dos filtros administrativos. */
+function core_pessoasAdminPortalNormalize_(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+}
+
+/** Converte valores de planilha/filtro em booleano quando a intencao estiver explicita. */
+function core_pessoasAdminPortalBoolean_(value) {
+  if (value === true || value === false) return value;
+  var normalized = core_pessoasAdminPortalNormalize_(value);
+  if (['SIM', 'TRUE', '1', 'ATIVO'].indexOf(normalized) >= 0) return true;
+  if (['NAO', 'FALSE', '0', 'INATIVO'].indexOf(normalized) >= 0) return false;
+  return null;
+}
+
+/** Converte indicador numerico e devolve nulo quando a origem estiver vazia ou invalida. */
+function core_pessoasAdminPortalNumber_(value) {
+  if (value === '' || value == null) return null;
+  var number = Number(value);
+  return isFinite(number) ? number : null;
+}
+
+/** Indica se a linha representa um vinculo de membro administravel nesta primeira versao. */
+function core_pessoasAdminPortalIsMember_(record) {
+  var tipo = core_pessoasAdminPortalNormalize_((record || {}).TIPO_VINCULO_ATUAL);
+  return tipo === 'MEMBRO' || tipo.indexOf('MEMBRO_') === 0;
+}
+
+/** Indica se o resumo registra alguma pendencia operacional aberta. */
+function core_pessoasAdminPortalHasPending_(value) {
+  var normalized = core_pessoasAdminPortalNormalize_(value);
+  return !!normalized && ['SEM_PENDENCIAS', 'SEM PENDENCIAS', 'NAO', 'NENHUMA'].indexOf(normalized) < 0;
+}
+
+/** Mapeia uma linha do cache operacional para o contrato estritamente sanitizado do Portal. */
+function core_pessoasAdminPortalMapRow_(record) {
+  var source = record || {};
+  return Object.freeze({
+    idPessoa: String(source.ID_PESSOA || '').trim(),
+    rga: String(source.RGA || '').trim(),
+    nomeExibicao: String(source.NOME_EXIBICAO || '').trim(),
+    email: core_domainsV2Email_(source.EMAIL),
+    tipoVinculoAtual: String(source.TIPO_VINCULO_ATUAL || '').trim(),
+    statusVinculoAtual: String(source.STATUS_VINCULO_ATUAL || '').trim(),
+    cargoFuncaoAtual: String(source.CARGO_FUNCAO_ATUAL || '').trim(),
+    perfilPortalCalculado: String(source.PERFIL_PORTAL_CALCULADO || '').trim(),
+    portalAtivo: core_pessoasAdminPortalBoolean_(source.PORTAL_ATIVO),
+    tempoEfetivoNoGrupo: String(source.TEMPO_EFETIVO_NO_GRUPO || '').trim(),
+    qtdSemestresNoGrupo: core_pessoasAdminPortalNumber_(source.QTD_SEMESTRES_NO_GRUPO),
+    qtdApresentacoesRealizadas: core_pessoasAdminPortalNumber_(source.QTD_APRESENTACOES_REALIZADAS),
+    cicloUltimaApresentacao: String(source.CICLO_ULTIMA_APRESENTACAO || '').trim(),
+    frequenciaResumida: String(source.FREQUENCIA_RESUMIDA || '').trim(),
+    pendenciasAbertas: String(source.PENDENCIAS_ABERTAS || '').trim(),
+    flagJaFoiSuspenso: String(source.FLAG_JA_FOI_SUSPENSO || '').trim(),
+    statusElegibilidadeDiretoria: String(source.STATUS_ELEGIBILIDADE_DIRETORIA || '').trim(),
+    ultimaAtualizacao: source.ULTIMA_ATUALIZACAO || ''
+  });
+}
+
+/** Normaliza e limita os filtros aceitos pelo contrato administrativo. */
+function core_pessoasAdminPortalFilters_(filters) {
+  var source = filters && typeof filters === 'object' ? filters : {};
+  var pageSize = Math.min(Math.max(Number(source.pageSize || source.limite || 50) || 50, 1), 100);
+  return Object.freeze({
+    texto: core_pessoasAdminPortalNormalize_(source.texto || source.busca),
+    tipoVinculo: core_pessoasAdminPortalNormalize_(source.tipoVinculo || source.tipoVinculoAtual),
+    statusVinculo: core_pessoasAdminPortalNormalize_(source.statusVinculo || source.statusVinculoAtual),
+    perfilPortal: core_pessoasAdminPortalNormalize_(source.perfilPortal || source.perfilPortalCalculado),
+    portalAtivo: core_pessoasAdminPortalBoolean_(source.portalAtivo),
+    comPendencias: core_pessoasAdminPortalBoolean_(source.comPendencias),
+    situacaoFrequencia: core_pessoasAdminPortalNormalize_(source.situacaoFrequencia || source.frequencia),
+    pagina: Math.max(Number(source.pagina || source.page || 1) || 1, 1),
+    pageSize: pageSize
+  });
+}
+
+/** Aplica os filtros homologados sem recalcular qualquer indicador operacional. */
+function core_pessoasAdminPortalMatches_(item, filters) {
+  if (filters.texto) {
+    var haystack = core_pessoasAdminPortalNormalize_([item.nomeExibicao, item.rga, item.email].join(' '));
+    if (haystack.indexOf(filters.texto) < 0) return false;
+  }
+  if (filters.tipoVinculo && core_pessoasAdminPortalNormalize_(item.tipoVinculoAtual) !== filters.tipoVinculo) return false;
+  if (filters.statusVinculo && core_pessoasAdminPortalNormalize_(item.statusVinculoAtual) !== filters.statusVinculo) return false;
+  if (filters.perfilPortal && core_pessoasAdminPortalNormalize_(item.perfilPortalCalculado) !== filters.perfilPortal) return false;
+  if (filters.portalAtivo !== null && item.portalAtivo !== filters.portalAtivo) return false;
+  if (filters.comPendencias !== null && core_pessoasAdminPortalHasPending_(item.pendenciasAbertas) !== filters.comPendencias) return false;
+  if (filters.situacaoFrequencia) {
+    var frequency = core_pessoasAdminPortalNormalize_(item.frequenciaResumida);
+    if (filters.situacaoFrequencia === 'SEM_DADOS' && frequency) return false;
+    if (filters.situacaoFrequencia !== 'SEM_DADOS' && frequency.indexOf(filters.situacaoFrequencia) < 0) return false;
+  }
+  return true;
+}
+
+/** Extrai opcoes de filtro nao sensiveis a partir da colecao completa de membros. */
+function core_pessoasAdminPortalFilterOptions_(items) {
+  function distinct(field) {
+    var seen = {};
+    return (items || []).map(function(item) { return String(item[field] || '').trim(); }).filter(function(value) {
+      var key = core_pessoasAdminPortalNormalize_(value);
+      if (!value || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    }).sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
+  }
+  return Object.freeze({
+    tiposVinculo: Object.freeze(distinct('tipoVinculoAtual')),
+    statusVinculo: Object.freeze(distinct('statusVinculoAtual')),
+    perfisPortal: Object.freeze(distinct('perfilPortalCalculado')),
+    frequencias: Object.freeze(distinct('frequenciaResumida'))
+  });
+}
+
+/** Valida no Core se a sessao oficial possui acesso ativo e a permissao membros:ler. */
+function core_pessoasAdminPortalAuthorize_(session) {
+  var permissions = session && Array.isArray(session.permissoes) ? session.permissoes : [];
+  return !!(
+    session &&
+    session.ok !== false &&
+    session.autenticado === true &&
+    session.portalAtivo === true &&
+    permissions.map(corePortalNormalizePermission_).indexOf('membros:ler') >= 0
+  );
+}
+
+/** Registra diagnostico tecnico da listagem sem nomes, e-mails, RGA ou filtros textuais. */
+function core_pessoasAdminPortalLog_(payload) {
+  var source = payload || {};
+  Logger.log('[geapa-core][portal][admin-members] ' + JSON.stringify({
+    ok: source.ok === true,
+    code: String(source.code || '').slice(0, 80),
+    totalBase: Number(source.totalBase || 0),
+    totalFiltrado: Number(source.totalFiltrado || 0),
+    pagina: Number(source.pagina || 0),
+    pageSize: Number(source.pageSize || 0),
+    duracaoMs: Number(source.duracaoMs || 0)
+  }));
+}
+
+/**
+ * Lista membros para a area administrativa do Portal usando apenas o cache operacional V2.
+ * A identidade do solicitante e resolvida novamente pelo Core e nenhum dado sensivel e retornado.
+ */
+function core_listarMembrosAdministracaoPortal_(filtros, contexto) {
+  var startedAt = Date.now();
+  var ctx = contexto && typeof contexto === 'object' ? contexto : {};
+  var requester = ctx.idPessoa || ctx.identificadorSolicitante || ctx.identificador || '';
+  var session = corePortalResolverUsuarioAtual_(requester, { origem: 'adminMembrosListar' });
+  if (!core_pessoasAdminPortalAuthorize_(session)) {
+    core_pessoasAdminPortalLog_({ ok: false, code: 'ACESSO_NEGADO', duracaoMs: Date.now() - startedAt });
+    return Object.freeze({
+      ok: false,
+      errorCode: 'ACESSO_NEGADO',
+      message: 'Usuario sem permissao para consultar membros.'
+    });
+  }
+
+  var normalizedFilters = core_pessoasAdminPortalFilters_(filtros);
+  // Usa o resolvedor oficial do dominio para respeitar o ambiente efetivo de Pessoas V2.
+  var report = core_domainsV2NewReadReport_('PORTAL_ADMIN_MEMBROS_LISTAR');
+  var pessoasData = core_domainsV2OpenPessoas_(report);
+  if (report.totalErros) {
+    throw new Error('PESSOAS_V2_RESUMO_OPERACIONAL_INDISPONIVEL');
+  }
+  var records = (pessoasData.PESSOAS_RESUMO_OPERACIONAL && pessoasData.PESSOAS_RESUMO_OPERACIONAL.records) || [];
+  var members = records.filter(core_pessoasAdminPortalIsMember_).map(core_pessoasAdminPortalMapRow_);
+  members.sort(function(a, b) {
+    return String(a.nomeExibicao || a.idPessoa).localeCompare(String(b.nomeExibicao || b.idPessoa), 'pt-BR');
+  });
+  var filtered = members.filter(function(item) { return core_pessoasAdminPortalMatches_(item, normalizedFilters); });
+  var totalPages = Math.max(Math.ceil(filtered.length / normalizedFilters.pageSize), 1);
+  var page = Math.min(normalizedFilters.pagina, totalPages);
+  var start = (page - 1) * normalizedFilters.pageSize;
+  var pageItems = filtered.slice(start, start + normalizedFilters.pageSize);
+  var lastUpdate = members.reduce(function(latest, item) {
+    var current = item.ultimaAtualizacao ? new Date(item.ultimaAtualizacao).getTime() : 0;
+    return current > latest ? current : latest;
+  }, 0);
+  var data = Object.freeze({
+    itens: Object.freeze(pageItems),
+    paginacao: Object.freeze({
+      pagina: page,
+      pageSize: normalizedFilters.pageSize,
+      totalItens: filtered.length,
+      totalPaginas: totalPages,
+      temAnterior: page > 1,
+      temProxima: page < totalPages
+    }),
+    totalMembrosBase: members.length,
+    opcoesFiltros: core_pessoasAdminPortalFilterOptions_(members),
+    ultimaAtualizacaoResumo: lastUpdate ? new Date(lastUpdate) : '',
+    somenteLeitura: true,
+    fonte: 'PESSOAS_V2_RESUMO_OPERACIONAL'
+  });
+  core_pessoasAdminPortalLog_({
+    ok: true,
+    code: 'MEMBROS_ADMIN_LISTADOS',
+    totalBase: members.length,
+    totalFiltrado: filtered.length,
+    pagina: page,
+    pageSize: normalizedFilters.pageSize,
+    duracaoMs: Date.now() - startedAt
+  });
+  return Object.freeze({ ok: true, data: data });
 }
 
 function core_domainsV2ListByActiveLinkType_(tipoVinculo, opts) {
@@ -823,6 +1115,27 @@ function core_domainsV2PresentationSummary_(activityData, ctx) {
     hasPending: pending,
     hasFilePending: filePending
   };
+}
+
+/**
+ * Retorna links da pessoa resolvida por ID_PESSOA.
+ * A leitura exposta filtra links publicos por padrao; uso privado exige opt-in
+ * explicito por um backend ja autorizado.
+ */
+function corePessoasListLinksPerfis_(idPessoa, options) {
+  var opts = options || {};
+  var report = core_domainsV2NewReadReport_('PESSOAS_LIST_LINKS_PERFIS');
+  var pessoasData = core_domainsV2OpenPessoas_(report);
+  if (report.totalErros) throw new Error('Pessoas v2 indisponivel: ' + JSON.stringify(report.erros));
+  return core_domainsV2LinksPerfisByPessoa_(pessoasData, idPessoa, {
+    includeInactive: opts.includeInactive === true,
+    publicOnly: opts.publicOnly !== false
+  });
+}
+
+/** Retorna apenas links autorizados para superficies publicas do Portal. */
+function corePessoasListLinksPerfisPublicos_(idPessoa) {
+  return corePessoasListLinksPerfis_(idPessoa, { publicOnly: true });
 }
 
 function core_domainsV2FrequencySummary_(activityData, ctx, periodoReferencia) {

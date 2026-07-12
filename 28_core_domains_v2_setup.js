@@ -25,12 +25,20 @@ var CORE_DOMAINS_V2_INITIAL_SHEET_NAMES = Object.freeze([
 
 var CORE_DOMAINS_V2_HEADER_NOTES = Object.freeze({
   ID_PESSOA: 'Identificador tecnico unificado da pessoa no ecossistema GEAPA.',
+  ID_LINK: 'Identificador tecnico unico do link/perfil associado a uma pessoa.',
   ID_VINCULO: 'Identificador tecnico do vinculo da pessoa com o GEAPA.',
   ID_EVENTO_MEMBRO: 'Identificador tecnico do evento de ciclo de vida do membro.',
   ID_VIGENCIA: 'Identificador tecnico da vigencia de funcao/cargo.',
   RGA: 'Identificador oficial de membros discentes; nao substituir por ID_PESSOA nesta fase.',
   EMAIL: 'E-mail de contato normalizado quando aplicavel.',
   EMAIL_PRINCIPAL: 'E-mail principal da pessoa.',
+  TIPO_LINK: 'Categoria canonica do link: LATTES, LINKEDIN, ORCID, INSTAGRAM, SITE_PESSOAL, GOOGLE_SCHOLAR, RESEARCHGATE ou OUTRO.',
+  URL: 'Endereco do link. Leituras para o Portal aceitam somente URLs HTTP(S) validas.',
+  ROTULO: 'Rotulo legivel do link para exibicao no Portal.',
+  PUBLICAVEL: 'Use SIM somente quando o link puder integrar leituras publicas.',
+  VISIVEL_PORTAL: 'Use SIM somente quando o link puder ser exibido em superficies do Portal.',
+  FONTE: 'Origem cadastral ou processo que forneceu o link.',
+  VALIDADO_EM: 'Data em que a URL foi validada manualmente ou por processo confiavel.',
   ATIVO: 'Use SIM/NAO para indicar se o registro esta operacionalmente ativo.',
   CRIADO_EM: 'Timestamp de criacao do registro.',
   ATUALIZADO_EM: 'Timestamp da ultima atualizacao do registro.',
@@ -89,6 +97,27 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
       ])
     }),
     Object.freeze({
+      sheetName: 'PESSOAS_V2_LINKS_PERFIS',
+      classification: 'FONTE',
+      // Optional during rollout so existing Portal reads keep the legacy Lattes fallback.
+      optional: true,
+      headers: Object.freeze([
+        'ID_LINK',
+        'ID_PESSOA',
+        'TIPO_LINK',
+        'URL',
+        'ROTULO',
+        'PUBLICAVEL',
+        'VISIVEL_PORTAL',
+        'FONTE',
+        'VALIDADO_EM',
+        'ATIVO',
+        'CRIADO_EM',
+        'ATUALIZADO_EM',
+        'OBS'
+      ])
+    }),
+    Object.freeze({
       sheetName: 'MEMBROS_DETALHES',
       classification: 'FONTE',
       headers: Object.freeze([
@@ -114,7 +143,6 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
         'AREA_ATUACAO',
         'EIXO_ASSOCIADO',
         'EMAIL_INSTITUCIONAL',
-        'LINK_LATTES',
         'OBS_ACADEMICA',
         'ATIVO'
       ]),
@@ -623,6 +651,69 @@ function coreEnsurePessoasV2DevSheets_(opts) {
   );
 }
 
+/**
+ * Prepara exclusivamente a aba geral de links e perfis de Pessoas V2.
+ * A operacao e manual, exige confirmacao para escrita e nao modifica abas legadas.
+ *
+ * @param {Object=} options Opcoes de dry-run e confirmacao explicita.
+ * @return {Object} Diagnostico ou resultado do provisionamento da aba.
+ */
+function corePessoasV2PrepareLinksPerfis_(options) {
+  var opts = options || {};
+  var dryRun = opts.dryRun !== false;
+  var confirmacao = String(opts.confirmacao || '').trim();
+  var definition = CORE_DOMAINS_V2_SCHEMAS.PESSOAS.filter(function(item) {
+    return item.sheetName === 'PESSOAS_V2_LINKS_PERFIS';
+  })[0];
+  var spreadsheet = SpreadsheetApp.openById(CORE_DOMAINS_V2_DEV_SPREADSHEETS.PESSOAS);
+  var existing = spreadsheet.getSheetByName(definition.sheetName);
+  var report = {
+    ok: true,
+    dryRun: dryRun,
+    sheetName: definition.sheetName,
+    spreadsheetName: spreadsheet.getName(),
+    existedBefore: !!existing,
+    requiredHeaders: definition.headers.slice(),
+    created: false,
+    addedHeaders: [],
+    uxOperations: [],
+    nextStep: 'Cadastrar PESSOAS_V2_LINKS_PERFIS no Registry DEV antes da migracao.'
+  };
+
+  if (dryRun) {
+    Logger.log('[geapa-core][PESSOAS_V2_LINKS_PERFIS][PREPARE] ' + JSON.stringify(report));
+    return report;
+  }
+  if (confirmacao !== 'PREPARAR_PESSOAS_V2_LINKS_PERFIS') {
+    report.ok = false;
+    report.blocked = true;
+    report.reason = 'CONFIRMACAO_OBRIGATORIA';
+    Logger.log('[geapa-core][PESSOAS_V2_LINKS_PERFIS][PREPARE] ' + JSON.stringify(report));
+    return report;
+  }
+
+  var sheetIndex = CORE_DOMAINS_V2_SCHEMAS.PESSOAS.indexOf(definition);
+  var resolved = core_getOrCreateDomainsV2Sheet_(spreadsheet, definition.sheetName, sheetIndex);
+  var headersResult = core_ensureDomainsV2Headers_(resolved.sheet, definition.headers, definition.deprecatedHeaders);
+  report.created = !!resolved.created;
+  report.addedHeaders = headersResult.addedHeaders;
+  report.uxOperations = core_applyDomainsV2SheetUx_(resolved.sheet);
+  Logger.log('[geapa-core][PESSOAS_V2_LINKS_PERFIS][PREPARE] ' + JSON.stringify(report));
+  return report;
+}
+
+/**
+ * Executa o provisionamento real da aba de links sem exigir parametros no editor.
+ *
+ * @return {Object} Relatorio da criacao da aba e dos cabecalhos.
+ */
+function corePessoasV2PrepareLinksPerfisReal_() {
+  return corePessoasV2PrepareLinksPerfis_({
+    dryRun: false,
+    confirmacao: 'PREPARAR_PESSOAS_V2_LINKS_PERFIS'
+  });
+}
+
 function coreEnsureVigenciasV2DevSheets_(opts) {
   return core_ensureDomainsV2Spreadsheet_(
     'VIGENCIAS',
@@ -674,9 +765,11 @@ function coreDiagnosticarCentralDomainsV2DevSheets_(opts) {
         classification: definition.classification,
         exists: !!sheet,
         missingHeaders: missingHeaders,
-        ok: !!sheet && missingHeaders.length === 0,
+        ok: !!sheet ? missingHeaders.length === 0 : definition.optional === true,
         recommendation: !sheet
-          ? 'Criar aba com cabecalhos oficiais.'
+          ? (definition.optional === true
+            ? 'Aba opcional durante rollout; preparar antes de usar links/perfis.'
+            : 'Criar aba com cabecalhos oficiais.')
           : (missingHeaders.length ? 'Adicionar cabecalhos faltantes ao final.' : 'Estrutura aderente.')
       });
     });

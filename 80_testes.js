@@ -149,6 +149,83 @@ function test_core_domainsV2_pessoasListCurrentMembers() {
   Logger.log(JSON.stringify(corePessoasListCurrentMembers_(), null, 2));
 }
 
+/** Testa autorizacao, sanitizacao e filtros puros da listagem administrativa de membros. */
+function test_core_portalAdminMembrosContratoPuro() {
+  var allowed = core_pessoasAdminPortalAuthorize_({
+    ok: true,
+    autenticado: true,
+    portalAtivo: true,
+    permissoes: ['portal:acessar', 'membros:ler']
+  });
+  var denied = core_pessoasAdminPortalAuthorize_({
+    ok: true,
+    autenticado: true,
+    portalAtivo: true,
+    permissoes: ['portal:acessar']
+  });
+  var mapped = core_pessoasAdminPortalMapRow_({
+    ID_PESSOA: 'PES-1',
+    RGA: '2026001',
+    NOME_EXIBICAO: 'Membro Teste',
+    EMAIL: 'membro@example.com',
+    TIPO_VINCULO_ATUAL: 'MEMBRO_EFETIVO',
+    STATUS_VINCULO_ATUAL: 'ATIVO',
+    CPF: '00000000000',
+    TELEFONE: '65999999999',
+    QTD_SEMESTRES_NO_GRUPO: 2,
+    PENDENCIAS_ABERTAS: 'SEM_PENDENCIAS'
+  });
+  var matches = core_pessoasAdminPortalMatches_(mapped, core_pessoasAdminPortalFilters_({ texto: '2026001' }));
+  if (!allowed) throw new Error('Diretoria/Secretaria/Admin com membros:ler deveria ser autorizada.');
+  if (denied) throw new Error('Membro comum sem membros:ler deveria ser negado.');
+  if (!matches) throw new Error('Busca por RGA deveria localizar o membro.');
+  if (Object.prototype.hasOwnProperty.call(mapped, 'CPF') || Object.prototype.hasOwnProperty.call(mapped, 'telefone')) {
+    throw new Error('Contrato administrativo vazou campo sensivel.');
+  }
+  return { ok: true, mapped: mapped };
+}
+
+/** Testa filtros e normalizacao puros do contrato geral de links/perfis. */
+function test_core_domainsV2_linksPerfisHelpers() {
+  var pessoasData = {
+    PESSOAS_V2_LINKS_PERFIS: {
+      records: [
+        { ID_LINK: 'LNK-000001', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'LATTES', URL: 'lattes.cnpq.br/123', ROTULO: '', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'SIM', ATIVO: 'SIM' },
+        { ID_LINK: 'LNK-000002', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'LINKEDIN', URL: 'https://linkedin.com/in/teste', ROTULO: 'Perfil profissional', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'NAO', ATIVO: 'SIM' },
+        { ID_LINK: 'LNK-000003', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'ORCID', URL: 'javascript:alert(1)', ROTULO: '', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'SIM', ATIVO: 'SIM' },
+        { ID_LINK: 'LNK-000004', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'OUTRO', URL: 'https://example.org/inativo', ROTULO: '', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'SIM', ATIVO: 'NAO' }
+      ]
+    }
+  };
+  var privados = core_domainsV2LinksPerfisByPessoa_(pessoasData, 'PES-TESTE');
+  var publicos = core_domainsV2LinksPerfisByPessoa_(pessoasData, 'PES-TESTE', { publicOnly: true });
+  if (privados.length !== 2 || privados[0].tipo !== 'LATTES') throw new Error('Links ativos privados foram normalizados incorretamente.');
+  if (publicos.length !== 1 || publicos[0].tipo !== 'LATTES') throw new Error('Filtro PUBLICAVEL/VISIVEL_PORTAL falhou.');
+  return { ok: true, privados: privados, publicos: publicos };
+}
+
+/** Executa a migracao de Lattes somente em dry-run apos cadastrar a key no Registry. */
+function test_core_domainsV2_migrarLinksPerfisLegados_dryRun() {
+  return corePessoasV2MigrarLinksPerfisLegados_({ dryRun: true, ambiente: 'DEV' });
+}
+
+/** Confirma que Meu Perfil le exclusivamente a fonte geral de links de Pessoas V2. */
+function test_core_portalMeuPerfilLinksPerfisV2() {
+  var vazio = core_buildMeuPerfilLinksPortal_({
+    pessoa: {},
+    colaboradoresAcademicos: [{ LINK_LATTES: 'lattes.cnpq.br/legado' }],
+    linksPerfis: []
+  });
+  var v2 = core_buildMeuPerfilLinksPortal_({
+    pessoa: {},
+    colaboradoresAcademicos: [{ LINK_LATTES: 'lattes.cnpq.br/legado' }],
+    linksPerfis: [{ tipo: 'LATTES', url: 'https://lattes.cnpq.br/v2', rotulo: 'Lattes atualizado' }]
+  });
+  if (vazio.length !== 0) throw new Error('Meu Perfil nao deve consultar LINK_LATTES legado.');
+  if (v2.length !== 1 || v2[0].url !== 'https://lattes.cnpq.br/v2') throw new Error('Link V2 deveria ser exibido.');
+  return { ok: true, vazio: vazio, v2: v2 };
+}
+
 function test_core_domainsV2_recalcularVigenciasResumoAtual_REAL_CONFIRMADO() {
   Logger.log(JSON.stringify(coreRecalcularVigenciasResumoAtualV2_({
     dryRun: false,

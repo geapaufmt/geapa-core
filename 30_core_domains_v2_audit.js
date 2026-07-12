@@ -16,6 +16,7 @@ var CORE_DOMAINS_V2_CONTRACT_KEYS = Object.freeze({
   PESSOAS_V2_BASE: 'PESSOAS_BASE',
   PESSOAS_V2_IDENTIFICADORES: 'PESSOAS_IDENTIFICADORES',
   PESSOAS_V2_MEMBROS_DETALHES: 'MEMBROS_DETALHES',
+  PESSOAS_V2_LINKS_PERFIS: 'PESSOAS_V2_LINKS_PERFIS',
   PESSOAS_V2_COLABORADORES_ACADEMICOS: 'COLABORADORES_ACADEMICOS',
   PESSOAS_V2_PARTICIPANTES_EXTERNOS_DETALHES: 'PARTICIPANTES_EXTERNOS_DETALHES',
   PESSOAS_V2_VINCULOS_GEAPA: 'VINCULOS_GEAPA',
@@ -124,7 +125,10 @@ function core_domainsV2AuditOpenDomain_(domainKey, report) {
   schema.forEach(function(definition) {
     var sheet = spreadsheet.getSheetByName(definition.sheetName);
     if (!sheet) {
-      core_domainsV2AuditIssue_(report, 'ERRO', 'ABA_V2_NAO_ENCONTRADA', 'Aba v2 nao encontrada.', { sheetName: definition.sheetName });
+      core_domainsV2AuditIssue_(report, definition.optional === true ? 'AVISO' : 'ERRO', 'ABA_V2_NAO_ENCONTRADA', definition.optional === true ? 'Aba v2 opcional ainda nao foi preparada.' : 'Aba v2 nao encontrada.', {
+        sheetName: definition.sheetName,
+        optional: definition.optional === true
+      });
       out[definition.sheetName] = { sheet: null, records: [], headers: [] };
       return;
     }
