@@ -191,11 +191,22 @@ function corePerfilAuthorizeOwn_(contexto, deps) {
 }
 
 function corePerfilAuthorizeAdmin_(contexto, deps) {
+  try {
+    corePerfilAssertHomologContext_(contexto, deps);
+  } catch (envError) {
+    return { ok: false, response: corePerfilEnvelopeError_('CONTEXTO_HOMOLOG_OBRIGATORIO', 'Operacao administrativa disponivel somente no Portal HOMOLOG.') };
+  }
   var auth = corePerfilAuthorizeOwn_(contexto, deps);
   if (!auth.ok) return auth;
   var permissions = Array.isArray(auth.session.permissoes) ? auth.session.permissoes : [];
+  var profiles = Array.isArray(auth.session.perfisPortal) ? auth.session.perfisPortal.slice() : [];
+  if (auth.session.perfilPortalEfetivo) profiles.push(auth.session.perfilPortalEfetivo);
+  var homologProfileAllowed = profiles.map(corePerfilNormalizeToken_).some(function(profile) {
+    return profile === 'SECRETARIA' || profile === 'DIRETORIA';
+  });
   var allowed = permissions.map(corePortalNormalizePermission_).indexOf(CORE_PERFIL_ADMIN_PERMISSION) >= 0 ||
-    corePerfilSessionHasPermissionDev_(auth.session, CORE_PERFIL_ADMIN_PERMISSION, deps);
+    corePerfilSessionHasPermissionDev_(auth.session, CORE_PERFIL_ADMIN_PERMISSION, deps) ||
+    homologProfileAllowed;
   if (!allowed) {
     return { ok: false, response: corePerfilEnvelopeError_('PERMISSAO_NEGADA', 'Usuario sem permissao para analisar correcoes cadastrais.') };
   }
@@ -208,7 +219,12 @@ function corePerfilSessionHasPermissionDev_(session, permission, deps) {
   if (session && session.perfilPortalEfetivo) profiles.push(session.perfilPortalEfetivo);
   profiles = profiles.map(corePerfilNormalizeToken_);
   if (!profiles.length) return false;
-  var records = core_readSheetRecords_(corePerfilGetSheetByKeyDev_('PORTAL_PERMISSOES'), { skipBlankRows: true });
+  var records = [];
+  try {
+    records = core_readSheetRecords_(corePerfilGetSheetByKeyDev_('PORTAL_PERMISSOES'), { skipBlankRows: true });
+  } catch (missingDevPermissionSource) {
+    return false;
+  }
   return records.some(function(record) {
     return profiles.indexOf(corePerfilNormalizeToken_(record.PERFIL_PORTAL)) >= 0 &&
       corePortalNormalizePermission_(record.PERMISSAO) === corePortalNormalizePermission_(permission) &&
@@ -922,7 +938,17 @@ function corePerfilEnsureRegistryDev_(spreadsheetId, dryRun) {
 }
 
 function corePerfilEnsureAdminPermissionDev_(dryRun) {
-  var meta = corePerfilRegistryMetaDev_('PORTAL_PERMISSOES');
+  var meta = null;
+  try {
+    meta = corePerfilRegistryMetaDev_('PORTAL_PERMISSOES');
+  } catch (missingDevPermissionSource) {
+    return {
+      available: false,
+      skipped: true,
+      reason: 'PORTAL_PERMISSOES_DEV_INDISPONIVEL',
+      fallback: 'PERFIS_SECRETARIA_DIRETORIA_SOMENTE_HOMOLOG'
+    };
+  }
   var sheet = core_getSheetById_(meta.id, meta.sheet);
   var data = core_readSheetData_(sheet, { headerRow: 1 });
   var required = ['SECRETARIA', 'DIRETORIA'];

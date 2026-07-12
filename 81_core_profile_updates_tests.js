@@ -43,7 +43,8 @@ function corePerfilTestFixture_(permissions) {
     portalAtivo: true,
     idPessoa: 'PES-1',
     email: 'pessoa@example.org',
-    permissoes: permissions || ['portal:acessar']
+    permissoes: permissions || ['portal:acessar'],
+    perfisPortal: []
   };
   var deps = {
     environment: 'DEV',
@@ -124,7 +125,8 @@ function corePerfilTestRunAll_() {
   });
 
   test('8_secretaria_diretoria_autorizada_analisa', function() {
-    var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION]);
+    var fx = corePerfilTestFixture_(['portal:acessar']);
+    fx.session.perfisPortal = ['SECRETARIA'];
     core_solicitarCorrecaoMeuPerfilParaPortal_({ campo: 'CPF', valorSolicitado: '11144477735', justificativa: 'Solicito a correcao conforme documento oficial.', chaveIdempotencia: 'cpf-request-1' }, {}, { deps: fx.deps });
     var id = fx.sources[CORE_PERFIL_SOLICITACOES_SHEET].records[0].ID_SOLICITACAO;
     var response = core_analisarSolicitacaoCadastralPortal_({ idSolicitacao: id, acao: 'EM_ANALISE' }, {}, { deps: fx.deps });
