@@ -993,6 +993,37 @@ Compatibilidade semantica de ocupacao nesta etapa:
 - para renomeacoes institucionais catalogadas, o core resolve aliases historicos pelo `CARGOS_INSTITUCIONAIS_CONFIG`; nesta etapa, `Diretor(a) de Comunicação` passa a ser o nome principal e continua aceitando `Coordenador(a) de Comunicação`, `Coordenador de Comunicação` e `COORDENADOR_COMUNICACAO`;
 - os nomes antigos de API com `Role` continuam funcionando para preservar compatibilidade, mas os aliases novos com `Occupation` passam a ser o caminho preferencial em integracoes novas.
 
+### Links e perfis de Pessoas V2
+
+`PESSOAS_V2_LINKS_PERFIS` concentra links academicos e de perfil por
+`ID_PESSOA`, sem restringir Lattes a colaboradores academicos. O Core expoe:
+
+- `corePessoasListLinksPerfis(idPessoa, opts)` para links publicaveis da
+  pessoa por padrao; o uso privado exige `opts.publicOnly: false` em backend
+  autorizado;
+- `corePessoasListLinksPerfisPublicos(idPessoa)` para a leitura estritamente
+  filtrada por `PUBLICAVEL = SIM` e `VISIVEL_PORTAL = SIM`;
+- `corePessoasV2PrepareLinksPerfis(options)` para provisionamento manual da
+  aba no dominio Pessoas V2 DEV;
+- `corePessoasV2MigrarLinksPerfisLegados(options)` para migrar Lattes legados
+  em dry-run por padrao;
+- `corePessoasV2VerificarRemocaoLinkLattesLegado(options)` para conferir a
+  cobertura integral antes da exclusao;
+- `corePessoasV2RemoverColunaLinkLattesLegadoReal()` para excluir a coluna
+  somente quando a verificacao nao encontrar pendencias.
+
+O contrato de `geapaCoreBuscarMeuPerfilParaPortal` le apenas a nova fonte. A
+compatibilidade `perfil.linkLattes` continua como alias derivado do registro
+geral `LATTES`, sem leitura da coluna legado. A edicao de links no Portal ainda
+nao esta habilitada.
+
+Para eliminar `COLABORADORES_ACADEMICOS.LINK_LATTES` com seguranca, rode a
+funcao de verificacao e confirme `prontoParaRemocao: true`. A funcao real se
+recusa a apagar quando existir URL sem copia equivalente em
+`PESSOAS_V2_LINKS_PERFIS`. O campo-fonte `CURRICULO_LATTES` da base/formulario
+de docentes e tecnicos permanece, assim como os campos editoriais de links nas
+abas publicas do Portal; eles nao fazem parte desta remocao.
+
 ### Identidade de membros
 
 Busca e autofill com base em `MEMBERS_ATUAIS`.
@@ -1032,6 +1063,7 @@ Regras do contrato:
 - a consulta de usuario retorna dados basicos seguros, cargos atuais do proprio usuario, perfis e permissoes iniciais;
 - a consulta de "Minha situacao" retorna `ok: true` ou erro controlado com `ok: false`;
 - a consulta de "Meu perfil" retorna somente o perfil da pessoa resolvida pela propria sessao do Portal, em modo somente leitura;
+- `geapaCoreListarMembrosAdministracaoPortal(filtros, contexto)` lista somente membros a partir de `PESSOAS_V2_RESUMO_OPERACIONAL`, revalida `membros:ler`, pagina em ate 100 itens e retorna apenas campos operacionais sanitizados;
 - nao retorna listas completas, dados sensiveis, frequencia detalhada, pendencias sensiveis, certificados ou historico;
 - em caso de erro interno, nao expoe identificadores ou detalhes da planilha ao chamador.
 

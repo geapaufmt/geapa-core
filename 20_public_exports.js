@@ -229,6 +229,42 @@ function corePessoasListExternalParticipants(opts) {
   return corePessoasListExternalParticipants_(opts || {});
 }
 
+function corePessoasListLinksPerfis(idPessoa, opts) {
+  return corePessoasListLinksPerfis_(idPessoa, opts || {});
+}
+
+function corePessoasListLinksPerfisPublicos(idPessoa) {
+  return corePessoasListLinksPerfisPublicos_(idPessoa);
+}
+
+function corePessoasV2PrepareLinksPerfis(options) {
+  return corePessoasV2PrepareLinksPerfis_(options || {});
+}
+
+function corePessoasV2PrepareLinksPerfisReal() {
+  return corePessoasV2PrepareLinksPerfisReal_();
+}
+
+function corePessoasV2MigrarLinksPerfisLegados(options) {
+  return corePessoasV2MigrarLinksPerfisLegados_(options || {});
+}
+
+function corePessoasV2MigrarLinksPerfisLegadosReal() {
+  return corePessoasV2MigrarLinksPerfisLegadosReal_();
+}
+
+function corePessoasV2VerificarRemocaoLinkLattesLegado(options) {
+  return corePessoasV2VerificarRemocaoLinkLattesLegado_(options || {});
+}
+
+function corePessoasV2RemoverColunaLinkLattesLegado(options) {
+  return corePessoasV2RemoverColunaLinkLattesLegado_(options || {});
+}
+
+function corePessoasV2RemoverColunaLinkLattesLegadoReal() {
+  return corePessoasV2RemoverColunaLinkLattesLegadoReal_();
+}
+
 function coreVigenciasGetCurrentFunctionByPessoa(idPessoa) {
   return coreVigenciasGetCurrentFunctionByPessoa_(idPessoa);
 }
@@ -479,6 +515,20 @@ function geapaCoreBuscarMeuPerfilParaPortal(emailOuRga) {
       'ERRO_BUSCAR_MEU_PERFIL',
       'Nao foi possivel buscar o perfil do usuario.'
     );
+  }
+}
+
+/** Lista membros administrativos para o Portal com autorizacao e sanitizacao no Core. */
+function geapaCoreListarMembrosAdministracaoPortal(filtros, contexto) {
+  try {
+    return core_listarMembrosAdministracaoPortal_(filtros || {}, contexto || {});
+  } catch (err) {
+    Logger.log('[WARN] geapaCoreListarMembrosAdministracaoPortal: falha interna sem payload sensivel.');
+    return {
+      ok: false,
+      errorCode: 'MEMBROS_ADMIN_INDISPONIVEIS',
+      message: 'Nao foi possivel consultar os membros neste momento.'
+    };
   }
 }
 

@@ -759,15 +759,40 @@ function core_buildPortalPendenciasFromResumoV2_(resumo) {
   }).filter(Boolean));
 }
 
+/**
+ * Monta o resumo operacional seguro da tela "Minha situacao".
+ *
+ * @param {Object} resumo Linha de PESSOAS_RESUMO_OPERACIONAL.
+ * @return {Object}
+ */
+function core_buildResumoOperacionalMinhaSituacaoV2_(resumo) {
+  resumo = resumo || {};
+  return Object.freeze({
+    statusVinculo: String(resumo.STATUS_VINCULO_ATUAL || "").trim(),
+    tipoVinculo: String(resumo.TIPO_VINCULO_ATUAL || "").trim(),
+    cargoFuncaoAtual: String(resumo.CARGO_FUNCAO_ATUAL || "").trim(),
+    tempoEfetivoNoGrupo: String(resumo.TEMPO_EFETIVO_NO_GRUPO || "").trim(),
+    qtdSemestresNoGrupo: core_parsePortalNonNegativeNumber_(resumo.QTD_SEMESTRES_NO_GRUPO),
+    frequenciaResumida: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
+    qtdApresentacoesRealizadas: core_parsePortalNonNegativeNumber_(resumo.QTD_APRESENTACOES_REALIZADAS),
+    cicloUltimaApresentacao: String(resumo.CICLO_ULTIMA_APRESENTACAO || "").trim(),
+    periodoUltimaApresentacao: String(resumo.PERIODO_ULTIMA_APRESENTACAO || "").trim(),
+    certificadosDisponiveis: 0,
+    pendenciasAbertas: String(resumo.PENDENCIAS_ABERTAS || "").trim()
+  });
+}
+
 function core_buildMinhaSituacaoPortalV2_(resumo) {
   resumo = resumo || {};
   const pendencias = core_buildPortalPendenciasFromResumoV2_(resumo);
+  const resumoOperacional = core_buildResumoOperacionalMinhaSituacaoV2_(resumo);
   return Object.freeze({
     resumo: Object.freeze({
       frequencia: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
       pendenciasAbertas: core_parsePortalPendingCountV2_(resumo.PENDENCIAS_ABERTAS),
       certificadosDisponiveis: 0
     }),
+    resumoOperacional: resumoOperacional,
     pendencias: pendencias,
     participacao: Object.freeze({
       frequenciaGeral: String(resumo.FREQUENCIA_RESUMIDA || "").trim(),
@@ -911,6 +936,30 @@ function core_getMeuPerfilPortalValueFromRecords_(records, aliases) {
 }
 
 /**
+ * Monta os links ativos do proprio perfil para o contrato autenticado do Portal.
+ *
+ * @param {Object} bundle Pacote Pessoas V2 da pessoa resolvida.
+ * @return {Object[]} Links seguros para exibicao do proprio usuario.
+ */
+function core_buildMeuPerfilLinksPortal_(bundle) {
+  const links = Array.isArray(bundle && bundle.linksPerfis)
+    ? bundle.linksPerfis.map(function(link) {
+      const url = core_domainsV2NormalizeProfileUrl_(link && link.url);
+      if (!url) return null;
+      const tipo = core_domainsV2NormalizeLinkPerfilType_(link && link.tipo);
+      return {
+        tipo: tipo,
+        url: url,
+        rotulo: String((link && link.rotulo) || CORE_PESSOAS_V2_LINKS_PERFIS_LABELS[tipo] || "Link externo").trim()
+      };
+    }).filter(function(link) {
+      return !!link;
+    })
+    : [];
+  return links;
+}
+
+/**
  * Monta o contrato seguro da tela "Meu perfil" para o proprio usuario autenticado.
  *
  * @param {Object} sessao Sessao oficial resolvida pelo Core.
@@ -921,12 +970,10 @@ function core_buildMeuPerfilPortalResponse_(sessao, bundle) {
   const pessoa = (bundle && bundle.pessoa) || {};
   const detalhes = (bundle && bundle.membrosDetalhes) || {};
   const resumo = (bundle && bundle.resumoOperacional) || {};
-  const colaboradores = (bundle && bundle.colaboradoresAcademicos) || [];
-  const externos = (bundle && bundle.participantesExternosDetalhes) || [];
-  const linkLattes = core_getMeuPerfilPortalValue_(pessoa, ["LINK_LATTES", "CURRICULO_LATTES"]) ||
-    core_getMeuPerfilPortalValue_(detalhes, ["LINK_LATTES", "CURRICULO_LATTES"]) ||
-    core_getMeuPerfilPortalValueFromRecords_(colaboradores, ["LINK_LATTES", "CURRICULO_LATTES"]) ||
-    core_getMeuPerfilPortalValueFromRecords_(externos, ["LINK_LATTES", "CURRICULO_LATTES"]);
+  const linksPerfis = core_buildMeuPerfilLinksPortal_(bundle);
+  const linkLattes = linksPerfis.filter(function(link) {
+    return link.tipo === "LATTES";
+  })[0] || {};
 
   return Object.freeze({
     ok: true,
@@ -942,7 +989,8 @@ function core_buildMeuPerfilPortalResponse_(sessao, bundle) {
       telefone: String(pessoa.TELEFONE_PRINCIPAL || "").trim(),
       email: String(pessoa.EMAIL_PRINCIPAL || resumo.EMAIL || sessao.email || "").trim(),
       instagram: String(pessoa.INSTAGRAM || "").trim(),
-      linkLattes: String(linkLattes || "").trim(),
+      linkLattes: String(linkLattes.url || "").trim(),
+      linksPerfis: Object.freeze(linksPerfis),
       cidadeOrigem: String(pessoa.CIDADE_NATAL || "").trim(),
       ufOrigem: String(pessoa.UF_ORIGEM || "").trim(),
       historicoAcademico: String(detalhes.HISTORICO_ATIVIDADES_ACADEMICAS || "").trim(),
@@ -951,7 +999,8 @@ function core_buildMeuPerfilPortalResponse_(sessao, bundle) {
     sessao: sessao,
     avisos: Object.freeze([
       "Dados pessoais retornados apenas para o usuario autenticado pelo Portal GEAPA.",
-      "Edicao cadastral ainda nao esta habilitada nesta tela."
+      "Links ativos podem ser exibidos para o proprio usuario; a edicao ainda nao esta habilitada nesta tela.",
+      "Links publicos exigem PUBLICAVEL e VISIVEL_PORTAL marcados como SIM."
     ])
   });
 }

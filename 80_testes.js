@@ -60,6 +60,73 @@ function test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_dryRun() {
   }), null, 2));
 }
 
+/**
+ * Testa os consolidadores puros usados por PESSOAS_RESUMO_OPERACIONAL.
+ *
+ * @return {Object}
+ */
+function test_core_domainsV2_pessoasResumoOperationalHelpers() {
+  var ctx = { idPessoa: 'PES-TESTE', rga: '202611801001', email: 'teste@example.com' };
+  var activityData = {
+    atividades: [{
+      ID_ATIVIDADE: 'ATV-TESTE',
+      ID_PESSOA_PRINCIPAL: ctx.idPessoa,
+      RGA_PESSOA_PRINCIPAL: ctx.rga,
+      EMAIL_PESSOA_PRINCIPAL: ctx.email,
+      DATA_ATIVIDADE: '23/04/2026 18:30:00',
+      ANO: 2026,
+      SEMESTRE: 1,
+      CICLO: 'GEAPA_2026'
+    }],
+    apresentacoes: [{
+      ID_APRESENTACAO: 'APR-TESTE',
+      ID_ATIVIDADE: 'ATV-TESTE',
+      STATUS_APRESENTACAO: 'REALIZADA',
+      STATUS_ENVIO_MATERIAL: 'RECEBIDO'
+    }],
+    portalAtividadesDetalhes: [],
+    portalFrequencia: [{
+      ID_PESSOA: ctx.idPessoa,
+      CICLO: 'GEAPA_2026',
+      TOTAL_PRESENCAS: 8,
+      TOTAL_FALTAS: 2,
+      TOTAL_JUSTIFICADAS: 1,
+      FALTAS_LIQUIDAS: 1,
+      PERCENTUAL_FREQUENCIA: 80,
+      SITUACAO_DISCIPLINAR: 'REGULAR'
+    }],
+    presencas: [],
+    justificativas: [{ ID_PESSOA: ctx.idPessoa, STATUS_ANALISE: '', ATIVO: 'SIM' }],
+    portalJustificativas: []
+  };
+  var presentation = core_domainsV2PresentationSummary_(activityData, ctx);
+  var frequency = core_domainsV2FrequencySummary_(activityData, ctx, 'GEAPA_2026');
+  var pending = core_domainsV2PendingJustifications_(activityData, ctx);
+  if (presentation.count !== 1 || presentation.lastCycle !== 'GEAPA_2026' || presentation.lastPeriod !== '2026/1') throw new Error('Resumo de apresentacoes incorreto.');
+  if (frequency.indexOf('Presencas 8') < 0 || frequency.indexOf('Situacao REGULAR') < 0) throw new Error('Resumo de frequencia incorreto.');
+  if (pending !== 1) throw new Error('Contagem de justificativas pendentes incorreta.');
+  if (!core_domainsV2Date_('23/04/2026 18:30:00')) throw new Error('Parser de data brasileira com hora falhou.');
+  var refDate = new Date(2026, 6, 6);
+  var intervals = core_domainsV2EffectiveMemberIntervals_([
+    { TIPO_VINCULO: 'MEMBRO_EFETIVO', DATA_INICIO: new Date(2026, 6, 1), DATA_FIM: new Date(2026, 6, 31), STATUS_VINCULO: 'ATIVO' },
+    { TIPO_VINCULO: 'MEMBRO_EFETIVO', DATA_INICIO: new Date(2026, 7, 1), STATUS_VINCULO: 'ATIVO' },
+    { TIPO_VINCULO: 'MEMBRO_EFETIVO', DATA_INICIO: new Date(2025, 0, 1), STATUS_VINCULO: 'ENCERRADO' }
+  ], refDate);
+  if (core_domainsV2CountIntervalDays_(intervals) !== 7) throw new Error('Tempo efetivo incluiu dias futuros ou prolongou vinculo encerrado sem fim.');
+  var semesters = core_domainsV2CountSemestersForIntervals_({
+    SEMESTRES: { records: [{ ID_SEMESTRE: '2026/1', DATA_INICIO: new Date(2026, 0, 1), DATA_FIM: new Date(2026, 6, 31) }] },
+    CICLOS: { records: [{ ID_CICLO: 'GEAPA_2026', DATA_INICIO: new Date(2026, 0, 1), DATA_FIM: new Date(2026, 11, 31) }] }
+  }, intervals);
+  var semestersWithoutOfficialRows = core_domainsV2CountSemestersForIntervals_({
+    SEMESTRES: { records: [] },
+    CICLOS: { records: [{ ID_CICLO: 'GEAPA_2026', DATA_INICIO: new Date(2026, 0, 1), DATA_FIM: new Date(2026, 11, 31) }] }
+  }, intervals);
+  if (semesters !== 1 || semestersWithoutOfficialRows !== '') throw new Error('QTD_SEMESTRES_NO_GRUPO deve usar apenas SEMESTRES de Vigencias v2.');
+  var result = { ok: true, presentation: presentation, frequency: frequency, pendingJustifications: pending };
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
 function test_core_domainsV2_diagnosticarPessoasResumoOperacional() {
   Logger.log(JSON.stringify(coreDiagnosticarPessoasResumoOperacionalV2_(), null, 2));
 }
@@ -80,6 +147,83 @@ function test_core_domainsV2_recalcularMembrosDetalhesSemestreAtual_REAL_CONFIRM
 
 function test_core_domainsV2_pessoasListCurrentMembers() {
   Logger.log(JSON.stringify(corePessoasListCurrentMembers_(), null, 2));
+}
+
+/** Testa autorizacao, sanitizacao e filtros puros da listagem administrativa de membros. */
+function test_core_portalAdminMembrosContratoPuro() {
+  var allowed = core_pessoasAdminPortalAuthorize_({
+    ok: true,
+    autenticado: true,
+    portalAtivo: true,
+    permissoes: ['portal:acessar', 'membros:ler']
+  });
+  var denied = core_pessoasAdminPortalAuthorize_({
+    ok: true,
+    autenticado: true,
+    portalAtivo: true,
+    permissoes: ['portal:acessar']
+  });
+  var mapped = core_pessoasAdminPortalMapRow_({
+    ID_PESSOA: 'PES-1',
+    RGA: '2026001',
+    NOME_EXIBICAO: 'Membro Teste',
+    EMAIL: 'membro@example.com',
+    TIPO_VINCULO_ATUAL: 'MEMBRO_EFETIVO',
+    STATUS_VINCULO_ATUAL: 'ATIVO',
+    CPF: '00000000000',
+    TELEFONE: '65999999999',
+    QTD_SEMESTRES_NO_GRUPO: 2,
+    PENDENCIAS_ABERTAS: 'SEM_PENDENCIAS'
+  });
+  var matches = core_pessoasAdminPortalMatches_(mapped, core_pessoasAdminPortalFilters_({ texto: '2026001' }));
+  if (!allowed) throw new Error('Diretoria/Secretaria/Admin com membros:ler deveria ser autorizada.');
+  if (denied) throw new Error('Membro comum sem membros:ler deveria ser negado.');
+  if (!matches) throw new Error('Busca por RGA deveria localizar o membro.');
+  if (Object.prototype.hasOwnProperty.call(mapped, 'CPF') || Object.prototype.hasOwnProperty.call(mapped, 'telefone')) {
+    throw new Error('Contrato administrativo vazou campo sensivel.');
+  }
+  return { ok: true, mapped: mapped };
+}
+
+/** Testa filtros e normalizacao puros do contrato geral de links/perfis. */
+function test_core_domainsV2_linksPerfisHelpers() {
+  var pessoasData = {
+    PESSOAS_V2_LINKS_PERFIS: {
+      records: [
+        { ID_LINK: 'LNK-000001', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'LATTES', URL: 'lattes.cnpq.br/123', ROTULO: '', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'SIM', ATIVO: 'SIM' },
+        { ID_LINK: 'LNK-000002', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'LINKEDIN', URL: 'https://linkedin.com/in/teste', ROTULO: 'Perfil profissional', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'NAO', ATIVO: 'SIM' },
+        { ID_LINK: 'LNK-000003', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'ORCID', URL: 'javascript:alert(1)', ROTULO: '', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'SIM', ATIVO: 'SIM' },
+        { ID_LINK: 'LNK-000004', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'OUTRO', URL: 'https://example.org/inativo', ROTULO: '', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'SIM', ATIVO: 'NAO' }
+      ]
+    }
+  };
+  var privados = core_domainsV2LinksPerfisByPessoa_(pessoasData, 'PES-TESTE');
+  var publicos = core_domainsV2LinksPerfisByPessoa_(pessoasData, 'PES-TESTE', { publicOnly: true });
+  if (privados.length !== 2 || privados[0].tipo !== 'LATTES') throw new Error('Links ativos privados foram normalizados incorretamente.');
+  if (publicos.length !== 1 || publicos[0].tipo !== 'LATTES') throw new Error('Filtro PUBLICAVEL/VISIVEL_PORTAL falhou.');
+  return { ok: true, privados: privados, publicos: publicos };
+}
+
+/** Executa a migracao de Lattes somente em dry-run apos cadastrar a key no Registry. */
+function test_core_domainsV2_migrarLinksPerfisLegados_dryRun() {
+  return corePessoasV2MigrarLinksPerfisLegados_({ dryRun: true, ambiente: 'DEV' });
+}
+
+/** Confirma que Meu Perfil le exclusivamente a fonte geral de links de Pessoas V2. */
+function test_core_portalMeuPerfilLinksPerfisV2() {
+  var vazio = core_buildMeuPerfilLinksPortal_({
+    pessoa: {},
+    colaboradoresAcademicos: [{ LINK_LATTES: 'lattes.cnpq.br/legado' }],
+    linksPerfis: []
+  });
+  var v2 = core_buildMeuPerfilLinksPortal_({
+    pessoa: {},
+    colaboradoresAcademicos: [{ LINK_LATTES: 'lattes.cnpq.br/legado' }],
+    linksPerfis: [{ tipo: 'LATTES', url: 'https://lattes.cnpq.br/v2', rotulo: 'Lattes atualizado' }]
+  });
+  if (vazio.length !== 0) throw new Error('Meu Perfil nao deve consultar LINK_LATTES legado.');
+  if (v2.length !== 1 || v2[0].url !== 'https://lattes.cnpq.br/v2') throw new Error('Link V2 deveria ser exibido.');
+  return { ok: true, vazio: vazio, v2: v2 };
 }
 
 function test_core_domainsV2_recalcularVigenciasResumoAtual_REAL_CONFIRMADO() {
@@ -1059,7 +1203,7 @@ function test_core_portalBuscarMinhaSituacaoParaPortal_fakeSheet() {
       'Status',
       'Cargo/fun\u00E7\u00E3o atual',
       'Telefone',
-      'PERIODO_ULTIMA_APRESENTACAO',
+      'CICLO_ULTIMA_APRESENTACAO',
       'QTD_APRESENTACOES_REALIZADAS',
       'QTD_DIAS_QUE_CONTAM_PARA_LIMITE_DIRETORIA',
       'LIMITE_DIAS_DIRETORIA',
