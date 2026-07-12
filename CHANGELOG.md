@@ -9,6 +9,7 @@
 - Adicionados 14 testes sem escrita real e checklist de publicacao exclusiva em HOMOLOG.
 - Ajustado o fluxo para o projeto Apps Script unico: Registry DEV explicito, sem alternar a Script Property global `GEAPA_ENV`.
 - Tornada opcional a fonte `PORTAL_PERMISSOES` DEV; sua ausencia nao bloqueia o setup nem provoca escrita na configuracao compartilhada/PROD.
+- O setup real limpa o cache do Registry quando a key DEV ja foi cadastrada manualmente.
 
 ## 2026-07-11
 
