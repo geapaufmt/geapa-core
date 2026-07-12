@@ -112,10 +112,24 @@ function corePerfilNow_(deps) {
   return deps && typeof deps.now === 'function' ? deps.now() : new Date();
 }
 
-function corePerfilAssertWriteEnv_(deps) {
-  var env = String(deps && deps.environment || core_getCurrentEnv_()).trim().toUpperCase();
-  if (env !== 'DEV') throw new Error('ESCRITA_RECUSADA_FORA_DEV');
-  return env;
+function corePerfilAssertHomologContext_(contexto, deps) {
+  var ctx = contexto && typeof contexto === 'object' ? contexto : {};
+  var env = String(deps && deps.environment || ctx.ambientePortal || ctx.ambiente || '').trim().toUpperCase();
+  if (env !== 'DEV' && env !== 'HOMOLOG') throw new Error('CONTEXTO_HOMOLOG_OBRIGATORIO');
+  return 'DEV';
+}
+
+function corePerfilRegistryMetaDev_(key) {
+  var normalized = String(key || '').trim().toUpperCase();
+  var raw = core_getRegistryRaw_();
+  var entry = raw[normalized] && raw[normalized].DEV;
+  if (!entry || entry.ativo !== true) throw new Error('REGISTRY_DEV_INDISPONIVEL_' + normalized);
+  return entry;
+}
+
+function corePerfilGetSheetByKeyDev_(key) {
+  var entry = corePerfilRegistryMetaDev_(key);
+  return core_getSheetById_(entry.id, entry.sheet);
 }
 
 function corePerfilSafeLogPayload_(event, details) {
@@ -180,11 +194,26 @@ function corePerfilAuthorizeAdmin_(contexto, deps) {
   var auth = corePerfilAuthorizeOwn_(contexto, deps);
   if (!auth.ok) return auth;
   var permissions = Array.isArray(auth.session.permissoes) ? auth.session.permissoes : [];
-  var allowed = permissions.map(corePortalNormalizePermission_).indexOf(CORE_PERFIL_ADMIN_PERMISSION) >= 0;
+  var allowed = permissions.map(corePortalNormalizePermission_).indexOf(CORE_PERFIL_ADMIN_PERMISSION) >= 0 ||
+    corePerfilSessionHasPermissionDev_(auth.session, CORE_PERFIL_ADMIN_PERMISSION, deps);
   if (!allowed) {
     return { ok: false, response: corePerfilEnvelopeError_('PERMISSAO_NEGADA', 'Usuario sem permissao para analisar correcoes cadastrais.') };
   }
   return auth;
+}
+
+function corePerfilSessionHasPermissionDev_(session, permission, deps) {
+  if (deps && typeof deps.hasDevPermission === 'function') return deps.hasDevPermission(session, permission);
+  var profiles = Array.isArray(session && session.perfisPortal) ? session.perfisPortal.slice() : [];
+  if (session && session.perfilPortalEfetivo) profiles.push(session.perfilPortalEfetivo);
+  profiles = profiles.map(corePerfilNormalizeToken_);
+  if (!profiles.length) return false;
+  var records = core_readSheetRecords_(corePerfilGetSheetByKeyDev_('PORTAL_PERMISSOES'), { skipBlankRows: true });
+  return records.some(function(record) {
+    return profiles.indexOf(corePerfilNormalizeToken_(record.PERFIL_PORTAL)) >= 0 &&
+      corePortalNormalizePermission_(record.PERMISSAO) === corePortalNormalizePermission_(permission) &&
+      core_domainsV2AuditIsSim_(record.ATIVO);
+  });
 }
 
 function corePerfilAssertNoTargetIdentity_(payload) {
@@ -340,7 +369,7 @@ function corePerfilOpenPessoas_(deps) {
   var report = core_domainsV2NewReadReport_('PERFIL_CADASTRAL_PORTAL');
   var data = core_domainsV2OpenPessoas_(report);
   if (report.totalErros) throw new Error('PESSOAS_V2_INDISPONIVEL');
-  var requestSheet = core_getSheetByKey_(CORE_PERFIL_SOLICITACOES_KEY);
+  var requestSheet = corePerfilGetSheetByKeyDev_(CORE_PERFIL_SOLICITACOES_KEY);
   var requestHeaders = requestSheet.getLastColumn() > 0
     ? requestSheet.getRange(1, 1, 1, requestSheet.getLastColumn()).getDisplayValues()[0].map(function(value) { return String(value || '').trim(); })
     : [];
@@ -573,7 +602,7 @@ function core_atualizarMeuPerfilParaPortal_(payload, contexto, options) {
     if (payload && payload.dryRun === true) {
       return corePerfilEnvelopeOk_({ dryRun: true, camposValidados: Object.freeze(changes.map(function(item) { return item.field; })) });
     }
-    corePerfilAssertWriteEnv_(deps);
+    corePerfilAssertHomologContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_DIRETO_' + auth.session.idPessoa, function() {
       return corePerfilApplyDirectChanges_(corePerfilOpenPessoas_(deps), auth.session, changes, key, deps);
     }, deps);
@@ -607,7 +636,7 @@ function core_solicitarCorrecaoMeuPerfilParaPortal_(payload, contexto, options) 
     if (payload && payload.dryRun === true) {
       return corePerfilEnvelopeOk_({ dryRun: true, campo: field, valorSolicitadoMascarado: corePerfilMaskValue_(field, requested) });
     }
-    corePerfilAssertWriteEnv_(deps);
+    corePerfilAssertHomologContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_SOLICITAR_' + auth.session.idPessoa, function() {
       var data = corePerfilOpenPessoas_(deps);
       var requestSource = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
@@ -747,7 +776,7 @@ function core_analisarSolicitacaoCadastralPortal_(payload, contexto, options) {
     var reason = corePerfilRedactSensitiveText_(corePerfilNormalizeTextField_(payload && (payload.motivo || payload.motivoDecisao), 1000, 'MOTIVO_DECISAO_MUITO_LONGO'));
     if (['COMPLEMENTO_SOLICITADO', 'INDEFERIDA'].indexOf(action) >= 0 && reason.length < 10) throw new Error('MOTIVO_DECISAO_OBRIGATORIO');
     if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, statusDestino: action });
-    corePerfilAssertWriteEnv_(deps);
+    corePerfilAssertHomologContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_ANALISAR_SOLICITACAO', function() {
       var source = corePerfilSource_(corePerfilOpenPessoas_(deps), CORE_PERFIL_SOLICITACOES_SHEET);
       var record = corePerfilFindRequestById_(source, payload && payload.idSolicitacao);
@@ -794,7 +823,7 @@ function core_aplicarSolicitacaoCadastralAprovadaPortal_(payload, contexto, opti
     var auth = corePerfilAuthorizeAdmin_(contexto, deps);
     if (!auth.ok) return auth.response;
     if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, idSolicitacao: String(payload.idSolicitacao || '') });
-    corePerfilAssertWriteEnv_(deps);
+    corePerfilAssertHomologContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_APLICAR_SOLICITACAO', function() {
       var data = corePerfilOpenPessoas_(deps);
       var requestSource = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
@@ -893,9 +922,8 @@ function corePerfilEnsureRegistryDev_(spreadsheetId, dryRun) {
 }
 
 function corePerfilEnsureAdminPermissionDev_(dryRun) {
-  var meta = core_getRegistryMetaByKey_('PORTAL_PERMISSOES');
-  if (!meta || meta.ambiente !== 'DEV') throw new Error('PORTAL_PERMISSOES_DEV_INDISPONIVEL');
-  var sheet = core_getSheetByKey_('PORTAL_PERMISSOES');
+  var meta = corePerfilRegistryMetaDev_('PORTAL_PERMISSOES');
+  var sheet = core_getSheetById_(meta.id, meta.sheet);
   var data = core_readSheetData_(sheet, { headerRow: 1 });
   var required = ['SECRETARIA', 'DIRETORIA'];
   var missing = required.filter(function(profile) {
@@ -921,11 +949,18 @@ function corePerfilEnsureAdminPermissionDev_(dryRun) {
 function core_setupSolicitacoesAtualizacaoCadastralDev_(options) {
   var opts = options || {};
   var dryRun = opts.dryRun !== false;
-  var env = String(opts.environment || core_getCurrentEnv_()).trim().toUpperCase();
+  var env = String(opts.environment || 'DEV').trim().toUpperCase();
+  var observedEnv = '';
+  try {
+    observedEnv = core_getCurrentEnv_();
+  } catch (ignoredEnvError) {
+    observedEnv = 'NAO_IDENTIFICADO';
+  }
   var report = {
     ok: false,
     dryRun: dryRun,
     environment: env,
+    scriptEnvironmentObserved: observedEnv,
     sheetName: CORE_PERFIL_SOLICITACOES_SHEET,
     registryKey: CORE_PERFIL_SOLICITACOES_KEY,
     productionRefused: env === 'PROD',
@@ -937,7 +972,7 @@ function core_setupSolicitacoesAtualizacaoCadastralDev_(options) {
   };
   if (env !== 'DEV') {
     report.errorCode = 'SETUP_RECUSADO_FORA_DEV';
-    report.message = 'O setup cadastral desta branch aceita somente GEAPA_ENV=DEV (projeto HOMOLOG).';
+    report.message = 'O setup cadastral aceita somente environment=DEV e nunca altera a Script Property GEAPA_ENV.';
     Logger.log('[geapa-core][perfil-cadastral][setup] ' + JSON.stringify(report));
     return report;
   }
@@ -948,8 +983,7 @@ function core_setupSolicitacoesAtualizacaoCadastralDev_(options) {
     return report;
   }
   return corePerfilWithLock_('SETUP_SOLICITACOES_CADASTRAIS_DEV', function() {
-    var baseMeta = core_getRegistryMetaByKey_('PESSOAS_V2_BASE');
-    if (!baseMeta || baseMeta.ambiente !== 'DEV') throw new Error('PESSOAS_V2_BASE_DEV_INDISPONIVEL');
+    var baseMeta = corePerfilRegistryMetaDev_('PESSOAS_V2_BASE');
     var spreadsheet = core_openSpreadsheetById_(baseMeta.id);
     var definition = CORE_DOMAINS_V2_SCHEMAS.PESSOAS.filter(function(item) {
       return item.sheetName === CORE_PERFIL_SOLICITACOES_SHEET;

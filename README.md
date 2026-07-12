@@ -205,8 +205,9 @@ O job coordenado `coreV2_jobDiarioManutencao(options)` executa diagnostico, atua
 
 Os contratos de edicao do proprio perfil, solicitacao de correcao sensivel e
 analise administrativa para o Portal HOMOLOG estao documentados em
-[`docs/perfil-editavel-homolog.md`](docs/perfil-editavel-homolog.md). O setup e
-restrito a `GEAPA_ENV=DEV` e nao publica nem altera configuracoes PROD.
+[`docs/perfil-editavel-homolog.md`](docs/perfil-editavel-homolog.md). O setup
+resolve diretamente o Registry DEV sem trocar a Script Property compartilhada
+`GEAPA_ENV` e nao publica nem altera configuracoes PROD.
 
 O bootstrap seguro `coreV2_bootstrapConfiguracao(options)` confere e, quando explicitamente autorizado em DEV, cria apenas linhas ausentes em `MODULOS_CONFIG` e `MODULOS_STATUS`. A operacao esta documentada em [`docs/bootstrap-configuracao-v2.md`](docs/bootstrap-configuracao-v2.md).
 
