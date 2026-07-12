@@ -919,6 +919,7 @@ function corePerfilEnsureRegistryDev_(spreadsheetId, dryRun) {
     if (String(existing.SPREADSHEET_ID || '').trim() !== spreadsheetId || String(existing.SHEET_NAME || '').trim() !== CORE_PERFIL_SOLICITACOES_SHEET) {
       throw new Error('REGISTRY_DEV_CONFLITANTE');
     }
+    if (!dryRun) core_registryCacheClear_();
     return { existed: true, created: false, lineCompatible: true };
   }
   if (!dryRun) {
