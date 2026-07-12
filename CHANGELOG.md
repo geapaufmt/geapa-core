@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-12
+
+- Criados contratos seguros para edicao de campos cadastrais de baixo risco do proprio usuario no Portal HOMOLOG.
+- Criado fluxo separado de solicitacao, analise, aprovacao e aplicacao de correcoes sensiveis, com autorizacao `membros:analisar_correcoes`.
+- Adicionado setup idempotente da aba `SOLICITACOES_ATUALIZACAO_CADASTRAL`, da key DEV correspondente e das permissoes DEV de Secretaria/Diretoria.
+- Incluidos LockService, idempotencia, trilha de valores anterior/novo, mascaramento, deteccao de alteracao concorrente e recalculo de views.
+- Adicionados 14 testes sem escrita real e checklist de publicacao exclusiva em HOMOLOG.
+
 ## 2026-07-11
 
 - Criado `geapaCoreListarMembrosAdministracaoPortal` para a area administrativa somente leitura do Portal.

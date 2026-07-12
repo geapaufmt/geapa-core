@@ -67,6 +67,7 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
       headers: Object.freeze([
         'ID_PESSOA',
         'NOME_COMPLETO',
+        'NOME_CIVIL',
         'NOME_EXIBICAO',
         'EMAIL_PRINCIPAL',
         'TELEFONE_PRINCIPAL',
@@ -81,6 +82,9 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
         'CRIADO_EM',
         'ATUALIZADO_EM',
         'ATIVO'
+      ]),
+      optionalHeaders: Object.freeze([
+        'NOME_CIVIL'
       ])
     }),
     Object.freeze({
@@ -127,7 +131,39 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
         'SEMESTRE_ATUAL',
         'DATA_INTEGRACAO_ORIGINAL',
         'HISTORICO_ATIVIDADES_ACADEMICAS',
-        'OBS_MEMBRO'
+        'OBS_MEMBRO',
+        'ATUALIZADO_EM'
+      ]),
+      optionalHeaders: Object.freeze([
+        'ATUALIZADO_EM'
+      ])
+    }),
+    Object.freeze({
+      sheetName: 'SOLICITACOES_ATUALIZACAO_CADASTRAL',
+      classification: 'FONTE_EVENTOS',
+      optional: true,
+      headers: Object.freeze([
+        'ID_SOLICITACAO',
+        'ID_PESSOA',
+        'TIPO_SOLICITACAO',
+        'CAMPO',
+        'VALOR_ATUAL_MASCARADO',
+        'VALOR_ATUAL_HASH',
+        'VALOR_SOLICITADO',
+        'JUSTIFICATIVA',
+        'STATUS',
+        'SOLICITADO_EM',
+        'SOLICITADO_POR',
+        'ANALISADO_EM',
+        'ANALISADO_POR',
+        'DECISAO',
+        'MOTIVO_DECISAO',
+        'APLICADO_EM',
+        'ID_LOG',
+        'CHAVE_IDEMPOTENCIA',
+        'ATIVO',
+        'CRIADO_EM',
+        'ATUALIZADO_EM'
       ])
     }),
     Object.freeze({
