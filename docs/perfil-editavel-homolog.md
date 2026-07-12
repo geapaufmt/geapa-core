@@ -53,8 +53,11 @@ O setup:
 - cria ou completa a aba sem apagar registros;
 - garante a key DEV `PESSOAS_V2_SOLICITACOES_ATUALIZACAO_CADASTRAL`;
 - nunca cria ou atualiza uma linha PROD;
-- garante `membros:analisar_correcoes` para `SECRETARIA` e `DIRETORIA` em
-  `PORTAL_PERMISSOES` DEV;
+- quando existe `PORTAL_PERMISSOES` DEV, garante
+  `membros:analisar_correcoes` para `SECRETARIA` e `DIRETORIA`;
+- quando essa fonte DEV nao existe, nao altera a fonte compartilhada/PROD e usa
+  os perfis oficiais `SECRETARIA`/`DIRETORIA` como concessao interna somente no
+  contexto `ambientePortal: 'HOMOLOG'`;
 - garante `ATUALIZADO_EM` em `MEMBROS_DETALHES`;
 - aplica validacao de dados aos campos `STATUS` e `ATIVO`;
 - registra um diagnostico seguro no Logger.
