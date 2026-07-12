@@ -48,6 +48,9 @@ function corePerfilTestFixture_(permissions) {
   var deps = {
     environment: 'DEV',
     session: session,
+    hasDevPermission: function(currentSession, permission) {
+      return (currentSession.permissoes || []).indexOf(permission) >= 0;
+    },
     now: function() { return new Date(now.getTime()); },
     uuid: function() { uuidCounter++; return '00000000-0000-4000-8000-' + ('000000000000' + uuidCounter).slice(-12); },
     hash: function(value) { return 'HASH_' + String(value).replace(/[^A-Za-z0-9]/g, '').slice(0, 30); },
