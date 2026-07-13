@@ -1,11 +1,11 @@
 /**
- * Contratos seguros de atualizacao cadastral para o Portal HOMOLOG.
+ * Contratos seguros de atualizacao cadastral para o Portal.
  *
  * Regras centrais:
  * - a identidade vem da sessao oficial; ID_PESSOA/RGA do payload sao rejeitados;
  * - campos de baixo risco escrevem somente nas fontes Pessoas V2;
  * - campos sensiveis sempre passam por solicitacao, analise e aplicacao separadas;
- * - nenhuma rotina deste arquivo escreve em PROD;
+ * - DEV/HOMOLOG e PROD usam entradas explicitas e isoladas do Registry;
  * - PESSOAS_RESUMO_OPERACIONAL nunca e editada diretamente.
  */
 
@@ -13,6 +13,7 @@ var CORE_PERFIL_SOLICITACOES_KEY = 'PESSOAS_V2_SOLICITACOES_ATUALIZACAO_CADASTRA
 var CORE_PERFIL_SOLICITACOES_SHEET = 'SOLICITACOES_ATUALIZACAO_CADASTRAL';
 var CORE_PERFIL_ADMIN_PERMISSION = 'membros:analisar_correcoes';
 var CORE_PERFIL_SETUP_CONFIRMATION = 'PREPARAR_SOLICITACOES_CADASTRAIS_DEV';
+var CORE_PERFIL_SETUP_CONFIRMATION_PROD = 'PREPARAR_SOLICITACOES_CADASTRAIS_PROD';
 var CORE_PERFIL_MAX_RESUMO = 3000;
 
 var CORE_PERFIL_STATUS = Object.freeze([
@@ -112,24 +113,45 @@ function corePerfilNow_(deps) {
   return deps && typeof deps.now === 'function' ? deps.now() : new Date();
 }
 
-function corePerfilAssertHomologContext_(contexto, deps) {
+function corePerfilResolveEnvironment_(contexto, deps) {
   var ctx = contexto && typeof contexto === 'object' ? contexto : {};
   var env = String(deps && deps.environment || ctx.ambientePortal || ctx.ambiente || '').trim().toUpperCase();
-  if (env !== 'DEV' && env !== 'HOMOLOG') throw new Error('CONTEXTO_HOMOLOG_OBRIGATORIO');
-  return 'DEV';
+  if (env === 'DEV' || env === 'HOMOLOG') return 'DEV';
+  if (env === 'PROD') return 'PROD';
+  throw new Error('CONTEXTO_PORTAL_INVALIDO');
 }
 
-function corePerfilRegistryMetaDev_(key) {
+function corePerfilAssertHomologContext_(contexto, deps) {
+  var env = corePerfilResolveEnvironment_(contexto, deps);
+  if (env !== 'DEV') throw new Error('CONTEXTO_HOMOLOG_OBRIGATORIO');
+  return env;
+}
+
+function corePerfilAssertPortalContext_(contexto, deps) {
+  return corePerfilResolveEnvironment_(contexto, deps);
+}
+
+function corePerfilRegistryMeta_(key, environment) {
   var normalized = String(key || '').trim().toUpperCase();
+  var env = String(environment || '').trim().toUpperCase();
   var raw = core_getRegistryRaw_();
-  var entry = raw[normalized] && raw[normalized].DEV;
-  if (!entry || entry.ativo !== true) throw new Error('REGISTRY_DEV_INDISPONIVEL_' + normalized);
+  var entries = raw[normalized] || {};
+  var entry = entries[env];
+  if (!entry || entry.ativo !== true) throw new Error('REGISTRY_' + env + '_INDISPONIVEL_' + normalized);
   return entry;
 }
 
-function corePerfilGetSheetByKeyDev_(key) {
-  var entry = corePerfilRegistryMetaDev_(key);
+function corePerfilRegistryMetaDev_(key) {
+  return corePerfilRegistryMeta_(key, 'DEV');
+}
+
+function corePerfilGetSheetByKey_(key, environment) {
+  var entry = corePerfilRegistryMeta_(key, environment);
   return core_getSheetById_(entry.id, entry.sheet);
+}
+
+function corePerfilGetSheetByKeyDev_(key) {
+  return corePerfilGetSheetByKey_(key, 'DEV');
 }
 
 function corePerfilSafeLogPayload_(event, details) {
@@ -191,21 +213,22 @@ function corePerfilAuthorizeOwn_(contexto, deps) {
 }
 
 function corePerfilAuthorizeAdmin_(contexto, deps) {
+  var environment;
   try {
-    corePerfilAssertHomologContext_(contexto, deps);
+    environment = corePerfilAssertPortalContext_(contexto, deps);
   } catch (envError) {
-    return { ok: false, response: corePerfilEnvelopeError_('CONTEXTO_HOMOLOG_OBRIGATORIO', 'Operacao administrativa disponivel somente no Portal HOMOLOG.') };
+    return { ok: false, response: corePerfilEnvelopeError_('CONTEXTO_PORTAL_INVALIDO', 'Ambiente oficial do Portal nao confirmado.') };
   }
   var auth = corePerfilAuthorizeOwn_(contexto, deps);
   if (!auth.ok) return auth;
   var permissions = Array.isArray(auth.session.permissoes) ? auth.session.permissoes : [];
   var profiles = Array.isArray(auth.session.perfisPortal) ? auth.session.perfisPortal.slice() : [];
   if (auth.session.perfilPortalEfetivo) profiles.push(auth.session.perfilPortalEfetivo);
-  var homologProfileAllowed = profiles.map(corePerfilNormalizeToken_).some(function(profile) {
+  var homologProfileAllowed = environment === 'DEV' && profiles.map(corePerfilNormalizeToken_).some(function(profile) {
     return profile === 'SECRETARIA' || profile === 'DIRETORIA';
   });
   var allowed = permissions.map(corePortalNormalizePermission_).indexOf(CORE_PERFIL_ADMIN_PERMISSION) >= 0 ||
-    corePerfilSessionHasPermissionDev_(auth.session, CORE_PERFIL_ADMIN_PERMISSION, deps) ||
+    (environment === 'DEV' && corePerfilSessionHasPermissionDev_(auth.session, CORE_PERFIL_ADMIN_PERMISSION, deps)) ||
     homologProfileAllowed;
   if (!allowed) {
     return { ok: false, response: corePerfilEnvelopeError_('PERMISSAO_NEGADA', 'Usuario sem permissao para analisar correcoes cadastrais.') };
@@ -380,20 +403,38 @@ function corePerfilRedactSensitiveText_(value) {
     });
 }
 
-function corePerfilOpenPessoas_(deps) {
-  if (deps && typeof deps.openPessoas === 'function') return deps.openPessoas();
-  var report = core_domainsV2NewReadReport_('PERFIL_CADASTRAL_PORTAL');
-  var data = core_domainsV2OpenPessoas_(report);
-  if (report.totalErros) throw new Error('PESSOAS_V2_INDISPONIVEL');
-  var requestSheet = corePerfilGetSheetByKeyDev_(CORE_PERFIL_SOLICITACOES_KEY);
-  var requestHeaders = requestSheet.getLastColumn() > 0
-    ? requestSheet.getRange(1, 1, 1, requestSheet.getLastColumn()).getDisplayValues()[0].map(function(value) { return String(value || '').trim(); })
+function corePerfilReadSheetSource_(sheet, requiredName) {
+  if (!sheet) throw new Error('FONTE_INDISPONIVEL_' + requiredName);
+  var headers = sheet.getLastColumn() > 0
+    ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0].map(function(value) {
+        return String(value || '').trim();
+      })
     : [];
-  data[CORE_PERFIL_SOLICITACOES_SHEET] = {
-    sheet: requestSheet,
-    headers: requestHeaders,
-    records: core_readSheetRecords_(requestSheet, { skipBlankRows: true })
+  return {
+    sheet: sheet,
+    headers: headers,
+    records: core_readSheetRecords_(sheet, { skipBlankRows: true })
   };
+}
+
+function corePerfilOpenPessoas_(contexto, deps) {
+  if (deps && typeof deps.openPessoas === 'function') return deps.openPessoas();
+  var environment = corePerfilAssertPortalContext_(contexto, deps);
+  var baseMeta = corePerfilRegistryMeta_('PESSOAS_V2_BASE', environment);
+  var spreadsheet = core_openSpreadsheetById_(baseMeta.id);
+  var data = {};
+  (CORE_DOMAINS_V2_SCHEMAS.PESSOAS || []).forEach(function openDefinition(definition) {
+    var sheet = spreadsheet.getSheetByName(definition.sheetName);
+    if (!sheet && definition.optional === true) {
+      data[definition.sheetName] = { sheet: null, headers: [], records: [] };
+      return;
+    }
+    data[definition.sheetName] = corePerfilReadSheetSource_(sheet, definition.sheetName);
+  });
+  data[CORE_PERFIL_SOLICITACOES_SHEET] = corePerfilReadSheetSource_(
+    corePerfilGetSheetByKey_(CORE_PERFIL_SOLICITACOES_KEY, environment),
+    CORE_PERFIL_SOLICITACOES_SHEET
+  );
   return data;
 }
 
@@ -506,7 +547,7 @@ function corePerfilBuildAuditRow_(params, deps) {
   };
 }
 
-function corePerfilApplyDirectChanges_(data, session, changes, key, deps) {
+function corePerfilApplyDirectChanges_(data, session, changes, key, deps, environment) {
   var idPessoa = String(session.idPessoa).trim();
   var requests = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
   var replay = corePerfilFindIdempotent_(requests, idPessoa, 'ALTERACAO_DIRETA', key);
@@ -566,7 +607,7 @@ function corePerfilApplyDirectChanges_(data, session, changes, key, deps) {
         ROTULO: change.label,
         PUBLICAVEL: 'NAO',
         VISIVEL_PORTAL: 'SIM',
-        FONTE: 'PORTAL_HOMOLOG',
+        FONTE: 'PORTAL_' + String(environment || 'DEV'),
         VALIDADO_EM: '',
         ATIVO: 'SIM',
         CRIADO_EM: now,
@@ -618,9 +659,9 @@ function core_atualizarMeuPerfilParaPortal_(payload, contexto, options) {
     if (payload && payload.dryRun === true) {
       return corePerfilEnvelopeOk_({ dryRun: true, camposValidados: Object.freeze(changes.map(function(item) { return item.field; })) });
     }
-    corePerfilAssertHomologContext_(contexto, deps);
+    var environment = corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_DIRETO_' + auth.session.idPessoa, function() {
-      return corePerfilApplyDirectChanges_(corePerfilOpenPessoas_(deps), auth.session, changes, key, deps);
+      return corePerfilApplyDirectChanges_(corePerfilOpenPessoas_(contexto, deps), auth.session, changes, key, deps, environment);
     }, deps);
   } catch (err) {
     corePerfilSafeLog_('DIRECT_UPDATE_ERROR', { ok: false, code: err && err.message });
@@ -652,9 +693,9 @@ function core_solicitarCorrecaoMeuPerfilParaPortal_(payload, contexto, options) 
     if (payload && payload.dryRun === true) {
       return corePerfilEnvelopeOk_({ dryRun: true, campo: field, valorSolicitadoMascarado: corePerfilMaskValue_(field, requested) });
     }
-    corePerfilAssertHomologContext_(contexto, deps);
+    corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_SOLICITAR_' + auth.session.idPessoa, function() {
-      var data = corePerfilOpenPessoas_(deps);
+      var data = corePerfilOpenPessoas_(contexto, deps);
       var requestSource = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
       var idPessoa = String(auth.session.idPessoa).trim();
       var replay = corePerfilFindIdempotent_(requestSource, idPessoa, 'CORRECAO_SENSIVEL', key);
@@ -713,7 +754,7 @@ function core_listarMinhasSolicitacoesCadastraisPortal_(contexto, options) {
   try {
     var auth = corePerfilAuthorizeOwn_(contexto, deps);
     if (!auth.ok) return auth.response;
-    var data = corePerfilOpenPessoas_(deps);
+    var data = corePerfilOpenPessoas_(contexto, deps);
     var source = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
     var id = String(auth.session.idPessoa).trim();
     var items = (source.records || []).filter(function(record) {
@@ -784,7 +825,7 @@ function core_listarSolicitacoesCadastraisAdministracaoPortal_(filtros, contexto
     var personSearch = corePerfilNormalizeAdminSearch_(opts.pessoa || opts.texto);
     var pageSize = Math.min(Math.max(Number(opts.pageSize || 50), 1), 100);
     var page = Math.max(Number(opts.pagina || 1), 1);
-    var data = corePerfilOpenPessoas_(deps);
+    var data = corePerfilOpenPessoas_(contexto, deps);
     var source = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
     var peopleById = corePerfilBuildAdminPersonIndex_(data);
     var items = (source.records || []).filter(function(record) {
@@ -838,9 +879,9 @@ function core_analisarSolicitacaoCadastralPortal_(payload, contexto, options) {
     var reason = corePerfilRedactSensitiveText_(corePerfilNormalizeTextField_(payload && (payload.motivo || payload.motivoDecisao), 1000, 'MOTIVO_DECISAO_MUITO_LONGO'));
     if (['COMPLEMENTO_SOLICITADO', 'INDEFERIDA'].indexOf(action) >= 0 && reason.length < 10) throw new Error('MOTIVO_DECISAO_OBRIGATORIO');
     if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, statusDestino: action });
-    corePerfilAssertHomologContext_(contexto, deps);
+    corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_ANALISAR_SOLICITACAO', function() {
-      var source = corePerfilSource_(corePerfilOpenPessoas_(deps), CORE_PERFIL_SOLICITACOES_SHEET);
+      var source = corePerfilSource_(corePerfilOpenPessoas_(contexto, deps), CORE_PERFIL_SOLICITACOES_SHEET);
       var record = corePerfilFindRequestById_(source, payload && payload.idSolicitacao);
       if (!record || corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') throw new Error('SOLICITACAO_NAO_ENCONTRADA');
       var currentStatus = corePerfilNormalizeToken_(record.STATUS);
@@ -885,9 +926,9 @@ function core_aplicarSolicitacaoCadastralAprovadaPortal_(payload, contexto, opti
     var auth = corePerfilAuthorizeAdmin_(contexto, deps);
     if (!auth.ok) return auth.response;
     if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, idSolicitacao: String(payload.idSolicitacao || '') });
-    corePerfilAssertHomologContext_(contexto, deps);
+    corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_APLICAR_SOLICITACAO', function() {
-      var data = corePerfilOpenPessoas_(deps);
+      var data = corePerfilOpenPessoas_(contexto, deps);
       var requestSource = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
       var record = corePerfilFindRequestById_(requestSource, payload && payload.idSolicitacao);
       if (!record || corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') throw new Error('SOLICITACAO_NAO_ENCONTRADA');
@@ -944,7 +985,8 @@ function corePerfilRegistryRowValues_(headers, values) {
   });
 }
 
-function corePerfilEnsureRegistryDev_(spreadsheetId, dryRun) {
+function corePerfilEnsureRegistry_(spreadsheetId, environment, dryRun) {
+  var env = String(environment || '').trim().toUpperCase();
   var registry = core_openSpreadsheetById_(CORE_REGISTRY_SPREADSHEET_ID).getSheetByName(CORE_REGISTRY_SHEET_NAME);
   if (!registry) throw new Error('REGISTRY_SHEET_INDISPONIVEL');
   var data = core_readSheetData_(registry, { headerRow: 1 });
@@ -956,14 +998,14 @@ function corePerfilEnsureRegistryDev_(spreadsheetId, dryRun) {
   var existing = null;
   for (var i = 0; i < data.rows.length; i++) {
     var row = core_rowToObject_(headers, data.rows[i]);
-    if (corePerfilNormalizeToken_(row.KEY) === CORE_PERFIL_SOLICITACOES_KEY && corePerfilNormalizeToken_(row.AMBIENTE) === 'DEV') {
+    if (corePerfilNormalizeToken_(row.KEY) === CORE_PERFIL_SOLICITACOES_KEY && corePerfilNormalizeToken_(row.AMBIENTE) === env) {
       existing = row;
       break;
     }
   }
   if (existing) {
     if (String(existing.SPREADSHEET_ID || '').trim() !== spreadsheetId || String(existing.SHEET_NAME || '').trim() !== CORE_PERFIL_SOLICITACOES_SHEET) {
-      throw new Error('REGISTRY_DEV_CONFLITANTE');
+      throw new Error('REGISTRY_' + env + '_CONFLITANTE');
     }
     if (!dryRun) core_registryCacheClear_();
     return { existed: true, created: false, lineCompatible: true };
@@ -974,21 +1016,25 @@ function corePerfilEnsureRegistryDev_(spreadsheetId, dryRun) {
     values[core_normalizeHeader_('SPREADSHEET_ID')] = spreadsheetId;
     values[core_normalizeHeader_('SHEET_NAME')] = CORE_PERFIL_SOLICITACOES_SHEET;
     values[core_normalizeHeader_('ATIVO')] = 'SIM';
-    values[core_normalizeHeader_('AMBIENTE')] = 'DEV';
+    values[core_normalizeHeader_('AMBIENTE')] = env;
     values[core_normalizeHeader_('DISPLAY_NAME')] = 'Solicitacoes de atualizacao cadastral Pessoas V2';
     values[core_normalizeHeader_('TYPE')] = 'FONTE_EVENTOS';
-    values[core_normalizeHeader_('NOTAS')] = 'Uso exclusivo DEV/HOMOLOG; nao cadastrar como PROD nesta etapa.';
+    values[core_normalizeHeader_('NOTAS')] = env === 'PROD'
+      ? 'Fonte oficial de solicitacoes cadastrais do Portal PROD.'
+      : 'Fonte exclusiva DEV/HOMOLOG.';
     registry.appendRow(corePerfilRegistryRowValues_(headers, values));
     core_registryCacheClear_();
   }
   return { existed: false, created: !dryRun, planned: dryRun };
 }
 
-function corePerfilEnsureAdminPermissionDev_(dryRun) {
+function corePerfilEnsureAdminPermission_(environment, dryRun) {
+  var env = String(environment || '').trim().toUpperCase();
   var meta = null;
   try {
-    meta = corePerfilRegistryMetaDev_('PORTAL_PERMISSOES');
-  } catch (missingDevPermissionSource) {
+    meta = corePerfilRegistryMeta_('PORTAL_PERMISSOES', env);
+  } catch (missingPermissionSource) {
+    if (env === 'PROD') throw new Error('PORTAL_PERMISSOES_PROD_INDISPONIVEL');
     return {
       available: false,
       skipped: true,
@@ -1019,10 +1065,11 @@ function corePerfilEnsureAdminPermissionDev_(dryRun) {
   return { requiredProfiles: required, missingBefore: missing, created: dryRun ? [] : missing.slice(), planned: dryRun ? missing.slice() : [] };
 }
 
-function core_setupSolicitacoesAtualizacaoCadastralDev_(options) {
+function core_setupSolicitacoesAtualizacaoCadastral_(options) {
   var opts = options || {};
   var dryRun = opts.dryRun !== false;
   var env = String(opts.environment || 'DEV').trim().toUpperCase();
+  var confirmation = env === 'PROD' ? CORE_PERFIL_SETUP_CONFIRMATION_PROD : CORE_PERFIL_SETUP_CONFIRMATION;
   var observedEnv = '';
   try {
     observedEnv = core_getCurrentEnv_();
@@ -1036,27 +1083,27 @@ function core_setupSolicitacoesAtualizacaoCadastralDev_(options) {
     scriptEnvironmentObserved: observedEnv,
     sheetName: CORE_PERFIL_SOLICITACOES_SHEET,
     registryKey: CORE_PERFIL_SOLICITACOES_KEY,
-    productionRefused: env === 'PROD',
+    productionRefused: false,
     createdSheet: false,
     addedHeaders: [],
     registry: null,
     adminPermission: null,
     diagnostics: []
   };
-  if (env !== 'DEV') {
-    report.errorCode = 'SETUP_RECUSADO_FORA_DEV';
-    report.message = 'O setup cadastral aceita somente environment=DEV e nunca altera a Script Property GEAPA_ENV.';
+  if (env !== 'DEV' && env !== 'PROD') {
+    report.errorCode = 'AMBIENTE_SETUP_INVALIDO';
+    report.message = 'Informe environment=DEV ou environment=PROD.';
     Logger.log('[geapa-core][perfil-cadastral][setup] ' + JSON.stringify(report));
     return report;
   }
-  if (!dryRun && String(opts.confirmacao || '').trim() !== CORE_PERFIL_SETUP_CONFIRMATION) {
+  if (!dryRun && String(opts.confirmacao || '').trim() !== confirmation) {
     report.errorCode = 'CONFIRMACAO_OBRIGATORIA';
-    report.message = 'Informe confirmacao: ' + CORE_PERFIL_SETUP_CONFIRMATION;
+    report.message = 'Informe confirmacao: ' + confirmation;
     Logger.log('[geapa-core][perfil-cadastral][setup] ' + JSON.stringify(report));
     return report;
   }
-  return corePerfilWithLock_('SETUP_SOLICITACOES_CADASTRAIS_DEV', function() {
-    var baseMeta = corePerfilRegistryMetaDev_('PESSOAS_V2_BASE');
+  return corePerfilWithLock_('SETUP_SOLICITACOES_CADASTRAIS_' + env, function() {
+    var baseMeta = corePerfilRegistryMeta_('PESSOAS_V2_BASE', env);
     var spreadsheet = core_openSpreadsheetById_(baseMeta.id);
     var definition = CORE_DOMAINS_V2_SCHEMAS.PESSOAS.filter(function(item) {
       return item.sheetName === CORE_PERFIL_SOLICITACOES_SHEET;
@@ -1095,18 +1142,53 @@ function core_setupSolicitacoesAtualizacaoCadastralDev_(options) {
       if (!baseSheet) throw new Error('PESSOAS_BASE_INDISPONIVEL');
       core_ensureDomainsV2Headers_(baseSheet, baseDefinition.headers, []);
     }
-    report.registry = corePerfilEnsureRegistryDev_(baseMeta.id, dryRun);
-    report.adminPermission = corePerfilEnsureAdminPermissionDev_(dryRun);
+    report.registry = corePerfilEnsureRegistry_(baseMeta.id, env, dryRun);
+    report.adminPermission = corePerfilEnsureAdminPermission_(env, dryRun);
     report.ok = true;
-    report.message = dryRun ? 'Dry-run concluido sem escrita.' : 'Setup DEV/HOMOLOG concluido.';
+    report.message = dryRun ? 'Dry-run ' + env + ' concluido sem escrita.' : 'Setup ' + env + ' concluido.';
     Logger.log('[geapa-core][perfil-cadastral][setup] ' + JSON.stringify(report));
     return report;
   }, opts.deps || {});
+}
+
+function corePerfilSetupEnvironmentRefused_(requested, expected) {
+  return {
+    ok: false,
+    dryRun: true,
+    environment: requested,
+    productionRefused: expected === 'DEV' && requested === 'PROD',
+    errorCode: 'SETUP_RECUSADO_FORA_' + expected,
+    message: 'Esta entrada aceita somente environment=' + expected + '.'
+  };
+}
+
+function core_setupSolicitacoesAtualizacaoCadastralDev_(options) {
+  var opts = Object.assign({}, options || {});
+  var requested = String(opts.environment || 'DEV').trim().toUpperCase();
+  if (requested !== 'DEV') return corePerfilSetupEnvironmentRefused_(requested, 'DEV');
+  opts.environment = 'DEV';
+  return core_setupSolicitacoesAtualizacaoCadastral_(opts);
+}
+
+function core_setupSolicitacoesAtualizacaoCadastralProd_(options) {
+  var opts = Object.assign({}, options || {});
+  var requested = String(opts.environment || 'PROD').trim().toUpperCase();
+  if (requested !== 'PROD') return corePerfilSetupEnvironmentRefused_(requested, 'PROD');
+  opts.environment = 'PROD';
+  return core_setupSolicitacoesAtualizacaoCadastral_(opts);
 }
 
 function core_setupSolicitacoesAtualizacaoCadastralDevReal_() {
   return core_setupSolicitacoesAtualizacaoCadastralDev_({
     dryRun: false,
     confirmacao: CORE_PERFIL_SETUP_CONFIRMATION
+  });
+}
+
+function core_setupSolicitacoesAtualizacaoCadastralProdReal_() {
+  return core_setupSolicitacoesAtualizacaoCadastralProd_({
+    dryRun: false,
+    environment: 'PROD',
+    confirmacao: CORE_PERFIL_SETUP_CONFIRMATION_PROD
   });
 }

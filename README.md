@@ -207,7 +207,8 @@ Os contratos de edicao do proprio perfil, solicitacao de correcao sensivel e
 analise administrativa para o Portal HOMOLOG estao documentados em
 [`docs/perfil-editavel-homolog.md`](docs/perfil-editavel-homolog.md). O setup
 resolve diretamente o Registry DEV sem trocar a Script Property compartilhada
-`GEAPA_ENV` e nao publica nem altera configuracoes PROD.
+`GEAPA_ENV`. A promocao isolada para producao e seus bloqueios adicionais estao
+documentados em [`docs/perfil-editavel-prod.md`](docs/perfil-editavel-prod.md).
 
 O bootstrap seguro `coreV2_bootstrapConfiguracao(options)` confere e, quando explicitamente autorizado em DEV, cria apenas linhas ausentes em `MODULOS_CONFIG` e `MODULOS_STATUS`. A operacao esta documentada em [`docs/bootstrap-configuracao-v2.md`](docs/bootstrap-configuracao-v2.md).
 
@@ -1624,6 +1625,7 @@ Uso atual:
 - mudancas no Registry impactam todos os modulos consumidores;
 - as APIs publicas devem ser adicionadas em `20_public_exports.js`; implementar a funcao interna sem exporta-la nao basta para uso via Library;
 - modulos que usam Library em versao fixa precisam atualizar a versao publicada apos mudancas no core;
+- a promocao do perfil editavel para PROD exige o dry-run e a confirmacao descritos em `docs/perfil-editavel-prod.md`;
 - sempre que um helper novo for usado por outro modulo, documentar o contrato publico correspondente neste README.
 
 Fluxo manual sugerido para validar o Mail Hub:

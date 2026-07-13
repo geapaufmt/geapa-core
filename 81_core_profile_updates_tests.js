@@ -4,7 +4,7 @@ function corePerfilTestAssert_(condition, message) {
   if (!condition) throw new Error('TESTE_FALHOU: ' + message);
 }
 
-function corePerfilTestFixture_(permissions) {
+function corePerfilTestFixture_(permissions, environment) {
   var now = new Date(2026, 6, 12, 10, 0, 0);
   var sources = {};
   function source(name, headers, records) {
@@ -47,7 +47,7 @@ function corePerfilTestFixture_(permissions) {
     perfisPortal: []
   };
   var deps = {
-    environment: 'DEV',
+    environment: environment || 'DEV',
     session: session,
     hasDevPermission: function(currentSession, permission) {
       return (currentSession.permissoes || []).indexOf(permission) >= 0;
@@ -198,6 +198,51 @@ function corePerfilTestRunAll_() {
     var noMatch = core_listarSolicitacoesCadastraisAdministracaoPortal_({ pessoa: 'Outra Pessoa' }, {}, { deps: fx.deps });
     corePerfilTestAssert_(byName.data.paginacao.totalItens === 1 && byRga.data.paginacao.totalItens === 1, 'filtro por pessoa nao encontrou a solicitacao');
     corePerfilTestAssert_(noMatch.data.paginacao.totalItens === 0, 'filtro por pessoa retornou solicitacao incorreta');
+  });
+
+  test('17_prod_escreve_somente_com_contexto_prod', function() {
+    var fx = corePerfilTestFixture_(['portal:acessar'], 'PROD');
+    var response = core_atualizarMeuPerfilParaPortal_({ links: [{ tipo: 'LATTES', url: 'https://lattes.cnpq.br/123' }], chaveIdempotencia: 'prod-link-001' }, {}, { deps: fx.deps });
+    var link = fx.sources.PESSOAS_V2_LINKS_PERFIS.records[0];
+    corePerfilTestAssert_(response.ok && link.FONTE === 'PORTAL_PROD', 'escrita PROD nao preservou a origem oficial');
+  });
+
+  test('18_prod_nao_concede_gestao_apenas_por_perfil', function() {
+    var fx = corePerfilTestFixture_(['portal:acessar'], 'PROD');
+    fx.session.perfisPortal = ['SECRETARIA'];
+    var response = core_listarSolicitacoesCadastraisAdministracaoPortal_({}, {}, { deps: fx.deps });
+    corePerfilTestAssert_(!response.ok && response.errorCode === 'PERMISSAO_NEGADA', 'PROD concedeu gestao sem permissao canonica');
+  });
+
+  test('19_setup_prod_exige_confirmacao_dedicada', function() {
+    var response = core_setupSolicitacoesAtualizacaoCadastralProd_({ dryRun: false, environment: 'PROD' });
+    corePerfilTestAssert_(!response.ok && response.errorCode === 'CONFIRMACAO_OBRIGATORIA' && response.message.indexOf(CORE_PERFIL_SETUP_CONFIRMATION_PROD) >= 0, 'setup PROD nao exigiu confirmacao dedicada');
+  });
+
+  test('20_setup_prod_recusa_ambiente_dev', function() {
+    var response = core_setupSolicitacoesAtualizacaoCadastralProd_({ dryRun: true, environment: 'DEV' });
+    corePerfilTestAssert_(!response.ok && response.errorCode === 'SETUP_RECUSADO_FORA_PROD', 'entrada PROD aceitou ambiente DEV');
+  });
+
+  test('21_registry_cadastral_nao_aceita_fallback_all', function() {
+    var original = core_getRegistryRaw_;
+    core_getRegistryRaw_ = function() {
+      return { PESSOAS_V2_BASE: { ALL: { ativo: true, id: 'ID-ALL', sheet: 'PESSOAS_BASE' } } };
+    };
+    var refused = false;
+    try {
+      corePerfilRegistryMeta_('PESSOAS_V2_BASE', 'PROD');
+    } catch (error) {
+      refused = error && error.message === 'REGISTRY_PROD_INDISPONIVEL_PESSOAS_V2_BASE';
+    } finally {
+      core_getRegistryRaw_ = original;
+    }
+    corePerfilTestAssert_(refused, 'Registry cadastral aceitou entrada ALL');
+  });
+
+  test('22_contextos_portal_mapeiam_ambientes_isolados', function() {
+    corePerfilTestAssert_(corePerfilResolveEnvironment_({ ambientePortal: 'HOMOLOG' }, {}) === 'DEV', 'HOMOLOG nao mapeou para DEV');
+    corePerfilTestAssert_(corePerfilResolveEnvironment_({ ambientePortal: 'PROD' }, {}) === 'PROD', 'PROD nao permaneceu isolado');
   });
 
   return Object.freeze({ ok: true, total: results.length, resultados: Object.freeze(results) });

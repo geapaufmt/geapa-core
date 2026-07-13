@@ -137,7 +137,7 @@ do valor anterior, atualiza a fonte e recalcula a view operacional para a pessoa
 7. Reexecutar o setup real e confirmar idempotencia: nenhuma linha, aba ou
    cabecalho duplicado.
 8. Executar `geapaCoreRunTestesAtualizacaoCadastral()`; esperado: `ok=true` e
-   `total=16`.
+   `total=22`.
 9. Em uma conta de membro HOMOLOG, alterar telefone e resumo academico.
 10. Adicionar e remover um link Lattes.
 11. Solicitar correcao de CPF e confirmar que `PESSOAS_BASE.CPF` nao mudou.

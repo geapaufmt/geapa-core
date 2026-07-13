@@ -2,6 +2,9 @@
 
 ## 2026-07-12
 
+- Preparada promocao segura do perfil editavel para PROD com Registry explicito, setup dedicado, confirmacao forte e Library fixa planejada v12.
+- Removido fallback `ALL` das fontes cadastrais e exigida permissao canonica `membros:analisar_correcoes` em PROD.
+- Suite cadastral ampliada para 22 testes, incluindo isolamento PROD, origem de escrita, recusa de `ALL` e de concessao administrativa por mero perfil.
 - Criados contratos seguros para edicao de campos cadastrais de baixo risco do proprio usuario no Portal HOMOLOG.
 - Criado fluxo separado de solicitacao, analise, aprovacao e aplicacao de correcoes sensiveis, com autorizacao `membros:analisar_correcoes`.
 - Adicionado setup idempotente da aba `SOLICITACOES_ATUALIZACAO_CADASTRAL`, da key DEV correspondente e das permissoes DEV de Secretaria/Diretoria.

@@ -558,6 +558,16 @@ function geapaCoreSetupSolicitacoesAtualizacaoCadastralDevReal() {
   return core_setupSolicitacoesAtualizacaoCadastralDevReal_();
 }
 
+/** Diagnostica ou prepara explicitamente a base PROD, sem depender de GEAPA_ENV. */
+function geapaCoreSetupSolicitacoesAtualizacaoCadastralProd(options) {
+  return core_setupSolicitacoesAtualizacaoCadastralProd_(options || {});
+}
+
+/** Entrada manual de escrita PROD, protegida por confirmacao dedicada. */
+function geapaCoreSetupSolicitacoesAtualizacaoCadastralProdReal() {
+  return core_setupSolicitacoesAtualizacaoCadastralProdReal_();
+}
+
 /** Lista membros administrativos para o Portal com autorizacao e sanitizacao no Core. */
 function geapaCoreListarMembrosAdministracaoPortal(filtros, contexto) {
   try {
