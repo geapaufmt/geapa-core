@@ -738,6 +738,41 @@ function corePerfilFindRequestById_(source, requestId) {
   return null;
 }
 
+function corePerfilNormalizeAdminSearch_(value) {
+  return String(value == null ? '' : value).trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function corePerfilBuildAdminPersonIndex_(data) {
+  var base = corePerfilSource_(data, 'PESSOAS_BASE');
+  var details = corePerfilSource_(data, 'MEMBROS_DETALHES');
+  var detailsById = {};
+  var peopleById = {};
+
+  (details.records || []).forEach(function indexDetails(record) {
+    var id = String(record.ID_PESSOA || '').trim();
+    if (id) detailsById[id] = record;
+  });
+
+  (base.records || []).forEach(function indexPerson(record) {
+    var id = String(record.ID_PESSOA || '').trim();
+    var member = detailsById[id] || {};
+    var displayName = String(record.NOME_SOCIAL || record.NOME_CIVIL || record.NOME_COMPLETO || '').trim();
+    var email = String(record.EMAIL_PRINCIPAL || '').trim();
+    var rga = String(member.RGA || '').trim();
+    if (!id) return;
+    peopleById[id] = Object.freeze({
+      nomeExibicao: displayName,
+      rgaMascarado: corePerfilMaskValue_('RGA', rga),
+      emailMascarado: corePerfilMaskValue_('EMAIL_PRINCIPAL', email),
+      indiceBusca: corePerfilNormalizeAdminSearch_([displayName, rga, email].join(' '))
+    });
+  });
+
+  return peopleById;
+}
+
 function core_listarSolicitacoesCadastraisAdministracaoPortal_(filtros, contexto, options) {
   var deps = options && options.deps ? options.deps : {};
   try {
@@ -746,17 +781,23 @@ function core_listarSolicitacoesCadastraisAdministracaoPortal_(filtros, contexto
     var opts = filtros && typeof filtros === 'object' ? filtros : {};
     var status = corePerfilNormalizeToken_(opts.status);
     var field = corePerfilNormalizeToken_(opts.campo);
+    var personSearch = corePerfilNormalizeAdminSearch_(opts.pessoa || opts.texto);
     var pageSize = Math.min(Math.max(Number(opts.pageSize || 50), 1), 100);
     var page = Math.max(Number(opts.pagina || 1), 1);
-    var source = corePerfilSource_(corePerfilOpenPessoas_(deps), CORE_PERFIL_SOLICITACOES_SHEET);
+    var data = corePerfilOpenPessoas_(deps);
+    var source = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
+    var peopleById = corePerfilBuildAdminPersonIndex_(data);
     var items = (source.records || []).filter(function(record) {
       if (corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') return false;
       if (!core_domainsV2AuditIsSim_(record.ATIVO)) return false;
       if (status && corePerfilNormalizeToken_(record.STATUS) !== status) return false;
       if (field && corePerfilNormalizeToken_(record.CAMPO) !== field) return false;
+      var person = peopleById[String(record.ID_PESSOA || '').trim()];
+      if (personSearch && (!person || person.indiceBusca.indexOf(personSearch) < 0)) return false;
       return true;
     }).map(function(record) {
       var requestField = corePerfilNormalizeToken_(record.CAMPO);
+      var person = peopleById[String(record.ID_PESSOA || '').trim()] || {};
       return Object.freeze({
         id: String(record.ID_SOLICITACAO || ''),
         campo: requestField,
@@ -768,7 +809,12 @@ function core_listarSolicitacoesCadastraisAdministracaoPortal_(filtros, contexto
         decisao: String(record.DECISAO || ''),
         motivoDecisao: corePerfilRedactSensitiveText_(record.MOTIVO_DECISAO),
         analisadoEm: record.ANALISADO_EM || '',
-        aplicadoEm: record.APLICADO_EM || ''
+        aplicadoEm: record.APLICADO_EM || '',
+        pessoa: Object.freeze({
+          nomeExibicao: String(person.nomeExibicao || 'Pessoa nao identificada'),
+          rgaMascarado: String(person.rgaMascarado || ''),
+          emailMascarado: String(person.emailMascarado || '')
+        })
       });
     });
     var total = items.length;
