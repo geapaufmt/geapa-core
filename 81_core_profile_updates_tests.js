@@ -177,6 +177,29 @@ function corePerfilTestRunAll_() {
     corePerfilTestAssert_(response.ok && response.data.dryRun === true && fx.counters.writes === 0 && fx.counters.appends === 0, 'dry-run escreveu');
   });
 
+  test('15_fila_admin_identifica_pessoa_sem_expor_dados_completos', function() {
+    var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION]);
+    core_solicitarCorrecaoMeuPerfilParaPortal_({ campo: 'CPF', valorSolicitado: '11144477735', justificativa: 'Solicito a correcao conforme documento oficial.', chaveIdempotencia: 'cpf-request-1' }, {}, { deps: fx.deps });
+    var response = core_listarSolicitacoesCadastraisAdministracaoPortal_({}, {}, { deps: fx.deps });
+    var item = response.ok && response.data.solicitacoes[0];
+    var serialized = JSON.stringify(item || {});
+    corePerfilTestAssert_(item && item.pessoa.nomeExibicao === 'Pessoa Teste', 'nome de exibicao ausente na fila');
+    corePerfilTestAssert_(item.pessoa.rgaMascarado === '***234', 'RGA nao foi mascarado');
+    corePerfilTestAssert_(item.pessoa.emailMascarado === 'pe***@example.org', 'email nao foi mascarado');
+    corePerfilTestAssert_(serialized.indexOf('20201234') < 0 && serialized.indexOf('pessoa@example.org') < 0, 'fila expos identificador completo');
+    corePerfilTestAssert_(!Object.prototype.hasOwnProperty.call(item, 'idPessoa'), 'fila expos ID_PESSOA desnecessario');
+  });
+
+  test('16_filtro_admin_por_pessoa_e_aplicado_no_core', function() {
+    var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION]);
+    core_solicitarCorrecaoMeuPerfilParaPortal_({ campo: 'CPF', valorSolicitado: '11144477735', justificativa: 'Solicito a correcao conforme documento oficial.', chaveIdempotencia: 'cpf-request-1' }, {}, { deps: fx.deps });
+    var byName = core_listarSolicitacoesCadastraisAdministracaoPortal_({ pessoa: 'Pessoa Teste' }, {}, { deps: fx.deps });
+    var byRga = core_listarSolicitacoesCadastraisAdministracaoPortal_({ pessoa: '20201234' }, {}, { deps: fx.deps });
+    var noMatch = core_listarSolicitacoesCadastraisAdministracaoPortal_({ pessoa: 'Outra Pessoa' }, {}, { deps: fx.deps });
+    corePerfilTestAssert_(byName.data.paginacao.totalItens === 1 && byRga.data.paginacao.totalItens === 1, 'filtro por pessoa nao encontrou a solicitacao');
+    corePerfilTestAssert_(noMatch.data.paginacao.totalItens === 0, 'filtro por pessoa retornou solicitacao incorreta');
+  });
+
   return Object.freeze({ ok: true, total: results.length, resultados: Object.freeze(results) });
 }
 
