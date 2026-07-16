@@ -124,6 +124,14 @@ A aprovacao administrativa apenas marca `APROVADA`. A escrita ocorre somente
 na chamada explicita de aplicacao. A aplicacao revalida o valor, confere o hash
 do valor anterior, atualiza a fonte e recalcula a view operacional para a pessoa.
 
+## Desempenho das mutacoes
+
+Os contratos cadastrais abrem somente as fontes necessarias para cada operacao.
+Uma solicitacao sensivel consulta a fila e a fonte oficial do campo. Uma
+atualizacao direta consulta a fila de auditoria e apenas as fontes dos campos
+enviados. O fluxo nao deve carregar integralmente todas as abas de Pessoas V2
+em cada clique do Portal.
+
 ## Checklist manual de HOMOLOG
 
 1. Confirmar branch `codex/perfil-editavel-homolog` e worktree limpo.
@@ -137,7 +145,7 @@ do valor anterior, atualiza a fonte e recalcula a view operacional para a pessoa
 7. Reexecutar o setup real e confirmar idempotencia: nenhuma linha, aba ou
    cabecalho duplicado.
 8. Executar `geapaCoreRunTestesAtualizacaoCadastral()`; esperado: `ok=true` e
-   `total=22`.
+   `total=30`.
 9. Em uma conta de membro HOMOLOG, alterar telefone e resumo academico.
 10. Adicionar e remover um link Lattes.
 11. Solicitar correcao de CPF e confirmar que `PESSOAS_BASE.CPF` nao mudou.
