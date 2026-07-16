@@ -35,7 +35,7 @@ function corePerfilTestFixture_(permissions, environment) {
     return item.sheetName === CORE_PERFIL_SOLICITACOES_SHEET;
   })[0].headers, []);
 
-  var counters = { writes: 0, appends: 0, recalculations: 0 };
+  var counters = { writes: 0, appends: 0, recalculations: 0, openedSourceSets: [] };
   var uuidCounter = 0;
   var session = {
     ok: true,
@@ -56,7 +56,10 @@ function corePerfilTestFixture_(permissions, environment) {
     uuid: function() { uuidCounter++; return '00000000-0000-4000-8000-' + ('000000000000' + uuidCounter).slice(-12); },
     hash: function(value) { return 'HASH_' + String(value).replace(/[^A-Za-z0-9]/g, '').slice(0, 30); },
     withLock: function(key, fn) { return fn(); },
-    openPessoas: function() { return sources; },
+    openPessoas: function(sourceNames) {
+      counters.openedSourceSets.push((sourceNames || []).slice());
+      return sources;
+    },
     writeRecord: function(sourceData, record) {
       counters.writes++;
       var index = sourceData.records.findIndex(function(item) { return item.__rowNumber === record.__rowNumber; });
@@ -291,6 +294,38 @@ function corePerfilTestRunAll_() {
     corePerfilTestAssert_(masked.ok && masked.data.dadosRevelados === false && masked.data.valorSolicitado.indexOf('11144477735') < 0, 'CPF foi revelado sem acao explicita');
     corePerfilTestAssert_(revealed.ok && revealed.data.dadosRevelados === true && revealed.data.valorSolicitado === '111.444.777-35', 'revelacao autorizada do CPF falhou');
     corePerfilTestAssert_(safeLog.indexOf('11144477735') < 0 && safeLog.indexOf('HASH_ADMIN') >= 0, 'log de revelacao expos valor sensivel ou perdeu ator');
+  });
+
+  test('28_solicitacao_le_apenas_fonte_do_campo_e_fila', function() {
+    var fx = corePerfilTestFixture_();
+    var response = core_solicitarCorrecaoMeuPerfilParaPortal_({
+      campo: 'DATA_NASCIMENTO',
+      valorSolicitado: '11/01/1990',
+      justificativa: 'Solicito correcao conforme documento oficial apresentado.',
+      chaveIdempotencia: 'date-selective-001'
+    }, {}, { deps: fx.deps });
+    var opened = fx.counters.openedSourceSets[0] || [];
+    corePerfilTestAssert_(response.ok, 'solicitacao seletiva falhou');
+    corePerfilTestAssert_(opened.length === 2, 'solicitacao abriu fontes desnecessarias');
+    corePerfilTestAssert_(opened.indexOf('PESSOAS_BASE') >= 0 && opened.indexOf(CORE_PERFIL_SOLICITACOES_SHEET) >= 0, 'fontes obrigatorias nao foram abertas');
+  });
+
+  test('29_listagem_propria_le_somente_fila', function() {
+    var fx = corePerfilTestFixture_();
+    var response = core_listarMinhasSolicitacoesCadastraisPortal_({}, { deps: fx.deps });
+    var opened = fx.counters.openedSourceSets[0] || [];
+    corePerfilTestAssert_(response.ok && opened.length === 1 && opened[0] === CORE_PERFIL_SOLICITACOES_SHEET, 'listagem propria abriu fontes desnecessarias');
+  });
+
+  test('30_atualizacao_telefone_le_somente_base_e_fila', function() {
+    var fx = corePerfilTestFixture_();
+    var response = core_atualizarMeuPerfilParaPortal_({
+      telefone: '(65) 99999-4444',
+      chaveIdempotencia: 'phone-selective-001'
+    }, {}, { deps: fx.deps });
+    var opened = fx.counters.openedSourceSets[0] || [];
+    corePerfilTestAssert_(response.ok && opened.length === 2, 'telefone abriu fontes desnecessarias');
+    corePerfilTestAssert_(opened.indexOf('PESSOAS_BASE') >= 0 && opened.indexOf(CORE_PERFIL_SOLICITACOES_SHEET) >= 0, 'telefone nao abriu base e fila');
   });
 
   return Object.freeze({ ok: true, total: results.length, resultados: Object.freeze(results) });

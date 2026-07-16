@@ -447,9 +447,41 @@ function corePerfilReadSheetSource_(sheet, requiredName) {
   };
 }
 
+function corePerfilNormalizeSourceNames_(names) {
+  var definitions = CORE_DOMAINS_V2_SCHEMAS.PESSOAS || [];
+  var allowed = {};
+  definitions.forEach(function(definition) {
+    allowed[definition.sheetName] = definition;
+  });
+  var requested = Array.isArray(names) && names.length
+    ? names
+    : definitions.map(function(definition) { return definition.sheetName; });
+  var seen = {};
+  return requested.map(function(name) {
+    return String(name || '').trim();
+  }).filter(function(name) {
+    if (!name || seen[name]) return false;
+    if (!allowed[name]) throw new Error('FONTE_PESSOAS_DESCONHECIDA_' + name);
+    seen[name] = true;
+    return true;
+  });
+}
+
+function corePerfilSelectSources_(data, sourceNames) {
+  var selected = {};
+  sourceNames.forEach(function(name) {
+    if (!data || !data[name]) throw new Error('FONTE_INDISPONIVEL_' + name);
+    selected[name] = data[name];
+  });
+  return selected;
+}
+
 function corePerfilOpenPessoas_(contexto, deps, options) {
-  if (deps && typeof deps.openPessoas === 'function') return deps.openPessoas();
   options = options || {};
+  var sourceNames = corePerfilNormalizeSourceNames_(options.sources);
+  if (deps && typeof deps.openPessoas === 'function') {
+    return corePerfilSelectSources_(deps.openPessoas(sourceNames.slice(), options), sourceNames);
+  }
   var environment = corePerfilAssertPortalContext_(contexto, deps);
   if (options.forWrite === true) {
     var validation = core_validateDomainRegistry_('PESSOAS', { ambiente: environment });
@@ -459,7 +491,9 @@ function corePerfilOpenPessoas_(contexto, deps, options) {
   }
   var spreadsheet = core_openDomainSpreadsheet_('PESSOAS', { ambiente: environment });
   var data = {};
-  (CORE_DOMAINS_V2_SCHEMAS.PESSOAS || []).forEach(function openDefinition(definition) {
+  (CORE_DOMAINS_V2_SCHEMAS.PESSOAS || []).filter(function(definition) {
+    return sourceNames.indexOf(definition.sheetName) >= 0;
+  }).forEach(function openDefinition(definition) {
     var sheet = spreadsheet.getSheetByName(definition.sheetName);
     if (!sheet && definition.optional === true) {
       data[definition.sheetName] = { sheet: null, headers: [], records: [] };
@@ -468,6 +502,12 @@ function corePerfilOpenPessoas_(contexto, deps, options) {
     data[definition.sheetName] = corePerfilReadSheetSource_(sheet, definition.sheetName);
   });
   return data;
+}
+
+function corePerfilSourcesForChanges_(changes) {
+  return corePerfilNormalizeSourceNames_([CORE_PERFIL_SOLICITACOES_SHEET].concat((changes || []).map(function(change) {
+    return change && change.source;
+  })));
 }
 
 function corePerfilSource_(data, name) {
@@ -693,7 +733,10 @@ function core_atualizarMeuPerfilParaPortal_(payload, contexto, options) {
     }
     var environment = corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_DIRETO_' + auth.session.idPessoa, function() {
-      return corePerfilApplyDirectChanges_(corePerfilOpenPessoas_(contexto, deps, { forWrite: true }), auth.session, changes, key, deps, environment);
+      return corePerfilApplyDirectChanges_(corePerfilOpenPessoas_(contexto, deps, {
+        forWrite: true,
+        sources: corePerfilSourcesForChanges_(changes)
+      }), auth.session, changes, key, deps, environment);
     }, deps);
   } catch (err) {
     corePerfilSafeLog_('DIRECT_UPDATE_ERROR', { ok: false, code: err && err.message });
@@ -731,7 +774,10 @@ function core_solicitarCorrecaoMeuPerfilParaPortal_(payload, contexto, options) 
     }
     corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_SOLICITAR_' + auth.session.idPessoa, function() {
-      var data = corePerfilOpenPessoas_(contexto, deps, { forWrite: true });
+      var data = corePerfilOpenPessoas_(contexto, deps, {
+        forWrite: true,
+        sources: [CORE_PERFIL_SOLICITACOES_SHEET, CORE_PERFIL_SENSITIVE_FIELDS[field].source]
+      });
       var requestSource = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
       var idPessoa = String(auth.session.idPessoa).trim();
       var replay = corePerfilFindIdempotent_(requestSource, idPessoa, 'CORRECAO_SENSIVEL', key);
@@ -790,7 +836,9 @@ function core_listarMinhasSolicitacoesCadastraisPortal_(contexto, options) {
   try {
     var auth = corePerfilAuthorizeOwn_(contexto, deps);
     if (!auth.ok) return auth.response;
-    var data = corePerfilOpenPessoas_(contexto, deps);
+    var data = corePerfilOpenPessoas_(contexto, deps, {
+      sources: [CORE_PERFIL_SOLICITACOES_SHEET]
+    });
     var source = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
     var id = String(auth.session.idPessoa).trim();
     var items = (source.records || []).filter(function(record) {
@@ -815,7 +863,9 @@ function core_consultarMinhaSolicitacaoCadastralPortal_(consulta, contexto, opti
     var requestId = String(query.idSolicitacao || query.requestId || '').trim().slice(0, 100);
     var key = String(query.chaveIdempotencia || '').trim().slice(0, 120);
     if (!requestId && !key) throw new Error('CONSULTA_SOLICITACAO_INVALIDA');
-    var source = corePerfilSource_(corePerfilOpenPessoas_(contexto, deps), CORE_PERFIL_SOLICITACOES_SHEET);
+    var source = corePerfilSource_(corePerfilOpenPessoas_(contexto, deps, {
+      sources: [CORE_PERFIL_SOLICITACOES_SHEET]
+    }), CORE_PERFIL_SOLICITACOES_SHEET);
     var idPessoa = String(auth.session.idPessoa || '').trim();
     var record = (source.records || []).filter(function(item) {
       if (String(item.ID_PESSOA || '').trim() !== idPessoa) return false;
@@ -890,7 +940,9 @@ function core_listarSolicitacoesCadastraisAdministracaoPortal_(filtros, contexto
     var personSearch = corePerfilNormalizeAdminSearch_(opts.pessoa || opts.texto);
     var pageSize = Math.min(Math.max(Number(opts.pageSize || 50), 1), 100);
     var page = Math.max(Number(opts.pagina || 1), 1);
-    var data = corePerfilOpenPessoas_(contexto, deps);
+    var data = corePerfilOpenPessoas_(contexto, deps, {
+      sources: [CORE_PERFIL_SOLICITACOES_SHEET, 'PESSOAS_BASE', 'MEMBROS_DETALHES']
+    });
     var source = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
     var peopleById = corePerfilBuildAdminPersonIndex_(data);
     var items = (source.records || []).filter(function(record) {
@@ -952,7 +1004,9 @@ function core_detalharSolicitacaoCadastralAdministracaoPortal_(payload, contexto
     var requestId = String(payload && payload.idSolicitacao || '').trim().slice(0, 100);
     if (!requestId) throw new Error('SOLICITACAO_NAO_INFORMADA');
     var revealRequested = payload && payload.revelarDados === true;
-    var data = corePerfilOpenPessoas_(contexto, deps);
+    var data = corePerfilOpenPessoas_(contexto, deps, {
+      sources: [CORE_PERFIL_SOLICITACOES_SHEET, 'PESSOAS_BASE', 'MEMBROS_DETALHES']
+    });
     var source = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
     var record = corePerfilFindRequestById_(source, requestId);
     if (!record || corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') throw new Error('SOLICITACAO_NAO_ENCONTRADA');
@@ -1023,7 +1077,10 @@ function core_analisarSolicitacaoCadastralPortal_(payload, contexto, options) {
     if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, statusDestino: action });
     corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_ANALISAR_SOLICITACAO', function() {
-       var source = corePerfilSource_(corePerfilOpenPessoas_(contexto, deps, { forWrite: true }), CORE_PERFIL_SOLICITACOES_SHEET);
+      var source = corePerfilSource_(corePerfilOpenPessoas_(contexto, deps, {
+        forWrite: true,
+        sources: [CORE_PERFIL_SOLICITACOES_SHEET]
+      }), CORE_PERFIL_SOLICITACOES_SHEET);
       var record = corePerfilFindRequestById_(source, payload && payload.idSolicitacao);
       if (!record || corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') throw new Error('SOLICITACAO_NAO_ENCONTRADA');
       var currentStatus = corePerfilNormalizeToken_(record.STATUS);
@@ -1070,7 +1127,10 @@ function core_aplicarSolicitacaoCadastralAprovadaPortal_(payload, contexto, opti
     if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, idSolicitacao: String(payload.idSolicitacao || '') });
     corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_APLICAR_SOLICITACAO', function() {
-      var data = corePerfilOpenPessoas_(contexto, deps, { forWrite: true });
+      var data = corePerfilOpenPessoas_(contexto, deps, {
+        forWrite: true,
+        sources: [CORE_PERFIL_SOLICITACOES_SHEET, 'PESSOAS_BASE', 'MEMBROS_DETALHES']
+      });
       var requestSource = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
       var record = corePerfilFindRequestById_(requestSource, payload && payload.idSolicitacao);
       if (!record || corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') throw new Error('SOLICITACAO_NAO_ENCONTRADA');
