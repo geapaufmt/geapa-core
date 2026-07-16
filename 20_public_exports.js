@@ -85,16 +85,56 @@ function coreGetDomainsV2ContractKeys() {
   return core_getDomainsV2ContractKeys_();
 }
 
-function coreAuditarPessoasV2() {
-  return coreAuditarPessoasV2_();
+function coreGetDomainSpreadsheet(domain, options) {
+  options = options || {};
+  return core_openDomainSpreadsheet_(domain, {
+    ambiente: options.ambiente || options.environment,
+    // Entregar a planilha inteira e um contrato potencialmente mutavel. Por
+    // seguranca, a validacao de escrita e o default; leitura tolerante deve
+    // usar coreGetDomainSheet/coreReadDomainRecords.
+    forWrite: options.forWrite !== false
+  });
 }
 
-function coreAuditarVigenciasV2() {
-  return coreAuditarVigenciasV2_();
+function coreGetDomainSheet(domain, logicalSheet, options) {
+  options = options || {};
+  return core_getDomainSheet_(domain, logicalSheet, {
+    ambiente: options.ambiente || options.environment,
+    forWrite: options.forWrite === true || String(options.access || '').toUpperCase() === 'WRITE'
+  });
 }
 
-function coreAuditarDominiosCentraisV2() {
-  return coreAuditarDominiosCentraisV2_();
+function coreReadDomainRecords(domain, logicalSheet, options) {
+  options = options || {};
+  var sheet = core_getDomainSheet_(domain, logicalSheet, {
+    ambiente: options.ambiente || options.environment
+  });
+  return core_readSheetRecords_(sheet, {
+    headerRow: Number(options.headerRow || 1),
+    skipBlankRows: options.skipBlankRows !== false
+  });
+}
+
+function coreAuditarPessoasV2(options) {
+  return coreAuditarPessoasV2_(options || {});
+}
+
+function coreAuditarVigenciasV2(options) {
+  return coreAuditarVigenciasV2_(options || {});
+}
+
+function coreAuditarDominiosCentraisV2(options) {
+  return coreAuditarDominiosCentraisV2_(options || {});
+}
+
+function coreValidateDomainRegistry(domain, options) {
+  options = options || {};
+  return core_validateDomainRegistry_(domain, { ambiente: options.ambiente || options.environment });
+}
+
+function coreValidateAllDomainRegistries(options) {
+  options = options || {};
+  return core_validateAllDomainRegistries_({ ambiente: options.ambiente || options.environment });
 }
 
 function corePessoasV2Diagnostico(options) {
@@ -533,9 +573,19 @@ function geapaCoreListarMinhasSolicitacoesCadastraisPortal(contexto) {
   return core_listarMinhasSolicitacoesCadastraisPortal_(contexto || {});
 }
 
+/** Confirma uma solicitacao propria por ID ou chave idempotente, sem reenviar a escrita. */
+function geapaCoreConsultarMinhaSolicitacaoCadastralPortal(consulta, contexto) {
+  return core_consultarMinhaSolicitacaoCadastralPortal_(consulta || {}, contexto || {});
+}
+
 /** Lista solicitacoes para Secretaria/Diretoria autorizada no backend. */
 function geapaCoreListarSolicitacoesCadastraisAdministracaoPortal(filtros, contexto) {
   return core_listarSolicitacoesCadastraisAdministracaoPortal_(filtros || {}, contexto || {});
+}
+
+/** Retorna um unico detalhe administrativo, com revelacao protegida e auditada. */
+function geapaCoreDetalharSolicitacaoCadastralAdministracaoPortal(payload, contexto) {
+  return core_detalharSolicitacaoCadastralAdministracaoPortal_(payload || {}, contexto || {});
 }
 
 /** Registra a decisao administrativa; aprovacao nao aplica automaticamente. */

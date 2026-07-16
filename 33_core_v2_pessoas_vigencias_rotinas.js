@@ -13,25 +13,25 @@
  * - atualiza caches por cabecalho e preserva colunas extras.
  */
 
-var CORE_V2_ROTINAS_KEYS = Object.freeze({
+var CORE_V2_ROTINAS_SHEETS = Object.freeze({
   PESSOAS: Object.freeze({
-    BASE: 'PESSOAS_V2_BASE',
-    IDENTIFICADORES: 'PESSOAS_V2_IDENTIFICADORES',
-    MEMBROS_DETALHES: 'PESSOAS_V2_MEMBROS_DETALHES',
-    COLABORADORES: 'PESSOAS_V2_COLABORADORES_ACADEMICOS',
-    LINKS_PERFIS: 'PESSOAS_V2_LINKS_PERFIS',
-    VINCULOS: 'PESSOAS_V2_VINCULOS_GEAPA',
-    EVENTOS: 'PESSOAS_V2_MEMBROS_EVENTOS_VINCULO',
-    RESUMO: 'PESSOAS_V2_RESUMO_OPERACIONAL'
+    BASE: 'BASE',
+    IDENTIFICADORES: 'IDENTIFICADORES',
+    MEMBROS_DETALHES: 'MEMBROS_DETALHES',
+    COLABORADORES: 'COLABORADORES',
+    LINKS_PERFIS: 'LINKS_PERFIS',
+    VINCULOS: 'VINCULOS',
+    EVENTOS: 'EVENTOS',
+    RESUMO: 'RESUMO'
   }),
   VIGENCIAS: Object.freeze({
-    SEMESTRES: 'VIGENCIAS_V2_SEMESTRES',
-    CICLOS: 'VIGENCIAS_V2_CICLOS',
-    DIRETORIAS: 'VIGENCIAS_V2_DIRETORIAS',
-    SEMESTRES_DIRETORIA: 'VIGENCIAS_V2_SEMESTRES_DIRETORIA',
-    CARGOS: 'VIGENCIAS_V2_CARGOS_CONFIG',
-    FUNCOES: 'VIGENCIAS_V2_FUNCOES',
-    RESUMO: 'VIGENCIAS_V2_RESUMO_ATUAL'
+    SEMESTRES: 'SEMESTRES',
+    CICLOS: 'CICLOS',
+    DIRETORIAS: 'DIRETORIAS',
+    SEMESTRES_DIRETORIA: 'SEMESTRES_DIRETORIA',
+    CARGOS: 'CARGOS_CONFIG',
+    FUNCOES: 'FUNCOES',
+    RESUMO: 'RESUMO'
   })
 });
 
@@ -92,7 +92,8 @@ function core_v2RotinasOptions_(options) {
     dryRun: options.dryRun !== false,
     includeRecords: options.includeRecords === true,
     limit: Math.max(1, Number(options.limit || 10)),
-    ambiente: options.ambiente || 'DEV',
+    ambiente: core_normalizeDomainEnv_({ ambiente: options.ambiente || core_getCurrentEnv_() }),
+    forWrite: options.forWrite === true,
     allowWriteWithErrors: options.allowWriteWithErrors === true
   };
 }
@@ -263,38 +264,16 @@ function core_v2RotinasSanitizeError_(err) {
     .replace(/Disponiveis: .+$/i, 'Consulte o Registry para conferir as keys disponiveis.');
 }
 
-function core_v2RotinasGetSheetByKey_(key, ambiente) {
-  var env = core_v2RotinasNormalize_(ambiente || '');
-  if (!env) return core_getSheetByKey_(key);
-  if (env !== 'DEV' && env !== 'PROD') {
-    throw new Error('Ambiente invalido para leitura V2: ' + env + '. Use DEV ou PROD.');
-  }
-
-  var wanted = core_v2RotinasNormalize_(key);
-  var raw = core_getRegistryRaw_();
-  var envMap = raw[wanted];
-  if (!envMap) {
-    throw new Error('Registry KEY nao encontrada: "' + wanted + '".');
-  }
-
-  var entry = envMap[env];
-  if (!entry) {
-    throw new Error(
-      'Registry KEY "' + wanted + '" nao possui cadastro para o ambiente "' + env +
-      '". Ambientes disponiveis: ' + Object.keys(envMap).sort().join(', ') + '.'
-    );
-  }
-  if (!entry.ativo) {
-    throw new Error('Registry KEY "' + wanted + '" esta inativa no ambiente "' + env + '".');
-  }
-
-  return core_getSheetById_(entry.id, entry.sheet);
-}
-
-function core_v2RotinasReadKey_(key, options) {
+function core_v2RotinasReadDomainSheet_(domain, logicalSheet, options) {
   var opts = core_v2RotinasOptions_(options || {});
   try {
-    var sheet = core_v2RotinasGetSheetByKey_(key, opts.ambiente);
+    var resolved = core_getDomainSheet_(domain, logicalSheet, {
+      ambiente: opts.ambiente,
+      forWrite: opts.forWrite,
+      includeResolution: true,
+      writeContext: options && options.writeContext
+    });
+    var sheet = resolved.sheet;
     var lastCol = sheet.getLastColumn();
     var headers = lastCol > 0
       ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(header) {
@@ -303,8 +282,10 @@ function core_v2RotinasReadKey_(key, options) {
       : [];
     return {
       ok: true,
-      key: key,
+      domain: domain,
+      logicalSheet: logicalSheet,
       ambiente: opts.ambiente,
+      origin: resolved.resolution.origin,
       sheet: sheet,
       headers: headers,
       records: core_readSheetRecords_(sheet, { skipBlankRows: true })
@@ -312,7 +293,8 @@ function core_v2RotinasReadKey_(key, options) {
   } catch (err) {
     return {
       ok: false,
-      key: key,
+      domain: domain,
+      logicalSheet: logicalSheet,
       ambiente: opts.ambiente,
       sheet: null,
       headers: [],
@@ -322,17 +304,17 @@ function core_v2RotinasReadKey_(key, options) {
   }
 }
 
-function core_v2RotinasReadGroup_(keyMap, options) {
+function core_v2RotinasReadGroup_(domain, sheetMap, options) {
   var out = {};
-  Object.keys(keyMap || {}).forEach(function(name) {
-    out[name] = core_v2RotinasReadKey_(keyMap[name], options || {});
+  Object.keys(sheetMap || {}).forEach(function(name) {
+    out[name] = core_v2RotinasReadDomainSheet_(domain, sheetMap[name], options || {});
   });
   return out;
 }
 
-function core_v2RotinasDiagnosticForGroup_(modulo, fluxo, keyMap, options) {
+function core_v2RotinasDiagnosticForGroup_(modulo, fluxo, domain, sheetMap, options) {
   var opts = core_v2RotinasOptions_(options);
-  var data = core_v2RotinasReadGroup_(keyMap, opts);
+  var data = core_v2RotinasReadGroup_(domain, sheetMap, opts);
   var datasets = [];
   var ok = true;
 
@@ -341,7 +323,9 @@ function core_v2RotinasDiagnosticForGroup_(modulo, fluxo, keyMap, options) {
     if (!item.ok) ok = false;
     datasets.push({
       nome: name,
-      key: item.key,
+      domain: item.domain,
+      logicalSheet: item.logicalSheet,
+      origin: item.origin || '',
       ok: item.ok,
       totalRegistros: item.records.length,
       totalCabecalhos: item.headers.length,
@@ -354,7 +338,7 @@ function core_v2RotinasDiagnosticForGroup_(modulo, fluxo, keyMap, options) {
     ok: ok,
     modulo: modulo,
     fluxo: fluxo,
-    ambiente: core_v2RotinasSafeCurrentEnv_(),
+    ambiente: opts.ambiente,
     datasets: datasets,
     resumo: {
       totalDatasets: datasets.length,
@@ -473,12 +457,12 @@ function core_v2RotinasFinishError_(execution, modulo, fluxo, capability, err) {
 
 function core_pessoasV2Diagnostico_(options) {
   var fluxo = CORE_V2_ROTINAS_FLUXOS.PESSOAS_CONFERENCIA;
-  return core_v2RotinasDiagnosticForGroup_(fluxo.modulo, fluxo.fluxo, CORE_V2_ROTINAS_KEYS.PESSOAS, options || {});
+  return core_v2RotinasDiagnosticForGroup_(fluxo.modulo, fluxo.fluxo, 'PESSOAS', CORE_V2_ROTINAS_SHEETS.PESSOAS, options || {});
 }
 
 function core_vigenciasV2Diagnostico_(options) {
   var fluxo = CORE_V2_ROTINAS_FLUXOS.VIGENCIAS_CONFERENCIA;
-  return core_v2RotinasDiagnosticForGroup_(fluxo.modulo, fluxo.fluxo, CORE_V2_ROTINAS_KEYS.VIGENCIAS, options || {});
+  return core_v2RotinasDiagnosticForGroup_(fluxo.modulo, fluxo.fluxo, 'VIGENCIAS', CORE_V2_ROTINAS_SHEETS.VIGENCIAS, options || {});
 }
 
 function core_v2DiagnosticoGeral_(options) {
@@ -515,7 +499,7 @@ function core_pessoasV2ConferirConsistencia_(options) {
   }
 
   try {
-    var data = core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.PESSOAS, execution.opts);
+    var data = core_v2RotinasReadGroup_('PESSOAS', CORE_V2_ROTINAS_SHEETS.PESSOAS, execution.opts);
     core_v2RotinasAddUnavailableDataIssues_(envelope, data, 'PESSOAS');
     if (!envelope.ok) {
       core_v2RotinasFinishError_(execution, fluxo.modulo, fluxo.fluxo, '', 'Datasets V2 indisponiveis.');
@@ -552,8 +536,8 @@ function core_vigenciasV2ConferirConsistencia_(options) {
   }
 
   try {
-    var data = core_vigenciasV2CanonicalizeData_(core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS, execution.opts));
-    var pessoas = core_v2RotinasReadGroup_({ BASE: CORE_V2_ROTINAS_KEYS.PESSOAS.BASE }, execution.opts);
+    var data = core_vigenciasV2CanonicalizeData_(core_v2RotinasReadGroup_('VIGENCIAS', CORE_V2_ROTINAS_SHEETS.VIGENCIAS, execution.opts));
+    var pessoas = core_v2RotinasReadGroup_('PESSOAS', { BASE: CORE_V2_ROTINAS_SHEETS.PESSOAS.BASE }, execution.opts);
     data.PESSOAS_BASE = pessoas.BASE;
     core_v2RotinasAddUnavailableDataIssues_(envelope, data, 'VIGENCIAS');
     if (!envelope.ok) {
@@ -904,10 +888,10 @@ function core_vigenciasV2AtualizarResumoAtual_(options) {
   }
 
   try {
-    var data = core_vigenciasV2CanonicalizeData_(core_v2RotinasReadGroup_(CORE_V2_ROTINAS_KEYS.VIGENCIAS, execution.opts));
-    var pessoasData = core_v2RotinasReadGroup_({
-      BASE: CORE_V2_ROTINAS_KEYS.PESSOAS.BASE,
-      MEMBROS_DETALHES: CORE_V2_ROTINAS_KEYS.PESSOAS.MEMBROS_DETALHES
+    var data = core_vigenciasV2CanonicalizeData_(core_v2RotinasReadGroup_('VIGENCIAS', CORE_V2_ROTINAS_SHEETS.VIGENCIAS, execution.opts));
+    var pessoasData = core_v2RotinasReadGroup_('PESSOAS', {
+      BASE: CORE_V2_ROTINAS_SHEETS.PESSOAS.BASE,
+      MEMBROS_DETALHES: CORE_V2_ROTINAS_SHEETS.PESSOAS.MEMBROS_DETALHES
     }, execution.opts);
     var unavailable = core_v2RotinasUnavailableKeys_(data).concat(core_v2RotinasUnavailableKeys_(pessoasData));
     if (unavailable.length) {
@@ -929,7 +913,7 @@ function core_vigenciasV2AtualizarResumoAtual_(options) {
 
     if (!execution.opts.dryRun) {
       result.escrita = core_v2RotinasWriteWithLock_(function() {
-        var target = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.VIGENCIAS.RESUMO, execution.opts);
+        var target = core_v2RotinasReadDomainSheet_('VIGENCIAS', CORE_V2_ROTINAS_SHEETS.VIGENCIAS.RESUMO, Object.assign({}, execution.opts, { forWrite: true }));
         if (!target.ok) throw new Error(target.error);
         return core_v2RotinasUpsertRows_(target.sheet, rows, {
           primaryKey: 'ID_VIGENCIA',
@@ -1258,7 +1242,7 @@ function core_v2RotinasUpsertRows_(sheet, rows, opts) {
 /** Retorna os cabecalhos do contrato geral de links e perfis de Pessoas V2. */
 function core_pessoasV2LinksPerfisHeaders_() {
   var definition = CORE_DOMAINS_V2_SCHEMAS.PESSOAS.filter(function(item) {
-    return item.sheetName === 'PESSOAS_V2_LINKS_PERFIS';
+    return item.sheetName === 'PESSOAS_LINKS_PERFIS';
   })[0];
   return definition ? definition.headers.slice() : [];
 }
@@ -1344,11 +1328,11 @@ function corePessoasV2MigrarLinksPerfisLegados_(options) {
   var opts = options || {};
   var dryRun = opts.dryRun !== false;
   var ambiente = core_v2RotinasNormalize_(opts.ambiente || 'DEV') || 'DEV';
-  var colaboradoresData = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.COLABORADORES, {
+  var colaboradoresData = core_v2RotinasReadDomainSheet_('PESSOAS', CORE_V2_ROTINAS_SHEETS.PESSOAS.COLABORADORES, {
     ambiente: ambiente,
     dryRun: dryRun
   });
-  var linksData = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.LINKS_PERFIS, {
+  var linksData = core_v2RotinasReadDomainSheet_('PESSOAS', CORE_V2_ROTINAS_SHEETS.PESSOAS.LINKS_PERFIS, {
     ambiente: ambiente,
     dryRun: dryRun
   });
@@ -1356,8 +1340,8 @@ function corePessoasV2MigrarLinksPerfisLegados_(options) {
     ok: colaboradoresData.ok && linksData.ok,
     dryRun: dryRun,
     ambiente: ambiente,
-    fonte: CORE_V2_ROTINAS_KEYS.PESSOAS.COLABORADORES,
-    destino: CORE_V2_ROTINAS_KEYS.PESSOAS.LINKS_PERFIS,
+    fonte: CORE_DOMAIN_V2_MAP.PESSOAS.sheets.COLABORADORES,
+    destino: CORE_DOMAIN_V2_MAP.PESSOAS.sheets.LINKS_PERFIS,
     totalColaboradoresLidos: colaboradoresData.records.length,
     totalLinksExistentes: linksData.records.length,
     totalLinhasPreparadas: 0,
@@ -1393,7 +1377,13 @@ function corePessoasV2MigrarLinksPerfisLegados_(options) {
   }
 
   report.escrita = core_v2RotinasWriteWithLock_(function() {
-    return core_v2RotinasUpsertRows_(linksData.sheet, prepared.rows, {
+    var writeTarget = core_v2RotinasReadDomainSheet_('PESSOAS', CORE_V2_ROTINAS_SHEETS.PESSOAS.LINKS_PERFIS, {
+      ambiente: ambiente,
+      dryRun: false,
+      forWrite: true
+    });
+    if (!writeTarget.ok) throw new Error(writeTarget.error || 'LINKS_PERFIS_WRITE_TARGET_INDISPONIVEL');
+    return core_v2RotinasUpsertRows_(writeTarget.sheet, prepared.rows, {
       primaryKey: 'ID_LINK',
       requiredHeaders: core_pessoasV2LinksPerfisHeaders_(),
       dryRun: false
@@ -1426,11 +1416,11 @@ function corePessoasV2MigrarLinksPerfisLegadosReal_() {
 function corePessoasV2VerificarRemocaoLinkLattesLegado_(options) {
   var opts = options || {};
   var ambiente = core_v2RotinasNormalize_(opts.ambiente || 'DEV') || 'DEV';
-  var colaboradoresData = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.COLABORADORES, {
+  var colaboradoresData = core_v2RotinasReadDomainSheet_('PESSOAS', CORE_V2_ROTINAS_SHEETS.PESSOAS.COLABORADORES, {
     ambiente: ambiente,
     dryRun: true
   });
-  var linksData = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.LINKS_PERFIS, {
+  var linksData = core_v2RotinasReadDomainSheet_('PESSOAS', CORE_V2_ROTINAS_SHEETS.PESSOAS.LINKS_PERFIS, {
     ambiente: ambiente,
     dryRun: true
   });
@@ -1506,9 +1496,10 @@ function corePessoasV2RemoverColunaLinkLattesLegado_(options) {
     report.reason = 'CONFIRMACAO_OBRIGATORIA';
     return report;
   }
-  var data = core_v2RotinasReadKey_(CORE_V2_ROTINAS_KEYS.PESSOAS.COLABORADORES, {
+  var data = core_v2RotinasReadDomainSheet_('PESSOAS', CORE_V2_ROTINAS_SHEETS.PESSOAS.COLABORADORES, {
     ambiente: report.ambiente,
-    dryRun: false
+    dryRun: false,
+    forWrite: true
   });
   if (!data.ok) {
     report.ok = false;

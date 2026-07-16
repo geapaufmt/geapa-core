@@ -29,7 +29,7 @@ Fonte complementar do dominio de membros. Guarda RGA, semestre, data de integrac
 
 Fonte cadastral de professores, tecnicos e colaboradores academicos. Guarda instituicao, titulacao, area de atuacao e eixo associado. Nao e base de destinatarios de comunicacao nem de links de perfil.
 
-### PESSOAS_V2_LINKS_PERFIS
+### PESSOAS_LINKS_PERFIS
 
 Fonte geral de links academicos e perfis por `ID_PESSOA`. Ela atende membros,
 egressos, conselheiros, colaboradores academicos, participantes externos e
@@ -57,8 +57,9 @@ Provisionamento e migracao manual em DEV:
 
 1. Rode `corePessoasV2PrepareLinksPerfis({ dryRun: true })`.
 2. Rode `corePessoasV2PrepareLinksPerfis({ dryRun: false, confirmacao: 'PREPARAR_PESSOAS_V2_LINKS_PERFIS' })`.
-3. Cadastre no Registry a key `PESSOAS_V2_LINKS_PERFIS`, apontando para a nova
-   aba no ambiente DEV.
+3. Garanta `PESSOAS_V2_DB` no Registry DEV apontando para a planilha que contem
+   a aba canonica `PESSOAS_LINKS_PERFIS`. A key especifica
+   `PESSOAS_V2_LINKS_PERFIS` e apenas fallback temporario de leitura.
 4. Rode `corePessoasV2MigrarLinksPerfisLegados({ dryRun: true, ambiente: 'DEV' })`.
 5. Depois de conferir as linhas, rode a mesma funcao com `dryRun: false` e
    `confirmacao: 'MIGRAR_LATTES_LEGADO_PESSOAS_V2'`.

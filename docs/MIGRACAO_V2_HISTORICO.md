@@ -6,7 +6,7 @@ Este documento registra a migracao inicial legado -> v2 dos dominios centrais `P
 
 ### PESSOAS v2 - DEV
 
-- ID: `1sa1CZTsqdDEWKWLd5uDAiM-Y59ko9FLZfABL0wc0HVM`
+- Localizacao atual: Registry `PESSOAS_V2_DB`, selecionado por ambiente.
 - Papel: base v2 do dominio Pessoas.
 
 Abas criadas:
@@ -24,7 +24,7 @@ Abas criadas:
 
 ### VIGENCIAS v2 - DEV
 
-- ID: `1M_KPFn7sRjZmQMtfoVOSDuSwlJqq9BLBQ-UYahcDQJw`
+- Localizacao atual: Registry `VIGENCIAS_V2_DB`, selecionado por ambiente.
 - Papel: base v2 do dominio Vigencias.
 
 Abas criadas:

@@ -16,7 +16,7 @@ var CORE_DOMAINS_V2_CONTRACT_KEYS = Object.freeze({
   PESSOAS_V2_BASE: 'PESSOAS_BASE',
   PESSOAS_V2_IDENTIFICADORES: 'PESSOAS_IDENTIFICADORES',
   PESSOAS_V2_MEMBROS_DETALHES: 'MEMBROS_DETALHES',
-  PESSOAS_V2_LINKS_PERFIS: 'PESSOAS_V2_LINKS_PERFIS',
+  PESSOAS_V2_LINKS_PERFIS: 'PESSOAS_LINKS_PERFIS',
   PESSOAS_V2_SOLICITACOES_ATUALIZACAO_CADASTRAL: 'SOLICITACOES_ATUALIZACAO_CADASTRAL',
   PESSOAS_V2_COLABORADORES_ACADEMICOS: 'COLABORADORES_ACADEMICOS',
   PESSOAS_V2_PARTICIPANTES_EXTERNOS_DETALHES: 'PARTICIPANTES_EXTERNOS_DETALHES',
@@ -112,14 +112,25 @@ function core_domainsV2AuditVigenciaPareceAtiva_(record) {
   return false;
 }
 
-function core_domainsV2AuditOpenDomain_(domainKey, report) {
-  var spreadsheetId = CORE_DOMAINS_V2_DEV_SPREADSHEETS[domainKey];
-  if (!spreadsheetId) {
-    core_domainsV2AuditIssue_(report, 'ERRO', 'DOMINIO_SEM_SPREADSHEET_ID', 'Dominio v2 sem spreadsheetId configurado.', { domain: domainKey });
+function core_domainsV2AuditOpenDomain_(domainKey, report, options) {
+  options = options || {};
+  var environment = core_normalizeDomainEnv_({ ambiente: options.ambiente || 'DEV' });
+  var spreadsheet;
+  try {
+    spreadsheet = core_openDomainSpreadsheet_(domainKey, {
+      ambiente: environment,
+      registryRaw: options.registryRaw,
+      openSpreadsheetById: options.openSpreadsheetById
+    });
+  } catch (err) {
+    core_domainsV2AuditIssue_(report, 'ERRO', err.code || 'DOMINIO_DB_INDISPONIVEL', 'Dominio v2 indisponivel no Registry.', {
+      domain: domainKey,
+      ambiente: environment,
+      error: err.message
+    });
     return {};
   }
-
-  var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  report.ambiente = environment;
   var out = {};
   var schema = CORE_DOMAINS_V2_SCHEMAS[domainKey] || [];
 
@@ -226,9 +237,9 @@ function core_domainsV2AuditReportDuplicates_(report, counts, code, message, lim
   }
 }
 
-function coreAuditarPessoasV2_() {
+function coreAuditarPessoasV2_(options) {
   var report = core_domainsV2AuditNewReport_('PESSOAS_V2');
-  var data = core_domainsV2AuditOpenDomain_('PESSOAS', report);
+  var data = core_domainsV2AuditOpenDomain_('PESSOAS', report, options || {});
 
   var base = (data.PESSOAS_BASE && data.PESSOAS_BASE.records) || [];
   var identificadores = (data.PESSOAS_IDENTIFICADORES && data.PESSOAS_IDENTIFICADORES.records) || [];
@@ -355,11 +366,11 @@ function coreAuditarPessoasV2_() {
   return report;
 }
 
-function coreAuditarVigenciasV2_() {
+function coreAuditarVigenciasV2_(options) {
   var report = core_domainsV2AuditNewReport_('VIGENCIAS_V2');
-  var vigenciasData = core_domainsV2AuditOpenDomain_('VIGENCIAS', report);
+  var vigenciasData = core_domainsV2AuditOpenDomain_('VIGENCIAS', report, options || {});
   var pessoasReportProbe = core_domainsV2AuditNewReport_('PESSOAS_V2_REFERENCIA');
-  var pessoasData = core_domainsV2AuditOpenDomain_('PESSOAS', pessoasReportProbe);
+  var pessoasData = core_domainsV2AuditOpenDomain_('PESSOAS', pessoasReportProbe, options || {});
 
   var funcoes = (vigenciasData.VIGENCIAS_FUNCOES && vigenciasData.VIGENCIAS_FUNCOES.records) || [];
   var cargos = (vigenciasData.CARGOS_CONFIG && vigenciasData.CARGOS_CONFIG.records) || [];
@@ -625,9 +636,9 @@ function coreRecalcularVigenciasResumoAtualV2_(options) {
   return report;
 }
 
-function coreAuditarDominiosCentraisV2_() {
-  var pessoas = coreAuditarPessoasV2_();
-  var vigencias = coreAuditarVigenciasV2_();
+function coreAuditarDominiosCentraisV2_(options) {
+  var pessoas = coreAuditarPessoasV2_(options || {});
+  var vigencias = coreAuditarVigenciasV2_(options || {});
   var report = core_domainsV2AuditNewReport_('DOMINIOS_CENTRAIS_V2');
 
   report.erros = [].concat(pessoas.erros, vigencias.erros);

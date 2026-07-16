@@ -105,7 +105,7 @@ function core_domainsV2LinksPerfisByPessoa_(pessoasData, idPessoa, options) {
   var opts = options || {};
   var id = String(idPessoa || '').trim();
   if (!id) return [];
-  var records = (pessoasData.PESSOAS_V2_LINKS_PERFIS && pessoasData.PESSOAS_V2_LINKS_PERFIS.records) || [];
+  var records = (pessoasData.PESSOAS_LINKS_PERFIS && pessoasData.PESSOAS_LINKS_PERFIS.records) || [];
   return records.filter(function(record) {
     if (String(record.ID_PESSOA || '').trim() !== id) return false;
     if (opts.includeInactive !== true && !core_domainsV2IsLinkPerfilActive_(record)) return false;
@@ -929,21 +929,12 @@ function core_domainsV2BuildPortalState_(vinculo, vigResumo, exceptions) {
   return { perfil: profile, portalAtivo: 'NAO' };
 }
 
-function core_domainsV2ReadRecordsByKeySoft_(key, unavailable) {
+function core_domainsV2ReadActivitySheetSoft_(logicalSheet, unavailable, options) {
   try {
-    return core_readRecordsByKey_(key, { skipBlankRows: true }) || [];
-  } catch (primaryErr) {
-    try {
-      if (typeof core_v2RotinasGetSheetByKey_ === 'function') {
-        return core_readSheetRecords_(core_v2RotinasGetSheetByKey_(key, 'DEV'), {
-          skipBlankRows: true
-        }) || [];
-      }
-    } catch (fallbackErr) {
-      unavailable[key] = fallbackErr && fallbackErr.message ? fallbackErr.message : String(fallbackErr);
-      return [];
-    }
-    unavailable[key] = primaryErr && primaryErr.message ? primaryErr.message : String(primaryErr);
+    var sheet = core_getDomainSheet_('ATIVIDADES', logicalSheet, options || {});
+    return core_readSheetRecords_(sheet, { skipBlankRows: true }) || [];
+  } catch (err) {
+    unavailable[logicalSheet] = err && err.message ? err.message : String(err);
     return [];
   }
 }
@@ -953,17 +944,17 @@ function core_domainsV2ReadRecordsByKeySoft_(key, unavailable) {
  *
  * @return {Object}
  */
-function core_domainsV2ActivityData_() {
+function core_domainsV2ActivityData_(options) {
   var unavailable = {};
   return {
-    atividades: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_DB', unavailable),
-    apresentacoes: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_APRESENTACOES', unavailable),
-    envolvidos: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_ENVOLVIDOS', unavailable),
-    portalAtividadesDetalhes: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES', unavailable),
-    presencas: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PRESENCAS_REGISTROS', unavailable),
-    portalFrequencia: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PORTAL_FREQUENCIA_MEMBROS', unavailable),
-    justificativas: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_JUSTIFICATIVAS', unavailable),
-    portalJustificativas: core_domainsV2ReadRecordsByKeySoft_('ATIVIDADES_V2_PORTAL_JUSTIFICATIVAS', unavailable),
+    atividades: core_domainsV2ReadActivitySheetSoft_('ATIVIDADES', unavailable, options),
+    apresentacoes: core_domainsV2ReadActivitySheetSoft_('APRESENTACOES', unavailable, options),
+    envolvidos: core_domainsV2ReadActivitySheetSoft_('ENVOLVIDOS', unavailable, options),
+    portalAtividadesDetalhes: core_domainsV2ReadActivitySheetSoft_('PORTAL_ATIVIDADES_DETALHES', unavailable, options),
+    presencas: core_domainsV2ReadActivitySheetSoft_('PRESENCAS_REGISTROS', unavailable, options),
+    portalFrequencia: core_domainsV2ReadActivitySheetSoft_('PORTAL_FREQUENCIA_MEMBROS', unavailable, options),
+    justificativas: core_domainsV2ReadActivitySheetSoft_('JUSTIFICATIVAS', unavailable, options),
+    portalJustificativas: core_domainsV2ReadActivitySheetSoft_('PORTAL_JUSTIFICATIVAS', unavailable, options),
     unavailable: unavailable
   };
 }

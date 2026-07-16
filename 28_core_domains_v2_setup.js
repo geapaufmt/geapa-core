@@ -11,11 +11,6 @@
  * inicial legado -> v2.
  */
 
-var CORE_DOMAINS_V2_DEV_SPREADSHEETS = Object.freeze({
-  PESSOAS: '1sa1CZTsqdDEWKWLd5uDAiM-Y59ko9FLZfABL0wc0HVM',
-  VIGENCIAS: '1M_KPFn7sRjZmQMtfoVOSDuSwlJqq9BLBQ-UYahcDQJw'
-});
-
 var CORE_DOMAINS_V2_INITIAL_SHEET_NAMES = Object.freeze([
   'Página1',
   'Pagina1',
@@ -101,7 +96,7 @@ var CORE_DOMAINS_V2_SCHEMAS = Object.freeze({
       ])
     }),
     Object.freeze({
-      sheetName: 'PESSOAS_V2_LINKS_PERFIS',
+      sheetName: 'PESSOAS_LINKS_PERFIS',
       classification: 'FONTE',
       // Optional during rollout so existing Portal reads keep the legacy Lattes fallback.
       optional: true,
@@ -642,17 +637,35 @@ function core_applyDomainsV2SheetUx_(sheet) {
   return operations;
 }
 
-function core_ensureDomainsV2Spreadsheet_(domainKey, spreadsheetId, opts) {
+function core_ensureDomainsV2Spreadsheet_(domainKey, opts) {
   opts = opts || {};
   var schema = CORE_DOMAINS_V2_SCHEMAS[domainKey];
   if (!schema) {
     throw new Error('Dominio v2 nao reconhecido: ' + domainKey);
   }
 
-  var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  var environment = core_normalizeDomainEnv_({ ambiente: opts.ambiente || 'DEV' });
+  var registryReport = core_validateDomainRegistry_(domainKey, {
+    ambiente: environment,
+    registryRaw: opts.registryRaw,
+    openSpreadsheetById: opts.openSpreadsheetById
+  });
+  if (registryReport.duplicates.length || registryReport.divergences.length) {
+    throw new Error('Setup V2 bloqueado por duplicidade ou divergencia no Registry de ' + domainKey + '/' + environment + '.');
+  }
+  var ref = core_getDomainSpreadsheetRef_(domainKey, {
+    ambiente: environment,
+    registryRaw: opts.registryRaw
+  });
+  var spreadsheet = core_openDomainSpreadsheet_(domainKey, {
+    ambiente: environment,
+    registryRaw: opts.registryRaw,
+    openSpreadsheetById: opts.openSpreadsheetById
+  });
   var out = {
     domain: domainKey,
-    spreadsheetId: spreadsheetId,
+    environment: environment,
+    spreadsheetId: ref.spreadsheetIdMasked,
     spreadsheetName: spreadsheet.getName(),
     sheets: []
   };
@@ -680,11 +693,7 @@ function core_ensureDomainsV2Spreadsheet_(domainKey, spreadsheetId, opts) {
 }
 
 function coreEnsurePessoasV2DevSheets_(opts) {
-  return core_ensureDomainsV2Spreadsheet_(
-    'PESSOAS',
-    CORE_DOMAINS_V2_DEV_SPREADSHEETS.PESSOAS,
-    opts || {}
-  );
+  return core_ensureDomainsV2Spreadsheet_('PESSOAS', Object.assign({}, opts || {}, { ambiente: 'DEV' }));
 }
 
 /**
@@ -699,9 +708,14 @@ function corePessoasV2PrepareLinksPerfis_(options) {
   var dryRun = opts.dryRun !== false;
   var confirmacao = String(opts.confirmacao || '').trim();
   var definition = CORE_DOMAINS_V2_SCHEMAS.PESSOAS.filter(function(item) {
-    return item.sheetName === 'PESSOAS_V2_LINKS_PERFIS';
+    return item.sheetName === 'PESSOAS_LINKS_PERFIS';
   })[0];
-  var spreadsheet = SpreadsheetApp.openById(CORE_DOMAINS_V2_DEV_SPREADSHEETS.PESSOAS);
+  var environment = core_normalizeDomainEnv_({ ambiente: opts.ambiente || 'DEV' });
+  var validation = core_validateDomainRegistry_('PESSOAS', { ambiente: environment });
+  if (validation.duplicates.length || validation.divergences.length) {
+    throw new Error('Preparacao bloqueada por duplicidade ou divergencia no Registry de PESSOAS/' + environment + '.');
+  }
+  var spreadsheet = core_openDomainSpreadsheet_('PESSOAS', { ambiente: environment });
   var existing = spreadsheet.getSheetByName(definition.sheetName);
   var report = {
     ok: true,
@@ -713,18 +727,19 @@ function corePessoasV2PrepareLinksPerfis_(options) {
     created: false,
     addedHeaders: [],
     uxOperations: [],
-    nextStep: 'Cadastrar PESSOAS_V2_LINKS_PERFIS no Registry DEV antes da migracao.'
+    environment: environment,
+    nextStep: 'Manter a key especifica apenas como fallback temporario de leitura; escritas usam PESSOAS_V2_DB.'
   };
 
   if (dryRun) {
-    Logger.log('[geapa-core][PESSOAS_V2_LINKS_PERFIS][PREPARE] ' + JSON.stringify(report));
+    Logger.log('[geapa-core][PESSOAS_LINKS_PERFIS][PREPARE] ' + JSON.stringify(report));
     return report;
   }
   if (confirmacao !== 'PREPARAR_PESSOAS_V2_LINKS_PERFIS') {
     report.ok = false;
     report.blocked = true;
     report.reason = 'CONFIRMACAO_OBRIGATORIA';
-    Logger.log('[geapa-core][PESSOAS_V2_LINKS_PERFIS][PREPARE] ' + JSON.stringify(report));
+    Logger.log('[geapa-core][PESSOAS_LINKS_PERFIS][PREPARE] ' + JSON.stringify(report));
     return report;
   }
 
@@ -734,7 +749,7 @@ function corePessoasV2PrepareLinksPerfis_(options) {
   report.created = !!resolved.created;
   report.addedHeaders = headersResult.addedHeaders;
   report.uxOperations = core_applyDomainsV2SheetUx_(resolved.sheet);
-  Logger.log('[geapa-core][PESSOAS_V2_LINKS_PERFIS][PREPARE] ' + JSON.stringify(report));
+  Logger.log('[geapa-core][PESSOAS_LINKS_PERFIS][PREPARE] ' + JSON.stringify(report));
   return report;
 }
 
@@ -751,11 +766,7 @@ function corePessoasV2PrepareLinksPerfisReal_() {
 }
 
 function coreEnsureVigenciasV2DevSheets_(opts) {
-  return core_ensureDomainsV2Spreadsheet_(
-    'VIGENCIAS',
-    CORE_DOMAINS_V2_DEV_SPREADSHEETS.VIGENCIAS,
-    opts || {}
-  );
+  return core_ensureDomainsV2Spreadsheet_('VIGENCIAS', Object.assign({}, opts || {}, { ambiente: 'DEV' }));
 }
 
 function coreEnsureCentralDomainsV2DevSheets_(opts) {
@@ -769,14 +780,11 @@ function coreEnsureCentralDomainsV2DevSheets_(opts) {
 function coreDiagnosticarCentralDomainsV2DevSheets_(opts) {
   opts = opts || {};
   var diagnostics = [];
-  var domains = [
-    { key: 'PESSOAS', spreadsheetId: CORE_DOMAINS_V2_DEV_SPREADSHEETS.PESSOAS },
-    { key: 'VIGENCIAS', spreadsheetId: CORE_DOMAINS_V2_DEV_SPREADSHEETS.VIGENCIAS }
-  ];
+  var domains = ['PESSOAS', 'VIGENCIAS'];
 
-  domains.forEach(function(domain) {
-    var spreadsheet = SpreadsheetApp.openById(domain.spreadsheetId);
-    CORE_DOMAINS_V2_SCHEMAS[domain.key].forEach(function(definition) {
+  domains.forEach(function(domainKey) {
+    var spreadsheet = core_openDomainSpreadsheet_(domainKey, { ambiente: opts.ambiente || 'DEV' });
+    CORE_DOMAINS_V2_SCHEMAS[domainKey].forEach(function(definition) {
       var sheet = spreadsheet.getSheetByName(definition.sheetName);
       var missingHeaders = [];
       if (sheet) {
@@ -796,7 +804,8 @@ function coreDiagnosticarCentralDomainsV2DevSheets_(opts) {
       }
 
       diagnostics.push({
-        domain: domain.key,
+        domain: domainKey,
+        environment: core_normalizeDomainEnv_({ ambiente: opts.ambiente || 'DEV' }),
         sheetName: definition.sheetName,
         classification: definition.classification,
         exists: !!sheet,

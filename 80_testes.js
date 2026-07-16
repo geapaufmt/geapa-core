@@ -188,7 +188,7 @@ function test_core_portalAdminMembrosContratoPuro() {
 /** Testa filtros e normalizacao puros do contrato geral de links/perfis. */
 function test_core_domainsV2_linksPerfisHelpers() {
   var pessoasData = {
-    PESSOAS_V2_LINKS_PERFIS: {
+    PESSOAS_LINKS_PERFIS: {
       records: [
         { ID_LINK: 'LNK-000001', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'LATTES', URL: 'lattes.cnpq.br/123', ROTULO: '', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'SIM', ATIVO: 'SIM' },
         { ID_LINK: 'LNK-000002', ID_PESSOA: 'PES-TESTE', TIPO_LINK: 'LINKEDIN', URL: 'https://linkedin.com/in/teste', ROTULO: 'Perfil profissional', PUBLICAVEL: 'SIM', VISIVEL_PORTAL: 'NAO', ATIVO: 'SIM' },
