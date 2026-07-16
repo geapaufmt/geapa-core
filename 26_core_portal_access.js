@@ -1447,7 +1447,7 @@ function corePortalGetMeuResumo_(email, opts) {
 function corePortalReadPresentationRecords_() {
   var records = [];
   try {
-    var details = core_readRecordsByKey_('ATIVIDADES_V2_PORTAL_ATIVIDADES_DETALHES', { skipBlankRows: true }) || [];
+    var details = core_readSheetRecords_(core_getDomainSheet_('ATIVIDADES', 'PORTAL_ATIVIDADES_DETALHES', {}), { skipBlankRows: true }) || [];
     details.forEach(function(detail) {
       records = records.concat(corePortalPresentationRecordsFromActivityDetail_(detail));
     });

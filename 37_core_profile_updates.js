@@ -163,7 +163,9 @@ function corePerfilSafeLogPayload_(event, details) {
     status: String(source.status || '').slice(0, 40),
     requestId: String(source.requestId || '').slice(0, 80),
     changedCount: Number(source.changedCount || 0),
-    code: String(source.code || '').slice(0, 80)
+    code: String(source.code || '').slice(0, 80),
+    actorHash: String(source.actorHash || '').slice(0, 80),
+    revealed: source.revealed === true
   };
 }
 
@@ -317,19 +319,41 @@ function corePerfilNormalizeCpf_(value) {
   return cpf;
 }
 
-function corePerfilNormalizeDate_(value) {
-  var raw = String(value || '').trim();
-  var match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/) || raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) throw new Error('DATA_NASCIMENTO_INVALIDA');
-  var year = raw.indexOf('-') >= 0 ? Number(match[1]) : Number(match[3]);
-  var month = Number(match[2]);
-  var day = raw.indexOf('-') >= 0 ? Number(match[3]) : Number(match[1]);
-  var date = new Date(year, month - 1, day);
+function corePerfilDateParts_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return { year: value.getFullYear(), month: value.getMonth() + 1, day: value.getDate() };
+  }
+  var raw = String(value == null ? '' : value).trim();
+  var iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  var br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!iso && !br) throw new Error('DATA_NASCIMENTO_INVALIDA');
+  return {
+    year: Number(iso ? iso[1] : br[3]),
+    month: Number(iso ? iso[2] : br[2]),
+    day: Number(iso ? iso[3] : br[1])
+  };
+}
+
+function corePerfilCanonicalDate_(value) {
+  var parts = corePerfilDateParts_(value);
+  var leap = parts.year % 4 === 0 && (parts.year % 100 !== 0 || parts.year % 400 === 0);
+  var days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   var today = new Date();
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day || year < 1900 || date > today) {
+  var todayNumber = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  var valueNumber = parts.year * 10000 + parts.month * 100 + parts.day;
+  if (parts.year < 1900 || parts.month < 1 || parts.month > 12 || parts.day < 1 || parts.day > days[parts.month - 1] || valueNumber > todayNumber) {
     throw new Error('DATA_NASCIMENTO_INVALIDA');
   }
-  return Utilities.formatString('%04d-%02d-%02d', year, month, day);
+  return Utilities.formatString('%04d-%02d-%02d', parts.year, parts.month, parts.day);
+}
+
+function corePerfilFormatDateForPortal_(value) {
+  var canonical = corePerfilCanonicalDate_(value);
+  return canonical.slice(8, 10) + '/' + canonical.slice(5, 7) + '/' + canonical.slice(0, 4);
+}
+
+function corePerfilNormalizeDate_(value) {
+  return corePerfilCanonicalDate_(value);
 }
 
 function corePerfilNormalizeSensitiveValue_(field, value) {
@@ -385,7 +409,13 @@ function corePerfilMaskValue_(field, value) {
     var parts = text.split('@');
     return parts.length === 2 ? parts[0].slice(0, 2) + '***@' + parts[1] : '***';
   }
-  if (field === 'DATA_NASCIMENTO') return '**/**/' + text.slice(0, 4);
+  if (field === 'DATA_NASCIMENTO') {
+    try {
+      return '**/**/' + corePerfilCanonicalDate_(value).slice(0, 4);
+    } catch (invalidDate) {
+      return '**/**/****';
+    }
+  }
   if (field === 'RGA') return '***' + text.slice(-3);
   if (field === 'NOME_COMPLETO' || field === 'NOME_CIVIL') {
     var names = text.split(/\s+/);
@@ -417,11 +447,17 @@ function corePerfilReadSheetSource_(sheet, requiredName) {
   };
 }
 
-function corePerfilOpenPessoas_(contexto, deps) {
+function corePerfilOpenPessoas_(contexto, deps, options) {
   if (deps && typeof deps.openPessoas === 'function') return deps.openPessoas();
+  options = options || {};
   var environment = corePerfilAssertPortalContext_(contexto, deps);
-  var baseMeta = corePerfilRegistryMeta_('PESSOAS_V2_BASE', environment);
-  var spreadsheet = core_openSpreadsheetById_(baseMeta.id);
+  if (options.forWrite === true) {
+    var validation = core_validateDomainRegistry_('PESSOAS', { ambiente: environment });
+    if (validation.duplicates.length || validation.divergences.length) {
+      throw new Error('PESSOAS_V2_REGISTRY_DIVERGENTE');
+    }
+  }
+  var spreadsheet = core_openDomainSpreadsheet_('PESSOAS', { ambiente: environment });
   var data = {};
   (CORE_DOMAINS_V2_SCHEMAS.PESSOAS || []).forEach(function openDefinition(definition) {
     var sheet = spreadsheet.getSheetByName(definition.sheetName);
@@ -431,10 +467,6 @@ function corePerfilOpenPessoas_(contexto, deps) {
     }
     data[definition.sheetName] = corePerfilReadSheetSource_(sheet, definition.sheetName);
   });
-  data[CORE_PERFIL_SOLICITACOES_SHEET] = corePerfilReadSheetSource_(
-    corePerfilGetSheetByKey_(CORE_PERFIL_SOLICITACOES_KEY, environment),
-    CORE_PERFIL_SOLICITACOES_SHEET
-  );
   return data;
 }
 
@@ -496,7 +528,7 @@ function corePerfilDirectPayload_(payload) {
     if (changes.some(function(item) { return item.field === 'LINK_' + type; })) throw new Error('LINK_DUPLICADO_NO_PAYLOAD');
     changes.push({
       field: 'LINK_' + type,
-      source: 'PESSOAS_V2_LINKS_PERFIS',
+      source: 'PESSOAS_LINKS_PERFIS',
       linkType: type,
       value: corePerfilNormalizeUrl_(type, link && link.url),
       label: corePerfilNormalizeTextField_(link && link.rotulo, 100, 'ROTULO_LINK_MUITO_LONGO') || CORE_PESSOAS_V2_LINKS_PERFIS_LABELS[type]
@@ -562,7 +594,7 @@ function corePerfilApplyDirectChanges_(data, session, changes, key, deps, enviro
   var bySource = {};
   var changed = [];
   changes.forEach(function(change) {
-    if (change.source === 'PESSOAS_V2_LINKS_PERFIS') return;
+    if (change.source === 'PESSOAS_LINKS_PERFIS') return;
     var source = corePerfilSource_(data, change.source);
     var record = bySource[change.source] || corePerfilFindById_(source, idPessoa);
     if (!record) throw new Error('REGISTRO_PESSOA_NAO_ENCONTRADO_' + change.source);
@@ -577,8 +609,8 @@ function corePerfilApplyDirectChanges_(data, session, changes, key, deps, enviro
     changed.push({ field: change.field, current: current, requested: change.value });
   });
 
-  changes.filter(function(change) { return change.source === 'PESSOAS_V2_LINKS_PERFIS'; }).forEach(function(change) {
-    var source = corePerfilSource_(data, 'PESSOAS_V2_LINKS_PERFIS');
+  changes.filter(function(change) { return change.source === 'PESSOAS_LINKS_PERFIS'; }).forEach(function(change) {
+    var source = corePerfilSource_(data, 'PESSOAS_LINKS_PERFIS');
     var records = source.records || [];
     var existing = null;
     for (var i = records.length - 1; i >= 0; i--) {
@@ -661,7 +693,7 @@ function core_atualizarMeuPerfilParaPortal_(payload, contexto, options) {
     }
     var environment = corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_DIRETO_' + auth.session.idPessoa, function() {
-      return corePerfilApplyDirectChanges_(corePerfilOpenPessoas_(contexto, deps), auth.session, changes, key, deps, environment);
+      return corePerfilApplyDirectChanges_(corePerfilOpenPessoas_(contexto, deps, { forWrite: true }), auth.session, changes, key, deps, environment);
     }, deps);
   } catch (err) {
     corePerfilSafeLog_('DIRECT_UPDATE_ERROR', { ok: false, code: err && err.message });
@@ -675,7 +707,11 @@ function corePerfilSensitiveCurrent_(data, idPessoa, field) {
   var record = corePerfilFindById_(source, idPessoa);
   if (!record) throw new Error('PESSOA_NAO_ENCONTRADA');
   if (!corePerfilHasHeader_(source, cfg.header)) throw new Error('CAMPO_NAO_DISPONIVEL_NA_FONTE');
-  return { source: source, record: record, cfg: cfg, value: String(record[cfg.header] == null ? '' : record[cfg.header]).trim() };
+  var raw = record[cfg.header];
+  var value = field === 'DATA_NASCIMENTO' && raw !== '' && raw != null
+    ? corePerfilCanonicalDate_(raw)
+    : String(raw == null ? '' : raw).trim();
+  return { source: source, record: record, cfg: cfg, value: value };
 }
 
 function core_solicitarCorrecaoMeuPerfilParaPortal_(payload, contexto, options) {
@@ -695,12 +731,12 @@ function core_solicitarCorrecaoMeuPerfilParaPortal_(payload, contexto, options) 
     }
     corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_SOLICITAR_' + auth.session.idPessoa, function() {
-      var data = corePerfilOpenPessoas_(contexto, deps);
+      var data = corePerfilOpenPessoas_(contexto, deps, { forWrite: true });
       var requestSource = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
       var idPessoa = String(auth.session.idPessoa).trim();
       var replay = corePerfilFindIdempotent_(requestSource, idPessoa, 'CORRECAO_SENSIVEL', key);
       if (replay.length) {
-        return corePerfilEnvelopeOk_({ idSolicitacao: replay[0].ID_SOLICITACAO, status: replay[0].STATUS, idempotente: true });
+        return corePerfilEnvelopeOk_({ idSolicitacao: replay[0].ID_SOLICITACAO, status: replay[0].STATUS, chaveIdempotencia: key, idempotente: true });
       }
       var duplicate = (requestSource.records || []).some(function(record) {
         return String(record.ID_PESSOA || '').trim() === idPessoa &&
@@ -726,7 +762,7 @@ function core_solicitarCorrecaoMeuPerfilParaPortal_(payload, contexto, options) 
         idempotencyKey: key
       }, deps), deps);
       corePerfilSafeLog_('SENSITIVE_REQUEST', { ok: true, field: field, status: 'PENDENTE', requestId: requestId });
-      return corePerfilEnvelopeOk_({ idSolicitacao: requestId, campo: field, status: 'PENDENTE', idempotente: false });
+      return corePerfilEnvelopeOk_({ idSolicitacao: requestId, campo: field, status: 'PENDENTE', chaveIdempotencia: key, idempotente: false });
     }, deps);
   } catch (err) {
     corePerfilSafeLog_('SENSITIVE_REQUEST_ERROR', { ok: false, code: err && err.message });
@@ -767,6 +803,35 @@ function core_listarMinhasSolicitacoesCadastraisPortal_(contexto, options) {
     return corePerfilEnvelopeOk_({ solicitacoes: Object.freeze(items), total: items.length });
   } catch (err) {
     return corePerfilEnvelopeError_('SOLICITACOES_INDISPONIVEIS', 'Nao foi possivel consultar suas solicitacoes.');
+  }
+}
+
+function core_consultarMinhaSolicitacaoCadastralPortal_(consulta, contexto, options) {
+  var deps = options && options.deps ? options.deps : {};
+  try {
+    var auth = corePerfilAuthorizeOwn_(contexto, deps);
+    if (!auth.ok) return auth.response;
+    var query = consulta && typeof consulta === 'object' ? consulta : {};
+    var requestId = String(query.idSolicitacao || query.requestId || '').trim().slice(0, 100);
+    var key = String(query.chaveIdempotencia || '').trim().slice(0, 120);
+    if (!requestId && !key) throw new Error('CONSULTA_SOLICITACAO_INVALIDA');
+    var source = corePerfilSource_(corePerfilOpenPessoas_(contexto, deps), CORE_PERFIL_SOLICITACOES_SHEET);
+    var idPessoa = String(auth.session.idPessoa || '').trim();
+    var record = (source.records || []).filter(function(item) {
+      if (String(item.ID_PESSOA || '').trim() !== idPessoa) return false;
+      if (corePerfilNormalizeToken_(item.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') return false;
+      if (!core_domainsV2AuditIsSim_(item.ATIVO)) return false;
+      return requestId
+        ? String(item.ID_SOLICITACAO || '').trim() === requestId
+        : String(item.CHAVE_IDEMPOTENCIA || '').trim() === key;
+    })[0];
+    return corePerfilEnvelopeOk_({
+      encontrada: !!record,
+      solicitacao: record ? corePerfilMapOwnRequest_(record) : null,
+      chaveIdempotencia: record ? String(record.CHAVE_IDEMPOTENCIA || '') : key
+    });
+  } catch (err) {
+    return corePerfilEnvelopeError_(err && err.message || 'CONSULTA_SOLICITACAO_INDISPONIVEL', 'Nao foi possivel confirmar a solicitacao cadastral.');
   }
 }
 
@@ -838,15 +903,16 @@ function core_listarSolicitacoesCadastraisAdministracaoPortal_(filtros, contexto
       return true;
     }).map(function(record) {
       var requestField = corePerfilNormalizeToken_(record.CAMPO);
-      var person = peopleById[String(record.ID_PESSOA || '').trim()] || {};
+      var idPessoa = String(record.ID_PESSOA || '').trim();
+      var person = peopleById[idPessoa] || {};
+      var current = corePerfilSensitiveCurrent_(data, idPessoa, requestField).value;
       return Object.freeze({
         id: String(record.ID_SOLICITACAO || ''),
         campo: requestField,
         solicitadoEm: record.SOLICITADO_EM || '',
         status: corePerfilNormalizeToken_(record.STATUS),
-        valorAtualMascarado: String(record.VALOR_ATUAL_MASCARADO || ''),
+        valorAtualMascarado: corePerfilMaskValue_(requestField, current),
         valorSolicitadoMascarado: corePerfilMaskValue_(requestField, record.VALOR_SOLICITADO),
-        justificativa: corePerfilRedactSensitiveText_(record.JUSTIFICATIVA).slice(0, 1000),
         decisao: String(record.DECISAO || ''),
         motivoDecisao: corePerfilRedactSensitiveText_(record.MOTIVO_DECISAO),
         analisadoEm: record.ANALISADO_EM || '',
@@ -869,6 +935,82 @@ function core_listarSolicitacoesCadastraisAdministracaoPortal_(filtros, contexto
   }
 }
 
+function corePerfilFormatSensitiveForAdmin_(field, value) {
+  if (field === 'DATA_NASCIMENTO') return corePerfilFormatDateForPortal_(value);
+  if (field === 'CPF') {
+    var cpf = String(value || '').replace(/\D+/g, '');
+    return cpf.length === 11 ? cpf.slice(0, 3) + '.' + cpf.slice(3, 6) + '.' + cpf.slice(6, 9) + '-' + cpf.slice(9) : String(value || '');
+  }
+  return String(value == null ? '' : value).trim();
+}
+
+function core_detalharSolicitacaoCadastralAdministracaoPortal_(payload, contexto, options) {
+  var deps = options && options.deps ? options.deps : {};
+  try {
+    var auth = corePerfilAuthorizeAdmin_(contexto, deps);
+    if (!auth.ok) return auth.response;
+    var requestId = String(payload && payload.idSolicitacao || '').trim().slice(0, 100);
+    if (!requestId) throw new Error('SOLICITACAO_NAO_INFORMADA');
+    var revealRequested = payload && payload.revelarDados === true;
+    var data = corePerfilOpenPessoas_(contexto, deps);
+    var source = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
+    var record = corePerfilFindRequestById_(source, requestId);
+    if (!record || corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') throw new Error('SOLICITACAO_NAO_ENCONTRADA');
+    var field = corePerfilNormalizeToken_(record.CAMPO);
+    var idPessoa = String(record.ID_PESSOA || '').trim();
+    var person = corePerfilBuildAdminPersonIndex_(data)[idPessoa] || {};
+    var current = corePerfilSensitiveCurrent_(data, idPessoa, field).value;
+    var requested = field === 'DATA_NASCIMENTO'
+      ? corePerfilCanonicalDate_(record.VALOR_SOLICITADO)
+      : String(record.VALOR_SOLICITADO == null ? '' : record.VALOR_SOLICITADO).trim();
+    var requiresReveal = ['CPF', 'EMAIL_PRINCIPAL'].indexOf(field) >= 0;
+    var revealed = !requiresReveal || revealRequested;
+    var currentDisplay = revealed ? corePerfilFormatSensitiveForAdmin_(field, current) : corePerfilMaskValue_(field, current);
+    var requestedDisplay = revealed ? corePerfilFormatSensitiveForAdmin_(field, requested) : corePerfilMaskValue_(field, requested);
+    var actorIdentity = String(auth.session.email || auth.session.idPessoa || 'admin');
+    corePerfilSafeLog_(revealed ? 'ADMIN_SENSITIVE_DETAIL_VIEW' : 'ADMIN_MASKED_DETAIL_VIEW', {
+      ok: true,
+      field: field,
+      requestId: requestId,
+      actorHash: corePerfilHash_(actorIdentity, deps),
+      revealed: revealed
+    });
+    var history = [];
+    if (record.ANALISADO_EM || record.DECISAO || record.MOTIVO_DECISAO) {
+      history.push(Object.freeze({
+        status: corePerfilNormalizeToken_(record.STATUS),
+        decisao: String(record.DECISAO || ''),
+        motivoPublico: corePerfilRedactSensitiveText_(record.MOTIVO_DECISAO),
+        analisadoEm: record.ANALISADO_EM || '',
+        analisadoPorMascarado: corePerfilMaskValue_('EMAIL_PRINCIPAL', record.ANALISADO_POR),
+        aplicadoEm: record.APLICADO_EM || ''
+      }));
+    }
+    return corePerfilEnvelopeOk_(Object.freeze({
+      id: requestId,
+      campo: field,
+      solicitadoEm: record.SOLICITADO_EM || record.CRIADO_EM || '',
+      status: corePerfilNormalizeToken_(record.STATUS),
+      valorAtual: currentDisplay,
+      valorSolicitado: requestedDisplay,
+      valorAtualCanonico: field === 'DATA_NASCIMENTO' && revealed ? current : '',
+      valorSolicitadoCanonico: field === 'DATA_NASCIMENTO' && revealed ? requested : '',
+      justificativa: corePerfilRedactSensitiveText_(record.JUSTIFICATIVA).slice(0, 1000),
+      requerRevelacao: requiresReveal,
+      dadosRevelados: revealed,
+      pessoa: Object.freeze({
+        nomeExibicao: String(person.nomeExibicao || 'Pessoa nao identificada'),
+        rgaMascarado: String(person.rgaMascarado || ''),
+        emailMascarado: String(person.emailMascarado || '')
+      }),
+      historicoDecisoes: Object.freeze(history)
+    }));
+  } catch (err) {
+    corePerfilSafeLog_('ADMIN_DETAIL_ERROR', { ok: false, code: err && err.message, requestId: payload && payload.idSolicitacao });
+    return corePerfilEnvelopeError_(err && err.message || 'SOLICITACAO_DETALHE_INDISPONIVEL', 'Nao foi possivel carregar o detalhe da solicitacao.');
+  }
+}
+
 function core_analisarSolicitacaoCadastralPortal_(payload, contexto, options) {
   var deps = options && options.deps ? options.deps : {};
   try {
@@ -881,7 +1023,7 @@ function core_analisarSolicitacaoCadastralPortal_(payload, contexto, options) {
     if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, statusDestino: action });
     corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_ANALISAR_SOLICITACAO', function() {
-      var source = corePerfilSource_(corePerfilOpenPessoas_(contexto, deps), CORE_PERFIL_SOLICITACOES_SHEET);
+       var source = corePerfilSource_(corePerfilOpenPessoas_(contexto, deps, { forWrite: true }), CORE_PERFIL_SOLICITACOES_SHEET);
       var record = corePerfilFindRequestById_(source, payload && payload.idSolicitacao);
       if (!record || corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') throw new Error('SOLICITACAO_NAO_ENCONTRADA');
       var currentStatus = corePerfilNormalizeToken_(record.STATUS);
@@ -928,7 +1070,7 @@ function core_aplicarSolicitacaoCadastralAprovadaPortal_(payload, contexto, opti
     if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, idSolicitacao: String(payload.idSolicitacao || '') });
     corePerfilAssertPortalContext_(contexto, deps);
     return corePerfilWithLock_('PERFIL_APLICAR_SOLICITACAO', function() {
-      var data = corePerfilOpenPessoas_(contexto, deps);
+      var data = corePerfilOpenPessoas_(contexto, deps, { forWrite: true });
       var requestSource = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
       var record = corePerfilFindRequestById_(requestSource, payload && payload.idSolicitacao);
       if (!record || corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') throw new Error('SOLICITACAO_NAO_ENCONTRADA');
@@ -1103,8 +1245,11 @@ function core_setupSolicitacoesAtualizacaoCadastral_(options) {
     return report;
   }
   return corePerfilWithLock_('SETUP_SOLICITACOES_CADASTRAIS_' + env, function() {
-    var baseMeta = corePerfilRegistryMeta_('PESSOAS_V2_BASE', env);
-    var spreadsheet = core_openSpreadsheetById_(baseMeta.id);
+    var domainValidation = core_validateDomainRegistry_('PESSOAS', { ambiente: env });
+    if (domainValidation.duplicates.length || domainValidation.divergences.length) {
+      throw new Error('PESSOAS_V2_REGISTRY_DIVERGENTE');
+    }
+    var spreadsheet = core_openDomainSpreadsheet_('PESSOAS', { ambiente: env });
     var definition = CORE_DOMAINS_V2_SCHEMAS.PESSOAS.filter(function(item) {
       return item.sheetName === CORE_PERFIL_SOLICITACOES_SHEET;
     })[0];
@@ -1142,7 +1287,12 @@ function core_setupSolicitacoesAtualizacaoCadastral_(options) {
       if (!baseSheet) throw new Error('PESSOAS_BASE_INDISPONIVEL');
       core_ensureDomainsV2Headers_(baseSheet, baseDefinition.headers, []);
     }
-    report.registry = corePerfilEnsureRegistry_(baseMeta.id, env, dryRun);
+    report.registry = {
+      required: false,
+      registryKey: 'PESSOAS_V2_DB',
+      specificKeyDeprecated: CORE_PERFIL_SOLICITACOES_KEY,
+      message: 'A aba e resolvida pela DB key; a key especifica permanece apenas como fallback temporario de leitura.'
+    };
     report.adminPermission = corePerfilEnsureAdminPermission_(env, dryRun);
     report.ok = true;
     report.message = dryRun ? 'Dry-run ' + env + ' concluido sem escrita.' : 'Setup ' + env + ' concluido.';

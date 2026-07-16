@@ -114,7 +114,8 @@ function core_domainsV2MigrationOptions_(options) {
     limit: options.limit == null || options.limit === '' ? null : Number(options.limit),
     resetDestino: options.resetDestino === true,
     escreverRelatorio: options.escreverRelatorio !== false,
-    confirmacao: String(options.confirmacao || '').trim()
+    confirmacao: String(options.confirmacao || '').trim(),
+    ambiente: core_normalizeDomainEnv_({ ambiente: options.ambiente || 'DEV' })
   };
   if (out.resetDestino && out.confirmacao !== 'RESETAR_DESTINO_V2') {
     throw new Error('resetDestino exige confirmacao: "RESETAR_DESTINO_V2". Planilhas antigas nunca sao afetadas.');
@@ -218,9 +219,14 @@ function core_domainsV2FindSheetFromSource_(sourceCfg) {
   };
 }
 
-function core_domainsV2OpenDestSpreadsheet_(domain) {
-  var id = CORE_DOMAINS_V2_DEV_SPREADSHEETS[domain];
-  var spreadsheet = SpreadsheetApp.openById(id);
+function core_domainsV2OpenDestSpreadsheet_(domain, options) {
+  options = options || {};
+  var environment = core_normalizeDomainEnv_({ ambiente: options.ambiente || 'DEV' });
+  var validation = core_validateDomainRegistry_(domain, { ambiente: environment });
+  if (validation.duplicates.length || validation.divergences.length) {
+    throw new Error('Migracao V2 bloqueada por duplicidade ou divergencia no Registry de ' + domain + '/' + environment + '.');
+  }
+  var spreadsheet = core_openDomainSpreadsheet_(domain, { ambiente: environment });
   if (domain === 'PESSOAS') spreadsheet.rename(CORE_DOMAINS_V2_MIGRATION_CFG.pessoasTitle);
   if (domain === 'VIGENCIAS') spreadsheet.rename(CORE_DOMAINS_V2_MIGRATION_CFG.vigenciasTitle);
   try {
@@ -282,7 +288,7 @@ function core_domainsV2ClearDataRowsForDomain_(domain, options) {
     throw new Error('Reset do destino v2 exige confirmacao: "RESETAR_DESTINO_V2".');
   }
 
-  var ss = core_domainsV2OpenDestSpreadsheet_(domain);
+  var ss = core_domainsV2OpenDestSpreadsheet_(domain, options);
   var schemas = CORE_DOMAINS_V2_SCHEMAS[domain];
   var out = [];
   schemas.forEach(function(definition) {
@@ -529,7 +535,7 @@ function core_domainsV2CreatePessoasState_(dest) {
     if (key) colaboradorKeys[key] = true;
   });
   var linkPerfilKeys = {};
-  dest.PESSOAS_V2_LINKS_PERFIS.records.forEach(function(record) {
+  dest.PESSOAS_LINKS_PERFIS.records.forEach(function(record) {
     var key = [
       String(record.ID_PESSOA || '').trim(),
       core_domainsV2NormalizeLinkPerfilType_(record.TIPO_LINK),
@@ -591,7 +597,7 @@ function core_domainsV2CreatePessoasState_(dest) {
     resumoKeys: resumoKeys,
     nextPessoa: core_domainsV2MaxSeq_(dest.PESSOAS_BASE.records, 'ID_PESSOA', 'PES'),
     nextIdentificador: core_domainsV2MaxSeq_(dest.PESSOAS_IDENTIFICADORES.records, 'ID_IDENTIFICADOR', 'IDE'),
-    nextLinkPerfil: core_domainsV2MaxSeq_(dest.PESSOAS_V2_LINKS_PERFIS.records, 'ID_LINK', 'LNK'),
+    nextLinkPerfil: core_domainsV2MaxSeq_(dest.PESSOAS_LINKS_PERFIS.records, 'ID_LINK', 'LNK'),
     nextVinculo: core_domainsV2MaxSeq_(dest.VINCULOS_GEAPA.records, 'ID_VINCULO', 'VIN')
   };
 }
@@ -956,7 +962,7 @@ function coreMigrarPessoasV2_(options) {
     core_domainsV2ClearDataRowsForDomain_('PESSOAS', opts);
     coreEnsurePessoasV2DevSheets_({ applyUx: true });
   }
-  var ss = core_domainsV2OpenDestSpreadsheet_('PESSOAS');
+  var ss = core_domainsV2OpenDestSpreadsheet_('PESSOAS', opts);
   var dest = {};
   CORE_DOMAINS_V2_SCHEMAS.PESSOAS.forEach(function(def) {
     dest[def.sheetName] = core_domainsV2ReadDest_(ss, def.sheetName);
@@ -1093,7 +1099,7 @@ function coreMigrarPessoasV2_(options) {
   core_domainsV2AppendRows_(dest.PESSOAS_IDENTIFICADORES.sheet, state.identificadores, opts.dryRun);
   core_domainsV2AppendRows_(dest.MEMBROS_DETALHES.sheet, state.membrosDetalhes, opts.dryRun);
   core_domainsV2AppendRows_(dest.COLABORADORES_ACADEMICOS.sheet, state.colaboradores, opts.dryRun);
-  core_domainsV2AppendRows_(dest.PESSOAS_V2_LINKS_PERFIS.sheet, state.linksPerfis, opts.dryRun);
+  core_domainsV2AppendRows_(dest.PESSOAS_LINKS_PERFIS.sheet, state.linksPerfis, opts.dryRun);
   core_domainsV2AppendRows_(dest.PARTICIPANTES_EXTERNOS_DETALHES.sheet, state.externos, opts.dryRun);
   core_domainsV2AppendRows_(dest.VINCULOS_GEAPA.sheet, state.vinculos, opts.dryRun);
   core_domainsV2AppendRows_(dest.PESSOAS_COMUNICACAO_CONSENTIMENTOS.sheet, state.consentimentos, opts.dryRun);
@@ -1103,7 +1109,8 @@ function coreMigrarPessoasV2_(options) {
   return {
     ok: true,
     dryRun: opts.dryRun,
-    destino: CORE_DOMAINS_V2_DEV_SPREADSHEETS.PESSOAS,
+    destino: core_getDomainSpreadsheetRef_('PESSOAS', { ambiente: opts.ambiente }).spreadsheetIdMasked,
+    ambiente: opts.ambiente,
     report: report
   };
 }
@@ -1164,7 +1171,7 @@ function coreMigrarVigenciasV2_(options) {
   if (opts.resetDestino && !opts.dryRun) {
     core_domainsV2ClearDataRowsForDomain_('VIGENCIAS', opts);
   }
-  var ss = core_domainsV2OpenDestSpreadsheet_('VIGENCIAS');
+  var ss = core_domainsV2OpenDestSpreadsheet_('VIGENCIAS', opts);
   var dest = {};
   CORE_DOMAINS_V2_SCHEMAS.VIGENCIAS.forEach(function(def) {
     dest[def.sheetName] = core_domainsV2ReadDest_(ss, def.sheetName);
@@ -1330,7 +1337,8 @@ function coreMigrarVigenciasV2_(options) {
   return {
     ok: true,
     dryRun: opts.dryRun,
-    destino: CORE_DOMAINS_V2_DEV_SPREADSHEETS.VIGENCIAS,
+    destino: core_getDomainSpreadsheetRef_('VIGENCIAS', { ambiente: opts.ambiente }).spreadsheetIdMasked,
+    ambiente: opts.ambiente,
     report: report
   };
 }

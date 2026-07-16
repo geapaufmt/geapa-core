@@ -1002,7 +1002,7 @@ Compatibilidade semantica de ocupacao nesta etapa:
 
 ### Links e perfis de Pessoas V2
 
-`PESSOAS_V2_LINKS_PERFIS` concentra links academicos e de perfil por
+`PESSOAS_LINKS_PERFIS` concentra links academicos e de perfil por
 `ID_PESSOA`, sem restringir Lattes a colaboradores academicos. O Core expoe:
 
 - `corePessoasListLinksPerfis(idPessoa, opts)` para links publicaveis da
@@ -1027,7 +1027,7 @@ nao esta habilitada.
 Para eliminar `COLABORADORES_ACADEMICOS.LINK_LATTES` com seguranca, rode a
 funcao de verificacao e confirme `prontoParaRemocao: true`. A funcao real se
 recusa a apagar quando existir URL sem copia equivalente em
-`PESSOAS_V2_LINKS_PERFIS`. O campo-fonte `CURRICULO_LATTES` da base/formulario
+`PESSOAS_LINKS_PERFIS`. O campo-fonte `CURRICULO_LATTES` da base/formulario
 de docentes e tecnicos permanece, assim como os campos editoriais de links nas
 abas publicas do Portal; eles nao fazem parte desta remocao.
 

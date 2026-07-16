@@ -15,7 +15,7 @@ Fontes oficiais de escrita:
 
 - `PESSOAS_BASE` para telefone, Instagram, cidade/UF e campos sensiveis que
   pertencem ao cadastro central;
-- `PESSOAS_V2_LINKS_PERFIS` para Lattes, ORCID, LinkedIn, Google Scholar,
+- `PESSOAS_LINKS_PERFIS` para Lattes, ORCID, LinkedIn, Google Scholar,
   ResearchGate, site pessoal e `OUTRO`;
 - `MEMBROS_DETALHES` para historico/resumo academico e RGA aprovado;
 - `SOLICITACOES_ATUALIZACAO_CADASTRAL` para solicitacoes, decisoes,

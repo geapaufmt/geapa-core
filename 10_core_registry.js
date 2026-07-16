@@ -10,7 +10,7 @@ const CORE_REGISTRY_SPREADSHEET_ID = '1KQ_-GcFuvLA-jrPVQsfE3_TuaR8AM0yM4X41AzEGX
 const CORE_REGISTRY_SHEET_NAME = 'Registry';
 
 // Cache
-const CORE_REGISTRY_CACHE_KEY = 'GEAPA_CORE_REGISTRY_V2_RAW';
+const CORE_REGISTRY_CACHE_KEY = 'GEAPA_CORE_REGISTRY_V3_RAW';
 const CORE_REGISTRY_CACHE_TTL_SECONDS = 15 * 60; // 15 min
 
 // Ambiente default se não houver Script Property
@@ -153,17 +153,7 @@ function core_getRegistryRaw_() {
 
     if (!out[key]) out[key] = {};
 
-    if (out[key][ambiente]) {
-      invalidos++;
-      core_logWarn_(runId, 'Registry duplicado no mesmo ambiente (mantendo o primeiro)', {
-        lineNo,
-        key,
-        ambiente
-      });
-      return;
-    }
-
-    out[key][ambiente] = Object.freeze({
+    const candidate = {
       key,
       id,
       sheet,
@@ -173,12 +163,43 @@ function core_getRegistryRaw_() {
       type,
       notas,
       lineNo
-    });
+    };
+
+    if (out[key][ambiente]) {
+      invalidos++;
+      const previous = out[key][ambiente];
+      const activeLines = (previous.duplicateActiveLines || (previous.ativo ? [previous.lineNo] : [])).slice();
+      if (candidate.ativo) activeLines.push(candidate.lineNo);
+
+      // Mantem a entrada ativa quando a duplicidade envolve uma linha inativa,
+      // mas preserva todas as linhas ativas para que os resolvedores bloqueiem
+      // uma selecao ambigua no mesmo ambiente.
+      const selected = !previous.ativo && candidate.ativo ? candidate : previous;
+      out[key][ambiente] = Object.assign({}, selected, {
+        duplicateActiveLines: activeLines
+      });
+      core_logWarn_(runId, 'Registry duplicado no mesmo ambiente', {
+        lineNo,
+        key,
+        ambiente,
+        activeLines
+      });
+      return;
+    }
+
+    out[key][ambiente] = candidate;
   });
 
   const frozen = {};
   Object.keys(out).forEach((key) => {
-    frozen[key] = Object.freeze(out[key]);
+    const envMap = {};
+    Object.keys(out[key]).forEach((ambiente) => {
+      const entry = out[key][ambiente];
+      envMap[ambiente] = Object.freeze(Object.assign({}, entry, {
+        duplicateActiveLines: Object.freeze((entry.duplicateActiveLines || (entry.ativo ? [entry.lineNo] : [])).slice())
+      }));
+    });
+    frozen[key] = Object.freeze(envMap);
   });
 
   const fullyFrozen = Object.freeze(frozen);
@@ -250,7 +271,8 @@ function core_registryCacheGet_() {
           ambiente: obj[k][ambiente].ambiente,
           type: obj[k][ambiente].type,
           notas: obj[k][ambiente].notas,
-          lineNo: obj[k][ambiente].lineNo
+          lineNo: obj[k][ambiente].lineNo,
+          duplicateActiveLines: Object.freeze((obj[k][ambiente].duplicateActiveLines || (obj[k][ambiente].ativo ? [obj[k][ambiente].lineNo] : [])).slice())
         });
       });
 

@@ -93,6 +93,12 @@ const GEAPA_CORE = Object.freeze({
   }),
 
   domainsV2: Object.freeze({
+    domainMap: CORE_DOMAIN_V2_MAP,
+    getSpreadsheetRef: core_getDomainSpreadsheetRef_,
+    openSpreadsheet: core_openDomainSpreadsheet_,
+    getSheet: core_getDomainSheet_,
+    validateRegistry: core_validateDomainRegistry_,
+    validateAllRegistries: core_validateAllDomainRegistries_,
     schemas: core_getDomainsV2Schemas_,
     contractKeys: core_getDomainsV2ContractKeys_,
     auditarPessoas: coreAuditarPessoasV2_,

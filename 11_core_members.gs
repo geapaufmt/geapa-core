@@ -1760,7 +1760,7 @@ function core_getChamadaIdentityMaps_(observacoes, perf) {
   };
 
   try {
-    const pessoas = core_readRecordsByKey_("PESSOAS_V2_BASE", { skipBlankRows: true }) || [];
+    const pessoas = core_readSheetRecords_(core_getDomainSheet_('PESSOAS', 'BASE', {}), { skipBlankRows: true }) || [];
     pessoas.forEach(function(record) {
       core_chamadaIndexPessoaIdentity_(maps, {
         idPessoa: core_chamadaGetLegacyValue_(record, ["ID_PESSOA", "idPessoa"]),
@@ -1770,7 +1770,7 @@ function core_getChamadaIdentityMaps_(observacoes, perf) {
     });
     core_chamadaPerformanceStep_(perf, "ler_pessoas_v2_base");
   } catch (err) {
-    observacoes.push("PESSOAS_V2_BASE indisponivel; identidade canonica usa campos da base de membros quando existirem.");
+    observacoes.push("PESSOAS_V2_DB/PESSOAS_BASE indisponivel; identidade canonica usa campos da base de membros quando existirem.");
   }
 
   try {

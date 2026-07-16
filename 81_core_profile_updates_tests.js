@@ -27,7 +27,7 @@ function corePerfilTestFixture_(permissions, environment) {
   source('MEMBROS_DETALHES', ['ID_PESSOA','RGA','HISTORICO_ATIVIDADES_ACADEMICAS','ATUALIZADO_EM'], [{
     ID_PESSOA: 'PES-1', RGA: '20201234', HISTORICO_ATIVIDADES_ACADEMICAS: 'Resumo anterior'
   }]);
-  source('PESSOAS_V2_LINKS_PERFIS', [
+  source('PESSOAS_LINKS_PERFIS', [
     'ID_LINK','ID_PESSOA','TIPO_LINK','URL','ROTULO','PUBLICAVEL','VISIVEL_PORTAL','FONTE',
     'VALIDADO_EM','ATIVO','CRIADO_EM','ATUALIZADO_EM','OBS'
   ], []);
@@ -95,7 +95,7 @@ function corePerfilTestRunAll_() {
     var fx = corePerfilTestFixture_();
     var add = core_atualizarMeuPerfilParaPortal_({ links: [{ tipo: 'LATTES', url: 'https://lattes.cnpq.br/123' }], chaveIdempotencia: 'lattes-add-1' }, {}, { deps: fx.deps });
     var remove = core_atualizarMeuPerfilParaPortal_({ links: [{ tipo: 'LATTES', url: '' }], chaveIdempotencia: 'lattes-remove-1' }, {}, { deps: fx.deps });
-    corePerfilTestAssert_(add.ok && remove.ok && fx.sources.PESSOAS_V2_LINKS_PERFIS.records[0].ATIVO === 'NAO', 'ciclo do Lattes falhou');
+    corePerfilTestAssert_(add.ok && remove.ok && fx.sources.PESSOAS_LINKS_PERFIS.records[0].ATIVO === 'NAO', 'ciclo do Lattes falhou');
   });
 
   test('4_membro_nao_escolhe_outra_pessoa', function() {
@@ -203,7 +203,7 @@ function corePerfilTestRunAll_() {
   test('17_prod_escreve_somente_com_contexto_prod', function() {
     var fx = corePerfilTestFixture_(['portal:acessar'], 'PROD');
     var response = core_atualizarMeuPerfilParaPortal_({ links: [{ tipo: 'LATTES', url: 'https://lattes.cnpq.br/123' }], chaveIdempotencia: 'prod-link-001' }, {}, { deps: fx.deps });
-    var link = fx.sources.PESSOAS_V2_LINKS_PERFIS.records[0];
+    var link = fx.sources.PESSOAS_LINKS_PERFIS.records[0];
     corePerfilTestAssert_(response.ok && link.FONTE === 'PORTAL_PROD', 'escrita PROD nao preservou a origem oficial');
   });
 
@@ -243,6 +243,54 @@ function corePerfilTestRunAll_() {
   test('22_contextos_portal_mapeiam_ambientes_isolados', function() {
     corePerfilTestAssert_(corePerfilResolveEnvironment_({ ambientePortal: 'HOMOLOG' }, {}) === 'DEV', 'HOMOLOG nao mapeou para DEV');
     corePerfilTestAssert_(corePerfilResolveEnvironment_({ ambientePortal: 'PROD' }, {}) === 'PROD', 'PROD nao permaneceu isolado');
+  });
+
+  test('23_data_normaliza_sem_timezone_e_mascara_ano', function() {
+    var date = new Date(2004, 11, 13, 0, 0, 0);
+    corePerfilTestAssert_(corePerfilCanonicalDate_(date) === '2004-12-13', 'Date nao normalizou para formato canonico');
+    corePerfilTestAssert_(corePerfilFormatDateForPortal_(date) === '13/12/2004', 'data administrativa nao ficou em DD/MM/AAAA');
+    corePerfilTestAssert_(corePerfilMaskValue_('DATA_NASCIMENTO', date) === '**/**/2004', 'mascara de data incorreta');
+    var futureRejected = false;
+    try { corePerfilCanonicalDate_('2999-01-01'); } catch (error) { futureRejected = error && error.message === 'DATA_NASCIMENTO_INVALIDA'; }
+    corePerfilTestAssert_(futureRejected, 'data futura nao foi rejeitada');
+  });
+
+  test('24_timeout_reconcilia_por_chave_sem_duplicar', function() {
+    var fx = corePerfilTestFixture_();
+    var payload = { campo: 'RGA', valorSolicitado: '20209999', justificativa: 'Solicito correcao conforme documento academico.', chaveIdempotencia: 'rga-reconcile-1' };
+    var created = core_solicitarCorrecaoMeuPerfilParaPortal_(payload, {}, { deps: fx.deps });
+    var confirmed = core_consultarMinhaSolicitacaoCadastralPortal_({ chaveIdempotencia: payload.chaveIdempotencia }, {}, { deps: fx.deps });
+    var replay = core_solicitarCorrecaoMeuPerfilParaPortal_(payload, {}, { deps: fx.deps });
+    corePerfilTestAssert_(created.ok && confirmed.ok && confirmed.data.encontrada === true, 'solicitacao persistida nao foi reconciliada');
+    corePerfilTestAssert_(confirmed.data.solicitacao.status === 'PENDENTE' && replay.data.idempotente === true, 'reconciliacao nao preservou status/idempotencia');
+    corePerfilTestAssert_(fx.sources[CORE_PERFIL_SOLICITACOES_SHEET].records.length === 1, 'reconciliacao duplicou a linha');
+  });
+
+  test('25_listagem_admin_permanece_mascarada', function() {
+    var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION]);
+    var created = core_solicitarCorrecaoMeuPerfilParaPortal_({ campo: 'RGA', valorSolicitado: '20209999', justificativa: 'Solicito correcao conforme documento academico.', chaveIdempotencia: 'rga-list-mask-1' }, {}, { deps: fx.deps });
+    var listed = core_listarSolicitacoesCadastraisAdministracaoPortal_({}, {}, { deps: fx.deps });
+    var serialized = JSON.stringify(listed.data.solicitacoes[0]);
+    corePerfilTestAssert_(created.ok && serialized.indexOf('20209999') < 0 && serialized.indexOf('20201234') < 0, 'listagem administrativa revelou valores completos');
+  });
+
+  test('26_detalhe_admin_compara_rga_autorizado', function() {
+    var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION]);
+    var created = core_solicitarCorrecaoMeuPerfilParaPortal_({ campo: 'RGA', valorSolicitado: '20209999', justificativa: 'Solicito correcao conforme documento academico.', chaveIdempotencia: 'rga-detail-001' }, {}, { deps: fx.deps });
+    var detail = core_detalharSolicitacaoCadastralAdministracaoPortal_({ idSolicitacao: created.data.idSolicitacao }, {}, { deps: fx.deps });
+    corePerfilTestAssert_(detail.ok && detail.data.valorAtual === '20201234' && detail.data.valorSolicitado === '20209999', 'detalhe autorizado nao permitiu comparar RGA');
+    corePerfilTestAssert_(detail.data.pessoa.nomeExibicao === 'Pessoa Teste' && detail.data.pessoa.rgaMascarado === '***234', 'cabecalho do solicitante incorreto');
+  });
+
+  test('27_cpf_exige_revelacao_explicita_e_log_seguro', function() {
+    var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION]);
+    var created = core_solicitarCorrecaoMeuPerfilParaPortal_({ campo: 'CPF', valorSolicitado: '11144477735', justificativa: 'Solicito correcao conforme documento oficial.', chaveIdempotencia: 'cpf-detail-001' }, {}, { deps: fx.deps });
+    var masked = core_detalharSolicitacaoCadastralAdministracaoPortal_({ idSolicitacao: created.data.idSolicitacao }, {}, { deps: fx.deps });
+    var revealed = core_detalharSolicitacaoCadastralAdministracaoPortal_({ idSolicitacao: created.data.idSolicitacao, revelarDados: true }, {}, { deps: fx.deps });
+    var safeLog = JSON.stringify(corePerfilSafeLogPayload_('ADMIN_SENSITIVE_DETAIL_VIEW', { ok: true, field: 'CPF', requestId: created.data.idSolicitacao, actorHash: 'HASH_ADMIN', revealed: true, value: '11144477735' }));
+    corePerfilTestAssert_(masked.ok && masked.data.dadosRevelados === false && masked.data.valorSolicitado.indexOf('11144477735') < 0, 'CPF foi revelado sem acao explicita');
+    corePerfilTestAssert_(revealed.ok && revealed.data.dadosRevelados === true && revealed.data.valorSolicitado === '111.444.777-35', 'revelacao autorizada do CPF falhou');
+    corePerfilTestAssert_(safeLog.indexOf('11144477735') < 0 && safeLog.indexOf('HASH_ADMIN') >= 0, 'log de revelacao expos valor sensivel ou perdeu ator');
   });
 
   return Object.freeze({ ok: true, total: results.length, resultados: Object.freeze(results) });

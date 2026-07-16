@@ -5,12 +5,15 @@
  *
  * Diagnostico somente leitura das keys V2 no Registry bruto.
  *
- * Esta rotina nao escreve em planilhas, nao cria triggers e nao abre as bases
- * de destino. O objetivo e distinguir "key ausente" de "key existe em outro
- * ambiente" quando o Registry filtrado por GEAPA_ENV oculta linhas DEV.
+ * Esta rotina nao escreve em planilhas nem cria triggers. Alem de distinguir
+ * "key ausente" de "key existe em outro ambiente", valida em modo somente
+ * leitura as DB keys, abas canonicas, duplicidades e divergencias legadas.
  */
 
 var CORE_V2_REGISTRY_DIAGNOSTICO_KEYS = Object.freeze([
+  'PESSOAS_V2_DB',
+  'VIGENCIAS_V2_DB',
+  'ATIVIDADES_V2_DB',
   'PESSOAS_V2_BASE',
   'PESSOAS_V2_IDENTIFICADORES',
   'PESSOAS_V2_MEMBROS_DETALHES',
@@ -108,6 +111,8 @@ function core_v2ResolverRegistryV2_(options) {
     totalAusentes: 0,
     totalInativas: 0,
     keys: [],
+    dominios: [],
+    legacySpecificKeysReferenced: [],
     erros: [],
     avisos: []
   };
@@ -132,6 +137,22 @@ function core_v2ResolverRegistryV2_(options) {
   result.totalEncontradas = result.keys.filter(function(item) { return item.encontrada; }).length;
   result.totalAusentes = result.keys.filter(function(item) { return !item.encontrada; }).length;
   result.totalInativas = result.keys.filter(function(item) { return item.encontrada && item.ativo !== true; }).length;
+
+  try {
+    result.dominios = core_validateAllDomainRegistries_({ ambiente: opts.ambiente });
+    result.legacySpecificKeysReferenced = result.dominios.reduce(function(acc, domainReport) {
+      return acc.concat(domainReport.legacySpecificKeysReferenced || []);
+    }, []).filter(function(key, index, all) {
+      return all.indexOf(key) === index;
+    }).sort();
+    if (result.dominios.some(function(domainReport) { return domainReport.ok !== true; })) {
+      result.ok = false;
+      result.avisos.push('Existem inconsistencias nas DB keys ou abas canonicas do ambiente ' + opts.ambiente + '.');
+    }
+  } catch (err) {
+    result.ok = false;
+    result.erros.push(core_v2RotinasSanitizeError_(err));
+  }
 
   if (result.totalAusentes) {
     result.ok = false;
