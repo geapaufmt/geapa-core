@@ -115,6 +115,26 @@ function coreReadDomainRecords(domain, logicalSheet, options) {
   });
 }
 
+/** Resolve um parametro normativo operacional sem fallback entre ambientes. */
+function coreResolverParametroNormativoOperacional(parametroId, options) {
+  return core_resolverParametroNormativoOperacional_(parametroId, options || {});
+}
+
+/** Resolve varios parametros normativos com uma unica leitura da fonte. */
+function coreResolverParametrosNormativosOperacionais(parametroIds, options) {
+  return core_resolverParametrosNormativosOperacionais_(parametroIds || [], options || {});
+}
+
+/** Diagnostico somente leitura da configuracao normativa por ambiente. */
+function coreDiagnosticarParametrosNormativosOperacionais(options) {
+  return core_diagnosticarParametrosNormativosOperacionais_(options || {});
+}
+
+/** Invalida somente o cache de leitura dos parametros normativos. */
+function coreInvalidarCacheParametrosNormativosOperacionais(options) {
+  return core_invalidarCacheParametrosNormativosOperacionais_(options || {});
+}
+
 function coreAuditarPessoasV2(options) {
   return coreAuditarPessoasV2_(options || {});
 }

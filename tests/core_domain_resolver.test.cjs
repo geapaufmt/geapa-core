@@ -176,6 +176,12 @@ test('ambiente invalido e rejeitado', () => {
   assert.throws(() => context.core_getDomainSpreadsheetRef_('PESSOAS', { ambiente: 'HOMOLOG', registryRaw: {} }), (err) => err.code === 'DOMAIN_ENV_INVALIDO');
 });
 
+test('Pessoas resolve SOLICITACOES_VINCULO pela aba canonica e key especifica de compatibilidade', () => {
+  const schema = context.CORE_DOMAIN_V2_MAP.PESSOAS;
+  assert.equal(schema.sheets.SOLICITACOES_VINCULO, 'SOLICITACOES_VINCULO');
+  assert.equal(schema.specificRegistryKeys.SOLICITACOES_VINCULO, 'PESSOAS_V2_SOLICITACOES_VINCULO');
+});
+
 test('codigo operacional nao contem IDs reais nem resolvedor antigo', () => {
   const operational = fs.readdirSync(root)
     .filter((name) => /\.(?:js|gs)$/.test(name))
