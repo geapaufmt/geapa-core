@@ -10,7 +10,21 @@ var CORE_NORMATIVE_REGISTRY_KEY = 'NORMAS_PARAMETROS_OPERACIONAIS';
 var CORE_NORMATIVE_CACHE_TTL_SECONDS = 300;
 var CORE_NORMATIVE_KNOWN_IDS = Object.freeze([
   'SUSPENSAO_MINIMA',
-  'BLOQUEIO_DESLIGAMENTO_ANTES_APRESENTACAO'
+  'BLOQUEIO_DESLIGAMENTO_ANTES_APRESENTACAO',
+  'DESLIGAMENTO_VOLUNTARIO_DECISAO_FINAL_EXIGE_ATA'
+]);
+var CORE_NORMATIVE_PARAMETER_DEFINITIONS = Object.freeze({
+  SUSPENSAO_MINIMA: Object.freeze({ tipoValor: 'NUMERO', unidade: 'DIAS' }),
+  BLOQUEIO_DESLIGAMENTO_ANTES_APRESENTACAO: Object.freeze({ tipoValor: 'NUMERO', unidade: 'DIAS' }),
+  DESLIGAMENTO_VOLUNTARIO_DECISAO_FINAL_EXIGE_ATA: Object.freeze({
+    tipoValor: 'BOOLEANO',
+    unidade: 'NAO_APLICAVEL',
+    baseLegalQueExigeValorTrue: 'NC01-2025-ART16-IV'
+  })
+});
+var CORE_NORMATIVE_REQUIRED_HEADERS = Object.freeze([
+  'PARAMETRO_ID', 'DESCRICAO', 'TIPO_VALOR', 'VALOR', 'UNIDADE', 'BASE_LEGAL',
+  'MODULO_SISTEMA', 'VIGENTE'
 ]);
 var __core_normative_execution_cache = {};
 
@@ -140,29 +154,91 @@ function core_normativePositiveNumber_(value) {
   return isFinite(number) && number > 0 ? number : null;
 }
 
-function core_normativeValidateRecord_(record, parametroId, environment, options) {
-  var value = core_normativePositiveNumber_(record.VALOR);
-  if (value == null) {
+function core_normativeValueType_(record, parametroId) {
+  var configured = core_normativeToken_(record && record.TIPO_VALOR);
+  var inferred = configured || 'NUMERO';
+  if (inferred !== 'NUMERO' && inferred !== 'BOOLEANO') {
     throw core_normativeError_(
-      'PARAMETRO_NORMATIVO_VALOR_INVALIDO',
-      'O parametro normativo esta indisponivel: VALOR deve ser numerico e positivo.',
-      { parametroId: parametroId, ambiente: environment }
+      'PARAMETRO_NORMATIVO_TIPO_VALOR_INVALIDO',
+      'O parametro normativo esta indisponivel: TIPO_VALOR deve ser NUMERO ou BOOLEANO.',
+      { parametroId: parametroId, tipoValor: inferred || '(vazio)' }
     );
   }
+  var definition = CORE_NORMATIVE_PARAMETER_DEFINITIONS[parametroId] || null;
+  if (definition && inferred !== definition.tipoValor) {
+    throw core_normativeError_(
+      'PARAMETRO_NORMATIVO_TIPO_VALOR_INCOMPATIVEL',
+      'O tipo do parametro normativo e incompatível com a regra conhecida.',
+      { parametroId: parametroId, esperado: definition.tipoValor, recebido: inferred }
+    );
+  }
+  return inferred;
+}
+
+function core_normativeBoolean_(value, parametroId) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+  var token = core_normativeToken_(value);
+  if (token === 'SIM' || token === 'TRUE' || token === '1') return true;
+  if (token === 'NAO' || token === 'FALSE' || token === '0') return false;
+  throw core_normativeError_(
+    'PARAMETRO_NORMATIVO_VALOR_BOOLEANO_INVALIDO',
+    'O parametro normativo booleano aceita somente SIM/NAO, TRUE/FALSE ou 1/0.',
+    { parametroId: parametroId }
+  );
+}
+
+function core_normativeTypedValue_(record, parametroId, tipoValor) {
+  var definition = CORE_NORMATIVE_PARAMETER_DEFINITIONS[parametroId] || {};
   var unit = core_normativeToken_(record.UNIDADE);
-  if (unit !== 'DIAS') {
-    throw core_normativeError_(
-      'PARAMETRO_NORMATIVO_UNIDADE_INVALIDA',
-      'O parametro normativo esta indisponivel: UNIDADE deve ser DIAS.',
-      { parametroId: parametroId, ambiente: environment, unidade: unit || '(vazio)' }
-    );
+  var value;
+  if (tipoValor === 'BOOLEANO') {
+    value = core_normativeBoolean_(record.VALOR, parametroId);
+    if (unit && unit !== 'NAO_APLICAVEL') {
+      throw core_normativeError_(
+        'PARAMETRO_NORMATIVO_UNIDADE_INVALIDA',
+        'O parametro normativo booleano deve usar UNIDADE vazia ou NAO_APLICAVEL.',
+        { parametroId: parametroId, unidade: unit }
+      );
+    }
+    unit = 'NAO_APLICAVEL';
+  } else {
+    value = core_normativePositiveNumber_(record.VALOR);
+    if (value == null) {
+      throw core_normativeError_(
+        'PARAMETRO_NORMATIVO_VALOR_INVALIDO',
+        'O parametro normativo esta indisponivel: VALOR deve ser numerico e positivo.',
+        { parametroId: parametroId }
+      );
+    }
+    if (definition.unidade && unit !== definition.unidade) {
+      throw core_normativeError_(
+        'PARAMETRO_NORMATIVO_UNIDADE_INVALIDA',
+        'O parametro normativo deve usar UNIDADE = ' + definition.unidade + '.',
+        { parametroId: parametroId, unidade: unit || '(vazio)', esperada: definition.unidade }
+      );
+    }
   }
+  return { valor: value, unidade: unit };
+}
+
+function core_normativeValidateRecord_(record, parametroId, environment, options) {
+  var tipoValor = core_normativeValueType_(record, parametroId);
+  var typed = core_normativeTypedValue_(record, parametroId, tipoValor);
   var baseLegal = String(record.BASE_LEGAL || '').trim();
   if (!baseLegal) {
     throw core_normativeError_(
       'PARAMETRO_NORMATIVO_BASE_LEGAL_AUSENTE',
       'O parametro normativo esta indisponivel: BASE_LEGAL nao foi informada.',
       { parametroId: parametroId, ambiente: environment }
+    );
+  }
+  var definition = CORE_NORMATIVE_PARAMETER_DEFINITIONS[parametroId] || {};
+  if (definition.baseLegalQueExigeValorTrue && typed.valor === false && core_normativeToken_(baseLegal) === core_normativeToken_(definition.baseLegalQueExigeValorTrue)) {
+    throw core_normativeError_(
+      'PARAMETRO_NORMATIVO_BASE_LEGAL_INCOMPATIVEL',
+      'A BASE_LEGAL informada ainda exige a regra ativa e nao autoriza VALOR = NAO.',
+      { parametroId: parametroId, ambiente: environment, baseLegal: baseLegal }
     );
   }
   var moduleSystem = String(record.MODULO_SISTEMA || '').trim();
@@ -175,8 +251,9 @@ function core_normativeValidateRecord_(record, parametroId, environment, options
   }
   return Object.freeze({
     parametroId: parametroId,
-    valor: value,
-    unidade: unit,
+    tipoValor: tipoValor,
+    valor: typed.valor,
+    unidade: typed.unidade,
     baseLegal: baseLegal,
     moduloSistema: moduleSystem,
     vigente: true,
@@ -184,6 +261,42 @@ function core_normativeValidateRecord_(record, parametroId, environment, options
     registryKey: CORE_NORMATIVE_REGISTRY_KEY,
     origem: 'REGISTRY_EXPLICITO',
     atualizadoEm: record.ATUALIZADO_EM || record.VIGENTE_DESDE || ''
+  });
+}
+
+function core_prepararParametrosNormativosTipados_(options) {
+  options = options || {};
+  var environment = core_normativeEnvironment_(options);
+  var headers = (options.headers || []).map(core_normativeToken_).filter(Boolean);
+  var records = options.records || [];
+  var missingHeaders = CORE_NORMATIVE_REQUIRED_HEADERS.filter(function(header) {
+    return headers.indexOf(header) < 0;
+  });
+  var parameterId = 'DESLIGAMENTO_VOLUNTARIO_DECISAO_FINAL_EXIGE_ATA';
+  var existing = records.filter(function(record) {
+    return core_normativeToken_(record.PARAMETRO_ID) === parameterId;
+  });
+  return Object.freeze({
+    ok: missingHeaders.length === 0 && existing.length === 1,
+    dryRun: true,
+    somentePlanejamento: true,
+    ambiente: environment,
+    registryKey: CORE_NORMATIVE_REGISTRY_KEY,
+    cabecalhosObrigatorios: CORE_NORMATIVE_REQUIRED_HEADERS.slice(),
+    cabecalhosAusentes: missingHeaders,
+    parametroExistente: existing.length === 1,
+    duplicidadeParametro: existing.length > 1,
+    linhaRecomendada: Object.freeze({
+      PARAMETRO_ID: parameterId,
+      DESCRICAO: 'Exige ata na decisao final de desligamento voluntario',
+      TIPO_VALOR: 'BOOLEANO',
+      VALOR: 'SIM',
+      UNIDADE: 'NAO_APLICAVEL',
+      BASE_LEGAL: 'NC01-2025-ART16-IV',
+      MODULO_SISTEMA: 'GEAPA_MEMBROS',
+      VIGENTE: 'SIM'
+    }),
+    escritaExecutada: false
   });
 }
 
@@ -242,8 +355,8 @@ function core_normativeCacheGet_(key, options) {
 }
 
 function core_normativeCachePut_(key, value, options) {
-  __core_normative_execution_cache[key] = value;
   if (options.records || options.recordsByEnvironment || options.registryRaw || options.disableCache === true) return;
+  __core_normative_execution_cache[key] = value;
   if (typeof CacheService !== 'undefined') {
     CacheService.getScriptCache().put(key, JSON.stringify(value), CORE_NORMATIVE_CACHE_TTL_SECONDS);
   }

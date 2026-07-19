@@ -135,6 +135,10 @@ function coreInvalidarCacheParametrosNormativosOperacionais(options) {
   return core_invalidarCacheParametrosNormativosOperacionais_(options || {});
 }
 
+function corePrepararParametrosNormativosTipados(options) {
+  return core_prepararParametrosNormativosTipados_(options || {});
+}
+
 function coreAuditarPessoasV2(options) {
   return coreAuditarPessoasV2_(options || {});
 }
