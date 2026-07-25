@@ -1,5 +1,7 @@
 # GEAPA Core (Apps Script Library)
 
+Documentacao da evolucao cadastral DEV/HOMOLOG: [docs/MODELO_CADASTRAL_MEMBROS_V2.md](docs/MODELO_CADASTRAL_MEMBROS_V2.md).
+
 Biblioteca compartilhada do ecossistema GEAPA. O `geapa-core` centraliza acesso a planilhas por Registry, normalizacao de dados, servicos de e-mail/Gmail, leitura tabular orientada a cabecalhos, governanca institucional e utilitarios reutilizados pelos demais modulos.
 
 ---

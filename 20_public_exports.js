@@ -642,6 +642,31 @@ function geapaCoreSetupSolicitacoesAtualizacaoCadastralProdReal() {
   return core_setupSolicitacoesAtualizacaoCadastralProdReal_();
 }
 
+/** Catalogos oficiais versionados de paises, UFs e municipios. */
+function geapaCoreListarCatalogoLocalidadesPortal(options) {
+  return core_getLocalityCatalogV2_(options || {});
+}
+
+/** Validacao backend do conjunto de origem/naturalidade. */
+function geapaCoreValidarOrigemV2(payload) {
+  return core_validateOriginV2_(payload || {});
+}
+
+/** Validacao de curso contra registros previamente lidos de CURSOS_CATALOGO. */
+function geapaCoreValidarCursoV2(payload, registrosCursos) {
+  return core_validateCourseV2_(payload || {}, registrosCursos || []);
+}
+
+/** Calculo cronologico baseado exclusivamente nos semestres institucionais informados. */
+function geapaCoreCalcularSemestreCursoV2(rga, registrosSemestres, dataReferencia) {
+  return core_calculateAcademicSemesterV2_(rga, registrosSemestres || [], dataReferencia);
+}
+
+/** Planeja por padrao; escrita real aceita somente DEV e exige token explicito. */
+function geapaCoreSetupEvolucaoMembrosV2Dev(options) {
+  return core_setupMemberEvolutionV2_(options || {});
+}
+
 /** Lista membros administrativos para o Portal com autorizacao e sanitizacao no Core. */
 function geapaCoreListarMembrosAdministracaoPortal(filtros, contexto) {
   try {

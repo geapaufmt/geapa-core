@@ -33,7 +33,8 @@ var CORE_PERFIL_SENSITIVE_FIELDS = Object.freeze({
   CPF: Object.freeze({ source: 'PESSOAS_BASE', header: 'CPF', type: 'CPF' }),
   RGA: Object.freeze({ source: 'MEMBROS_DETALHES', header: 'RGA', type: 'RGA' }),
   DATA_NASCIMENTO: Object.freeze({ source: 'PESSOAS_BASE', header: 'DATA_NASCIMENTO', type: 'DATE' }),
-  EMAIL_PRINCIPAL: Object.freeze({ source: 'PESSOAS_BASE', header: 'EMAIL_PRINCIPAL', type: 'EMAIL' })
+  EMAIL_PRINCIPAL: Object.freeze({ source: 'PESSOAS_BASE', header: 'EMAIL_PRINCIPAL', type: 'EMAIL' }),
+  CURSO_ID: Object.freeze({ source: 'MEMBROS_DETALHES', header: 'CURSO_ID', type: 'COURSE' })
 });
 
 var CORE_PERFIL_DIRECT_FIELDS = Object.freeze({
@@ -561,6 +562,35 @@ function corePerfilDirectPayload_(payload) {
     else if (cfg.type === 'SUMMARY') value = corePerfilNormalizeTextField_(value, CORE_PERFIL_MAX_RESUMO, 'RESUMO_ACADEMICO_MUITO_LONGO');
     changes.push({ field: field, source: cfg.source, header: cfg.header, value: value });
   });
+
+  var originAliases = [
+    'paisOrigemCodigo', 'PAIS_ORIGEM_CODIGO', 'municipioOrigemCodigo',
+    'MUNICIPIO_ORIGEM_CODIGO', 'regiaoOrigem', 'REGIAO_ORIGEM'
+  ];
+  var hasStructuredOrigin = originAliases.some(function(alias) {
+    return Object.prototype.hasOwnProperty.call(fieldInput, alias);
+  });
+  if (hasStructuredOrigin) {
+    var normalizedOrigin = core_validateOriginV2_(fieldInput);
+    changes = changes.filter(function(change) {
+      return change.field !== 'CIDADE_ORIGEM' && change.field !== 'UF_ORIGEM';
+    });
+    [
+      ['PAIS_ORIGEM_CODIGO', 'PAIS_ORIGEM_CODIGO'],
+      ['PAIS_ORIGEM_NOME', 'PAIS_ORIGEM_NOME'],
+      ['MUNICIPIO_ORIGEM_CODIGO', 'MUNICIPIO_ORIGEM_CODIGO'],
+      ['REGIAO_ORIGEM', 'REGIAO_ORIGEM'],
+      ['CIDADE_ORIGEM', 'CIDADE_NATAL'],
+      ['UF_ORIGEM', 'UF_ORIGEM']
+    ].forEach(function(mapping) {
+      changes.push({
+        field: mapping[0],
+        source: 'PESSOAS_BASE',
+        header: mapping[1],
+        value: normalizedOrigin[mapping[1]]
+      });
+    });
+  }
 
   var links = Array.isArray(source.linksPerfis) ? source.linksPerfis : (Array.isArray(source.links) ? source.links : []);
   links.forEach(function(link) {
