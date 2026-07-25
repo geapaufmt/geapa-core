@@ -558,21 +558,25 @@ function geapaCoreBuscarUsuarioPortal(emailOuRga) {
   }
 }
 
-function geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga) {
+function geapaCoreBuscarMinhaSituacaoParaPortal(emailOuRga, options) {
   try {
-    return core_buscarMinhaSituacaoParaPortal_(emailOuRga);
+    return core_buscarMinhaSituacaoParaPortal_(emailOuRga, options || {});
   } catch (err) {
-    Logger.log('[WARN] geapaCoreBuscarMinhaSituacaoParaPortal: falha interna ao consultar situacao do membro para portal.');
+    Logger.log('[WARN] geapaCoreBuscarMinhaSituacaoParaPortal ' + JSON.stringify({
+      errorCode: String(err && err.code || 'ERRO_BUSCAR_MINHA_SITUACAO'),
+      failedStage: 'core_buscarMinhaSituacaoParaPortal',
+      traceId: String(options && (options.traceId || options.requestId) || '').slice(0, 80)
+    }));
     return core_buildPortalError_(
-      'ERRO_BUSCAR_MINHA_SITUACAO',
+      String(err && err.code || 'ERRO_BUSCAR_MINHA_SITUACAO'),
       'Nao foi possivel buscar a situacao do membro.'
     );
   }
 }
 
-function geapaCoreBuscarMeuPerfilParaPortal(emailOuRga) {
+function geapaCoreBuscarMeuPerfilParaPortal(emailOuRga, options) {
   try {
-    return core_buscarMeuPerfilParaPortal_(emailOuRga);
+    return core_buscarMeuPerfilParaPortal_(emailOuRga, options || {});
   } catch (err) {
     Logger.log('[WARN] geapaCoreBuscarMeuPerfilParaPortal: falha interna ao consultar perfil do usuario para portal.');
     return core_buildPortalError_(

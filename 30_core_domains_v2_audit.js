@@ -115,7 +115,7 @@ function core_domainsV2AuditVigenciaPareceAtiva_(record) {
 
 function core_domainsV2AuditOpenDomain_(domainKey, report, options) {
   options = options || {};
-  var environment = core_normalizeDomainEnv_({ ambiente: options.ambiente || 'DEV' });
+  var environment = core_normalizeDomainEnv_(options);
   var spreadsheet;
   try {
     spreadsheet = core_openDomainSpreadsheet_(domainKey, {

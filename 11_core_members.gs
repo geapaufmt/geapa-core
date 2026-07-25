@@ -450,13 +450,13 @@ function core_buscarMembroParaPortalInSheet_(sheet, emailOuRga, opts) {
   return null;
 }
 
-function core_resolverSessaoPortalCompatDetalhada_(emailOuRga) {
+function core_resolverSessaoPortalCompatDetalhada_(emailOuRga, options) {
   try {
     if (typeof corePortalResolverUsuarioAtual_ !== "function") {
       return Object.freeze({ status: "indisponivel", sessao: null });
     }
 
-    const sessao = corePortalResolverUsuarioAtual_(emailOuRga);
+    const sessao = corePortalResolverUsuarioAtual_(emailOuRga, options || {});
     if (!sessao) {
       return Object.freeze({ status: "indisponivel", sessao: null });
     }
@@ -470,7 +470,12 @@ function core_resolverSessaoPortalCompatDetalhada_(emailOuRga) {
 
     return Object.freeze({ status: "resolvida", sessao: sessao });
   } catch (err) {
-    return Object.freeze({ status: "indisponivel", sessao: null });
+    return Object.freeze({
+      status: "indisponivel",
+      sessao: null,
+      errorCode: String(err && err.code || "CORE_SESSAO_ERRO_INTERNO"),
+      failedStage: "corePortalResolverUsuarioAtual"
+    });
   }
 }
 
@@ -728,8 +733,8 @@ function core_buildMinhaSituacaoPortalResponse_(membro, usuario, sessao) {
   return Object.freeze(response);
 }
 
-function core_resolverSessaoPortalCompat_(emailOuRga) {
-  const resultado = core_resolverSessaoPortalCompatDetalhada_(emailOuRga);
+function core_resolverSessaoPortalCompat_(emailOuRga, options) {
+  const resultado = core_resolverSessaoPortalCompatDetalhada_(emailOuRga, options || {});
   return resultado.status === "resolvida" ? resultado.sessao : null;
 }
 
@@ -816,11 +821,12 @@ function core_buildMinhaSituacaoPortalV2_(resumo) {
   });
 }
 
-function core_buscarMinhaSituacaoParaPortalV2_(emailOuRga) {
-  const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
+function core_buscarMinhaSituacaoParaPortalV2_(emailOuRga, options) {
+  const opts = options || {};
+  const sessao = opts.sessao || opts.session || core_resolverSessaoPortalCompat_(emailOuRga, opts);
   if (!sessao || !sessao.idPessoa) return null;
 
-  const resumo = corePessoasGetOperationalSummary_(sessao.idPessoa) || {};
+  const resumo = corePessoasGetOperationalSummary_(sessao.idPessoa, opts) || {};
   const membro = Object.freeze({
     id: String(sessao.idPessoa || "").trim(),
     nomeExibicao: String(sessao.nomeExibicao || resumo.NOME_EXIBICAO || "").trim(),
@@ -878,9 +884,17 @@ function core_buscarMinhaSituacaoParaPortalInSheet_(sheet, emailOuRga) {
  * @param {string} emailOuRga
  * @return {Object}
  */
-function core_buscarMinhaSituacaoParaPortal_(emailOuRga) {
-  const situacaoV2 = core_buscarMinhaSituacaoParaPortalV2_(emailOuRga);
+function core_buscarMinhaSituacaoParaPortal_(emailOuRga, options) {
+  const opts = options || {};
+  const situacaoV2 = core_buscarMinhaSituacaoParaPortalV2_(emailOuRga, opts);
   if (situacaoV2 && situacaoV2.ok) return situacaoV2;
+
+  if (opts.allowLegacyFallback === false) {
+    return core_buildPortalError_(
+      "MINHA_SITUACAO_V2_NAO_RESOLVIDA",
+      "Nao foi possivel resolver Minha situacao nas bases V2 do ambiente solicitado."
+    );
+  }
 
   const membro = core_buscarMembroParaPortalInSheet_(core_getMembersSheet_(), emailOuRga, {
     requireValidEmail: false,
@@ -898,7 +912,7 @@ function core_buscarMinhaSituacaoParaPortal_(emailOuRga) {
 
   const usuarioResult = core_buscarUsuarioPortalFromMember_(membro);
   const usuario = usuarioResult && usuarioResult.ok ? usuarioResult.usuario : null;
-  const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
+  const sessao = opts.sessao || opts.session || core_resolverSessaoPortalCompat_(emailOuRga, opts);
 
   return core_buildMinhaSituacaoPortalResponse_(membro, usuario, sessao);
 }
@@ -1029,8 +1043,9 @@ function core_buildMeuPerfilPortalResponse_(sessao, bundle) {
  * @param {string|Object} emailOuRga Identificador da propria sessao.
  * @return {Object}
  */
-function core_buscarMeuPerfilParaPortal_(emailOuRga) {
-  const sessao = core_resolverSessaoPortalCompat_(emailOuRga);
+function core_buscarMeuPerfilParaPortal_(emailOuRga, options) {
+  const opts = options || {};
+  const sessao = opts.sessao || opts.session || core_resolverSessaoPortalCompat_(emailOuRga, opts);
   if (!sessao || !sessao.idPessoa) {
     return core_buildPortalError_(
       "PERFIL_NAO_ENCONTRADO",
@@ -1038,7 +1053,7 @@ function core_buscarMeuPerfilParaPortal_(emailOuRga) {
     );
   }
 
-  const bundle = corePessoasGetById_(sessao.idPessoa);
+  const bundle = corePessoasGetById_(sessao.idPessoa, opts);
   if (!bundle || !bundle.pessoa) {
     return core_buildPortalError_(
       "PERFIL_NAO_ENCONTRADO",
