@@ -16,12 +16,123 @@ function core_domainsV2NewReadReport_(name) {
   return core_domainsV2AuditNewReport_(name || 'DOMINIOS_V2');
 }
 
-function core_domainsV2OpenPessoas_(report) {
-  return core_domainsV2AuditOpenDomain_('PESSOAS', report || core_domainsV2NewReadReport_('PESSOAS_V2'));
+function core_domainsV2OpenPessoas_(report, options) {
+  return core_domainsV2AuditOpenDomain_(
+    'PESSOAS',
+    report || core_domainsV2NewReadReport_('PESSOAS_V2'),
+    options || {}
+  );
 }
 
-function core_domainsV2OpenVigencias_(report) {
-  return core_domainsV2AuditOpenDomain_('VIGENCIAS', report || core_domainsV2NewReadReport_('VIGENCIAS_V2'));
+function core_domainsV2OpenVigencias_(report, options) {
+  return core_domainsV2AuditOpenDomain_(
+    'VIGENCIAS',
+    report || core_domainsV2NewReadReport_('VIGENCIAS_V2'),
+    options || {}
+  );
+}
+
+/*
+ * Cache estritamente por execucao. Diferentemente do CacheService, este mapa
+ * nunca sobrevive a uma execucao Apps Script e, portanto, nao compartilha
+ * registros pessoais entre requisicoes.
+ */
+var __core_domains_v2_records_execution_cache = {};
+
+function core_domainsV2ResetRecordsExecutionCache_() {
+  __core_domains_v2_records_execution_cache = {};
+}
+
+/**
+ * Le somente as abas logicas necessarias ao contrato atual.
+ *
+ * O leitor historico de auditoria abre todas as abas do dominio. Isso e
+ * apropriado para diagnosticos, mas muito caro para login e telas pontuais.
+ */
+function core_domainsV2OpenSubset_(domain, logicalSheets, report, options) {
+  var opts = options || {};
+  var environment = core_normalizeDomainEnv_(opts);
+  var definition = core_getDomainDefinition_(domain);
+  var output = {};
+
+  (logicalSheets || []).forEach(function(logicalSheet) {
+    var logical = String(logicalSheet || '').trim().toUpperCase();
+    var canonicalName = definition.definition.sheets[logical];
+    if (!canonicalName || output[canonicalName]) return;
+
+    try {
+      var resolved = core_getDomainSheet_(definition.key, logical, Object.assign({}, opts, {
+        ambiente: environment,
+        includeResolution: true
+      }));
+      var resolution = resolved.resolution || {};
+      var cacheKey = [
+        environment,
+        definition.key,
+        logical,
+        String(resolution.spreadsheetId || ''),
+        String(resolution.sheetName || canonicalName)
+      ].join('|');
+      var cached = __core_domains_v2_records_execution_cache[cacheKey];
+
+      if (!cached) {
+        var startedAt = Date.now();
+        cached = {
+          sheet: resolved.sheet,
+          records: core_readSheetRecords_(resolved.sheet, { skipBlankRows: true }),
+          headers: resolved.sheet.getLastColumn() > 0
+            ? resolved.sheet.getRange(1, 1, 1, resolved.sheet.getLastColumn()).getDisplayValues()[0]
+            : [],
+          resolution: resolution,
+          durationMs: Math.max(0, Date.now() - startedAt)
+        };
+        __core_domains_v2_records_execution_cache[cacheKey] = cached;
+        if (typeof corePortalTraceStage_ === 'function') {
+          corePortalTraceStage_(
+            definition.key + '.' + logical + '.leitura',
+            startedAt,
+            'READ',
+            String(resolution.origin || '')
+          );
+        }
+      } else if (typeof corePortalTraceStage_ === 'function') {
+        corePortalTraceStage_(
+          definition.key + '.' + logical + '.leitura',
+          Date.now(),
+          'CACHE_EXECUCAO',
+          String(resolution.origin || '')
+        );
+      }
+
+      output[canonicalName] = cached;
+    } catch (error) {
+      core_domainsV2AuditIssue_(
+        report,
+        'ERRO',
+        error && error.code ? error.code : 'DOMINIO_ABA_INDISPONIVEL',
+        'Aba necessaria ao contrato operacional esta indisponivel.',
+        {
+          domain: definition.key,
+          logicalSheet: logical,
+          ambiente: environment,
+          error: String(error && error.message || error || '').slice(0, 300)
+        }
+      );
+      output[canonicalName] = { sheet: null, records: [], headers: [], resolution: null, durationMs: 0 };
+    }
+  });
+
+  report.ambiente = environment;
+  return output;
+}
+
+function core_domainsV2OpenPessoasSubset_(logicalSheets, report, options) {
+  return core_domainsV2OpenSubset_(
+    'PESSOAS',
+    logicalSheets,
+    report || core_domainsV2NewReadReport_('PESSOAS_V2_SUBSET'),
+    options || {}
+  );
 }
 
 function core_domainsV2CloneRecord_(record) {
@@ -220,32 +331,65 @@ function core_domainsV2PessoaBundle_(pessoasData, idPessoa) {
   };
 }
 
-function corePessoasGetById_(idPessoa) {
+function corePessoasGetById_(idPessoa, options) {
   var report = core_domainsV2NewReadReport_('PESSOAS_GET_BY_ID');
-  var pessoasData = core_domainsV2OpenPessoas_(report);
+  var pessoasData = core_domainsV2OpenPessoasSubset_([
+    'BASE',
+    'IDENTIFICADORES',
+    'MEMBROS_DETALHES',
+    'LINKS_PERFIS',
+    'COLABORADORES',
+    'EXTERNOS',
+    'VINCULOS',
+    'RESUMO',
+    'CONSENTIMENTOS',
+    'ACESSOS_EXCECOES'
+  ], report, options || {});
   if (report.totalErros) throw new Error('Pessoas v2 indisponivel: ' + JSON.stringify(report.erros));
   return core_domainsV2PessoaBundle_(pessoasData, idPessoa);
 }
 
-function corePessoasFindByEmail_(email) {
+function corePessoasFindByEmail_(email, options) {
   var report = core_domainsV2NewReadReport_('PESSOAS_FIND_BY_EMAIL');
-  var pessoasData = core_domainsV2OpenPessoas_(report);
+  var pessoasData = core_domainsV2OpenPessoasSubset_([
+    'BASE',
+    'IDENTIFICADORES',
+    'MEMBROS_DETALHES',
+    'LINKS_PERFIS',
+    'COLABORADORES',
+    'EXTERNOS',
+    'VINCULOS',
+    'RESUMO',
+    'CONSENTIMENTOS',
+    'ACESSOS_EXCECOES'
+  ], report, options || {});
   if (report.totalErros) throw new Error('Pessoas v2 indisponivel: ' + JSON.stringify(report.erros));
   var idPessoa = core_domainsV2FindPessoaIdByEmail_(pessoasData, email);
   return idPessoa ? core_domainsV2PessoaBundle_(pessoasData, idPessoa) : null;
 }
 
-function corePessoasFindByRga_(rga) {
+function corePessoasFindByRga_(rga, options) {
   var report = core_domainsV2NewReadReport_('PESSOAS_FIND_BY_RGA');
-  var pessoasData = core_domainsV2OpenPessoas_(report);
+  var pessoasData = core_domainsV2OpenPessoasSubset_([
+    'BASE',
+    'IDENTIFICADORES',
+    'MEMBROS_DETALHES',
+    'LINKS_PERFIS',
+    'COLABORADORES',
+    'EXTERNOS',
+    'VINCULOS',
+    'RESUMO',
+    'CONSENTIMENTOS',
+    'ACESSOS_EXCECOES'
+  ], report, options || {});
   if (report.totalErros) throw new Error('Pessoas v2 indisponivel: ' + JSON.stringify(report.erros));
   var idPessoa = core_domainsV2FindPessoaIdByRga_(pessoasData, rga);
   return idPessoa ? core_domainsV2PessoaBundle_(pessoasData, idPessoa) : null;
 }
 
-function corePessoasGetOperationalSummary_(idPessoa) {
+function corePessoasGetOperationalSummary_(idPessoa, options) {
   var report = core_domainsV2NewReadReport_('PESSOAS_GET_OPERATIONAL_SUMMARY');
-  var pessoasData = core_domainsV2OpenPessoas_(report);
+  var pessoasData = core_domainsV2OpenPessoasSubset_(['RESUMO'], report, options || {});
   if (report.totalErros) throw new Error('Pessoas v2 indisponivel: ' + JSON.stringify(report.erros));
   var id = String(idPessoa || '').trim();
   var resumo = (pessoasData.PESSOAS_RESUMO_OPERACIONAL && pessoasData.PESSOAS_RESUMO_OPERACIONAL.records) || [];
@@ -405,8 +549,17 @@ function core_pessoasAdminPortalLog_(payload) {
 function core_listarMembrosAdministracaoPortal_(filtros, contexto) {
   var startedAt = Date.now();
   var ctx = contexto && typeof contexto === 'object' ? contexto : {};
+  var environment = core_normalizeDomainEnv_(ctx);
   var requester = ctx.idPessoa || ctx.identificadorSolicitante || ctx.identificador || '';
-  var session = corePortalResolverUsuarioAtual_(requester, { origem: 'adminMembrosListar' });
+  var suppliedSession = ctx.sessao && typeof ctx.sessao === 'object' ? ctx.sessao : null;
+  var session = suppliedSession &&
+    String(suppliedSession.idPessoa || '').trim() === String(requester || '').trim()
+    ? suppliedSession
+    : corePortalResolverUsuarioAtual_(requester, {
+        origem: 'adminMembrosListar',
+        ambiente: environment,
+        traceId: ctx.traceId || ctx.requestId || ''
+      });
   if (!core_pessoasAdminPortalAuthorize_(session)) {
     core_pessoasAdminPortalLog_({ ok: false, code: 'ACESSO_NEGADO', duracaoMs: Date.now() - startedAt });
     return Object.freeze({
@@ -419,7 +572,7 @@ function core_listarMembrosAdministracaoPortal_(filtros, contexto) {
   var normalizedFilters = core_pessoasAdminPortalFilters_(filtros);
   // Usa o resolvedor oficial do dominio para respeitar o ambiente efetivo de Pessoas V2.
   var report = core_domainsV2NewReadReport_('PORTAL_ADMIN_MEMBROS_LISTAR');
-  var pessoasData = core_domainsV2OpenPessoas_(report);
+  var pessoasData = core_domainsV2OpenPessoasSubset_(['RESUMO'], report, { ambiente: environment });
   if (report.totalErros) {
     throw new Error('PESSOAS_V2_RESUMO_OPERACIONAL_INDISPONIVEL');
   }
@@ -460,6 +613,7 @@ function core_listarMembrosAdministracaoPortal_(filtros, contexto) {
     totalFiltrado: filtered.length,
     pagina: page,
     pageSize: normalizedFilters.pageSize,
+    ambiente: environment,
     duracaoMs: Date.now() - startedAt
   });
   return Object.freeze({ ok: true, data: data });
@@ -579,9 +733,9 @@ function coreVigenciasGetCurrentFunctionByPessoa_(idPessoa) {
   return list[0] || null;
 }
 
-function coreVigenciasGetCurrentSummaryByPessoa_(idPessoa) {
+function coreVigenciasGetCurrentSummaryByPessoa_(idPessoa, options) {
   var report = core_domainsV2NewReadReport_('VIGENCIAS_GET_CURRENT_SUMMARY_BY_PESSOA');
-  var vigenciasData = core_domainsV2OpenVigencias_(report);
+  var vigenciasData = core_domainsV2OpenSubset_('VIGENCIAS', ['RESUMO'], report, options || {});
   if (report.totalErros) throw new Error('Vigencias v2 indisponivel: ' + JSON.stringify(report.erros));
   var id = String(idPessoa || '').trim();
   var records = (vigenciasData.VIGENCIAS_RESUMO_ATUAL && vigenciasData.VIGENCIAS_RESUMO_ATUAL.records) || [];

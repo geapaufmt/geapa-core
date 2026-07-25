@@ -70,6 +70,71 @@ const CORE_PORTAL_ACCESS_CFG = Object.freeze({
   ])
 });
 
+var __core_portal_registry_sheet_execution_cache = {};
+var __core_portal_registry_spreadsheet_execution_cache = {};
+var __core_portal_trace_stages = [];
+
+function corePortalTraceReset_() {
+  __core_portal_trace_stages = [];
+}
+
+function corePortalTraceStage_(stage, startedAt, code, origin) {
+  __core_portal_trace_stages.push(Object.freeze({
+    etapa: String(stage || '').slice(0, 80),
+    duracaoMs: Math.max(0, Date.now() - Number(startedAt || Date.now())),
+    code: String(code || '').slice(0, 80),
+    origem: String(origin || '').slice(0, 80)
+  }));
+}
+
+function corePortalResolveEnvironment_(opts) {
+  return core_normalizeDomainEnv_(opts || {});
+}
+
+/**
+ * Le uma key de configuracao no ambiente explicitamente pedido.
+ * Nao usa o helper legado dependente do GEAPA_ENV global.
+ */
+function corePortalReadRegistryRecordsForEnv_(registryKey, opts) {
+  var startedAt = Date.now();
+  var options = opts || {};
+  var environment = corePortalResolveEnvironment_(options);
+  var state = core_domainRegistryEntry_(registryKey, environment, options);
+  if (!state.available) {
+    throw core_domainResolverError_(
+      'PORTAL_REGISTRY_KEY_INDISPONIVEL',
+      'Registry key "' + registryKey + '" indisponivel em ' + environment + '.',
+      { registryKey: registryKey, ambiente: environment, motivo: state.reason }
+    );
+  }
+
+  var entry = state.entry || {};
+  var spreadsheetId = String(entry.id || '').trim();
+  var sheetName = String(entry.sheet || '').trim();
+  var cacheKey = [environment, registryKey, spreadsheetId, sheetName].join('|');
+  var sheet = __core_portal_registry_sheet_execution_cache[cacheKey];
+  if (!sheet) {
+    var spreadsheetCacheKey = [environment, spreadsheetId].join('|');
+    var spreadsheet = __core_portal_registry_spreadsheet_execution_cache[spreadsheetCacheKey];
+    if (!spreadsheet) {
+      spreadsheet = core_openSpreadsheetById_(spreadsheetId);
+      __core_portal_registry_spreadsheet_execution_cache[spreadsheetCacheKey] = spreadsheet;
+    }
+    sheet = spreadsheet.getSheetByName(sheetName);
+    if (!sheet) {
+      throw core_domainResolverError_(
+        'PORTAL_REGISTRY_ABA_INDISPONIVEL',
+        'Aba da key "' + registryKey + '" indisponivel em ' + environment + '.',
+        { registryKey: registryKey, ambiente: environment }
+      );
+    }
+    __core_portal_registry_sheet_execution_cache[cacheKey] = sheet;
+  }
+  var records = core_readSheetRecords_(sheet, { skipBlankRows: true });
+  corePortalTraceStage_('registry.' + registryKey, startedAt, 'OK', environment);
+  return records;
+}
+
 function corePortalNormalizeToken_(value) {
   return core_normalizeText_(value, {
     removeAccents: true,
@@ -115,9 +180,7 @@ function corePortalRecordIsActive_(record) {
 
 function corePortalReadProfiles_(opts) {
   opts = opts || {};
-  var records = opts.records || core_readRecordsByKey_('PORTAL_PERFIS', {
-    skipBlankRows: true
-  });
+  var records = opts.records || corePortalReadRegistryRecordsForEnv_('PORTAL_PERFIS', opts);
   var out = [];
   var seen = {};
 
@@ -146,9 +209,7 @@ function corePortalReadProfiles_(opts) {
 
 function corePortalReadPermissions_(opts) {
   opts = opts || {};
-  var records = opts.records || core_readRecordsByKey_('PORTAL_PERMISSOES', {
-    skipBlankRows: true
-  });
+  var records = opts.records || corePortalReadRegistryRecordsForEnv_('PORTAL_PERMISSOES', opts);
   var out = [];
 
   records.forEach(function(record) {
@@ -173,30 +234,38 @@ function corePortalReadPermissions_(opts) {
   return Object.freeze(out);
 }
 
-function corePortalConfigCacheGet_() {
+function corePortalConfigCacheKey_(opts) {
+  return CORE_PORTAL_ACCESS_CFG.portalConfigCacheKey + ':' + corePortalResolveEnvironment_(opts || {});
+}
+
+function corePortalConfigCacheGet_(opts) {
   try {
-    var raw = CacheService.getScriptCache().get(CORE_PORTAL_ACCESS_CFG.portalConfigCacheKey);
+    var raw = CacheService.getScriptCache().get(corePortalConfigCacheKey_(opts));
     return raw ? JSON.parse(raw) : null;
   } catch (err) {
     return null;
   }
 }
 
-function corePortalConfigCacheSet_(config) {
+function corePortalConfigCacheSet_(config, opts) {
   try {
     CacheService.getScriptCache().put(
-      CORE_PORTAL_ACCESS_CFG.portalConfigCacheKey,
+      corePortalConfigCacheKey_(opts),
       JSON.stringify(config || {}),
       CORE_PORTAL_ACCESS_CFG.portalConfigCacheTtlSeconds
     );
   } catch (err) {}
 }
 
-function corePortalConfigCacheClear_() {
+function corePortalConfigCacheClear_(opts) {
   try {
-    CacheService.getScriptCache().remove(CORE_PORTAL_ACCESS_CFG.portalConfigCacheKey);
+    CacheService.getScriptCache().remove(corePortalConfigCacheKey_(opts));
   } catch (err) {}
-  return Object.freeze({ ok: true, cacheCleared: true, cacheKey: CORE_PORTAL_ACCESS_CFG.portalConfigCacheKey });
+  return Object.freeze({
+    ok: true,
+    cacheCleared: true,
+    ambiente: corePortalResolveEnvironment_(opts || {})
+  });
 }
 
 function corePortalConfigIsSensitiveKey_(key) {
@@ -216,13 +285,11 @@ function corePortalParseConfigValue_(value) {
 function corePortalReadConfig_(opts) {
   opts = opts || {};
   if (!opts.records && opts.forceRefresh !== true) {
-    var cached = corePortalConfigCacheGet_();
+    var cached = corePortalConfigCacheGet_(opts);
     if (cached) return Object.freeze(cached);
   }
 
-  var records = opts.records || core_readRecordsByKey_('PORTAL_CONFIG', {
-    skipBlankRows: true
-  });
+  var records = opts.records || corePortalReadRegistryRecordsForEnv_('PORTAL_CONFIG', opts);
   var out = {};
 
   records.forEach(function(record) {
@@ -239,7 +306,7 @@ function corePortalReadConfig_(opts) {
     );
   });
 
-  if (!opts.records) corePortalConfigCacheSet_(out);
+  if (!opts.records) corePortalConfigCacheSet_(out, opts);
   return Object.freeze(out);
 }
 
@@ -441,14 +508,14 @@ function corePortalExceptionBlocks_(record) {
   return ['BLOQUEADO', 'NEGADO', 'SUSPENSO'].indexOf(status) >= 0;
 }
 
-function corePortalGetBundleById_(idPessoa) {
+function corePortalGetBundleById_(idPessoa, opts) {
   var id = String(idPessoa || '').trim();
-  return id ? corePessoasGetById_(id) : null;
+  return id ? corePessoasGetById_(id, opts || {}) : null;
 }
 
-function corePortalGetBundleByEmail_(email) {
+function corePortalGetBundleByEmail_(email, opts) {
   var normalizedEmail = corePortalNormalizeEmail_(email);
-  return normalizedEmail ? corePessoasFindByEmail_(normalizedEmail) : null;
+  return normalizedEmail ? corePessoasFindByEmail_(normalizedEmail, opts || {}) : null;
 }
 
 function corePortalResolveInput_(entrada) {
@@ -478,15 +545,16 @@ function corePortalResolveInput_(entrada) {
   });
 }
 
-function corePortalGetBundleByInput_(entrada) {
+function corePortalGetBundleByInput_(entrada, opts) {
   var input = corePortalResolveInput_(entrada);
-  if (input.idPessoa) return corePortalGetBundleById_(input.idPessoa);
-  if (input.email) return corePortalGetBundleByEmail_(input.email);
-  if (input.rga) return corePessoasFindByRga_(input.rga);
+  var options = opts || {};
+  if (input.idPessoa) return corePortalGetBundleById_(input.idPessoa, options);
+  if (input.email) return corePortalGetBundleByEmail_(input.email, options);
+  if (input.rga) return corePessoasFindByRga_(input.rga, options);
   if (input.identificador && input.identificador.indexOf('@') >= 0) {
-    return corePortalGetBundleByEmail_(input.identificador);
+    return corePortalGetBundleByEmail_(input.identificador, options);
   }
-  if (input.identificador) return corePessoasFindByRga_(input.identificador);
+  if (input.identificador) return corePessoasFindByRga_(input.identificador, options);
   return null;
 }
 
@@ -533,9 +601,9 @@ function corePortalGetIdentityMarker_(bundle, tipoIdentificador) {
   return found;
 }
 
-function corePortalGetVigenciasResumoAtualSafe_(idPessoa) {
+function corePortalGetVigenciasResumoAtualSafe_(idPessoa, opts) {
   try {
-    return coreVigenciasGetCurrentSummaryByPessoa_(idPessoa) || null;
+    return coreVigenciasGetCurrentSummaryByPessoa_(idPessoa, opts || {}) || null;
   } catch (err) {
     return null;
   }
@@ -574,7 +642,7 @@ function corePortalProfilesFromVigenciasResumo_(record) {
 
 function corePortalCalcularPerfilEfetivo_(idPessoa, opts) {
   opts = opts || {};
-  var bundle = opts.bundle || corePortalGetBundleById_(idPessoa);
+  var bundle = opts.bundle || corePortalGetBundleById_(idPessoa, opts);
   if (!bundle || !bundle.pessoa) {
     return Object.freeze({
       ok: false,
@@ -614,7 +682,7 @@ function corePortalCalcularPerfilEfetivo_(idPessoa, opts) {
   }
 
   if (!profiles.length) {
-    if (!vigenciasResumo) vigenciasResumo = corePortalGetVigenciasResumoAtualSafe_(id);
+    if (!vigenciasResumo) vigenciasResumo = corePortalGetVigenciasResumoAtualSafe_(id, opts);
     profiles = corePortalProfilesFromVigenciasResumo_(vigenciasResumo).filter(function(profile) {
       return profile !== 'ADMIN';
     });
@@ -670,7 +738,7 @@ function corePortalCalcularPerfilEfetivo_(idPessoa, opts) {
 
 function corePortalListarPermissoesEfetivas_(idPessoa, opts) {
   opts = opts || {};
-  var bundle = opts.bundle || corePortalGetBundleById_(idPessoa);
+  var bundle = opts.bundle || corePortalGetBundleById_(idPessoa, opts);
   var profileResult = opts.profileResult || corePortalCalcularPerfilEfetivo_(idPessoa, opts);
   if (!profileResult.ok && !profileResult.perfisPortal.length) {
     return Object.freeze({
@@ -718,9 +786,21 @@ function corePortalListarPermissoesEfetivas_(idPessoa, opts) {
 
 function corePortalResolverUsuarioAtual_(entrada, opts) {
   opts = opts || {};
+  corePortalTraceReset_();
+  var startedAt = Date.now();
+  var environment = corePortalResolveEnvironment_(opts);
   var input = corePortalResolveInput_(entrada);
-  var config = opts.config || corePortalReadConfig_(opts.configOpts || {});
-  var bundle = corePortalGetBundleByInput_(entrada);
+  var environmentOptions = Object.assign({}, opts, { ambiente: environment });
+  var config = opts.config || corePortalReadConfig_(
+    Object.assign({}, opts.configOpts || {}, { ambiente: environment })
+  );
+  var profiles = opts.profiles || corePortalReadProfiles_(
+    Object.assign({}, opts.profilesOpts || {}, { ambiente: environment })
+  );
+  var permissions = opts.permissions || corePortalReadPermissions_(
+    Object.assign({}, opts.permissionsOpts || {}, { ambiente: environment })
+  );
+  var bundle = corePortalGetBundleByInput_(entrada, environmentOptions);
   if (!bundle || !bundle.pessoa) {
     return Object.freeze({
       ok: false,
@@ -730,18 +810,27 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
       rga: input.rga,
       modoAcesso: corePortalAccessMode_(config),
       motivoBloqueio: 'PESSOA_NAO_ENCONTRADA',
-      mensagemBloqueio: corePortalAccessDeniedMessage_()
+      mensagemBloqueio: corePortalAccessDeniedMessage_(),
+      metaTecnica: Object.freeze({
+        traceId: String(opts.traceId || opts.requestId || '').trim().slice(0, 80),
+        ambiente: environment,
+        etapa: 'corePortalResolverUsuarioAtual',
+        duracaoMs: Math.max(0, Date.now() - startedAt),
+        etapas: Object.freeze(__core_portal_trace_stages.slice())
+      })
     });
   }
   var idPessoa = String(bundle.pessoa.ID_PESSOA || '').trim();
-  var vigenciasResumo = opts.vigenciasResumo || corePortalGetVigenciasResumoAtualSafe_(idPessoa);
+  var vigenciasResumo = opts.vigenciasResumo || corePortalGetVigenciasResumoAtualSafe_(idPessoa, environmentOptions);
   var profileResult = corePortalCalcularPerfilEfetivo_(idPessoa, Object.assign({}, opts, {
     bundle: bundle,
-    vigenciasResumo: vigenciasResumo
+    vigenciasResumo: vigenciasResumo,
+    profiles: profiles
   }));
   var permissionsResult = corePortalListarPermissoesEfetivas_(idPessoa, Object.assign({}, opts, {
     bundle: bundle,
-    profileResult: profileResult
+    profileResult: profileResult,
+    permissions: permissions
   }));
   var resumo = bundle.resumoOperacional || {};
   var link = corePortalGetCurrentLink_(bundle);
@@ -791,7 +880,14 @@ function corePortalResolverUsuarioAtual_(entrada, opts) {
     mensagemBloqueio: portalAtivo ? '' : corePortalAccessDeniedMessage_(),
     origemPerfil: profileResult.origemPerfil,
     origemPermissoes: permissionsResult.origemPermissoes,
-    regraApresentacoes: profileResult.regraApresentacoes || ''
+    regraApresentacoes: profileResult.regraApresentacoes || '',
+    metaTecnica: Object.freeze({
+      traceId: String(opts.traceId || opts.requestId || '').trim().slice(0, 80),
+      ambiente: environment,
+      etapa: 'corePortalResolverUsuarioAtual',
+      duracaoMs: Math.max(0, Date.now() - startedAt),
+      etapas: Object.freeze(__core_portal_trace_stages.slice())
+    })
   });
 }
 
