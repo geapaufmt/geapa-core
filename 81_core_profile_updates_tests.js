@@ -9,6 +9,7 @@ function corePerfilTestFixture_(permissions, environment) {
   var sources = {};
   function source(name, headers, records) {
     sources[name] = {
+      name: name,
       sheet: { name: name },
       headers: headers.slice(),
       records: (records || []).map(function(record, index) {
@@ -27,6 +28,18 @@ function corePerfilTestFixture_(permissions, environment) {
   source('MEMBROS_DETALHES', ['ID_PESSOA','RGA','HISTORICO_ATIVIDADES_ACADEMICAS','ATUALIZADO_EM'], [{
     ID_PESSOA: 'PES-1', RGA: '20201234', HISTORICO_ATIVIDADES_ACADEMICAS: 'Resumo anterior'
   }]);
+  source('PESSOAS_IDENTIFICADORES', [
+    'ID_IDENTIFICADOR','ID_PESSOA','TIPO_IDENTIFICADOR','VALOR_IDENTIFICADOR','PRINCIPAL','ATIVO','OBS'
+  ], [{
+    ID_IDENTIFICADOR: 'IDN-EMAIL-1', ID_PESSOA: 'PES-1', TIPO_IDENTIFICADOR: 'EMAIL',
+    VALOR_IDENTIFICADOR: 'pessoa@example.org', PRINCIPAL: 'SIM', ATIVO: 'SIM', OBS: ''
+  }, {
+    ID_IDENTIFICADOR: 'IDN-RGA-1', ID_PESSOA: 'PES-1', TIPO_IDENTIFICADOR: 'RGA',
+    VALOR_IDENTIFICADOR: '20201234', PRINCIPAL: 'SIM', ATIVO: 'SIM', OBS: ''
+  }]);
+  source('PESSOAS_RESUMO_OPERACIONAL', ['ID_PESSOA','EMAIL','RGA','ATUALIZADO_EM'], [{
+    ID_PESSOA: 'PES-1', EMAIL: 'pessoa@example.org', RGA: '20201234'
+  }]);
   source('PESSOAS_LINKS_PERFIS', [
     'ID_LINK','ID_PESSOA','TIPO_LINK','URL','ROTULO','PUBLICAVEL','VISIVEL_PORTAL','FONTE',
     'VALIDADO_EM','ATIVO','CRIADO_EM','ATUALIZADO_EM','OBS'
@@ -35,7 +48,7 @@ function corePerfilTestFixture_(permissions, environment) {
     return item.sheetName === CORE_PERFIL_SOLICITACOES_SHEET;
   })[0].headers, []);
 
-  var counters = { writes: 0, appends: 0, recalculations: 0, openedSourceSets: [] };
+  var counters = { writes: 0, appends: 0, deletes: 0, recalculations: 0, cacheInvalidations: [], openedSourceSets: [] };
   var uuidCounter = 0;
   var session = {
     ok: true,
@@ -70,7 +83,17 @@ function corePerfilTestFixture_(permissions, environment) {
       counters.appends++;
       sourceData.records.push(Object.assign({ __rowNumber: sourceData.records.length + 2 }, record));
     },
-    recalculateViews: function() { counters.recalculations++; return { ok: true }; }
+    deleteRecord: function(sourceData, record) {
+      counters.deletes++;
+      sourceData.records = sourceData.records.filter(function(item) {
+        return Number(item.__rowNumber) !== Number(record.__rowNumber);
+      });
+    },
+    recalculateViews: function() { counters.recalculations++; return { ok: true }; },
+    invalidateCaches: function(values, env) {
+      counters.cacheInvalidations.push({ values: values.slice(), environment: env });
+      return { identifiers: values.length };
+    }
   };
   return { sources: sources, counters: counters, deps: deps, session: session };
 }
@@ -136,21 +159,19 @@ function corePerfilTestRunAll_() {
     corePerfilTestAssert_(response.ok && response.data.status === 'EM_ANALISE', 'analise autorizada falhou');
   });
 
-  test('9_aprovacao_nao_aplica_automaticamente', function() {
+  test('9_aprovacao_e_aplicacao_sao_uma_operacao', function() {
     var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION]);
-    var before = fx.sources.PESSOAS_BASE.records[0].CPF;
     core_solicitarCorrecaoMeuPerfilParaPortal_({ campo: 'CPF', valorSolicitado: '11144477735', justificativa: 'Solicito a correcao conforme documento oficial.', chaveIdempotencia: 'cpf-request-1' }, {}, { deps: fx.deps });
     var id = fx.sources[CORE_PERFIL_SOLICITACOES_SHEET].records[0].ID_SOLICITACAO;
-    core_analisarSolicitacaoCadastralPortal_({ idSolicitacao: id, acao: 'APROVADA' }, {}, { deps: fx.deps });
-    corePerfilTestAssert_(fx.sources.PESSOAS_BASE.records[0].CPF === before, 'aprovacao aplicou automaticamente');
+    var applied = core_aprovarEAplicarSolicitacaoCadastralPortal_({ idSolicitacao: id, confirmacao: true }, {}, { deps: fx.deps });
+    corePerfilTestAssert_(applied.ok && applied.data.status === 'APLICADA' && fx.sources.PESSOAS_BASE.records[0].CPF === '11144477735', 'aprovacao/aplicacao coordenada falhou');
   });
 
   test('10_aplicacao_atualiza_fonte_oficial', function() {
     var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION]);
     core_solicitarCorrecaoMeuPerfilParaPortal_({ campo: 'CPF', valorSolicitado: '11144477735', justificativa: 'Solicito a correcao conforme documento oficial.', chaveIdempotencia: 'cpf-request-1' }, {}, { deps: fx.deps });
     var id = fx.sources[CORE_PERFIL_SOLICITACOES_SHEET].records[0].ID_SOLICITACAO;
-    core_analisarSolicitacaoCadastralPortal_({ idSolicitacao: id, acao: 'APROVADA' }, {}, { deps: fx.deps });
-    var applied = core_aplicarSolicitacaoCadastralAprovadaPortal_({ idSolicitacao: id }, {}, { deps: fx.deps });
+    var applied = core_aprovarEAplicarSolicitacaoCadastralPortal_({ idSolicitacao: id, confirmacao: true }, {}, { deps: fx.deps });
     corePerfilTestAssert_(applied.ok && fx.sources.PESSOAS_BASE.records[0].CPF === '11144477735' && fx.counters.recalculations === 1, 'aplicacao nao atualizou fonte/view');
   });
 
@@ -158,9 +179,8 @@ function corePerfilTestRunAll_() {
     var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION]);
     core_solicitarCorrecaoMeuPerfilParaPortal_({ campo: 'CPF', valorSolicitado: '11144477735', justificativa: 'Solicito a correcao conforme documento oficial.', chaveIdempotencia: 'cpf-request-1' }, {}, { deps: fx.deps });
     var id = fx.sources[CORE_PERFIL_SOLICITACOES_SHEET].records[0].ID_SOLICITACAO;
-    core_analisarSolicitacaoCadastralPortal_({ idSolicitacao: id, acao: 'APROVADA' }, {}, { deps: fx.deps });
-    core_aplicarSolicitacaoCadastralAprovadaPortal_({ idSolicitacao: id }, {}, { deps: fx.deps });
-    var second = core_aplicarSolicitacaoCadastralAprovadaPortal_({ idSolicitacao: id }, {}, { deps: fx.deps });
+    core_aprovarEAplicarSolicitacaoCadastralPortal_({ idSolicitacao: id, confirmacao: true }, {}, { deps: fx.deps });
+    var second = core_aprovarEAplicarSolicitacaoCadastralPortal_({ idSolicitacao: id, confirmacao: true }, {}, { deps: fx.deps });
     corePerfilTestAssert_(second.ok && second.data.idempotente === true && fx.counters.recalculations === 1, 'segunda aplicacao nao foi idempotente');
   });
 
