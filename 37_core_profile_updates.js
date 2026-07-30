@@ -165,6 +165,10 @@ function corePerfilSafeLogPayload_(event, details) {
     requestId: String(source.requestId || '').slice(0, 80),
     changedCount: Number(source.changedCount || 0),
     code: String(source.code || '').slice(0, 80),
+    stage: String(source.stage || '').slice(0, 80),
+    traceId: String(source.traceId || '').slice(0, 80),
+    environment: String(source.environment || '').slice(0, 20),
+    backendVersion: String(source.backendVersion || '').slice(0, 60),
     actorHash: String(source.actorHash || '').slice(0, 80),
     revealed: source.revealed === true
   };
@@ -196,21 +200,102 @@ function corePerfilContextEmail_(contexto) {
   return '';
 }
 
+function corePerfilSessionFailure_(code, stage, contexto, environment) {
+  return Object.freeze({
+    ok: false,
+    autenticado: false,
+    portalAtivo: false,
+    motivoBloqueio: String(code || 'SESSAO_CORE_NAO_RESOLVIDA').slice(0, 100),
+    failedStage: String(stage || 'corePortalResolverUsuarioAtual').slice(0, 80),
+    diagnosticoSeguro: Object.freeze({
+      errorCode: String(code || 'SESSAO_CORE_NAO_RESOLVIDA').slice(0, 100),
+      etapa: String(stage || 'corePortalResolverUsuarioAtual').slice(0, 80),
+      traceId: String(contexto && contexto.traceId || '').slice(0, 80),
+      ambienteEfetivo: String(environment || 'INVALIDO').slice(0, 20),
+      versaoBackend: 'CORE_PROFILE_SESSION_ENV_V1'
+    })
+  });
+}
+
 function corePerfilResolveSession_(contexto, deps) {
   deps = deps || {};
   if (deps.session) return deps.session;
   var email = corePerfilContextEmail_(contexto);
   if (!email) return null;
+  var environment;
+  try {
+    environment = corePerfilResolveEnvironment_(contexto, deps);
+  } catch (environmentError) {
+    corePerfilSafeLog_('SESSION_RESOLUTION_ERROR', {
+      code: 'CONTEXTO_PORTAL_INVALIDO',
+      stage: 'corePerfilResolveEnvironment',
+      traceId: contexto && contexto.traceId,
+      environment: 'INVALIDO',
+      backendVersion: 'CORE_PROFILE_SESSION_ENV_V1'
+    });
+    return corePerfilSessionFailure_(
+      'CONTEXTO_PORTAL_INVALIDO',
+      'corePerfilResolveEnvironment',
+      contexto,
+      'INVALIDO'
+    );
+  }
   var resolver = deps.resolveSession || corePortalResolverUsuarioAtual_;
-  var session = resolver(email, { origem: 'perfilCadastralPortal' });
-  if (!session || session.ok === false || session.autenticado !== true || !String(session.idPessoa || '').trim()) return null;
+  var session;
+  try {
+    session = resolver(email, {
+      origem: 'perfilCadastralPortal',
+      ambiente: environment,
+      environment: environment,
+      traceId: String(contexto && contexto.traceId || '').slice(0, 80)
+    });
+  } catch (resolverError) {
+    var resolverCode = String(resolverError && (resolverError.code || resolverError.message) || 'SESSAO_CORE_NAO_RESOLVIDA')
+      .slice(0, 100);
+    corePerfilSafeLog_('SESSION_RESOLUTION_ERROR', {
+      code: resolverCode,
+      stage: 'corePortalResolverUsuarioAtual',
+      traceId: contexto && contexto.traceId,
+      environment: environment,
+      backendVersion: 'CORE_PROFILE_SESSION_ENV_V1'
+    });
+    return corePerfilSessionFailure_(
+      resolverCode,
+      'corePortalResolverUsuarioAtual',
+      contexto,
+      environment
+    );
+  }
+  if (!session || session.ok === false || session.autenticado !== true || !String(session.idPessoa || '').trim()) {
+    var failureCode = String(session && (session.motivoBloqueio || session.errorCode || session.code) || 'SESSAO_CORE_NAO_RESOLVIDA');
+    var failureStage = String(session && session.failedStage || 'corePortalResolverUsuarioAtual');
+    corePerfilSafeLog_('SESSION_RESOLUTION_ERROR', {
+      code: failureCode,
+      stage: failureStage,
+      traceId: contexto && contexto.traceId,
+      environment: environment,
+      backendVersion: 'CORE_PROFILE_SESSION_ENV_V1'
+    });
+    return corePerfilSessionFailure_(failureCode, failureStage, contexto, environment);
+  }
   return session;
 }
 
 function corePerfilAuthorizeOwn_(contexto, deps) {
   var session = corePerfilResolveSession_(contexto, deps);
   if (!session || session.portalAtivo !== true) {
-    return { ok: false, response: corePerfilEnvelopeError_('SESSAO_INVALIDA', 'Sessao autenticada e ativa obrigatoria.') };
+    var code = String(session && session.motivoBloqueio || 'SESSAO_INVALIDA');
+    var isExpired = code === 'SESSAO_INVALIDA' || code === 'SESSAO_INVALIDA_OU_EXPIRADA';
+    return {
+      ok: false,
+      response: corePerfilEnvelopeError_(
+        code,
+        isExpired
+          ? 'Sessao autenticada e ativa obrigatoria.'
+          : 'Nao foi possivel validar a sessao nas bases do ambiente solicitado.',
+        session && session.diagnosticoSeguro || null
+      )
+    };
   }
   return { ok: true, session: session };
 }

@@ -377,3 +377,62 @@ test('dry-run de reparacao cobre o caso PROD informado sem escrever', () => {
   assert.equal(report.tokenConfirmacao, `REPARAR_SOLICITACAO_CADASTRAL_PROD_${fx.requestId}`);
   assert.equal(JSON.stringify(fx.sources), before);
 });
+
+test('resolvedor cadastral repassa explicitamente o ambiente DEV para a sessao oficial', () => {
+  let receivedOptions = null;
+  const session = context.corePerfilResolveSession_({
+    ambientePortal: 'DEV',
+    sessaoOficial: { email: 'pessoa.teste@example.org' },
+    traceId: 'req-session-dev'
+  }, {
+    resolveSession(_email, options) {
+      receivedOptions = options;
+      return {
+        ok: true,
+        autenticado: true,
+        portalAtivo: true,
+        idPessoa: 'PES-TESTE',
+        email: 'pessoa.teste@example.org'
+      };
+    }
+  });
+
+  assert.equal(session.ok, true);
+  assert.equal(receivedOptions.ambiente, 'DEV');
+  assert.equal(receivedOptions.environment, 'DEV');
+  assert.equal(receivedOptions.traceId, 'req-session-dev');
+});
+
+test('falha de resolucao preserva causa e retorna somente diagnostico seguro', () => {
+  const authorization = context.corePerfilAuthorizeOwn_({
+    ambientePortal: 'DEV',
+    sessaoOficial: { email: 'pessoa.teste@example.org' },
+    traceId: 'req-session-failure'
+  }, {
+    resolveSession() {
+      return {
+        ok: false,
+        autenticado: false,
+        portalAtivo: false,
+        motivoBloqueio: 'PESSOAS_V2_DB_INDISPONIVEL',
+        failedStage: 'domainRegistry'
+      };
+    }
+  });
+  const response = JSON.parse(JSON.stringify(authorization.response));
+
+  assert.equal(authorization.ok, false);
+  assert.equal(response.errorCode, 'PESSOAS_V2_DB_INDISPONIVEL');
+  assert.equal(response.details.etapa, 'domainRegistry');
+  assert.equal(response.details.traceId, 'req-session-failure');
+  assert.equal(response.details.ambienteEfetivo, 'DEV');
+  assert.equal(response.details.versaoBackend, 'CORE_PROFILE_SESSION_ENV_V1');
+  assert.deepEqual(Object.keys(response.details).sort(), [
+    'ambienteEfetivo',
+    'errorCode',
+    'etapa',
+    'traceId',
+    'versaoBackend'
+  ]);
+  assert.equal(JSON.stringify(response).includes('pessoa.teste@example.org'), false);
+});
