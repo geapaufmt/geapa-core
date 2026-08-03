@@ -4,7 +4,7 @@
  * Regras centrais:
  * - a identidade vem da sessao oficial; ID_PESSOA/RGA do payload sao rejeitados;
  * - campos de baixo risco escrevem somente nas fontes Pessoas V2;
- * - campos sensiveis sempre passam por solicitacao, analise e aplicacao separadas;
+ * - campos sensiveis passam por solicitacao e decisao administrativa com aplicacao coordenada;
  * - DEV/HOMOLOG e PROD usam entradas explicitas e isoladas do Registry;
  * - PESSOAS_RESUMO_OPERACIONAL nunca e editada diretamente.
  */
@@ -165,6 +165,10 @@ function corePerfilSafeLogPayload_(event, details) {
     requestId: String(source.requestId || '').slice(0, 80),
     changedCount: Number(source.changedCount || 0),
     code: String(source.code || '').slice(0, 80),
+    stage: String(source.stage || '').slice(0, 80),
+    traceId: String(source.traceId || '').slice(0, 80),
+    environment: String(source.environment || '').slice(0, 20),
+    backendVersion: String(source.backendVersion || '').slice(0, 60),
     actorHash: String(source.actorHash || '').slice(0, 80),
     revealed: source.revealed === true
   };
@@ -196,21 +200,102 @@ function corePerfilContextEmail_(contexto) {
   return '';
 }
 
+function corePerfilSessionFailure_(code, stage, contexto, environment) {
+  return Object.freeze({
+    ok: false,
+    autenticado: false,
+    portalAtivo: false,
+    motivoBloqueio: String(code || 'SESSAO_CORE_NAO_RESOLVIDA').slice(0, 100),
+    failedStage: String(stage || 'corePortalResolverUsuarioAtual').slice(0, 80),
+    diagnosticoSeguro: Object.freeze({
+      errorCode: String(code || 'SESSAO_CORE_NAO_RESOLVIDA').slice(0, 100),
+      etapa: String(stage || 'corePortalResolverUsuarioAtual').slice(0, 80),
+      traceId: String(contexto && contexto.traceId || '').slice(0, 80),
+      ambienteEfetivo: String(environment || 'INVALIDO').slice(0, 20),
+      versaoBackend: 'CORE_PROFILE_SESSION_ENV_V1'
+    })
+  });
+}
+
 function corePerfilResolveSession_(contexto, deps) {
   deps = deps || {};
   if (deps.session) return deps.session;
   var email = corePerfilContextEmail_(contexto);
   if (!email) return null;
+  var environment;
+  try {
+    environment = corePerfilResolveEnvironment_(contexto, deps);
+  } catch (environmentError) {
+    corePerfilSafeLog_('SESSION_RESOLUTION_ERROR', {
+      code: 'CONTEXTO_PORTAL_INVALIDO',
+      stage: 'corePerfilResolveEnvironment',
+      traceId: contexto && contexto.traceId,
+      environment: 'INVALIDO',
+      backendVersion: 'CORE_PROFILE_SESSION_ENV_V1'
+    });
+    return corePerfilSessionFailure_(
+      'CONTEXTO_PORTAL_INVALIDO',
+      'corePerfilResolveEnvironment',
+      contexto,
+      'INVALIDO'
+    );
+  }
   var resolver = deps.resolveSession || corePortalResolverUsuarioAtual_;
-  var session = resolver(email, { origem: 'perfilCadastralPortal' });
-  if (!session || session.ok === false || session.autenticado !== true || !String(session.idPessoa || '').trim()) return null;
+  var session;
+  try {
+    session = resolver(email, {
+      origem: 'perfilCadastralPortal',
+      ambiente: environment,
+      environment: environment,
+      traceId: String(contexto && contexto.traceId || '').slice(0, 80)
+    });
+  } catch (resolverError) {
+    var resolverCode = String(resolverError && (resolverError.code || resolverError.message) || 'SESSAO_CORE_NAO_RESOLVIDA')
+      .slice(0, 100);
+    corePerfilSafeLog_('SESSION_RESOLUTION_ERROR', {
+      code: resolverCode,
+      stage: 'corePortalResolverUsuarioAtual',
+      traceId: contexto && contexto.traceId,
+      environment: environment,
+      backendVersion: 'CORE_PROFILE_SESSION_ENV_V1'
+    });
+    return corePerfilSessionFailure_(
+      resolverCode,
+      'corePortalResolverUsuarioAtual',
+      contexto,
+      environment
+    );
+  }
+  if (!session || session.ok === false || session.autenticado !== true || !String(session.idPessoa || '').trim()) {
+    var failureCode = String(session && (session.motivoBloqueio || session.errorCode || session.code) || 'SESSAO_CORE_NAO_RESOLVIDA');
+    var failureStage = String(session && session.failedStage || 'corePortalResolverUsuarioAtual');
+    corePerfilSafeLog_('SESSION_RESOLUTION_ERROR', {
+      code: failureCode,
+      stage: failureStage,
+      traceId: contexto && contexto.traceId,
+      environment: environment,
+      backendVersion: 'CORE_PROFILE_SESSION_ENV_V1'
+    });
+    return corePerfilSessionFailure_(failureCode, failureStage, contexto, environment);
+  }
   return session;
 }
 
 function corePerfilAuthorizeOwn_(contexto, deps) {
   var session = corePerfilResolveSession_(contexto, deps);
   if (!session || session.portalAtivo !== true) {
-    return { ok: false, response: corePerfilEnvelopeError_('SESSAO_INVALIDA', 'Sessao autenticada e ativa obrigatoria.') };
+    var code = String(session && session.motivoBloqueio || 'SESSAO_INVALIDA');
+    var isExpired = code === 'SESSAO_INVALIDA' || code === 'SESSAO_INVALIDA_OU_EXPIRADA';
+    return {
+      ok: false,
+      response: corePerfilEnvelopeError_(
+        code,
+        isExpired
+          ? 'Sessao autenticada e ativa obrigatoria.'
+          : 'Nao foi possivel validar a sessao nas bases do ambiente solicitado.',
+        session && session.diagnosticoSeguro || null
+      )
+    };
   }
   return { ok: true, session: session };
 }
@@ -442,6 +527,7 @@ function corePerfilReadSheetSource_(sheet, requiredName) {
       })
     : [];
   return {
+    name: requiredName,
     sheet: sheet,
     headers: headers,
     records: core_readSheetRecords_(sheet, { skipBlankRows: true })
@@ -1101,7 +1187,7 @@ function core_analisarSolicitacaoCadastralPortal_(payload, contexto, options) {
     var auth = corePerfilAuthorizeAdmin_(contexto, deps);
     if (!auth.ok) return auth.response;
     var action = corePerfilNormalizeToken_(payload && (payload.acao || payload.status));
-    if (['EM_ANALISE', 'COMPLEMENTO_SOLICITADO', 'APROVADA', 'INDEFERIDA'].indexOf(action) < 0) throw new Error('ACAO_ANALISE_INVALIDA');
+    if (['EM_ANALISE', 'COMPLEMENTO_SOLICITADO', 'INDEFERIDA'].indexOf(action) < 0) throw new Error('ACAO_ANALISE_INVALIDA');
     var reason = corePerfilRedactSensitiveText_(corePerfilNormalizeTextField_(payload && (payload.motivo || payload.motivoDecisao), 1000, 'MOTIVO_DECISAO_MUITO_LONGO'));
     if (['COMPLEMENTO_SOLICITADO', 'INDEFERIDA'].indexOf(action) >= 0 && reason.length < 10) throw new Error('MOTIVO_DECISAO_OBRIGATORIO');
     if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, statusDestino: action });
@@ -1116,10 +1202,10 @@ function core_analisarSolicitacaoCadastralPortal_(payload, contexto, options) {
       var currentStatus = corePerfilNormalizeToken_(record.STATUS);
       if (currentStatus === action) return corePerfilEnvelopeOk_({ idSolicitacao: record.ID_SOLICITACAO, status: action, idempotente: true });
       var allowedFrom = {
-        PENDENTE: ['EM_ANALISE', 'COMPLEMENTO_SOLICITADO', 'APROVADA', 'INDEFERIDA'],
-        EM_ANALISE: ['COMPLEMENTO_SOLICITADO', 'APROVADA', 'INDEFERIDA'],
-        COMPLEMENTO_SOLICITADO: ['EM_ANALISE', 'APROVADA', 'INDEFERIDA'],
-        ERRO_APLICACAO: ['APROVADA', 'INDEFERIDA']
+        PENDENTE: ['EM_ANALISE', 'COMPLEMENTO_SOLICITADO', 'INDEFERIDA'],
+        EM_ANALISE: ['COMPLEMENTO_SOLICITADO', 'INDEFERIDA'],
+        COMPLEMENTO_SOLICITADO: ['EM_ANALISE', 'INDEFERIDA'],
+        ERRO_APLICACAO: ['INDEFERIDA']
       };
       if (!allowedFrom[currentStatus] || allowedFrom[currentStatus].indexOf(action) < 0) throw new Error('TRANSICAO_STATUS_INVALIDA');
       var now = corePerfilNow_(deps);
@@ -1150,64 +1236,14 @@ function corePerfilRecalculateViews_(idPessoa, deps) {
 }
 
 function core_aplicarSolicitacaoCadastralAprovadaPortal_(payload, contexto, options) {
-  var deps = options && options.deps ? options.deps : {};
-  try {
-    var auth = corePerfilAuthorizeAdmin_(contexto, deps);
-    if (!auth.ok) return auth.response;
-    if (payload && payload.dryRun === true) return corePerfilEnvelopeOk_({ dryRun: true, idSolicitacao: String(payload.idSolicitacao || '') });
-    corePerfilAssertPortalContext_(contexto, deps);
-    return corePerfilWithLock_('PERFIL_APLICAR_SOLICITACAO', function() {
-      var data = corePerfilOpenPessoas_(contexto, deps, {
-        forWrite: true,
-        sources: [CORE_PERFIL_SOLICITACOES_SHEET, 'PESSOAS_BASE', 'MEMBROS_DETALHES']
-      });
-      var requestSource = corePerfilSource_(data, CORE_PERFIL_SOLICITACOES_SHEET);
-      var record = corePerfilFindRequestById_(requestSource, payload && payload.idSolicitacao);
-      if (!record || corePerfilNormalizeToken_(record.TIPO_SOLICITACAO) !== 'CORRECAO_SENSIVEL') throw new Error('SOLICITACAO_NAO_ENCONTRADA');
-      var status = corePerfilNormalizeToken_(record.STATUS);
-      if (status === 'APLICADA') return corePerfilEnvelopeOk_({ idSolicitacao: record.ID_SOLICITACAO, status: 'APLICADA', idempotente: true });
-      if (status !== 'APROVADA') throw new Error('SOLICITACAO_NAO_APROVADA');
-      var field = corePerfilNormalizeToken_(record.CAMPO);
-      try {
-        if (!CORE_PERFIL_SENSITIVE_FIELDS[field]) throw new Error('CAMPO_SENSIVEL_NAO_PERMITIDO');
-        var requested = corePerfilNormalizeSensitiveValue_(field, record.VALOR_SOLICITADO);
-        var current = corePerfilSensitiveCurrent_(data, String(record.ID_PESSOA || '').trim(), field);
-        var currentHash = corePerfilHash_(current.value, deps);
-        if (String(record.VALOR_ATUAL_HASH || '') !== currentHash && String(current.value) !== String(requested)) {
-          throw new Error('VALOR_ATUAL_ALTERADO_INCOMPATIVEL');
-        }
-        if (!corePerfilHasHeader_(current.source, 'ATUALIZADO_EM')) throw new Error('SCHEMA_SEM_ATUALIZADO_EM');
-        var now = corePerfilNow_(deps);
-        var updatedSource = Object.assign({}, current.record);
-        updatedSource[current.cfg.header] = requested;
-        updatedSource.ATUALIZADO_EM = now;
-        corePerfilWriteRecord_(current.source, updatedSource, deps);
-        var viewResult = corePerfilRecalculateViews_(String(record.ID_PESSOA || '').trim(), deps);
-        if (viewResult && viewResult.ok === false) throw new Error('ERRO_RECALCULO_VIEW');
-        var updatedRequest = Object.assign({}, record, {
-          STATUS: 'APLICADA',
-          APLICADO_EM: now,
-          ID_LOG: record.ID_LOG || ('LOG-' + corePerfilHash_(record.ID_SOLICITACAO + '|APLICADA', deps).slice(0, 24).toUpperCase()),
-          ATUALIZADO_EM: now
-        });
-        corePerfilWriteRecord_(requestSource, updatedRequest, deps);
-        corePerfilSafeLog_('ADMIN_APPLY', { ok: true, field: field, status: 'APLICADA', requestId: record.ID_SOLICITACAO });
-        return corePerfilEnvelopeOk_({ idSolicitacao: record.ID_SOLICITACAO, campo: field, status: 'APLICADA', idempotente: false });
-      } catch (applyError) {
-        var failedAt = corePerfilNow_(deps);
-        corePerfilWriteRecord_(requestSource, Object.assign({}, record, {
-          STATUS: 'ERRO_APLICACAO',
-          DECISAO: 'ERRO_APLICACAO',
-          MOTIVO_DECISAO: 'Nao foi possivel aplicar automaticamente. Revise o cadastro e tente novamente.',
-          ATUALIZADO_EM: failedAt
-        }), deps);
-        throw applyError;
-      }
-    }, deps);
-  } catch (err) {
-    corePerfilSafeLog_('ADMIN_APPLY_ERROR', { ok: false, code: err && err.message });
-    return corePerfilEnvelopeError_(err && err.message, 'Nao foi possivel aplicar a solicitacao aprovada.');
-  }
+  return core_aprovarEAplicarSolicitacaoCadastralPortal_(
+    payload || {},
+    contexto || {},
+    {
+      deps: options && options.deps ? options.deps : {},
+      mode: { legacyOnly: true }
+    }
+  );
 }
 
 function corePerfilRegistryRowValues_(headers, values) {
