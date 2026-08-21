@@ -114,6 +114,7 @@ const GEAPA_CORE = Object.freeze({
     pessoasFindByRga: corePessoasFindByRga_,
     pessoasGetOperationalSummary: corePessoasGetOperationalSummary_,
     pessoasListCurrentMembers: corePessoasListCurrentMembers_,
+    pessoasListEffectiveMembers: corePessoasListEffectiveMembers_,
     pessoasListExMembers: corePessoasListExMembers_,
     pessoasListWaitingMembers: corePessoasListWaitingMembers_,
     pessoasListAcademicCollaborators: corePessoasListAcademicCollaborators_,

@@ -57,6 +57,7 @@ var CORE_V2_ROTINAS_PESSOAS_RESUMO_HEADERS = Object.freeze([
   'PERFIL_PORTAL_BASE',
   'PERFIL_PORTAL_CALCULADO',
   'CARGO_FUNCAO_ATUAL',
+  'STATUS_ELEGIBILIDADE_DIRETORIA',
   'ULTIMA_ATUALIZACAO',
   'OBS_RESUMO'
 ]);
@@ -135,6 +136,7 @@ function core_v2RotinasStatus_(value) {
 function core_v2RotinasTipoVinculo_(value) {
   var tipo = core_v2RotinasStatus_(value);
   if (tipo === 'EX_MEMBRO' || tipo === 'EX-MEMBRO' || tipo === 'EX_MEMBROS' || tipo === 'EX MEMBRO') return 'EGRESSO';
+  if (tipo === 'INGRESSANTE' || tipo === 'MEMBRO INGRESSANTE') return 'MEMBRO_INGRESSANTE';
   return tipo;
 }
 
@@ -949,6 +951,7 @@ function core_pessoasV2BuildResumoRows_(data, vigenciasResumoRecords) {
     var tipo = core_v2RotinasTipoVinculo_(vinculo.TIPO_VINCULO);
     var active = core_v2RotinasVinculoAtivo_(vinculo);
     var perfilBase = tipo === 'MEMBRO_EFETIVO' && active ? 'MEMBRO' : '';
+    if (tipo === 'MEMBRO_INGRESSANTE' && active) perfilBase = 'MEMBRO_INGRESSANTE';
     if (tipo === 'MEMBRO_EM_ESPERA' && active) perfilBase = 'MEMBRO_EM_ESPERA';
     if (tipo === 'EGRESSO') perfilBase = 'EGRESSO';
     var perfilVigencia = vigResumo.PERFIL_PORTAL_GERADO || vigResumo.PERFIS_PORTAL_CALCULADOS || '';
@@ -967,8 +970,15 @@ function core_pessoasV2BuildResumoRows_(data, vigenciasResumoRecords) {
       DATA_FIM_VINCULO: vinculo.DATA_FIM || '',
       PORTAL_ATIVO: portalAtivo,
       PERFIL_PORTAL_BASE: perfilBase,
-      PERFIL_PORTAL_CALCULADO: core_v2RotinasJoinDistinct_([perfilBase, perfilVigencia]),
-      CARGO_FUNCAO_ATUAL: vigResumo.OCUPACAO || vigResumo.CARGO_FUNCAO_ATUAL || '',
+      PERFIL_PORTAL_CALCULADO: tipo === 'MEMBRO_INGRESSANTE' && active
+        ? 'MEMBRO_INGRESSANTE'
+        : core_v2RotinasJoinDistinct_([perfilBase, perfilVigencia]),
+      CARGO_FUNCAO_ATUAL: tipo === 'MEMBRO_INGRESSANTE' && active
+        ? 'Membro ingressante'
+        : (vigResumo.OCUPACAO || vigResumo.CARGO_FUNCAO_ATUAL || ''),
+      STATUS_ELEGIBILIDADE_DIRETORIA: tipo === 'MEMBRO_INGRESSANTE'
+        ? 'NAO_ELEGIVEL_INGRESSANTE'
+        : (tipo === 'MEMBRO_EFETIVO' && active ? 'ELEGIVEL' : ''),
       ULTIMA_ATUALIZACAO: now,
       OBS_RESUMO: idPessoa ? '' : 'SEM_ID_PESSOA'
     };
@@ -1024,9 +1034,10 @@ function core_vigenciasV2BuildResumoRows_(data, pessoasData) {
 function core_v2RotinasPickCurrentVinculo_(vinculos) {
   var priority = {
     MEMBRO_EFETIVO_ATIVO: 1,
-    MEMBRO_EM_ESPERA_ATIVO: 2,
-    EGRESSO: 3,
-    OUTRO_ATIVO: 4,
+    MEMBRO_INGRESSANTE_ATIVO: 2,
+    MEMBRO_EM_ESPERA_ATIVO: 3,
+    EGRESSO: 4,
+    OUTRO_ATIVO: 5,
     OUTRO: 9
   };
   return (vinculos || []).slice().sort(function(a, b) {
@@ -1041,6 +1052,7 @@ function core_v2RotinasVinculoRank_(vinculo, priority) {
   var tipo = core_v2RotinasTipoVinculo_(vinculo.TIPO_VINCULO);
   var active = core_v2RotinasVinculoAtivo_(vinculo);
   if (tipo === 'MEMBRO_EFETIVO' && active) return priority.MEMBRO_EFETIVO_ATIVO;
+  if (tipo === 'MEMBRO_INGRESSANTE' && active) return priority.MEMBRO_INGRESSANTE_ATIVO;
   if (tipo === 'MEMBRO_EM_ESPERA' && active) return priority.MEMBRO_EM_ESPERA_ATIVO;
   if (tipo === 'EGRESSO') return priority.EGRESSO;
   if (active) return priority.OUTRO_ATIVO;

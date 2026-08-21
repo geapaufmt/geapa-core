@@ -277,6 +277,10 @@ function corePessoasListCurrentMembers(opts) {
   return corePessoasListCurrentMembers_(opts || {});
 }
 
+function corePessoasListEffectiveMembers(opts) {
+  return corePessoasListEffectiveMembers_(opts || {});
+}
+
 function corePessoasListExMembers(opts) {
   return corePessoasListExMembers_(opts || {});
 }

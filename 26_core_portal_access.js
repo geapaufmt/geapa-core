@@ -342,7 +342,7 @@ function corePortalLinkAllowsMemberAccess_(link) {
   var tipo = corePortalNormalizeToken_(link && link.tipoVinculo);
   var status = corePortalNormalizeToken_(link && link.statusVinculo);
   if (status !== 'ATIVO' && status !== 'ATIVA') return false;
-  return ['MEMBRO_EFETIVO', 'MEMBRO'].indexOf(tipo) >= 0;
+  return ['MEMBRO_INGRESSANTE', 'MEMBRO_EFETIVO', 'MEMBRO'].indexOf(tipo) >= 0;
 }
 
 function corePortalEvaluateAccessMode_(config, email, profileResult, permissions, link) {
@@ -407,6 +407,7 @@ const CORE_PORTAL_V2_REQUIRED_PROFILES = Object.freeze([
   'COMUNICACAO',
   'CONSELHO',
   'MEMBRO',
+  'MEMBRO_INGRESSANTE',
   'EGRESSO',
   'COLABORADOR',
   'EXTERNO',
@@ -421,12 +422,17 @@ const CORE_PORTAL_V2_PROFILE_LEVELS = Object.freeze({
   CONSELHO: 40,
   COLABORADOR: 30,
   MEMBRO: 10,
+  MEMBRO_INGRESSANTE: 8,
   EGRESSO: 5,
   EXTERNO: 2,
   VISITANTE: 1
 });
 
 const CORE_PORTAL_V2_MIN_PERMISSIONS = Object.freeze({
+  MEMBRO_INGRESSANTE: Object.freeze([
+    'portal:acessar',
+    'situacao:ver_propria'
+  ]),
   EGRESSO: Object.freeze([
     'portal:acessar',
     'situacao:ver_propria',
@@ -693,6 +699,9 @@ function corePortalCalcularPerfilEfetivo_(idPessoa, opts) {
     if (link.tipoVinculo === 'MEMBRO_EFETIVO' && link.statusVinculo === 'ATIVO') {
       profiles = ['MEMBRO'];
       origem = 'VINCULO_MEMBRO_EFETIVO';
+    } else if (link.tipoVinculo === 'MEMBRO_INGRESSANTE' && link.statusVinculo === 'ATIVO') {
+      profiles = ['MEMBRO_INGRESSANTE'];
+      origem = 'VINCULO_MEMBRO_INGRESSANTE';
     } else if (link.tipoVinculo === 'EGRESSO' || link.tipoVinculo === 'EX_MEMBRO') {
       profiles = ['EGRESSO'];
       origem = 'VINCULO_EGRESSO';
@@ -713,6 +722,11 @@ function corePortalCalcularPerfilEfetivo_(idPessoa, opts) {
       if (profiles.indexOf(profile) < 0) profiles.push(profile);
     });
   });
+
+  if (link.tipoVinculo === 'MEMBRO_INGRESSANTE' && link.statusVinculo === 'ATIVO') {
+    profiles = ['MEMBRO_INGRESSANTE'];
+    origem = 'VINCULO_MEMBRO_INGRESSANTE';
+  }
 
   var invalidProfiles = profiles.filter(function(profile) {
     return !profileMap[profile];
@@ -747,6 +761,18 @@ function corePortalListarPermissoesEfetivas_(idPessoa, opts) {
       permissoes: Object.freeze([]),
       origemPermissoes: '',
       motivo: profileResult.motivoBloqueio || 'PERFIL_NAO_RESOLVIDO'
+    });
+  }
+
+  if (profileResult.perfilPortalEfetivo === 'MEMBRO_INGRESSANTE') {
+    return Object.freeze({
+      ok: true,
+      idPessoa: profileResult.idPessoa,
+      perfilPortalEfetivo: 'MEMBRO_INGRESSANTE',
+      perfisPortal: Object.freeze(['MEMBRO_INGRESSANTE']),
+      permissoes: Object.freeze(CORE_PORTAL_V2_MIN_PERMISSIONS.MEMBRO_INGRESSANTE.slice()),
+      origemPermissoes: 'MINIMO_MEMBRO_INGRESSANTE',
+      usaCargosConfigComoFonteFinal: false
     });
   }
 
@@ -1290,7 +1316,9 @@ function corePortalDiagnosticarFirestoreUsersDev_(opts) {
   var authorized = {};
   var officialByEmail = {};
   var officialById = {};
+  var totalMembrosAtivos = 0;
   var totalMembrosEfetivosAtivos = 0;
+  var totalMembrosIngressantesAtivos = 0;
   var totalDiretoriaSecretariaAdminTecnico = 0;
   var totalOrientadoresAutorizados = 0;
 
@@ -1321,8 +1349,10 @@ function corePortalDiagnosticarFirestoreUsersDev_(opts) {
     addIndex(officialByEmail, email, item);
     if (!idPessoa || !corePortalIsYes_(row.PORTAL_ATIVO)) return;
     if (!authorized[idPessoa]) authorized[idPessoa] = item;
-    if ((linkType === 'MEMBRO_EFETIVO' || linkType === 'MEMBRO') && (linkStatus === 'ATIVO' || linkStatus === 'ATIVA')) {
-      totalMembrosEfetivosAtivos++;
+    if ((linkStatus === 'ATIVO' || linkStatus === 'ATIVA') && (linkType === 'MEMBRO_INGRESSANTE' || linkType === 'MEMBRO_EFETIVO' || linkType === 'MEMBRO')) {
+      totalMembrosAtivos++;
+      if (linkType === 'MEMBRO_INGRESSANTE') totalMembrosIngressantesAtivos++;
+      else totalMembrosEfetivosAtivos++;
     }
     if (profiles.some(function(value) { return ['DIRETORIA', 'SECRETARIA', 'ADMIN', 'ADMIN_TECNICO'].indexOf(value) >= 0; }) ||
       ['DIRETORIA', 'SECRETARIA', 'ADMIN', 'ADMIN_TECNICO'].indexOf(profile) >= 0) {
@@ -1463,7 +1493,9 @@ function corePortalDiagnosticarFirestoreUsersDev_(opts) {
     status: structurallyReady ? 'PRONTO_PARA_HOMOLOGACAO' : 'REQUER_CORRECAO',
     totalPessoasAutorizadas: totalAuthorized,
     totalUsuariosAutorizados: totalAuthorized,
+    totalMembrosAtivos: totalMembrosAtivos,
     totalMembrosEfetivosAtivos: totalMembrosEfetivosAtivos,
+    totalMembrosIngressantesAtivos: totalMembrosIngressantesAtivos,
     totalDiretoriaSecretariaAdminTecnico: totalDiretoriaSecretariaAdminTecnico,
     totalOrientadoresAutorizados: totalOrientadoresAutorizados,
     totalDocumentosPortalUsers: firestoreDocuments.length,
@@ -1798,6 +1830,15 @@ function corePortalDiagnosticarPerfisEPermissoes_(opts) {
       });
     }
   });
+  (permissionsByProfile.MEMBRO_INGRESSANTE || []).forEach(function(permission) {
+    if (CORE_PORTAL_V2_MIN_PERMISSIONS.MEMBRO_INGRESSANTE.indexOf(permission) < 0) {
+      report.permissoesNaoRecomendadas.push({
+        perfilPortal: 'MEMBRO_INGRESSANTE',
+        permissao: permission,
+        motivo: 'Membro ingressante deve receber somente acesso basico ao proprio perfil e situacao.'
+      });
+    }
+  });
 
   var pessoasReport = core_domainsV2AuditNewReport_('PORTAL_DIAGNOSTICO_PESSOAS_V2');
   var pessoasData = core_domainsV2OpenPessoas_(pessoasReport);
@@ -1875,7 +1916,7 @@ function corePortalDiagnosticarAcessoPortalDev_(opts) {
     var tipo = corePortalNormalizeToken_(corePortalGetRecordValue_(record, ['TIPO_VINCULO_ATUAL', 'TIPO_VINCULO']));
     var status = corePortalNormalizeToken_(corePortalGetRecordValue_(record, ['STATUS_VINCULO_ATUAL', 'STATUS_VINCULO', 'STATUS']));
     var profile = corePortalNormalizeToken_(corePortalGetRecordValue_(record, ['PERFIL_PORTAL_CALCULADO', 'PERFIL_PORTAL_BASE', 'PERFIL_PORTAL']));
-    var activeMember = ['MEMBRO_EFETIVO', 'MEMBRO'].indexOf(tipo) >= 0 && ['ATIVO', 'ATIVA'].indexOf(status) >= 0;
+    var activeMember = ['MEMBRO_INGRESSANTE', 'MEMBRO_EFETIVO', 'MEMBRO'].indexOf(tipo) >= 0 && ['ATIVO', 'ATIVA'].indexOf(status) >= 0;
     if (!activeMember) return;
 
     totais.totalMembrosAtivos++;

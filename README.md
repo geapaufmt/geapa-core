@@ -355,6 +355,7 @@ Funcoes publicas:
 - `corePessoasFindByRga(rga)`
 - `corePessoasGetOperationalSummary(idPessoa)`
 - `corePessoasListCurrentMembers(opts)`
+- `corePessoasListEffectiveMembers(opts)`
 - `corePessoasListExMembers(opts)`
 - `corePessoasListWaitingMembers(opts)`
 - `corePessoasListAcademicCollaborators(opts)`

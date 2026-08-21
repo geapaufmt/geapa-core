@@ -103,6 +103,7 @@ function core_domainsV2AuditStatus_(value) {
 function core_domainsV2AuditTipoVinculo_(value) {
   var tipo = core_domainsV2AuditStatus_(value);
   if (tipo === 'EX_MEMBRO' || tipo === 'EX-MEMBRO' || tipo === 'EX MEMBRO') return 'EGRESSO';
+  if (tipo === 'INGRESSANTE' || tipo === 'MEMBRO INGRESSANTE') return 'MEMBRO_INGRESSANTE';
   return tipo;
 }
 
@@ -324,8 +325,8 @@ function coreAuditarPessoasV2_(options) {
     if (!idPessoa || !pessoasById[idPessoa]) {
       core_domainsV2AuditIssue_(report, 'ERRO', 'VINCULO_SEM_PESSOA', 'Vinculo sem pessoa existente em PESSOAS_BASE.', { idPessoa: idPessoa, row: record.__rowNumber });
     }
-    if (tipo === 'MEMBRO_EFETIVO' && !detalhesByPessoa[idPessoa]) {
-      core_domainsV2AuditIssue_(report, 'ERRO', 'MEMBRO_EFETIVO_SEM_DETALHES', 'Membro efetivo sem MEMBROS_DETALHES.', { idPessoa: idPessoa });
+    if ((tipo === 'MEMBRO_EFETIVO' || tipo === 'MEMBRO_INGRESSANTE') && !detalhesByPessoa[idPessoa]) {
+      core_domainsV2AuditIssue_(report, 'ERRO', tipo + '_SEM_DETALHES', 'Membro atual sem MEMBROS_DETALHES.', { idPessoa: idPessoa, tipoVinculo: tipo });
     }
     if (tipo === 'MEMBRO_EM_ESPERA' && status && status !== 'EM_ESPERA') {
       core_domainsV2AuditIssue_(report, 'AVISO', 'MEMBRO_ESPERA_STATUS_INCOMPATIVEL', 'Membro em espera com status diferente de EM_ESPERA.', { idPessoa: idPessoa, status: record.STATUS_VINCULO });
@@ -333,16 +334,16 @@ function coreAuditarPessoasV2_(options) {
     if (tipo === 'EGRESSO' && !ativo) {
       core_domainsV2AuditIssue_(report, 'AVISO', 'EGRESSO_INATIVO', 'Egresso com ATIVO diferente de SIM; revisar se representa estado atual da pessoa.', { idPessoa: idPessoa, status: record.STATUS_VINCULO, ativo: record.ATIVO });
     }
-    if (tipo === 'MEMBRO_EFETIVO') {
+    if (tipo === 'MEMBRO_EFETIVO' || tipo === 'MEMBRO_INGRESSANTE') {
       var hasRga = detalhesByPessoa[idPessoa] && detalhesByPessoa[idPessoa].some(function(detalhe) {
         return String(detalhe.RGA || '').trim();
       });
       if (!hasRga) {
-        core_domainsV2AuditIssue_(report, 'ERRO', 'MEMBRO_EFETIVO_SEM_RGA', 'Membro efetivo sem RGA em MEMBROS_DETALHES.', { idPessoa: idPessoa });
+        core_domainsV2AuditIssue_(report, 'ERRO', tipo + '_SEM_RGA', 'Membro atual sem RGA em MEMBROS_DETALHES.', { idPessoa: idPessoa, tipoVinculo: tipo });
       }
       var pessoaBase = pessoasById[idPessoa] ? pessoasById[idPessoa][0] : null;
       if ((status === 'ATIVO' || ativo) && pessoaBase && !core_domainsV2AuditEmail_(pessoaBase.EMAIL_PRINCIPAL)) {
-        core_domainsV2AuditIssue_(report, 'AVISO', 'MEMBRO_EFETIVO_ATIVO_SEM_EMAIL', 'Membro efetivo ativo sem e-mail principal.', { idPessoa: idPessoa });
+        core_domainsV2AuditIssue_(report, 'AVISO', tipo + '_ATIVO_SEM_EMAIL', 'Membro atual ativo sem e-mail principal.', { idPessoa: idPessoa, tipoVinculo: tipo });
       }
       if ((status === 'ATIVO' || ativo) && pessoaBase && !core_domainsV2AuditIsSim_(pessoaBase.ATIVO)) {
         core_domainsV2AuditIssue_(report, 'AVISO', 'VINCULO_ATIVO_COM_PESSOA_INATIVA', 'Vinculo ativo aponta para pessoa com ATIVO diferente de SIM.', { idPessoa: idPessoa, ativoPessoa: pessoaBase.ATIVO });

@@ -116,7 +116,7 @@ APIs publicas base que devem permanecer como contrato minimo:
 - `coreModuleStatusGet`, `coreModuleStatusMarkExecution`, `coreModuleStatusMarkSuccess`, `coreModuleStatusMarkError`, `coreModuleStatusMarkBlocked`.
 - `corePessoasGetById`, `corePessoasFindByEmail`, `corePessoasFindByRga`.
 - `corePessoasGetOperationalSummary`.
-- `corePessoasListCurrentMembers`, `corePessoasListExMembers`, `corePessoasListWaitingMembers`.
+- `corePessoasListCurrentMembers`, `corePessoasListEffectiveMembers`, `corePessoasListExMembers`, `corePessoasListWaitingMembers`.
 - `corePessoasListAcademicCollaborators`, `corePessoasListExternalParticipants`.
 - `coreVigenciasGetCurrentFunctionByPessoa`, `coreVigenciasListCurrentFunctions`, `coreVigenciasGetPortalPermissionsByPessoa`.
 - `coreSendEmailText`, `coreSendEmailHtml`, `coreSendTrackedEmail` ou equivalente oficial `coreEnviarEmailPadrao` se o nome for padronizado futuramente.
@@ -394,6 +394,7 @@ Nao responsavel por:
 - `corePessoasFindByRga(rga)`.
 - `corePessoasGetOperationalSummary(idPessoa)`.
 - `corePessoasListCurrentMembers(opts)`.
+- `corePessoasListEffectiveMembers(opts)`.
 - `corePessoasListExMembers(opts)`.
 - `corePessoasListWaitingMembers(opts)`.
 - `corePessoasListAcademicCollaborators(opts)`.
