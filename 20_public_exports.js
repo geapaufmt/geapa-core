@@ -631,11 +631,6 @@ function geapaCoreAplicarSolicitacaoCadastralAprovadaPortal(payload, contexto) {
   return core_aplicarSolicitacaoCadastralAprovadaPortal_(payload || {}, contexto || {});
 }
 
-/** Diagnostica por padrao uma reparacao PROD; escrita exige token especifico e nunca e automatica. */
-function geapaCoreDiagnosticarReparacaoSolicitacaoCadastralProd(options) {
-  return core_diagnosticarReparacaoSolicitacaoCadastralProd_(options || {});
-}
-
 /** Setup idempotente e protegido da base DEV usada pelo projeto HOMOLOG. */
 function geapaCoreSetupSolicitacoesAtualizacaoCadastralDev(options) {
   return core_setupSolicitacoesAtualizacaoCadastralDev_(options || {});

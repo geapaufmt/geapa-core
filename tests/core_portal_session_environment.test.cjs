@@ -101,6 +101,7 @@ const operationalSource = fs.readFileSync(path.join(root, '31_core_domains_v2_op
 assert.match(membersSource, /opts\.sessao\s*\|\|\s*opts\.session/);
 assert.match(membersSource, /allowLegacyFallback === false/);
 assert.match(exportsSource, /geapaCoreBuscarMinhaSituacaoParaPortal\(emailOuRga, options\)/);
+assert.doesNotMatch(exportsSource, /geapaCoreDiagnosticarReparacaoSolicitacaoCadastralProd/);
 assert.match(portalSource, /corePortalReadRegistryRecordsForEnv_/);
 assert.match(portalSource, /portalConfigCacheKey \+ ':' \+ corePortalResolveEnvironment_/);
 assert.match(operationalSource, /pageItems = filtered\.slice\(start, start \+ normalizedFilters\.pageSize\)/);

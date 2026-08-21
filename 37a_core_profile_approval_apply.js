@@ -8,7 +8,6 @@
  *   que o reconheca como identificador em PESSOAS_IDENTIFICADORES.
  */
 
-var CORE_PERFIL_REPAIR_CONFIRMATION_PREFIX = 'REPARAR_SOLICITACAO_CADASTRAL_PROD_';
 var CORE_PERFIL_APPLY_SOURCES = Object.freeze([
   CORE_PERFIL_SOLICITACOES_SHEET,
   'PESSOAS_BASE',
@@ -462,7 +461,6 @@ function corePerfilRepairReport_(idSolicitacao, data, deps) {
   }
   var hashCompatible = String(record.VALOR_ATUAL_HASH || '') === corePerfilHash_(current.value, deps) ||
     String(current.value) === String(requested);
-  var token = CORE_PERFIL_REPAIR_CONFIRMATION_PREFIX + String(idSolicitacao || '').trim();
   return {
     ok: true,
     environment: 'PROD',
@@ -496,7 +494,7 @@ function corePerfilRepairReport_(idSolicitacao, data, deps) {
     ].filter(String),
     cachesAInvalidar: ['EMAIL_ANTIGO', 'EMAIL_NOVO', 'ID_PESSOA', 'SESSAO', 'MINHA_SITUACAO'],
     riscoConflito: duplicates.length ? 'BLOQUEANTE' : (hashCompatible ? 'BAIXO' : 'VALOR_ATUAL_ALTERADO_INCOMPATIVEL'),
-    tokenConfirmacao: token,
+    mutacaoDisponivel: false,
     escritaExecutada: false,
     idempotente: true
   };
@@ -506,27 +504,14 @@ function core_diagnosticarReparacaoSolicitacaoCadastralProd_(options) {
   var opts = options || {};
   var id = String(opts.idSolicitacao || '').trim();
   if (!id) throw new Error('ID_SOLICITACAO_OBRIGATORIO');
-  var dryRun = opts.dryRun !== false;
-  var expected = CORE_PERFIL_REPAIR_CONFIRMATION_PREFIX + id;
-  if (!dryRun && String(opts.confirmacao || '').trim() !== expected) {
-    throw new Error('CONFIRMACAO_REPARACAO_PROD_INVALIDA');
-  }
+  if (opts.dryRun === false) throw new Error('REPARACAO_PROD_MUTACAO_NAO_EXPOSTA');
   var contexto = { ambientePortal: 'PROD' };
   var deps = opts.deps || {};
   deps.environment = 'PROD';
   var data = corePerfilOpenPessoas_(contexto, deps, {
-    forWrite: !dryRun,
+    forWrite: false,
     sources: CORE_PERFIL_APPLY_SOURCES
   });
   var report = corePerfilRepairReport_(id, data, deps);
-  if (dryRun) return Object.freeze(report);
-  return corePerfilWithLock_('PERFIL_REPARAR_PROD_' + id, function() {
-    return corePerfilExecuteApprovalApply_(
-      { idSolicitacao: id, motivo: 'Reparacao operacional de solicitacao legada aprovada.' },
-      contexto,
-      { session: { email: 'REPARACAO_OPERACIONAL_PROD', idPessoa: 'SISTEMA' } },
-      deps,
-      { legacyOnly: true, repair: true }
-    );
-  }, deps);
+  return Object.freeze(report);
 }

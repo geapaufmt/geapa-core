@@ -348,6 +348,23 @@ function corePerfilTestRunAll_() {
     corePerfilTestAssert_(opened.indexOf('PESSOAS_BASE') >= 0 && opened.indexOf(CORE_PERFIL_SOLICITACOES_SHEET) >= 0, 'telefone nao abriu base e fila');
   });
 
+  test('31_reparacao_prod_interna_nao_aceita_mutacao', function() {
+    var fx = corePerfilTestFixture_(['portal:acessar', CORE_PERFIL_ADMIN_PERMISSION], 'PROD');
+    var refused = false;
+    try {
+      core_diagnosticarReparacaoSolicitacaoCadastralProd_({
+        idSolicitacao: 'SAC-LEGADA-1',
+        dryRun: false,
+        confirmacao: 'REPARAR_SOLICITACAO_CADASTRAL_PROD_SAC-LEGADA-1',
+        deps: fx.deps
+      });
+    } catch (error) {
+      refused = error && error.message === 'REPARACAO_PROD_MUTACAO_NAO_EXPOSTA';
+    }
+    corePerfilTestAssert_(refused, 'diagnostico interno permitiu tentativa de mutacao PROD');
+    corePerfilTestAssert_(fx.counters.writes === 0 && fx.counters.appends === 0, 'tentativa recusada escreveu em fonte de dados');
+  });
+
   return Object.freeze({ ok: true, total: results.length, resultados: Object.freeze(results) });
 }
 
