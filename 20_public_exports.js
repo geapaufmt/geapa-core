@@ -616,14 +616,24 @@ function geapaCoreDetalharSolicitacaoCadastralAdministracaoPortal(payload, conte
   return core_detalharSolicitacaoCadastralAdministracaoPortal_(payload || {}, contexto || {});
 }
 
-/** Registra a decisao administrativa; aprovacao nao aplica automaticamente. */
+/** Registra somente estados administrativos que nao aplicam alteracoes. */
 function geapaCoreAnalisarSolicitacaoCadastralPortal(payload, contexto) {
   return core_analisarSolicitacaoCadastralPortal_(payload || {}, contexto || {});
 }
 
-/** Aplica explicitamente uma solicitacao previamente aprovada. */
+/** Aprova e aplica a correcao sensivel em uma unica operacao coordenada. */
+function geapaCoreAprovarEAplicarSolicitacaoCadastralPortal(payload, contexto) {
+  return core_aprovarEAplicarSolicitacaoCadastralPortal_(payload || {}, contexto || {});
+}
+
+/** Alias protegido para solicitacoes legadas previamente aprovadas. */
 function geapaCoreAplicarSolicitacaoCadastralAprovadaPortal(payload, contexto) {
   return core_aplicarSolicitacaoCadastralAprovadaPortal_(payload || {}, contexto || {});
+}
+
+/** Diagnostica por padrao uma reparacao PROD; escrita exige token especifico e nunca e automatica. */
+function geapaCoreDiagnosticarReparacaoSolicitacaoCadastralProd(options) {
+  return core_diagnosticarReparacaoSolicitacaoCadastralProd_(options || {});
 }
 
 /** Setup idempotente e protegido da base DEV usada pelo projeto HOMOLOG. */
