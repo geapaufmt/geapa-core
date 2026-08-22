@@ -20,6 +20,16 @@ A estimativa nao considera trancamentos, reprovacoes, aproveitamentos ou alterac
 
 `STATUS_COMPLETUDE_CADASTRAL` usa regra deterministica (`PENDENTE`, `PARCIAL` ou `COMPLETO`) e nao bloqueia o Portal. Nao e exibido percentual enquanto nao houver regra institucional documentada.
 
+## Identificadores tecnicos
+
+Novas pessoas usam `ID_PESSOA` sequencial no formato `PES-000001`. A alocacao
+considera o maior ID numerico existente e IDs ja reservados na fila de ingresso,
+sempre dentro do mesmo lock da admissao. A faixa `PES-900000+` e tratada como
+reservada e nao avanca a sequencia regular. Identificadores antigos fora desse
+padrao nao participam do calculo da sequencia e nao devem ser renomeados em uma
+unica aba: qualquer saneamento precisa atualizar todas as referencias V2 de
+forma coordenada e previamente auditada.
+
 ## Setup DEV/HOMOLOG
 
 Funcao publica:

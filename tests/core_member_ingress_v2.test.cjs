@@ -83,6 +83,32 @@ test('API publica separa lista de membros atuais da lista apenas de efetivos', (
   assert.match(exportsSource, /function corePessoasListEffectiveMembers/);
 });
 
+test('busca administrativa reconhece ID e as novas categorias de membro', () => {
+  const item = domain.core_pessoasAdminPortalMapRow_({
+    ID_PESSOA: 'PES-000096', NOME_EXIBICAO: 'Pessoa Ingressante', RGA: '20260096',
+    EMAIL: 'ingressante@example.invalid', TIPO_VINCULO_ATUAL: 'MEMBRO_INGRESSANTE',
+    STATUS_VINCULO_ATUAL: 'ATIVO', PERFIL_PORTAL_CALCULADO: 'MEMBRO_INGRESSANTE',
+    FREQUENCIA_RESUMIDA: ''
+  });
+  assert.equal(domain.core_pessoasAdminPortalMatches_(item, domain.core_pessoasAdminPortalFilters_({ texto: 'PES-000096' })), true);
+  assert.equal(domain.core_pessoasAdminPortalMatches_(item, domain.core_pessoasAdminPortalFilters_({ tipoVinculo: 'MEMBRO_INGRESSANTE' })), true);
+  assert.equal(item.situacaoFrequencia, 'SEM_DADOS');
+});
+
+test('filtro de perfil encontra perfil dentro de combinacao e frequencia usa categorias', () => {
+  const item = domain.core_pessoasAdminPortalMapRow_({
+    ID_PESSOA: 'PES-000095', TIPO_VINCULO_ATUAL: 'MEMBRO_EFETIVO', STATUS_VINCULO_ATUAL: 'ATIVO',
+    PERFIL_PORTAL_CALCULADO: 'DIRETORIA; ADMIN', FREQUENCIA_RESUMIDA: 'Frequencia 80%; Situacao REGULAR'
+  });
+  assert.equal(domain.core_pessoasAdminPortalMatches_(item, domain.core_pessoasAdminPortalFilters_({ perfilPortal: 'DIRETORIA' })), true);
+  assert.equal(domain.core_pessoasAdminPortalMatches_(item, domain.core_pessoasAdminPortalFilters_({ situacaoFrequencia: 'REGULAR' })), true);
+  const options = domain.core_pessoasAdminPortalFilterOptions_([item]);
+  assert.equal(Array.from(options.perfisPortal).includes('DIRETORIA'), true);
+  assert.equal(Array.from(options.perfisPortal).includes('DIRETORIA; ADMIN'), false);
+  assert.equal(Array.from(options.tiposVinculo).includes('MEMBRO_INGRESSANTE'), true);
+  assert.deepEqual(Array.from(options.frequencias), ['REGULAR', 'COM_FALTAS', 'SEM_DADOS']);
+});
+
 let failures = 0;
 for (const item of tests) {
   try { item.fn(); process.stdout.write(`ok - ${item.name}\n`); }

@@ -430,6 +430,20 @@ function core_pessoasAdminPortalIsMember_(record) {
   return tipo === 'MEMBRO' || tipo.indexOf('MEMBRO_') === 0;
 }
 
+/** Separa perfis compostos sem transformar combinacoes em uma opcao artificial. */
+function core_pessoasAdminPortalTokens_(value) {
+  return String(value || '').split(/[;,|]+/).map(core_pessoasAdminPortalNormalize_).filter(Boolean);
+}
+
+/** Reduz o resumo textual de frequencia a uma categoria pesquisavel estavel. */
+function core_pessoasAdminPortalFrequencyCategory_(value) {
+  var normalized = core_pessoasAdminPortalNormalize_(value);
+  if (!normalized) return 'SEM_DADOS';
+  if (normalized.indexOf('COM_FALTAS') >= 0 || normalized.indexOf('COM FALTAS') >= 0) return 'COM_FALTAS';
+  if (normalized.indexOf('REGULAR') >= 0) return 'REGULAR';
+  return 'OUTRA';
+}
+
 /** Indica se o resumo registra alguma pendencia operacional aberta. */
 function core_pessoasAdminPortalHasPending_(value) {
   var normalized = core_pessoasAdminPortalNormalize_(value);
@@ -454,6 +468,7 @@ function core_pessoasAdminPortalMapRow_(record) {
     qtdApresentacoesRealizadas: core_pessoasAdminPortalNumber_(source.QTD_APRESENTACOES_REALIZADAS),
     cicloUltimaApresentacao: String(source.CICLO_ULTIMA_APRESENTACAO || '').trim(),
     frequenciaResumida: String(source.FREQUENCIA_RESUMIDA || '').trim(),
+    situacaoFrequencia: core_pessoasAdminPortalFrequencyCategory_(source.FREQUENCIA_RESUMIDA),
     pendenciasAbertas: String(source.PENDENCIAS_ABERTAS || '').trim(),
     flagJaFoiSuspenso: String(source.FLAG_JA_FOI_SUSPENSO || '').trim(),
     statusElegibilidadeDiretoria: String(source.STATUS_ELEGIBILIDADE_DIRETORIA || '').trim(),
@@ -481,27 +496,34 @@ function core_pessoasAdminPortalFilters_(filters) {
 /** Aplica os filtros homologados sem recalcular qualquer indicador operacional. */
 function core_pessoasAdminPortalMatches_(item, filters) {
   if (filters.texto) {
-    var haystack = core_pessoasAdminPortalNormalize_([item.nomeExibicao, item.rga, item.email].join(' '));
+    var haystack = core_pessoasAdminPortalNormalize_([
+      item.idPessoa, item.nomeExibicao, item.rga, item.email, item.tipoVinculoAtual,
+      item.statusVinculoAtual, item.cargoFuncaoAtual, item.perfilPortalCalculado
+    ].join(' '));
     if (haystack.indexOf(filters.texto) < 0) return false;
   }
   if (filters.tipoVinculo && core_pessoasAdminPortalNormalize_(item.tipoVinculoAtual) !== filters.tipoVinculo) return false;
   if (filters.statusVinculo && core_pessoasAdminPortalNormalize_(item.statusVinculoAtual) !== filters.statusVinculo) return false;
-  if (filters.perfilPortal && core_pessoasAdminPortalNormalize_(item.perfilPortalCalculado) !== filters.perfilPortal) return false;
+  if (filters.perfilPortal && core_pessoasAdminPortalTokens_(item.perfilPortalCalculado).indexOf(filters.perfilPortal) < 0) return false;
   if (filters.portalAtivo !== null && item.portalAtivo !== filters.portalAtivo) return false;
   if (filters.comPendencias !== null && core_pessoasAdminPortalHasPending_(item.pendenciasAbertas) !== filters.comPendencias) return false;
   if (filters.situacaoFrequencia) {
-    var frequency = core_pessoasAdminPortalNormalize_(item.frequenciaResumida);
-    if (filters.situacaoFrequencia === 'SEM_DADOS' && frequency) return false;
-    if (filters.situacaoFrequencia !== 'SEM_DADOS' && frequency.indexOf(filters.situacaoFrequencia) < 0) return false;
+    if (core_pessoasAdminPortalFrequencyCategory_(item.frequenciaResumida) !== filters.situacaoFrequencia) return false;
   }
   return true;
 }
 
 /** Extrai opcoes de filtro nao sensiveis a partir da colecao completa de membros. */
 function core_pessoasAdminPortalFilterOptions_(items) {
-  function distinct(field) {
+  function distinct(field, initial, splitTokens) {
     var seen = {};
-    return (items || []).map(function(item) { return String(item[field] || '').trim(); }).filter(function(value) {
+    var values = (initial || []).slice();
+    (items || []).forEach(function(item) {
+      var raw = String(item[field] || '').trim();
+      if (splitTokens) values = values.concat(core_pessoasAdminPortalTokens_(raw));
+      else values.push(raw);
+    });
+    return values.filter(function(value) {
       var key = core_pessoasAdminPortalNormalize_(value);
       if (!value || seen[key]) return false;
       seen[key] = true;
@@ -509,10 +531,10 @@ function core_pessoasAdminPortalFilterOptions_(items) {
     }).sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
   }
   return Object.freeze({
-    tiposVinculo: Object.freeze(distinct('tipoVinculoAtual')),
-    statusVinculo: Object.freeze(distinct('statusVinculoAtual')),
-    perfisPortal: Object.freeze(distinct('perfilPortalCalculado')),
-    frequencias: Object.freeze(distinct('frequenciaResumida'))
+    tiposVinculo: Object.freeze(distinct('tipoVinculoAtual', ['MEMBRO_INGRESSANTE', 'MEMBRO_EFETIVO', 'MEMBRO_EM_ESPERA'])),
+    statusVinculo: Object.freeze(distinct('statusVinculoAtual', ['ATIVO', 'SUSPENSO', 'DESLIGADO', 'ENCERRADO'])),
+    perfisPortal: Object.freeze(distinct('perfilPortalCalculado', ['MEMBRO_INGRESSANTE'], true)),
+    frequencias: Object.freeze(['REGULAR', 'COM_FALTAS', 'SEM_DADOS'])
   });
 }
 
