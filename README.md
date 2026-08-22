@@ -1648,12 +1648,13 @@ Fluxo manual sugerido para validar o Mail Hub:
 
 O GEAPA-CORE pode gerar snapshots seguros para `portalUsers/{uid}` usando PESSOAS v2 como fonte oficial. O Firestore e apenas cache operacional do Portal: o documento contem identidade minima, perfil/permissoes calculados no backend e os controles `ativo`, `podeAcessarPortal`, `podeLerDadosPrivados` e `stale`. RGA, CPF, telefone, tokens, frequencia e justificativas nao fazem parte desse snapshot. O provisionamento automatico ocorre somente depois da validacao do Firebase ID token e da autorizacao oficial; pessoas que nunca autenticaram ficam como `AGUARDANDO_PRIMEIRO_LOGIN_FIREBASE` no diagnostico.
 
-Funcoes principais: `corePortalGerarSnapshotFirestoreUsuario`, `corePortalSincronizarUsuarioFirestore`, `corePortalInvalidarCacheFirestoreUsuario`, `corePortalSyncFirestoreUserByEmail`, `corePortalSyncFirestoreUserByIdPessoa` e `corePortalSyncFirestoreUsersFromPessoasV2`. A escrita atual usa Apps Script + Firestore REST no plano Spark, configurada por Script Properties (`GEAPA_CORE_FIRESTORE_PROJECT_ID` e opcionalmente `GEAPA_CORE_FIRESTORE_DATABASE_ID`), sem Cloud Functions, Secret Manager, service account ou segredo no repositorio.
+Funcoes principais: `corePortalGerarSnapshotFirestoreUsuario`, `corePortalSincronizarUsuarioFirestore`, `corePortalInvalidarCacheFirestoreUsuario`, `corePortalSyncFirestoreUserByEmail`, `corePortalSyncFirestoreUserByIdPessoa` e `corePortalSyncFirestoreUsersFromPessoasV2`. A API nova usa Apps Script + Firestore REST com ambiente obrigatorio e projetos separados, configurados por `GEAPA_CORE_FIRESTORE_DEV_PROJECT_ID`/`GEAPA_CORE_FIRESTORE_DEV_DATABASE_ID` e `GEAPA_CORE_FIRESTORE_PROD_PROJECT_ID`/`GEAPA_CORE_FIRESTORE_PROD_DATABASE_ID`. As propriedades antigas sem ambiente permanecem somente para compatibilidade do cliente legado e nao sao fallback. Escritas PROD pelas APIs com ambiente estao bloqueadas nesta fase.
 
 O transporte REST compartilhado fica em `24_core_firestore_rest.js` e tambem
 expoe `coreFirestoreSetDocument`, `coreFirestoreGetDocument`,
 `coreFirestoreListDocuments`, `coreFirestoreDeleteDocument`,
 `coreFirestoreBatchSetDocuments` e `coreFirestoreDiagnosticar`. Essas funcoes
-usam `dryRun: true` por padrao e suportam os read models de Atividades sem
-transformar o Firestore em fonte oficial. Consulte
-`docs/firestore-read-models-atividades.md`.
+usam `dryRun: true` por padrao e permanecem apenas para compatibilidade dos
+read models antigos. Consulte `docs/firestore-read-models-atividades.md`.
+
+Para codigo migrado, use apenas `coreFirestoreEnvironmentGetDocument`, `coreFirestoreEnvironmentListDocuments`, `coreFirestoreEnvironmentSetDocument`, `coreFirestoreEnvironmentBatchSetDocuments` e `coreFirestoreEnvironmentDeleteDocument`, sempre com `ambiente` explicito. DEV e PROD iguais, ambiente ausente e projeto ausente resultam em erro; os caminhos ficam na raiz do projeto, sem namespace.

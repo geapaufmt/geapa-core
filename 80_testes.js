@@ -1080,12 +1080,16 @@ function test_core_portalFirestore_syncUsuarioEmailConfigurado() {
   if (!String(uid || '').trim()) {
     throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_FIRESTORE_UID com o uid Firebase desse usuario.');
   }
+  if (props.getProperty('GEAPA_CORE_PORTAL_TESTE_FIRESTORE_DEV_WRITE_AUTHORIZED') !== 'SIM') {
+    throw new Error('Write remoto DEV nao autorizado. Configure GEAPA_CORE_PORTAL_TESTE_FIRESTORE_DEV_WRITE_AUTHORIZED=SIM somente apos aprovacao explicita.');
+  }
 
   var resultado = corePortalProvisionarFirestoreUserAutenticado({
     uid: uid,
     email: email,
     emailVerified: true
   }, {
+    ambiente: 'DEV',
     uid: uid,
     identityVerified: true,
     dryRun: false
@@ -1143,7 +1147,7 @@ function test_core_portalFirestore_lerSnapshotUidConfigurado() {
     throw new Error('Configure GEAPA_CORE_PORTAL_TESTE_FIRESTORE_UID com o uid Firebase desse usuario.');
   }
 
-  var resultado = corePortalReadFirestoreUserSnapshotByUid_(uid);
+  var resultado = corePortalReadFirestoreUserSnapshotByUid_(uid, { ambiente: 'DEV' });
   Logger.log(JSON.stringify(resultado, null, 2));
   var detalheErro = resultado.firestoreError
     ? ' Detalhe Firestore: ' + JSON.stringify(resultado.firestoreError)

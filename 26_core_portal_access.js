@@ -1043,7 +1043,7 @@ function corePortalReadFirestoreUserSnapshotByUid_(uid, opts) {
     return Object.freeze({ ok: false, found: false, code: 'UID_FIREBASE_AUSENTE' });
   }
 
-  var response = coreFirestoreGetDocument_('portalUsers/' + id, opts);
+  var response = coreFirestoreEnvironmentGetDocument_('portalUsers/' + id, opts);
   var result = {
     ok: response.ok,
     found: response.found,
@@ -1054,6 +1054,9 @@ function corePortalReadFirestoreUserSnapshotByUid_(uid, opts) {
   if (response.found) result.snapshot = response.data;
   if (response.firestoreError) result.firestoreError = response.firestoreError;
   return Object.freeze(result);
+}
+function corePortalFirestoreEnvironment_(opts) {
+  return coreFirestoreNormalizeEnvironment_(opts && (opts.ambiente || opts.environment));
 }
 function corePortalPostFirestoreUserSnapshot_(snapshot, opts) {
   opts = opts || {};
@@ -1070,11 +1073,11 @@ function corePortalPostFirestoreUserSnapshot_(snapshot, opts) {
     });
   }
 
-  var response = coreFirestoreSetDocument_('portalUsers/' + snapshot.uid, snapshot, Object.assign({}, opts, {
+  var response = coreFirestoreEnvironmentSetDocument_('portalUsers/' + snapshot.uid, snapshot, Object.assign({}, opts, {
     dryRun: opts.dryRun === true
   }));
   var result = {
-    ok: response.code === 'FIRESTORE_PROJECT_ID_NAO_CONFIGURADO' ? true : response.ok,
+    ok: response.ok,
     synced: response.written === true,
     writer: 'APPS_SCRIPT_FIRESTORE_REST',
     code: response.code === 'FIRESTORE_SET_OK'
@@ -1089,6 +1092,8 @@ function corePortalPostFirestoreUserSnapshot_(snapshot, opts) {
 }
 function corePortalSincronizarUsuarioFirestore_(entrada, opts) {
   opts = opts || {};
+  var environment = corePortalFirestoreEnvironment_(opts);
+  opts = Object.assign({}, opts, { ambiente: environment, environment: environment });
   var entradaObj = entrada && typeof entrada === 'object' ? entrada : {};
   var uid = String(opts.uid || entradaObj.uid || entradaObj.firebaseUid || '').trim();
   var existingSnapshot = opts.existingSnapshot || null;
@@ -1118,6 +1123,7 @@ function corePortalProvisionarFirestoreUserAutenticado_(firebaseIdentity, opts) 
   if (identity.emailVerified !== true) {
     return Object.freeze({ ok: false, synced: false, code: 'FIREBASE_EMAIL_NAO_VERIFICADO' });
   }
+  corePortalFirestoreEnvironment_(opts);
 
   var session = opts.sessao || corePortalResolverUsuarioAtual_({ email: email }, opts);
   var sessionEmail = corePortalNormalizeEmail_(session && session.email || '');
@@ -1137,6 +1143,7 @@ function corePortalProvisionarFirestoreUserAutenticado_(firebaseIdentity, opts) 
 
 function corePortalMarcarFirestoreUserInativoPorUid_(uid, opts) {
   opts = opts || {};
+  corePortalFirestoreEnvironment_(opts);
   var id = String(uid || '').trim();
   if (opts.identityVerified !== true) {
     return Object.freeze({ ok: false, synced: false, code: 'IDENTIDADE_FIREBASE_NAO_VERIFICADA' });
@@ -1184,6 +1191,7 @@ function corePortalSyncFirestoreUserByIdPessoa_(idPessoa, opts) {
 
 function corePortalInvalidarCacheFirestoreUsuario_(idPessoaOuEmail, opts) {
   opts = opts || {};
+  corePortalFirestoreEnvironment_(opts);
   var chave = String(idPessoaOuEmail || '').trim();
   var entrada = opts.entrada || {};
   if (chave) {
@@ -1215,8 +1223,10 @@ function corePortalInvalidarCacheFirestoreUsuario_(idPessoaOuEmail, opts) {
 
 function corePortalSyncFirestoreUsersFromPessoasV2_(opts) {
   opts = opts || {};
+  var environment = corePortalFirestoreEnvironment_(opts);
+  opts = Object.assign({}, opts, { ambiente: environment, environment: environment });
   var report = core_domainsV2NewReadReport_('PORTAL_FIRESTORE_USERS_SYNC');
-  var pessoasData = core_domainsV2OpenPessoas_(report);
+  var pessoasData = core_domainsV2OpenPessoas_(report, { ambiente: environment });
   if (report.totalErros) throw new Error('Pessoas v2 indisponivel: ' + JSON.stringify(report.erros));
 
   var resumo = (pessoasData.PESSOAS_RESUMO_OPERACIONAL && pessoasData.PESSOAS_RESUMO_OPERACIONAL.records) || [];
@@ -1290,7 +1300,7 @@ function corePortalDiagnosticarFirestoreUsersDev_(opts) {
   var report = core_domainsV2NewReadReport_('PORTAL_FIRESTORE_USERS_DIAGNOSTICO');
   var pessoasData;
   try {
-    pessoasData = core_domainsV2OpenPessoas_(report);
+    pessoasData = core_domainsV2OpenPessoas_(report, { ambiente: 'DEV' });
   } catch (pessoasErr) {
     return Object.freeze({
       ok: false,
@@ -1365,7 +1375,11 @@ function corePortalDiagnosticarFirestoreUsersDev_(opts) {
   var pageToken = '';
   try {
     do {
-      var page = coreFirestoreListDocuments_('portalUsers', { pageSize: 500, pageToken: pageToken });
+      var page = coreFirestoreEnvironmentListDocuments_('portalUsers', {
+        ambiente: 'DEV',
+        pageSize: 500,
+        pageToken: pageToken
+      });
       if (!page || page.ok !== true) throw new Error(String(page && page.code || 'FIRESTORE_LIST_FALHOU'));
       firestoreDocuments = firestoreDocuments.concat(page.documents || []);
       pageToken = String(page.nextPageToken || '');

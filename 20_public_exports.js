@@ -890,6 +890,34 @@ function coreFirestoreDiagnosticar(options) {
   return coreFirestoreDiagnosticar_(options || {});
 }
 
+function coreFirestoreGetEnvironmentConfig(options) {
+  return coreFirestoreGetEnvironmentConfig_(options || {});
+}
+
+function coreFirestoreEnvironmentSetDocument(path, data, options) {
+  return coreFirestoreEnvironmentSetDocument_(path, data || {}, options || {});
+}
+
+function coreFirestoreEnvironmentGetDocument(path, options) {
+  return coreFirestoreEnvironmentGetDocument_(path, options || {});
+}
+
+function coreFirestoreEnvironmentListDocuments(collectionPath, options) {
+  return coreFirestoreEnvironmentListDocuments_(collectionPath, options || {});
+}
+
+function coreFirestoreEnvironmentDeleteDocument(path, options) {
+  return coreFirestoreEnvironmentDeleteDocument_(path, options || {});
+}
+
+function coreFirestoreEnvironmentBatchSetDocuments(items, options) {
+  return coreFirestoreEnvironmentBatchSetDocuments_(items || [], options || {});
+}
+
+function coreFirestoreEnvironmentDiagnosticar(options) {
+  return coreFirestoreEnvironmentDiagnosticar_(options || {});
+}
+
 function corePortalCalcularPerfilEfetivo(idPessoa, opts) {
   return corePortalCalcularPerfilEfetivo_(idPessoa, opts || {});
 }

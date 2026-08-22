@@ -1,5 +1,7 @@
 # Firestore read models de Atividades
 
+> Compatibilidade legada: as APIs sem `Environment` e as propriedades sem sufixo permanecem documentadas abaixo apenas para consumidores ainda nao migrados. Codigo novo deve usar ambiente explicito e projetos Firebase separados.
+
 ## Arquitetura
 
 O Firestore e somente cache/read model do Portal. A fonte oficial continua
@@ -17,8 +19,12 @@ ou escrita pelo front-end.
 
 Script Properties:
 
-- `GEAPA_CORE_FIRESTORE_PROJECT_ID`
-- `GEAPA_CORE_FIRESTORE_DATABASE_ID`, opcional, com default `(default)`
+- `GEAPA_CORE_FIRESTORE_DEV_PROJECT_ID`
+- `GEAPA_CORE_FIRESTORE_DEV_DATABASE_ID`, opcional, com default `(default)`
+- `GEAPA_CORE_FIRESTORE_PROD_PROJECT_ID`
+- `GEAPA_CORE_FIRESTORE_PROD_DATABASE_ID`, opcional, com default `(default)`
+
+As APIs novas `coreFirestoreEnvironment*` exigem `ambiente: DEV|PROD`, rejeitam projetos iguais e nao consultam `GEAPA_CORE_FIRESTORE_PROJECT_ID`. Escritas PROD estao bloqueadas nesta fase.
 
 O `appsscript.json` ja declara:
 

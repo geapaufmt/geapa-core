@@ -7,8 +7,68 @@
 
 var CORE_FIRESTORE_PROJECT_ID_PROPERTY = 'GEAPA_CORE_FIRESTORE_PROJECT_ID';
 var CORE_FIRESTORE_DATABASE_ID_PROPERTY = 'GEAPA_CORE_FIRESTORE_DATABASE_ID';
+var CORE_FIRESTORE_ENV_PROPERTY_PREFIX = 'GEAPA_CORE_FIRESTORE_';
 var CORE_FIRESTORE_API_BASE = 'https://firestore.googleapis.com/v1';
 var CORE_FIRESTORE_MAX_BATCH_WRITES = 500;
+
+/**
+ * Resolve o projeto Firebase por ambiente sem default e sem namespace logico.
+ * As propriedades legadas sem sufixo nao participam desta resolucao.
+ */
+function coreFirestoreNormalizeEnvironment_(value) {
+  var environment = String(value || '').trim().toUpperCase();
+  if (environment !== 'DEV' && environment !== 'PROD') {
+    throw new Error('Ambiente Firestore obrigatorio e invalido. Informe DEV ou PROD explicitamente.');
+  }
+  return environment;
+}
+
+function coreFirestoreGetEnvironmentConfig_(options) {
+  var opts = options || {};
+  var environment = coreFirestoreNormalizeEnvironment_(opts.environment || opts.ambiente);
+  var props = PropertiesService.getScriptProperties();
+  var projectProperty = CORE_FIRESTORE_ENV_PROPERTY_PREFIX + environment + '_PROJECT_ID';
+  var databaseProperty = CORE_FIRESTORE_ENV_PROPERTY_PREFIX + environment + '_DATABASE_ID';
+  var projectId = String(props.getProperty(projectProperty) || '').trim();
+  var databaseId = String(props.getProperty(databaseProperty) || '(default)').trim() || '(default)';
+  if (!projectId) throw new Error(projectProperty + ' nao configurado.');
+
+  var otherEnvironment = environment === 'DEV' ? 'PROD' : 'DEV';
+  var otherProjectId = String(props.getProperty(
+    CORE_FIRESTORE_ENV_PROPERTY_PREFIX + otherEnvironment + '_PROJECT_ID'
+  ) || '').trim();
+  if (otherProjectId && otherProjectId === projectId) {
+    throw new Error('DEV e PROD devem usar projetos Firebase diferentes.');
+  }
+
+  return Object.freeze({
+    environment: environment,
+    projectId: projectId,
+    databaseId: databaseId,
+    projectProperty: projectProperty,
+    databaseProperty: databaseProperty,
+    namespaced: false
+  });
+}
+
+function coreFirestoreEnvironmentOptions_(options) {
+  var opts = options || {};
+  var config = coreFirestoreGetEnvironmentConfig_(opts);
+  return Object.assign({}, opts, {
+    environment: config.environment,
+    ambiente: config.environment,
+    projectId: config.projectId,
+    databaseId: config.databaseId
+  });
+}
+
+function coreFirestoreAssertEnvironmentWriteAllowed_(options) {
+  var config = coreFirestoreGetEnvironmentConfig_(options || {});
+  if (config.environment !== 'DEV') {
+    throw new Error('Escritas Firestore em PROD estao bloqueadas nesta fase da migracao.');
+  }
+  return config;
+}
 
 function coreFirestoreGetConfig_(options) {
   options = options || {};
@@ -379,4 +439,100 @@ function coreFirestoreDiagnosticar_(options) {
     writer: 'APPS_SCRIPT_FIRESTORE_REST',
     defaultDryRun: true
   });
+}
+
+/** APIs novas: leitura e escrita compartilham a mesma resolucao explicita. */
+function coreFirestoreEnvironmentSetDocument_(path, data, options) {
+  try {
+    coreFirestoreAssertEnvironmentWriteAllowed_(options || {});
+    return coreFirestoreSetDocument_(path, data || {}, coreFirestoreEnvironmentOptions_(options || {}));
+  } catch (err) {
+    return Object.freeze({
+      ok: false,
+      written: false,
+      dryRun: !options || options.dryRun !== false,
+      code: 'FIRESTORE_ENVIRONMENT_INVALIDO',
+      message: String(err && err.message || err || '').slice(0, 500)
+    });
+  }
+}
+
+function coreFirestoreEnvironmentGetDocument_(path, options) {
+  try {
+    return coreFirestoreGetDocument_(path, coreFirestoreEnvironmentOptions_(options || {}));
+  } catch (err) {
+    return Object.freeze({
+      ok: false,
+      found: false,
+      code: 'FIRESTORE_ENVIRONMENT_INVALIDO',
+      message: String(err && err.message || err || '').slice(0, 500)
+    });
+  }
+}
+
+function coreFirestoreEnvironmentListDocuments_(collectionPath, options) {
+  try {
+    return coreFirestoreListDocuments_(collectionPath, coreFirestoreEnvironmentOptions_(options || {}));
+  } catch (err) {
+    return Object.freeze({
+      ok: false,
+      documents: Object.freeze([]),
+      code: 'FIRESTORE_ENVIRONMENT_INVALIDO',
+      message: String(err && err.message || err || '').slice(0, 500)
+    });
+  }
+}
+
+function coreFirestoreEnvironmentDeleteDocument_(path, options) {
+  try {
+    coreFirestoreAssertEnvironmentWriteAllowed_(options || {});
+    return coreFirestoreDeleteDocument_(path, coreFirestoreEnvironmentOptions_(options || {}));
+  } catch (err) {
+    return Object.freeze({
+      ok: false,
+      deleted: false,
+      dryRun: !options || options.dryRun !== false,
+      code: 'FIRESTORE_ENVIRONMENT_INVALIDO',
+      message: String(err && err.message || err || '').slice(0, 500)
+    });
+  }
+}
+
+function coreFirestoreEnvironmentBatchSetDocuments_(items, options) {
+  try {
+    coreFirestoreAssertEnvironmentWriteAllowed_(options || {});
+    return coreFirestoreBatchSetDocuments_(items || [], coreFirestoreEnvironmentOptions_(options || {}));
+  } catch (err) {
+    return Object.freeze({
+      ok: false,
+      written: 0,
+      requested: Array.isArray(items) ? items.length : 0,
+      dryRun: !options || options.dryRun !== false,
+      code: 'FIRESTORE_ENVIRONMENT_INVALIDO',
+      message: String(err && err.message || err || '').slice(0, 500)
+    });
+  }
+}
+
+function coreFirestoreEnvironmentDiagnosticar_(options) {
+  try {
+    var config = coreFirestoreGetEnvironmentConfig_(options || {});
+    var diagnostic = coreFirestoreDiagnosticar_(coreFirestoreEnvironmentOptions_(options || {}));
+    return Object.freeze(Object.assign({}, diagnostic, {
+      environment: config.environment,
+      projectSeparated: true,
+      namespaced: false,
+      prodWritesBlocked: true,
+      legacyPropertyFallback: false
+    }));
+  } catch (err) {
+    return Object.freeze({
+      ok: false,
+      readOnly: true,
+      code: 'FIRESTORE_ENVIRONMENT_INVALIDO',
+      message: String(err && err.message || err || '').slice(0, 500),
+      prodWritesBlocked: true,
+      legacyPropertyFallback: false
+    });
+  }
 }

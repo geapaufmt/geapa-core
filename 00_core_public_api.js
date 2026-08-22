@@ -221,6 +221,7 @@ const GEAPA_CORE = Object.freeze({
 
   firestore: Object.freeze({
     getConfig: coreFirestoreGetConfig_,
+    getEnvironmentConfig: coreFirestoreGetEnvironmentConfig_,
     buildDocumentUrl: coreFirestoreBuildDocumentUrl_,
     encodeValue: coreFirestoreEncodeValue_,
     encodeDocument: coreFirestoreEncodeDocument_,
@@ -229,7 +230,13 @@ const GEAPA_CORE = Object.freeze({
     listDocuments: coreFirestoreListDocuments_,
     deleteDocument: coreFirestoreDeleteDocument_,
     batchSetDocuments: coreFirestoreBatchSetDocuments_,
-    diagnosticar: coreFirestoreDiagnosticar_
+    diagnosticar: coreFirestoreDiagnosticar_,
+    environmentSetDocument: coreFirestoreEnvironmentSetDocument_,
+    environmentGetDocument: coreFirestoreEnvironmentGetDocument_,
+    environmentListDocuments: coreFirestoreEnvironmentListDocuments_,
+    environmentDeleteDocument: coreFirestoreEnvironmentDeleteDocument_,
+    environmentBatchSetDocuments: coreFirestoreEnvironmentBatchSetDocuments_,
+    environmentDiagnosticar: coreFirestoreEnvironmentDiagnosticar_
   }),
 
   /**

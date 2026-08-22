@@ -1,5 +1,7 @@
 # Firestore portalUsers
 
+> Desde o piloto de 2026-08-21, o projeto e resolvido por ambiente explicito. DEV/HOMOLOG usam o projeto Firebase DEV; PROD usa projeto separado. Nao use namespaces.
+
 `portalUsers/{uid}` e apenas cache operacional para acelerar a abertura do Portal GEAPA depois do Firebase Auth. A fonte normativa continua sendo GEAPA-CORE + PESSOAS v2.
 
 ## Snapshot seguro
@@ -55,10 +57,12 @@ Nao ha Cloud Function, Secret Manager, service account ou chave privada nesse ca
 
 Configure em Script Properties:
 
-- `GEAPA_CORE_FIRESTORE_PROJECT_ID=portal-geapa`
-- `GEAPA_CORE_FIRESTORE_DATABASE_ID=(default)` opcional
+- `GEAPA_CORE_FIRESTORE_DEV_PROJECT_ID=<projeto-dev>`
+- `GEAPA_CORE_FIRESTORE_DEV_DATABASE_ID=(default)` opcional
+- `GEAPA_CORE_FIRESTORE_PROD_PROJECT_ID=portal-geapa`
+- `GEAPA_CORE_FIRESTORE_PROD_DATABASE_ID=(default)` opcional
 
-Se `GEAPA_CORE_FIRESTORE_PROJECT_ID` nao estiver configurado, as funcoes de sync retornam `FIRESTORE_PROJECT_ID_NAO_CONFIGURADO`.
+Ambiente ausente/invalido, projeto ausente ou DEV/PROD iguais retornam erro. Nao existe fallback para a propriedade antiga nas funcoes migradas.
 
 O Apps Script precisa de autorizacao OAuth para Firestore/Datastore:
 
