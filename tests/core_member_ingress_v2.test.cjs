@@ -109,6 +109,14 @@ test('filtro de perfil encontra perfil dentro de combinacao e frequencia usa cat
   assert.deepEqual(Array.from(options.frequencias), ['REGULAR', 'COM_FALTAS', 'SEM_DADOS']);
 });
 
+test('recalculo do resumo preserva o ambiente explicito', () => {
+  const options = domain.core_domainsV2ResumoOptions_({ ambiente: 'DEV', dryRun: false });
+  assert.equal(options.ambiente, 'DEV');
+  const operational = fs.readFileSync(path.join(root, '31_core_domains_v2_operational_api.js'), 'utf8');
+  assert.match(operational, /core_domainsV2OpenPessoas_\(report, opts\)/);
+  assert.match(operational, /core_domainsV2OpenVigencias_\(report, opts\)/);
+});
+
 let failures = 0;
 for (const item of tests) {
   try { item.fn(); process.stdout.write(`ok - ${item.name}\n`); }

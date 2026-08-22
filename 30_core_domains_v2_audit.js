@@ -484,7 +484,8 @@ function core_domainsV2ResumoOptions_(options) {
   options = options || {};
   return {
     dryRun: options.dryRun !== false,
-    confirmacao: String(options.confirmacao || '').trim()
+    confirmacao: String(options.confirmacao || '').trim(),
+    ambiente: String(options.ambiente || options.environment || options.env || '').trim()
   };
 }
 
@@ -604,8 +605,8 @@ function coreRecalcularVigenciasResumoAtualV2_(options) {
   var report = core_domainsV2AuditNewReport_('RECALCULAR_VIGENCIAS_RESUMO_ATUAL_V2');
   report.dryRun = opts.dryRun;
 
-  var vigenciasData = core_domainsV2AuditOpenDomain_('VIGENCIAS', report);
-  var pessoasData = core_domainsV2AuditOpenDomain_('PESSOAS', report);
+  var vigenciasData = core_domainsV2AuditOpenDomain_('VIGENCIAS', report, opts);
+  var pessoasData = core_domainsV2AuditOpenDomain_('PESSOAS', report, opts);
   if (report.totalErros > 0) return report;
 
   var resumoSheet = vigenciasData.VIGENCIAS_RESUMO_ATUAL.sheet;

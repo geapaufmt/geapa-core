@@ -1045,8 +1045,8 @@ function coreRecalcularMembrosDetalhesSemestreAtualV2_(options) {
     idPessoa: opts.idPessoa || null,
     refDate: opts.refDate
   };
-  var pessoasData = core_domainsV2OpenPessoas_(report);
-  var vigenciasData = core_domainsV2OpenVigencias_(report);
+  var pessoasData = core_domainsV2OpenPessoas_(report, opts);
+  var vigenciasData = core_domainsV2OpenVigencias_(report, opts);
   if (report.totalErros) return report;
 
   var rows = core_domainsV2BuildMembrosDetalhesSemesterRows_(pessoasData, vigenciasData, opts, report);
