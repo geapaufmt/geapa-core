@@ -814,8 +814,8 @@ function corePortalHasPermission(sessionOrEmail, permission, opts) {
   return corePortalHasPermission_(sessionOrEmail, permission, opts || {});
 }
 
-function corePortalLogAccess(payload) {
-  return corePortalAppendAccessLog_(payload || {});
+function corePortalLogAccess(payload, opts) {
+  return corePortalAppendAccessLog_(payload || {}, opts || {});
 }
 
 function corePortalDiagnostics() {

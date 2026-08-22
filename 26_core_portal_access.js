@@ -997,7 +997,12 @@ function corePortalBuildFirestoreUserSnapshot_(entrada, opts) {
   var permissions = corePortalNormalizeFirestoreStringArray_(sessao.permissoes);
   var roles = corePortalNormalizeFirestoreStringArray_(sessao.perfisPortal);
   var active = sessao.portalAtivo === true;
-  var normalizedEmail = corePortalNormalizeEmail_(sessao.email || '');
+  // O documento privado deve acompanhar a identidade Firebase que possui o UID.
+  // O e-mail canonico da PESSOAS v2 pode ser diferente quando o membro entrou
+  // por um alias previamente resolvido e confirmado pelo Core.
+  var normalizedEmail = corePortalNormalizeEmail_(
+    opts.authenticatedEmail || opts.firebaseEmail || sessao.email || ''
+  );
   var lastLoginAtValue = opts.lastLoginAt || cacheUpdatedAt;
   var lastLoginAtDate = new Date(lastLoginAtValue);
   var lastLoginAt = isNaN(lastLoginAtDate.getTime()) ? cacheUpdatedAt : lastLoginAtDate.toISOString();
@@ -1126,9 +1131,29 @@ function corePortalProvisionarFirestoreUserAutenticado_(firebaseIdentity, opts) 
   corePortalFirestoreEnvironment_(opts);
 
   var session = opts.sessao || corePortalResolverUsuarioAtual_({ email: email }, opts);
-  var sessionEmail = corePortalNormalizeEmail_(session && session.email || '');
-  if (!session || session.ok === false || session.autenticado === false || sessionEmail !== email) {
+  if (!session || session.ok === false || session.autenticado === false) {
     return Object.freeze({ ok: false, synced: false, code: 'IDENTIDADE_FIREBASE_DIVERGENTE' });
+  }
+
+  var sessionEmail = corePortalNormalizeEmail_(session.email || '');
+  if (sessionEmail !== email) {
+    // Nao confia apenas na anotacao enviada pelo Portal. Resolve novamente o
+    // e-mail Firebase na fonte oficial e exige que ele aponte para a mesma
+    // pessoa antes de aceitar um alias.
+    var sessionByFirebaseEmail = corePortalResolverUsuarioAtual_({ email: email }, opts);
+    var suppliedPersonId = String(session.idPessoa || '').trim();
+    var resolvedPersonId = String(sessionByFirebaseEmail && sessionByFirebaseEmail.idPessoa || '').trim();
+    if (
+      !sessionByFirebaseEmail ||
+      sessionByFirebaseEmail.ok === false ||
+      sessionByFirebaseEmail.autenticado === false ||
+      !suppliedPersonId ||
+      !resolvedPersonId ||
+      suppliedPersonId !== resolvedPersonId
+    ) {
+      return Object.freeze({ ok: false, synced: false, code: 'IDENTIDADE_FIREBASE_DIVERGENTE' });
+    }
+    session = sessionByFirebaseEmail;
   }
   if (session.portalAtivo !== true) {
     return Object.freeze({ ok: false, synced: false, code: 'USUARIO_NAO_AUTORIZADO' });
@@ -1137,6 +1162,7 @@ function corePortalProvisionarFirestoreUserAutenticado_(firebaseIdentity, opts) 
   return corePortalSincronizarUsuarioFirestore_({ email: email, uid: uid }, Object.assign({}, opts, {
     uid: uid,
     sessao: session,
+    authenticatedEmail: email,
     lastLoginAt: opts.lastLoginAt || new Date().toISOString()
   }));
 }
@@ -1469,7 +1495,10 @@ function corePortalDiagnosticarFirestoreUsersDev_(opts) {
   var recentErrors = [];
   var accessLogAvailable = false;
   try {
-    var accessLogs = core_readRecordsByKey_('PORTAL_LOG_ACESSOS', { skipBlankRows: true }) || [];
+    var accessLogs = corePortalReadRegistryRecordsForEnv_('PORTAL_LOG_ACESSOS', {
+      ambiente: 'DEV',
+      skipBlankRows: true
+    }) || [];
     accessLogAvailable = true;
     recentErrors = accessLogs.filter(function(row) {
       var action = corePortalNormalizeToken_(row.ACAO || '');
@@ -2406,12 +2435,40 @@ function corePortalAppendAccessLogToSheet_(sheet, payload) {
   });
 }
 
-function corePortalAppendAccessLog_(payload) {
-  var sheet = core_getSheetByKey_('PORTAL_LOG_ACESSOS');
+function corePortalResolveRegistrySheetForEnv_(registryKey, opts) {
+  var options = opts || {};
+  var environment = corePortalResolveEnvironment_(options);
+  var state = core_domainRegistryEntry_(registryKey, environment, options);
+  if (!state.available) {
+    throw core_domainResolverError_(
+      'PORTAL_REGISTRY_KEY_INDISPONIVEL',
+      'Registry key "' + registryKey + '" indisponivel em ' + environment + '.',
+      { registryKey: registryKey, ambiente: environment, motivo: state.reason }
+    );
+  }
+
+  var entry = state.entry || {};
+  if (!entry.ativo || !String(entry.id || '').trim() || !String(entry.sheet || '').trim()) {
+    throw core_domainResolverError_(
+      'PORTAL_REGISTRY_ENTRY_INVALIDA',
+      'Registry key "' + registryKey + '" invalida em ' + environment + '.',
+      { registryKey: registryKey, ambiente: environment }
+    );
+  }
+  return core_getSheetById_(String(entry.id).trim(), String(entry.sheet).trim());
+}
+
+function corePortalAppendAccessLog_(payload, opts) {
+  var options = opts || {};
+  var environment = corePortalResolveEnvironment_(options);
+  var sheet = corePortalResolveRegistrySheetForEnv_('PORTAL_LOG_ACESSOS', {
+    ambiente: environment
+  });
   corePortalAppendAccessLogToSheet_(sheet, payload || {});
   return Object.freeze({
     ok: true,
-    logged: true
+    logged: true,
+    ambiente: environment
   });
 }
 

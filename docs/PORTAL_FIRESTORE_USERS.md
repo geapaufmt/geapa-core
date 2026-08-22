@@ -4,6 +4,20 @@
 
 `portalUsers/{uid}` e apenas cache operacional para acelerar a abertura do Portal GEAPA depois do Firebase Auth. A fonte normativa continua sendo GEAPA-CORE + PESSOAS v2.
 
+## Provisionamento apos login Firebase
+
+O provisionamento aceita tanto o e-mail canonico da PESSOAS v2 quanto um alias
+resolvido oficialmente para a mesma `idPessoa`. No caso de alias, o Core repete
+a resolucao pela identidade Firebase e so grava o documento quando ambas as
+resolucoes apontam para a mesma pessoa. O documento usa o e-mail autenticado
+pelo Firebase, pois ele e a identidade associada ao UID e utilizada na
+validacao do cache privado pelo navegador.
+
+Logs de acesso e diagnosticos devem receber `ambiente` explicitamente. Uma
+execucao DEV nunca recorre a entrada PROD de `PORTAL_LOG_ACESSOS`; se a entrada
+DEV nao existir no Registry, o registro persistido falha de forma controlada e
+o evento permanece apenas no Execution Log.
+
 ## Snapshot seguro
 
 `corePortalBuildFirestoreUserSnapshot(entrada, opts)` usa `corePortalResolverUsuarioAtual` e retorna somente os campos necessarios para autorizacao e abertura da interface:
