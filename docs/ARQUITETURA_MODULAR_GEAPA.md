@@ -12,6 +12,25 @@ Documento de revisao arquitetural para redistribuicao gradual de responsabilidad
 - As bases v2 `PESSOAS` e `VIGENCIAS` ja foram migradas e conferidas manualmente. Elas nao devem ser tratadas como rascunho.
 - Funcoes temporarias de migracao legado -> v2 nao devem voltar a ser usadas em fluxo operacional.
 
+## Checkpoint Firestore de Atividades em DEV
+
+O piloto de cadastro e agenda de Atividades foi concluido no projeto Firebase DEV, sem alteracao em PROD. O fluxo canonico desse recorte e:
+
+```text
+Portal DEV
+  -> Firestore DEV (activities + activityPrivate)
+  -> EXPORT_ATIVIDADES_FIRESTORE
+```
+
+- Firestore e a fonte da verdade de cadastro e agenda no DEV.
+- `EXPORT_ATIVIDADES_FIRESTORE` e somente espelho/exportacao para consulta e compatibilidade operacional.
+- Nao existe reverse sync de Sheets para Firestore nem dual-write bidirecional.
+- `activityPrivate` e backend-only e nao deve ser exposta diretamente ao cliente web.
+- Atividades normais nao possuem exclusao fisica operacional; cancelamento e ocultacao sao as transicoes suportadas.
+- A aba legada `Atividades` nao volta a ser fonte canonica do recorte migrado.
+- Presencas, justificativas, apresentacoes, envolvidos, convites, arquivos/materiais, notificacoes e logs ainda nao foram migrados para Firestore.
+- O checkpoint vale apenas para DEV. Nao concede autorizacao para deploy, importacao ou write em PROD.
+
 ## Mapa de modulos
 
 | Modulo | Estado | Papel oficial proposto |
