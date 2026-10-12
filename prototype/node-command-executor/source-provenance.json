@@ -1,0 +1,234 @@
+{
+  "baselineCommit": "fac44ff26436e11d0b91424f0a7aa1081b151ff9",
+  "originalSourceHash": "ad106b2f5eeba28cd694e9e9bd642530acc24a25e7b07796be499270afe4fd96",
+  "files": [
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "attendance.cjs",
+      "target": "attendance.cjs",
+      "originalSha256": "24e0b8bb68fef3f90a5a221acc5644c0c65a554673fdadd99d635ef67945e27e"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "benchmark.cjs",
+      "target": "benchmark.cjs",
+      "originalSha256": "46c9d15621697b09f6af1523a7ce3cf71d83fd6b90122c90e6a2e858ec581388"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "closeout.cjs",
+      "target": "closeout.cjs",
+      "originalSha256": "95c5f3c35166c58ec85e9f10320d0147edb7aba1d74bc15759aefe5a57fc89e7"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "experiments.cjs",
+      "target": "experiments.cjs",
+      "originalSha256": "f0b37c16ef10081f151d8f4784e5c955f1b6ac80223b9e2401f7c6fd18d01df0"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "fixture-config.cjs",
+      "target": "fixture-config.cjs",
+      "originalSha256": "3b1d4ea74ae54ba990687b7ff085565a04df9665e2ed9658bb4b4e973f00279b"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "fixture-tools.cjs",
+      "target": "fixture-tools.cjs",
+      "originalSha256": "5194f59f42e8857071ba588706430b1ed6d2fb6fd4d1631f46ddb13ad605d62b"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "fixtures.cjs",
+      "target": "fixtures.cjs",
+      "originalSha256": "927582f11efdb4b8f3e4178a5fef855c553fec8ac815ad921e9d06c88f47065a"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "justification.cjs",
+      "target": "justification.cjs",
+      "originalSha256": "1fe1ae9e315bba6c617fe6d3bf5182b28235ed1ccf7b7961a9f42282ccfa4108"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "local.cjs",
+      "target": "local.cjs",
+      "originalSha256": "d5606bd3066e75f4bd6b17a35bc586e201abe91beeae373e1f24fcd587b1dda5"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "package-lock.json",
+      "target": "package-lock.json",
+      "originalSha256": "6a844f5eec70523ae6879e93dfd37a3e6325d93e135c6cba5266e6edbae5f923"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "package.json",
+      "target": "package.json",
+      "originalSha256": "cb90c1204a9d603a9b655c42c81fab11a2acd16dde632f5256fa8b25589e4756"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "parity.cjs",
+      "target": "parity.cjs",
+      "originalSha256": "96316e2178aaa2a6244a4596df5d8ce3224e3df28d28e679375ae5a91a2bd0e7"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "projections.cjs",
+      "target": "projections.cjs",
+      "originalSha256": "2abc066e5ffa7a384d4ce2e91b3db693fd7035ea96acd6e95977d0d35f8dcf90"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "replay-parity.cjs",
+      "target": "replay-parity.cjs",
+      "originalSha256": "680333b1c635835ab5572571c029553ecf1385684e29d3fb8917168097d0d845"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "sdk-host.cjs",
+      "target": "sdk-host.cjs",
+      "originalSha256": "cc3631fbb2f698df09a8091f71bcba56dae68afbfaff0ff479115687d8bee64e"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "sdk.cjs",
+      "target": "sdk.cjs",
+      "originalSha256": "695263fee5dd953f5928b1a303de84976de14746212d3f6dda8cb8fb63e01457"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "security-extra.cjs",
+      "target": "security-extra.cjs",
+      "originalSha256": "57461172fe48592d77fece7508dc31cf95bc389436144b57a3700c656c63455b"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "security.cjs",
+      "target": "security.cjs",
+      "originalSha256": "718a445ba49b25b984e1642e31fcc7096540c995ca742dfe47f1ee788401bdc9"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "session.cjs",
+      "target": "session.cjs",
+      "originalSha256": "f33df4a92e0b8e077b6f62332fa92e5f513e0a2bb84225a11f796a9616a7fa89"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "theme.cjs",
+      "target": "theme.cjs",
+      "originalSha256": "90e27b961bd1053f7ecc9e7cfd840c304690d9cc3a7c3b74c261c97107ae18fd"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "wire.cjs",
+      "target": "wire.cjs",
+      "originalSha256": "7c6dd1f6843c2e8295a97fbc3f20fb06f4847dac03c6ac5c015b4c1b1e5dba1a"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "worker.cjs",
+      "target": "worker.cjs",
+      "originalSha256": "b43fa8ad257a68fcb20a99f17cc55ca1bff11061256d4baf0a691ce64c1d4dab"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "runtime.cjs",
+      "target": "test-support/f4/runtime.cjs",
+      "originalSha256": "89c241edc4f2ff74beb08632ebeaacf5c2edc5fd5a9d43b5be367426b8f78064"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "fixtures.cjs",
+      "target": "test-support/f4/fixtures.cjs",
+      "originalSha256": "239e819dd9cb14d41b0319469854e6967cdb1e1008862fb5bfc70392c2519fe8"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "fixtures.gs",
+      "target": "test-support/m13/fixtures.gs",
+      "originalSha256": "014480058382debb02dc41f053821cd710d21647c3d844f42886511b35f474ed"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "fixtures.gs",
+      "target": "test-support/m13/b/fixtures.gs",
+      "originalSha256": "7f8f392b1224e34bb5d10b09768a236e2be088215265c238fcfd89c47d556e2c"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "fixtures.gs",
+      "target": "test-support/m13/c/fixtures.gs",
+      "originalSha256": "e487fdedc1db4388010ad891dca64c04d5620f6e052c65f4d5627a48733940a3"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "fixtures.gs",
+      "target": "test-support/m13/d/fixtures.gs",
+      "originalSha256": "8672c9d7e26d712904175bad18a3683a0de26cff34ce548dff93501c1b35798b"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "fixtures.gs",
+      "target": "test-support/m13/e/fixtures.gs",
+      "originalSha256": "6230d9fb25cc4a12b38b84ff9eb241a0aa3c579f25682aa0136079d82a54a944"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "saga-fixtures.gs",
+      "target": "test-support/m13/e/saga-fixtures.gs",
+      "originalSha256": "f929797cfe754e55fe31df14e4f594006848f3e86da2cacf067d90b1c6f131d9"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "runtime.cjs",
+      "target": "test-support/reconvergence/runtime.cjs",
+      "originalSha256": "5049de3181742c56fd0ab92d5d4c32033adad97421c3b15f4991698c27d9beff"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "act-fixture.cjs",
+      "target": "test-support/reconvergence/act-fixture.cjs",
+      "originalSha256": "38feabdc310b0ec2f73a7cb3fc498f3161bb7c41d99b6525ab0123419d06d78a"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "harness.cjs",
+      "target": "test-support/reconvergence/activities/harness.cjs",
+      "originalSha256": "e6c192ddd9156ad639a51975d95b81408df30242492f692570b58f6658ec1436"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "scenarios.cjs",
+      "target": "test-support/reconvergence/activities/scenarios.cjs",
+      "originalSha256": "1bf51d4e57e839c1888db521757cff686cbca77a92700f14653cac610170869b"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "local.cjs",
+      "target": "test-support/current/local.cjs",
+      "originalSha256": "e8caf67c197b0dc6d28f398dfa6aca6eb353af7acdfca850869ffb754345c76e"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "operational-harness.cjs",
+      "target": "test-support/current/operational-harness.cjs",
+      "originalSha256": "bd4ee1265f0fc3c7af415a8a6f048e151ef51c9cf7efd5cd74988a63e2fd919d"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "attendance.cjs",
+      "target": "test-support/functional/attendance.cjs",
+      "originalSha256": "b8baaf695aa0671f13f86fc23640d80b081a35d468463bf5b3527502475ef8f0"
+    },
+    {
+      "sourceGroup": "m13-harness",
+      "sourceName": "compat-harness.cjs",
+      "target": "test-support/functional/compat-harness.cjs",
+      "originalSha256": "15a5591d448eb3569bfb696e95e8f4f2b0f1e7400b38f2b39e9d4838950c1a8c"
+    }
+  ]
+}

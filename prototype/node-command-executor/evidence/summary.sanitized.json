@@ -1,0 +1,183 @@
+{
+  "commands": {
+    "edit-final": {
+      "firstMs": 11093.3229,
+      "minMs": 5002.878899999996,
+      "warmMedianMs": 5085.4614,
+      "warmMaxMs": 5205.160600000003,
+      "allMaxMs": 11093.3229,
+      "n": 4,
+      "logicalReads": 135,
+      "sdkCalls": 52,
+      "writes": 19,
+      "authMs": 1214.1937999999936,
+      "transactionCommitMs": 340.35649999999805,
+      "readbackMs": 113.87209999999686,
+      "stages": {
+        "authorization": 16,
+        "config": 0,
+        "canonicalReads": 0,
+        "transaction": 2513,
+        "auditReceipt": 0,
+        "invalidation": 60,
+        "validation": 128
+      },
+      "transactionAttempts": 4,
+      "sdkMethodCounts": {
+        "batchGetDocuments": 48,
+        "commit": 4
+      }
+    },
+    "create": {
+      "firstMs": 4784.1793,
+      "minMs": 4543.378799999999,
+      "warmMedianMs": 4650.7862000000005,
+      "warmMaxMs": 4717.212399999999,
+      "allMaxMs": 4784.1793,
+      "n": 4,
+      "logicalReads": 127,
+      "sdkCalls": 47,
+      "writes": 19,
+      "authMs": 1220.3516,
+      "transactionCommitMs": 385.15670000000136,
+      "readbackMs": 61.924199999997654,
+      "stages": {
+        "authorization": 13,
+        "config": 0,
+        "canonicalReads": 0,
+        "transaction": 2371,
+        "auditReceipt": 0,
+        "invalidation": 60,
+        "validation": 123
+      },
+      "transactionAttempts": 4,
+      "sdkMethodCounts": {
+        "batchGetDocuments": 43,
+        "commit": 4
+      }
+    },
+    "theme": {
+      "firstMs": 4929.506599999999,
+      "minMs": 4781.919700000002,
+      "warmMedianMs": 4855.3843000000015,
+      "warmMaxMs": 4868.4797000000035,
+      "allMaxMs": 4929.506599999999,
+      "n": 4,
+      "logicalReads": 150,
+      "sdkCalls": 50,
+      "writes": 16,
+      "authMs": 1195.7618000000039,
+      "transactionCommitMs": 312.0147999999972,
+      "readbackMs": 114.91760000000068,
+      "stages": {
+        "authorization": 135,
+        "config": 0,
+        "canonicalReads": 0,
+        "transaction": 2467,
+        "auditReceipt": 0,
+        "invalidation": 67,
+        "validation": 1
+      },
+      "transactionAttempts": 4,
+      "sdkMethodCounts": {
+        "batchGetDocuments": 46,
+        "commit": 4
+      }
+    },
+    "attendance": {
+      "firstMs": 6285.463499999998,
+      "minMs": 6258.025999999998,
+      "warmMedianMs": 6649.086699999998,
+      "warmMaxMs": 6820.471700000002,
+      "allMaxMs": 6820.471700000002,
+      "n": 4,
+      "logicalReads": 207,
+      "sdkCalls": 51,
+      "writes": 91,
+      "authMs": 1254.5558999999994,
+      "transactionCommitMs": 1369.8396999999968,
+      "readbackMs": 164.3637000000017,
+      "stages": {
+        "authorization": 17,
+        "config": 0,
+        "canonicalReads": 0,
+        "transaction": 3956,
+        "auditReceipt": 0,
+        "invalidation": 70,
+        "validation": 415
+      },
+      "transactionAttempts": 4,
+      "sdkMethodCounts": {
+        "batchGetDocuments": 47,
+        "commit": 4
+      }
+    },
+    "justification": {
+      "firstMs": 4802.301499999998,
+      "minMs": 4685.253700000001,
+      "warmMedianMs": 4706.5861,
+      "warmMaxMs": 4812.091099999998,
+      "allMaxMs": 4812.091099999998,
+      "n": 4,
+      "logicalReads": 141,
+      "sdkCalls": 48,
+      "writes": 20,
+      "authMs": 1192.424399999989,
+      "transactionCommitMs": 350.7566000000079,
+      "readbackMs": 68.71319999999832,
+      "stages": {
+        "authorization": 14,
+        "config": 0,
+        "canonicalReads": 0,
+        "transaction": 2422,
+        "auditReceipt": 0,
+        "invalidation": 62,
+        "validation": 123
+      },
+      "transactionAttempts": 4,
+      "sdkMethodCounts": {
+        "batchGetDocuments": 44,
+        "commit": 4
+      }
+    }
+  },
+  "projections": {
+    "activity_dev_meeting": {
+      "firstMs": 2654.402000000002,
+      "warmMedianMs": 2267.1841999999997,
+      "minMs": 2262.3384000000005,
+      "maxMs": 2654.402000000002,
+      "n": 4,
+      "reads": 74,
+      "sdkCalls": 22,
+      "writes": 1
+    },
+    "activities": {
+      "firstMs": 3966.929899999999,
+      "warmMedianMs": 4406.086700000007,
+      "minMs": 4193.497000000003,
+      "maxMs": 4489.8999,
+      "n": 4,
+      "reads": 306,
+      "sdkCalls": 42,
+      "writes": 1
+    },
+    "frequency": {
+      "firstMs": 2394.9426999999996,
+      "warmMedianMs": 2347.7243000000017,
+      "minMs": 2285.041299999997,
+      "maxMs": 2976.256300000001,
+      "n": 4,
+      "reads": 101,
+      "sdkCalls": 21,
+      "writes": 1
+    }
+  },
+  "checks": {
+    "security": 15,
+    "commandReadbacks": 20,
+    "parity": 5,
+    "projections": 12
+  },
+  "result": "HYPOTHESIS_CONFIRMED"
+}

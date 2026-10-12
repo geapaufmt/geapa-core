@@ -1,0 +1,16 @@
+{
+  "scope": "B0 original campaign; not rerun in B0.5",
+  "security": 15,
+  "commandReadbacks": 20,
+  "semanticParity": 5,
+  "projectionReadbacks": 12,
+  "directedReplay": 4,
+  "passed": 56,
+  "failedPending": 0,
+  "cleanup": {
+    "terminal": 43,
+    "removed": 793,
+    "retainedTechnicalEvidence": 423
+  },
+  "remoteChangesDuringB05": 0
+}

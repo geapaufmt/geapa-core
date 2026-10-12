@@ -1,0 +1,33 @@
+// Synthetic-only B builder. No real snapshot, subject or grant is read/materialized.
+function m13BFixture_(kind='EXPLICIT',cap='MEMBERS_PRIVATE_AUDIT',roleKey='DIRETOR_ADMINISTRATIVO',now=fixture.NOW){
+ const X=fixture,K=f4MemberAuthzContracts_(),A=f4MemberContracts_(),T=f4Firestore_().Timestamp;
+ let source=kind==='ROLE'?X.role(X.base()):X.base();
+ if(kind==='ROLE'){source['memberRoleCatalog/CARGO-001'].roleKey=roleKey;source['memberRoleCatalog/CARGO-001'].group=A.roles[roleKey][0];source['memberFunctions/VIG-001'].scopeKey=A.roles[roleKey][1];delete source['memberRoleCatalog/M1_POLICY'];}
+ source['memberPrivateProfiles/PES-000001']=X.entity('memberPrivateProfiles','PES-000001',{idPessoa:'PES-000001',contactEmail:'synthetic@example.invalid',academicReference:'SYNTHETIC'});
+ const d=X.projectionMap(source,1,now),control=m13Fixture_().control;/* Keep all three approved entries to exercise the full control cost. */control.mode='CANONICAL';control.updatedAt=T.fromMillis(now);control.selfReadPolicy={policyId:'SYN_POLICY',policyRevision:1,capability:'MEMBERS_SELF_READ',eligibleStates:['MEMBRO_EFETIVO'],fieldMasks:{MEMBERS_SELF_READ:K.selfFields},issuedAt:T.fromMillis(now-60000),expiresAt:T.fromMillis(now+3600000)};
+ const own=kind==='SELF',pid=own?'PES-000001':'PES-000002';
+ if(!own){const docs={};docs['memberIdentities/'+pid]=X.entity('memberIdentities',pid,{idPessoa:pid,displayName:'Synthetic target',technicalAccount:false,active:true});docs['memberLinks/VINC-002']=X.entity('memberLinks','VINC-002',{idPessoa:pid,type:'MEMBRO_EFETIVO',startDate:'2026-01-01',endDate:null,exitDate:null});docs['memberPrivateProfiles/'+pid]=X.entity('memberPrivateProfiles',pid,{idPessoa:pid,contactEmail:'target@example.invalid',academicReference:'SYNTHETIC'});Object.assign(d,docs);d['memberAggregateHeads/'+pid]={schemaVersion:'m11-head-v1',id:pid,kind:'PERSON',revision:1,paths:Object.keys(docs)};}
+ d['memberAuthorityControl/MEMBERS']=control;d['memberAuthzSubjects/PES-000001']={schemaVersion:'member-authz-subject-v13',idPessoa:'PES-000001',revision:1,authzEpoch:1,active:true,approvalRef:'SYN_APPROVAL',updatedAt:T.fromMillis(now)};
+ const capFields=K.fields[cap];const fields=cap==='MEMBERS_SELF_READ'||cap==='MEMBERS_SELF_UPDATE'?['contactEmail']:cap==='MEMBERS_CASE_READ'?['idPessoa','displayLabel','state','currentFunctions']:cap==='MEMBERS_PRIVATE_AUDIT'?['contactEmail']:capFields.length?[capFields[0]]:[];
+ const t={personId:pid,scopeKey:own?null:'ADMINISTRACAO',boardId:cap==='MEMBERS_GOVERNANCE_EXECUTE'?'DIR-001':null,roleKey:cap==='MEMBERS_GOVERNANCE_EXECUTE'?'DIRETOR_ADMINISTRATIVO':null,resources:['memberPrivateProfiles/'+pid],caseId:own?null:'SYN_CASE',purpose:own?null:'SYN_PURPOSE',fieldMask:fields,linkId:null,effect:null,effectiveDate:null};
+ if(['MEMBERS_INGRESS_EXECUTE','MEMBERS_DISCIPLINE_EXECUTE','MEMBERS_VOLUNTARY_EXIT_EXECUTE'].includes(cap)){t.linkId='VINC-002';t.resources.push('memberLinks/VINC-002');t.effect=cap==='MEMBERS_INGRESS_EXECUTE'?'EFETIVACAO':'DESLIGAMENTO';t.effectiveDate='2026-09-14';}
+ if(['MEMBERS_GOVERNANCE_EXECUTE','MEMBERS_PROFILE_CORRECT'].includes(cap)){t.effect=cap==='MEMBERS_GOVERNANCE_EXECUTE'?'NOMEACAO':'CORRECAO';t.effectiveDate='2026-09-14';}
+ const targets={ownPerson:own,allowedTargetScopes:own?[]:[t.scopeKey],allowedBoards:t.boardId?[t.boardId]:[],allowedRoles:t.roleKey?[t.roleKey]:[],allowedPersons:own?[]:[pid],allowedResources:[...t.resources]};
+ if(cap==='MEMBERS_CASE_READ'){
+  const add=(col,id,fields)=>d[col+'/'+id]=X.entity(col,id,fields);
+  add('memberGovernanceBoards','DIR_TARGET',{name:'Synthetic board',startDate:'2026-01-01',endDate:'2026-12-31'});
+  add('memberGovernanceTerms','TERM_TARGET',{name:'Synthetic term',startDate:'2026-01-01',endDate:'2026-12-31'});
+  add('memberGovernanceBoardTerms','REL_TARGET',{idDiretoria:'DIR_TARGET',idTermo:'TERM_TARGET',startDate:'2026-01-01',endDate:'2026-12-31'});
+  add('memberRoleCatalog','ROLE_TARGET',{roleKey:'DIRETOR_ADMINISTRATIVO',group:'DIRETORIA',active:true});
+  add('memberFunctions','FN_TARGET',{idPessoa:pid,idVinculo:'VINC-002',idCargo:'ROLE_TARGET',scopeKey:'ADMINISTRACAO',idDiretoria:'DIR_TARGET',idTermo:'TERM_TARGET',startDate:'2026-01-01',endDatePlanned:'2026-12-31',endDateReal:null});
+  d['memberAggregateHeads/'+pid].paths.push('memberFunctions/FN_TARGET');
+  d['memberBoardHeads/DIR_TARGET']={schemaVersion:'m11-head-v1',id:'DIR_TARGET',kind:'BOARD',revision:1,paths:['memberGovernanceBoards/DIR_TARGET','memberGovernanceBoardTerms/REL_TARGET']};
+  targets.allowedBoards=['DIR_TARGET'];targets.allowedRoles=['DIRETOR_ADMINISTRATIVO'];targets.allowedResources.push('memberFunctions/FN_TARGET');
+ }
+ const common={id:kind==='EXPLICIT'?'SYN_GRANT':'SYN_POLICY',revision:1,active:true,origin:'F4_M621_INSTITUTIONAL',approvalRef:'SYN_APPROVAL',issuedAt:T.fromMillis(now-60000),expiresAt:T.fromMillis(now+3600000),capabilities:[cap],targets,fieldMasks:{[cap]:cap==='MEMBERS_SELF_READ'?K.selfFields:fields}};
+ const grant=kind==='EXPLICIT'?{schemaVersion:'member-explicit-grant-v13',...common,issuerRef:'SYN_ISSUER',uid:'SYN_UID',idPessoa:'PES-000001',bindingVersion:1,subjectEpoch:1,actorScopes:['FINANCAS'],environment:'DEV',runId:null}:{schemaVersion:'member-authz-policy-v13',...common,proofKind:kind,actorSelector:own?{kind:'SELF'}:{kind:'ROLE',roleKey,group:A.roles[roleKey][0],actorScope:A.roles[roleKey][1]}};
+ const grantPath=(kind==='EXPLICIT'?'memberExplicitGrants/':'memberAuthzPolicies/')+common.id;d[grantPath]=grant;
+ const req={schemaVersion:'member-authz-request-v13',uid:'SYN_UID',kind,capability:cap,sourceId:common.id,functionId:kind==='ROLE'?'VIG-001':null,actorScope:own?null:kind==='ROLE'?A.roles[roleKey][1]:'FINANCAS',expected:{authorityEpoch:1,policyEpoch:1,readAuthzEpoch:1,subjectEpoch:1,bindingVersion:1,personRevision:1,authorizationRevision:1},tokenExpiresAt:T.fromMillis(now+7200000),admissionExpiresAt:T.fromMillis(now+1800000),target:t,evidenceRefs:[]};
+ if(['MEMBERS_PROFILE_CORRECT','MEMBERS_INGRESS_EXECUTE','MEMBERS_DISCIPLINE_EXECUTE','MEMBERS_GOVERNANCE_EXECUTE','MEMBERS_VOLUNTARY_EXIT_EXECUTE'].includes(cap)){req.evidenceRefs=['SYN_EVIDENCE'];d['memberEvidenceAttestations/SYN_EVIDENCE']={schemaVersion:'member-evidence-attestation-v13',id:'SYN_EVIDENCE',revision:1,active:true,kind:cap==='MEMBERS_VOLUNTARY_EXIT_EXECUTE'?'VOLUNTARY_REQUEST':cap==='MEMBERS_PROFILE_CORRECT'?'CADASTRAL_EVIDENCE':'BOARD_DECISION',holderId:pid,linkId:t.linkId,targetResourceIds:[...t.resources],effect:t.effect,effectiveDate:t.effectiveDate,issuerRef:'SYN_ISSUER',approvalRef:'SYN_APPROVAL',contentHash:'a'.repeat(64),verifiedAt:T.fromMillis(now-1000),expiresAt:T.fromMillis(now+3600000)};}
+ return {d,req,now,grantPath,get:p=>d[p]};
+}

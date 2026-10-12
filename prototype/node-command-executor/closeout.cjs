@@ -1,0 +1,30 @@
+'use strict';
+const fs=require('node:fs'),p=require('node:path'),a=require('node:assert/strict'),{session,save}=require('./session.cjs'),S=require('./sdk.cjs'),W=require('./wire.cjs'),{localManifest,hash}=require('./scripts/preflight.cjs');
+const evidence=n=>JSON.parse(fs.readFileSync(p.join(__dirname,'evidence',n)));
+const median=xs=>{const v=[...xs].sort((a,b)=>a-b);return v.length%2?v[(v.length-1)/2]:(v[v.length/2-1]+v[v.length/2])/2;};
+function summarize(){const names=['edit-final','create','theme','attendance','justification'],result={commands:{},projections:{},checks:{security:evidence('security.json').passed+evidence('security-extra.json').passed,commandReadbacks:0,parity:0,projections:0}};
+ for(const name of names){const e=evidence(name+'.json');a.equal(e.samples.length,4);a(e.parity?.pass||e.parity?.[0]?.pass);result.checks.parity++;result.checks.commandReadbacks+=4;const warm=e.samples.slice(1),sum=(s,key)=>s.io.reduce((n,v)=>n+(v[key]||0),0),stage=key=>median(warm.map(s=>s.metrics?.stages?.[key]?.elapsedMs||0));result.commands[name]={firstMs:e.samples[0].wallMs,minMs:Math.min(...warm.map(s=>s.wallMs)),warmMedianMs:median(warm.map(s=>s.wallMs)),warmMaxMs:Math.max(...warm.map(s=>s.wallMs)),allMaxMs:Math.max(...e.samples.map(s=>s.wallMs)),n:4,logicalReads:median(warm.map(s=>sum(s,'reads'))),sdkCalls:median(warm.map(s=>s.rpcs.length)),writes:median(warm.map(s=>sum(s,'writes'))),authMs:median(warm.map(s=>s.io.filter(v=>v.kind==='verify').reduce((n,v)=>n+v.ms,0))),transactionCommitMs:median(warm.map(s=>s.io.filter(v=>v.kind==='commit').reduce((n,v)=>n+v.ms,0))),readbackMs:median(warm.map(s=>s.readbackMs)),stages:Object.fromEntries(['authorization','config','canonicalReads','transaction','auditReceipt','invalidation','validation'].map(k=>[k,stage(k)])),transactionAttempts:median(warm.map(s=>s.io.filter(v=>v.kind==='beginTransaction').length)),sdkMethodCounts:warm[0].rpcs.reduce((m,k)=>(m[k]=(m[k]||0)+1,m),{})};}
+ const projections=evidence('projections.json');a.equal(projections.samples.length,12);for(const view of ['activity_dev_meeting','activities','frequency']){const all=projections.samples.filter(s=>s.view===view),warm=all.slice(1);result.projections[view]={firstMs:all[0].wallMs,warmMedianMs:median(warm.map(s=>s.wallMs)),minMs:Math.min(...warm.map(s=>s.wallMs)),maxMs:Math.max(...all.map(s=>s.wallMs)),n:4,reads:median(warm.map(s=>s.io.reduce((n,v)=>n+v.reads,0))),sdkCalls:warm[0].rpcs.length,writes:median(warm.map(s=>s.io.reduce((n,v)=>n+v.writes,0)))};}result.checks.projections=12;
+ a.equal(result.checks.security,15);a(result.commands['edit-final'].warmMaxMs<=10000);a(result.commands.create.warmMaxMs<=10000);a(result.commands.attendance.warmMaxMs<=15000);result.result='HYPOTHESIS_CONFIRMED';return result;
+}
+async function main(){const summary=summarize();save('summary.json',summary);a.deepEqual(localManifest(),evidence('local-before.json').files);if(process.argv[2]!=='cleanup'){console.log(summary);return;}
+ const s=await session(),journal=evidence('seed.json');a.equal(journal.namespace,S.ROOT);a.equal(journal.project,S.PROJECT);a(!journal.cleaned,'ALREADY_CLEANED');const paths=[...new Set([...journal.paths,...journal.writtenPaths])];const rows=[];
+ try{
+  for(let i=0;i<paths.length;i+=180)rows.push(...await s.db.getAll(...paths.slice(i,i+180).map(p=>s.db.doc(S.ROOT+'/'+p))));
+  const present=new Map(rows.filter(d=>d.exists).map(d=>[d.ref.path.slice((S.ROOT+'/').length),d]));
+  const requests=[...present].filter(([p])=>p.startsWith('commandRequests/'));
+  const terminal=[];for(const [path,d]of requests){const id=path.split('/')[1],receipt=present.get('commandReceipts/'+id),ledger=present.get('commandLedger/'+id),audit=present.get('memberAudit/'+id);a(receipt&&ledger&&audit,'NONTERMINAL_OPERATION '+id);const r=receipt.data(),l=ledger.data();a(['COMPLETED','FAILED'].includes(r.state||r.businessState||l.state),'UNRECONCILED_OPERATION '+id);a.equal(r.operationId,id);terminal.push({id,state:r.state||l.state});}
+  // Retain immutable command evidence; remove only fixture sources, permissions,
+  // derived views and operational counters. No recursive deletion is used.
+  const keep=p=>/^(command(Requests|Provenance|Ledger|Tombstones|Receipts|Leases|Results|Reconciliation|ProjectionInvalidations)|member(Audit|AdmissionTickets|AdmissionUses))\//.test(p);
+  const retained=[...present.keys()].filter(keep),remove=[...present.keys()].filter(p=>!keep(p));
+  save('cleanup-backup.json',Object.fromEntries([...present].map(([path,d])=>[path,W.document(d)])));
+  const intent={project:S.PROJECT,namespace:S.ROOT,terminal,retained,remove,startedAt:new Date().toISOString(),complete:false};save('cleanup.json',intent);
+  for(let i=0;i<remove.length;i+=300){const part=remove.slice(i,i+300),batch=s.db.batch();for(const path of part)batch.delete(present.get(path).ref,{lastUpdateTime:present.get(path).updateTime});await batch.commit();}
+  for(let i=0;i<remove.length;i+=180){const check=await s.db.getAll(...remove.slice(i,i+180).map(p=>s.db.doc(S.ROOT+'/'+p)));a(check.every(d=>!d.exists),'CLEANUP_READBACK_FAILED');}
+  for(let i=0;i<retained.length;i+=180){const check=await s.db.getAll(...retained.slice(i,i+180).map(p=>s.db.doc(S.ROOT+'/'+p)));for(const d of check){const path=d.ref.path.slice((S.ROOT+'/').length);a(d.exists);a.equal(hash(JSON.stringify(W.document(d))),hash(JSON.stringify(W.document(present.get(path)))),'EVIDENCE_CHANGED');}}
+  intent.complete=true;intent.completedAt=new Date().toISOString();save('cleanup.json',intent);journal.cleaned=true;save('seed.json',journal);
+  a.deepEqual(localManifest(),evidence('local-before.json').files);console.log({result:summary.result,checks:summary.checks,terminal:terminal.length,deleted:remove.length,retained:retained.length,readback:true,preservedLocalFiles:Object.keys(localManifest()).length});
+ }finally{await s.close();}}
+if(require.main===module)main().catch(e=>{console.error({code:e.code||e.message,stack:e.stack});process.exitCode=1;});
+module.exports={summarize};
