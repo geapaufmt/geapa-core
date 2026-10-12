@@ -119,9 +119,10 @@ function f4AttendanceCommands_(x) {
    N(!old||old.state==='CORRECTION_REQUESTED'||old.state==='PREVIOUS'&&previous,'CONFLICT','JUSTIFICATION_ALREADY_PENDING');
    if(previous)N(c.justificationOpensAt&&now>=M.ms(c.justificationOpensAt),'DEADLINE_VIOLATION','PREVIOUS_JUSTIFICATION_WINDOW');
    else N(['ABSENT','UNRECORDED'].includes(fact.status),'INVALID_STATE_TRANSITION','NO_ABSENCE');
-   N(!late||c.acceptLateJustification&&p.lateAcknowledged===true,'DEADLINE_VIOLATION','LATE_JUSTIFICATION_ACKNOWLEDGEMENT');
+   const exceptionalWindow=late?f4AttendanceExceptionalWindow_(x.get,c,fact,activity,now):null;if(exceptionalWindow)eligibleMembership(fact.personRef,fact.membershipRef,M.ms(activity.startsAt));
+   N(!late||exceptionalWindow||c.acceptLateJustification&&p.lateAcknowledged===true,'DEADLINE_VIOLATION','LATE_JUSTIFICATION_ACKNOWLEDGEMENT');
    if(p.proofLink)N(typeof p.proofLink==='string'&&/^https:\/\/drive\.google\.com\//.test(p.proofLink)&&p.proofLink.length<=2000,'VALIDATION_ERROR','PROOF_LINK');
-   return {fact,newFact,activity,c,previous,late,old};
+   return {fact,newFact,activity,c,previous,late,old,exceptionalWindow};
  }
  function setAttendance(ref,status,reason,correction=false,justificationDecision=false){
   const fact=load(ref,true),c=collection(fact.activityRef),activity=load(fact.activityRef,true);
@@ -254,9 +255,9 @@ function f4AttendanceCommands_(x) {
   ATTENDANCE_CORRECT(){return setAttendance(p.attendanceRef,p.status,p.reason,true);},
   ATTENDANCE_PROOF_UPLOAD_REQUEST(){return f4AttendanceProof_(x).begin(justificationContext());},
   ATTENDANCE_JUSTIFICATION_REQUEST(){
-   const {fact,newFact,activity,c,previous,late,old}=justificationContext();
+   const {fact,newFact,activity,c,previous,late,old,exceptionalWindow}=justificationContext();
    if(p.clearProof!==undefined)N(typeof p.clearProof==='boolean'&&(!p.clearProof||!p.proofUploadRef&&!p.proofLink),'VALIDATION_ERROR');
-   const value={attendanceRef:p.attendanceRef,activityRef:fact.activityRef,personRef:fact.personRef,ownerPersonRef:fact.personRef.id,state:previous?'PREVIOUS':'PENDING',basisAttendanceRevision:fact.revision+1,reason:text(p.reason),reasonCode:p.reasonCode?text(p.reasonCode,120):'',proofLink:p.proofLink||'',submittedAt:M.stamp(now),late,lateAcknowledged:late&&p.lateAcknowledged===true};
+   const value={...(exceptionalWindow?{exceptionalWindowRef:exceptionalWindow.ref,exceptionalWindowRevision:exceptionalWindow.value.revision,exceptionalSubmission:true}:{}),attendanceRef:p.attendanceRef,activityRef:fact.activityRef,personRef:fact.personRef,ownerPersonRef:fact.personRef.id,state:previous?'PREVIOUS':'PENDING',basisAttendanceRevision:fact.revision+1,reason:text(p.reason),reasonCode:p.reasonCode?text(p.reasonCode,120):'',proofLink:p.proofLink||'',submittedAt:M.stamp(now),late,lateAcknowledged:late&&p.lateAcknowledged===true};
    const ref=old?fact.pendingJustificationRef:event('justification',value);if(old){const next={...old,...value};if(p.clearProof||p.proofLink){delete next.proofArtifactRef;delete next.proofUploadRef;}revision(ref,next);}if(p.proofUploadRef)revision(ref,{...load(ref),...f4AttendanceProof_(x).attach(ref,fact)});revision(p.attendanceRef,{...fact,pendingJustificationRef:ref,lastJustificationRef:ref});if(newFact)revision(collectionRef(fact.activityRef),{...c,preRosterFactCount:(c.preRosterFactCount||0)+1});fence();history('JUSTIFICATION_REQUESTED',ref,fact.personRef.id,'Justificativa enviada');return {justificationRef:ref,state:value.state};
   },
   ATTENDANCE_JUSTIFICATION_DECIDE(){

@@ -1,0 +1,109 @@
+{
+  "baselineCommit": "fac44ff26436e11d0b91424f0a7aa1081b151ff9",
+  "baselineVersion": 43,
+  "hosting": "c7a4d525ca386dad",
+  "files": [
+    {
+      "source": "candidate/core/activities/v2/100_act_contracts.gs",
+      "target": "activities/v2/100_act_contracts.gs",
+      "sha256": "a7ab2f6f8741dcba9b533305541ac4a26bdf86b39222cf761e642a2cd8d40045",
+      "status": "LOCAL_WIP_NOT_PUBLISHED"
+    },
+    {
+      "source": "candidate/core/activities/v2/101_act_model.gs",
+      "target": "activities/v2/101_act_model.gs",
+      "sha256": "16ee2b740ff311e9609d623def7c65a453cbe791eebf2698556be3058845132c",
+      "status": "LOCAL_WIP_NOT_PUBLISHED"
+    },
+    {
+      "source": "candidate/core/activities/v2/103_act_runtime.gs",
+      "target": "activities/v2/103_act_runtime.gs",
+      "sha256": "5b4b501a2ddc4843f52e6445032c45f16353058c0ad43367addb7ca65acdf825",
+      "status": "LOCAL_WIP_NOT_PUBLISHED"
+    },
+    {
+      "source": "candidate/core/activities/v2/110_act_planning.gs",
+      "target": "activities/v2/110_act_planning.gs",
+      "sha256": "5c14653b24f886fbb71bc90b470919c3fc0d9c6b065463fa537e37766a573823",
+      "status": "LOCAL_WIP_NOT_PUBLISHED"
+    },
+    {
+      "source": "candidate/core/activities/v2/126_act_shared_auth.gs",
+      "target": "activities/v2/126_act_shared_auth.gs",
+      "sha256": "7555f2fbf3a4c797a85525652b2e8ae1175bf63a4caf4313c0cbd8f4f710f039",
+      "status": "LOCAL_WIP_NOT_PUBLISHED"
+    },
+    {
+      "source": "candidate/core/activities/v2/131_activity_attendance.gs",
+      "target": "activities/v2/131_activity_attendance.gs",
+      "sha256": "183100d4170007a3dd4d0caff5d78c4153d314543a6263771873ae6f2a6046de",
+      "status": "LOCAL_WIP_NOT_PUBLISHED"
+    },
+    {
+      "source": "candidate/core/activities/v2/175_act_exceptional_justification.gs",
+      "target": "activities/v2/175_act_exceptional_justification.gs",
+      "sha256": "51f4b127e6de5940aaebf785e900832bc4068cf613afad2427228d86f5c65a5e",
+      "status": "LOCAL_WIP_NOT_PUBLISHED"
+    },
+    {
+      "source": "candidate/core/activities/v2/176_act_academic_governance.gs",
+      "target": "activities/v2/176_act_academic_governance.gs",
+      "sha256": "f444ff3b8c1f4edd739993a5db735df57d1f415c56f65b47e1f8637687e7f67c",
+      "status": "LOCAL_WIP_NOT_PUBLISHED"
+    },
+    {
+      "source": "candidate/core/activities/v2/177_act_justification_pairing.gs",
+      "target": "activities/v2/177_act_justification_pairing.gs",
+      "sha256": "61dcfebc01f4aafe4c6d1c60de489bcbabd6f8b0fb8df98fa81060357f55986b",
+      "status": "LOCAL_WIP_NOT_PUBLISHED"
+    },
+    {
+      "source": "candidate/hosting-integrated/index.html",
+      "target": "preserved/portal-performance-20261012/index.html",
+      "sha256": "5329932f1cb9258801417ffc938af003908fa89943d80138e56747329295619b",
+      "status": "HOSTING_PUBLISHED_BASIC_BEHAVIOR_PENDING_COMPLETE_VALIDATION"
+    },
+    {
+      "source": "candidate/hosting-integrated/assets/physical-560120e5c1fbb33e/app.mjs",
+      "target": "preserved/portal-performance-20261012/assets/physical-560120e5c1fbb33e/app.mjs",
+      "sha256": "2b93da482335eb4ddacdef4ce0a03c9a86ec2dda76925b63a3aedac3c94de0e4",
+      "status": "HOSTING_PUBLISHED_BASIC_BEHAVIOR_PENDING_COMPLETE_VALIDATION"
+    },
+    {
+      "source": "candidate/hosting-integrated/assets/physical-560120e5c1fbb33e/my-activity.mjs",
+      "target": "preserved/portal-performance-20261012/assets/physical-560120e5c1fbb33e/my-activity.mjs",
+      "sha256": "5073f87a7400e4a17d72a9ea5b61c0f55ec8fb90b0dfffd955be9611aa4a7cd8",
+      "status": "HOSTING_PUBLISHED_BASIC_BEHAVIOR_PENDING_COMPLETE_VALIDATION"
+    },
+    {
+      "source": "candidate/hosting-integrated/assets/physical-560120e5c1fbb33e/navigation.mjs",
+      "target": "preserved/portal-performance-20261012/assets/physical-560120e5c1fbb33e/navigation.mjs",
+      "sha256": "0ed4f039cdf3a62e391dd4a3cb8b5105ffe3afe706ab8b56405a0916f54769a2",
+      "status": "HOSTING_PUBLISHED_BASIC_BEHAVIOR_PENDING_COMPLETE_VALIDATION"
+    },
+    {
+      "source": "candidate/hosting-integrated/assets/act-command/act-browser-client.mjs",
+      "target": "preserved/portal-performance-20261012/assets/act-command/act-browser-client.mjs",
+      "sha256": "f799e3b0ad20beb11c432c6c780f2e67e00964452cb785301b5d14c1a541d318",
+      "status": "HOSTING_PUBLISHED_BASIC_BEHAVIOR_PENDING_COMPLETE_VALIDATION"
+    },
+    {
+      "source": "candidate/hosting-integrated/assets/act-command/command-service.mjs",
+      "target": "preserved/portal-performance-20261012/assets/act-command/command-service.mjs",
+      "sha256": "2b5f4b9e736dfd095291eb52c12ec9e64bccf16411357fcfda59a9891ee01b39",
+      "status": "HOSTING_PUBLISHED_BASIC_BEHAVIOR_PENDING_COMPLETE_VALIDATION"
+    },
+    {
+      "source": "candidate/hosting-integrated/assets/act-command/admission-transport.mjs",
+      "target": "preserved/portal-performance-20261012/assets/act-command/admission-transport.mjs",
+      "sha256": "199b9c9afc55ccbea74418f97745b1a685f7638d692cbba764ea82a710940e9b",
+      "status": "HOSTING_PUBLISHED_BASIC_BEHAVIOR_PENDING_COMPLETE_VALIDATION"
+    },
+    {
+      "source": "candidate/hosting-integrated/assets/act-command/request-use-port.mjs",
+      "target": "preserved/portal-performance-20261012/assets/act-command/request-use-port.mjs",
+      "sha256": "9ffcfece1c26bfb2aba448478828d98468b57debda82fe408d09ada4a3f779e6",
+      "status": "HOSTING_PUBLISHED_BASIC_BEHAVIOR_PENDING_COMPLETE_VALIDATION"
+    }
+  ]
+}

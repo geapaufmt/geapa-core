@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://script.google.com https://script.googleusercontent.com; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self'">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Portal GEAPA</title>
+    <meta
+      name="description"
+      content="Portal institucional do GEAPA com acesso público, vínculos, atividades, apresentações e gestão."
+    >
+    <meta name="theme-color" content="#1f6b45">
+    <link rel="manifest" href="manifest.json?v=cc90cbd58c35">
+    <link rel="stylesheet" href="style.9ae9da92320b5588.css">
+    <link rel="stylesheet" href="assets/css/public-v2.41010cbf44a8da05.css">
+    <link rel="stylesheet" href="assets/css/public-admin-v2.640e3b814ce59781.css">
+  </head>
+  <body>
+    <a href="/membros.html" style="display:block;text-align:center;padding:.6rem">Diretório de Membros · demonstração DEV</a>
+    <div class="portal-frame">
+      <header class="portal-header">
+        <button
+          class="menu-toggle"
+          id="menu-toggle"
+          type="button"
+          aria-label="Abrir menu"
+          aria-controls="portal-sidebar"
+          aria-expanded="false"
+        >
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </button>
+        <div class="portal-brand">
+          <div>
+            <strong>Portal GEAPA</strong>
+            <small>UFMT</small>
+          </div>
+        </div>
+        <div class="header-session">
+          <button class="secondary-button compact-button" type="button" data-route-target="login">
+            Entrar
+          </button>
+          <button class="secondary-button compact-button" type="button" data-route-target="interesse">
+            Tenho interesse
+          </button>
+          <button class="secondary-button install-button" type="button" data-install-app hidden>
+            Instalar app
+          </button>
+        </div>
+      </header>
+
+      <div class="portal-body">
+        <div class="environment-banner" data-maintenance-banner hidden></div>
+        <div class="sidebar-backdrop" data-close-sidebar hidden></div>
+        <aside class="portal-sidebar" id="portal-sidebar" aria-label="Navegação principal">
+          <div class="sidebar-user">
+            <div id="usuario-contexto" class="user-context" hidden></div>
+          </div>
+          <nav class="portal-nav" data-portal-nav aria-label="Navegação do portal"></nav>
+          <div class="sidebar-footer">
+            <button id="sair" class="danger-button" type="button">Sair</button>
+          </div>
+        </aside>
+
+        <main class="portal-shell view-inicio" id="portal-app">
+<p id="estado-acesso" class="status-message" role="status" aria-live="polite"></p><button id="atualizar-acesso" class="secondary-button compact-button" type="button">Atualizar acesso</button>
+          <section class="public-home-panel" id="tela-inicio" aria-labelledby="portal-title">
+            <p class="eyebrow">GEAPA</p>
+            <h1 id="portal-title">Portal GEAPA</h1>
+            <p class="intro">
+              Espaço institucional para conhecer o GEAPA, acompanhar atividades
+              abertas e acessar, com login, vínculos, apresentações e rotinas de
+              gestão autorizadas.
+            </p>
+            <div class="home-actions">
+              <button type="button" data-route-target="login">Entrar</button>
+              <button class="secondary-button" type="button" data-route-target="interesse">
+                Tenho interesse
+              </button>
+              <button class="secondary-button" type="button" data-route-target="processo-seletivo">
+                Processo seletivo
+              </button>
+            </div>
+            <div class="public-home-grid">
+              <article>
+                <span>Área pública</span>
+                <strong>Conheça o grupo, normas, diretoria, parceiros e processo seletivo.</strong>
+              </article>
+              <article>
+                <span>Meu vínculo</span>
+                <strong>Acompanhe cadastro, situação, frequência, apresentações e certificados.</strong>
+              </article>
+              <article>
+                <span>Atividades</span>
+                <strong>Acompanhe próximas atividades, apresentações e históricos permitidos.</strong>
+              </article>
+              <article>
+                <span>Gestão do GEAPA</span>
+                <strong>Acesso restrito para comunicação, secretaria, diretoria e administração.</strong>
+              </article>
+            </div>
+          </section>
+
+          <section class="access-panel" id="tela-acesso" aria-labelledby="login-title" hidden><p class="eyebrow">Entrada DEV</p><h1 id="login-title">Entrar no Portal GEAPA</h1><form id="acesso-form" class="access-form"><label for="email">E-mail</label><input id="email" type="email" autocomplete="username" required><label for="password">Senha</label><input id="password" type="password" autocomplete="current-password" required><button id="entrar-email" type="submit">Entrar</button></form><p id="mensagem-status" class="status-message" role="status" aria-live="polite">Use a conta autorizada para este ensaio DEV.</p></section>
+
+          <section class="situation-panel" id="tela-situacao" aria-labelledby="situacao-title" hidden>
+            <div class="situation-topbar">
+              <div class="section-heading">
+                <p class="eyebrow">Área do membro</p>
+                <h2 id="situacao-title">Minha situação</h2>
+              </div>
+              <div class="topbar-actions">
+                <button class="secondary-button" type="button" data-open-atividades data-route-target="atividades">
+                  Próximas atividades
+                </button>
+              </div>
+            </div>
+
+            <p class="simulation-warning">
+              Esta tela exibe os dados consolidados pelo backend seguro do Portal GEAPA.
+              Frequência, apresentações, certificados e pendências aparecem conforme a
+              disponibilidade das informações oficiais.
+            </p>
+
+            <div id="minha-situacao" class="situation-card">
+              <p class="empty-state">
+                A situação do membro será carregada após a autenticação.
+              </p>
+            </div>
+            <div id="meu-vinculo-solicitacoes" class="vinculo-solicitacoes-host" hidden></div>
+          </section>
+
+          <section class="situation-panel" id="tela-meu-perfil" aria-labelledby="meu-perfil-title" hidden>
+            <div class="situation-topbar">
+              <div class="section-heading">
+                <p class="eyebrow">Meu vinculo</p>
+                <h2 id="meu-perfil-title">Meu perfil</h2>
+              </div>
+              <div class="topbar-actions">
+                <button class="secondary-button" type="button" data-route-target="minha-situacao">
+                  Minha situacao
+                </button>
+              </div>
+            </div>
+
+            <p class="simulation-warning">
+              Esta tela e somente leitura. Se algum dado estiver incorreto ou vazio,
+              solicite atualizacao a Diretoria ou Secretaria.
+            </p>
+
+            <div id="meu-perfil" class="situation-card">
+              <p class="empty-state">
+                Depois da entrada, esta area mostrara os dados cadastrais que o GEAPA possui sobre voce.
+              </p>
+            </div>
+          </section>
+
+          <section class="situation-panel" id="tela-minha-atuacao" hidden><div class="situation-topbar"><div class="section-heading"><p class="eyebrow">Meu vínculo</p><h2>Minha atuação</h2></div></div><div id="minha-atuacao" class="situation-card"></div></section>
+<section class="situation-panel" id="tela-atividades" aria-labelledby="atividades-title" hidden>
+            <div class="situation-topbar">
+              <div class="section-heading">
+                <p class="eyebrow">Atividades</p>
+                <h2 id="atividades-title">Próximas atividades</h2>
+              </div>
+              <button class="secondary-button" type="button" data-voltar-situacao data-route-target="minha-situacao">
+                Voltar
+              </button>
+            </div>
+
+            <p class="simulation-warning" id="atividades-descricao">
+              Esta tela usa a base Atividades v2 DEV e mostra apenas atividades
+              futuras ou em andamento. Apresentações de membros também serão
+              tratadas a partir de geapa-atividades.
+            </p>
+
+            <div class="activities-toolbar">
+              <div>
+                <p class="simulation-title" id="atividades-toolbar-title">Agenda futura</p>
+              <p id="atividades-status" class="section-note" role="status" aria-live="polite">
+                Pronta para carregar próximas atividades.
+              </p>
+              <div id="atividades-feedback" class="portal-feedback-slot" hidden></div>
+            </div>
+              <button class="secondary-button compact-button" type="button" data-create-activity hidden disabled>
+                Criar atividade
+              </button>
+            </div>
+
+          <div id="atividades-lista" class="activities-list">
+              <p class="empty-state">Abra a tela para carregar próximas atividades.</p>
+            </div>
+          </section>
+
+          <section class="situation-panel admin-members-panel" id="tela-admin-membros" aria-labelledby="admin-membros-title" hidden>
+            <div id="admin-membros-content">
+              <p class="empty-state">Abra a area para carregar os membros.</p>
+            </div>
+          </section>
+
+          <section id="tela-public-admin" aria-label="Gestão de conteúdo público" hidden>
+            <div id="public-admin-content"></div>
+          </section>
+
+          <section class="situation-panel egress-feedback-panel" id="tela-avaliacao-egresso" aria-labelledby="egress-feedback-title" hidden>
+            <div id="avaliacao-egresso-content"><p class="empty-state">Validando convite...</p></div>
+          </section>
+
+          <section class="situation-panel admin-corrections-panel" id="tela-admin-correcoes-cadastrais" aria-labelledby="admin-correcoes-title" hidden>
+            <div id="admin-correcoes-cadastrais-content">
+              <p class="empty-state">Abra a área para carregar as correções cadastrais.</p>
+            </div>
+          </section>
+
+          <section class="situation-panel admin-vinculo-panel" id="tela-admin-solicitacoes-vinculo" aria-labelledby="admin-solicitacoes-vinculo-title" hidden>
+            <div id="admin-solicitacoes-vinculo-content">
+              <p class="empty-state">Abra a área para carregar as solicitações de vínculo.</p>
+            </div>
+          </section>
+
+          <section class="situation-panel route-placeholder" id="tela-placeholder" hidden>
+            <div id="placeholder-content"></div>
+          </section>
+
+          <section class="situation-panel access-denied-panel" id="tela-acesso-negado" hidden>
+            <div id="access-denied-content"></div>
+          </section>
+
+          <div class="modal-backdrop" id="atividade-modal" hidden>
+            <section
+              class="modal-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="atividade-modal-title"
+            >
+              <div class="modal-topbar">
+                <h2 id="atividade-modal-title">Detalhes da atividade</h2>
+                <button id="fechar-atividade-modal" class="secondary-button compact-button" type="button">
+                  Fechar
+                </button>
+              </div>
+              <div id="atividade-modal-content"></div>
+            </section>
+          </div>
+
+          <div class="modal-backdrop" id="membro-admin-modal" hidden>
+            <section class="modal-panel member-admin-modal-panel" role="dialog" aria-modal="true" aria-labelledby="membro-admin-modal-title">
+              <div class="modal-topbar">
+                <h2 id="membro-admin-modal-title">Detalhes do membro</h2>
+                <button class="secondary-button compact-button" type="button" data-admin-member-close>Fechar</button>
+              </div>
+              <div id="membro-admin-modal-content"></div>
+            </section>
+          </div>
+
+          <div class="modal-backdrop" id="profile-correction-modal" hidden>
+            <section class="modal-panel profile-correction-modal-panel" role="dialog" aria-modal="true" aria-labelledby="profile-correction-title">
+              <div class="modal-topbar"><h2 id="profile-correction-title">Solicitar correção de <span data-profile-correction-label></span></h2>
+                <button class="secondary-button compact-button" type="button" data-profile-correction-close>Fechar</button></div>
+              <form class="profile-correction-form" data-profile-correction-form>
+                <input type="hidden" name="campo">
+                <label><span>Valor atual</span><input name="valorAtual" type="text" readonly></label>
+                <label><span>Valor correto solicitado</span><input name="valorSolicitado" type="text" required maxlength="500"></label>
+                <label><span>Justificativa</span><textarea name="justificativa" rows="5" required minlength="20" maxlength="1000"></textarea><small>Informe pelo menos 20 caracteres.</small></label>
+                <p class="portal-field-error" data-profile-correction-error hidden></p>
+                <label class="profile-confirmation"><input type="checkbox" required> Confirmo que os dados informados estão corretos.</label>
+                <button class="primary-button" type="submit">Enviar solicitação</button>
+              </form>
+            </section>
+          </div>
+
+          <div class="modal-backdrop" id="admin-correction-modal" hidden>
+            <section class="modal-panel admin-correction-modal-panel" role="dialog" aria-modal="true" aria-labelledby="admin-correction-modal-title">
+              <div class="modal-topbar"><h2 id="admin-correction-modal-title">Correção cadastral</h2>
+                <button class="secondary-button compact-button" type="button" data-admin-correction-close>Fechar</button></div>
+              <div id="admin-correction-modal-content"></div>
+            </section>
+          </div>
+
+          <div class="modal-backdrop" id="vinculo-solicitacao-modal" hidden>
+            <section class="modal-panel vinculo-modal-panel" role="dialog" aria-modal="true" aria-labelledby="vinculo-solicitacao-title">
+              <div class="modal-topbar"><h2 id="vinculo-solicitacao-title" data-vinculo-modal-title>Solicitação de vínculo</h2><button class="secondary-button compact-button" type="button" data-vinculo-close>Fechar</button></div>
+              <form class="vinculo-form" data-vinculo-form>
+                <input type="hidden" name="tipo">
+                <p class="section-note" data-vinculo-semestre></p>
+                <label>Motivo<select name="motivoCategoria" required><option value="">Selecione</option><option value="PESSOAL">Pessoal</option><option value="ACADEMICO">Acadêmico</option><option value="SAUDE">Saúde</option><option value="PROFISSIONAL">Profissional</option><option value="OUTRO">Outro</option></select></label>
+                <div data-vinculo-suspensao>
+                  <label>Justificativa<textarea name="justificativa" rows="5" minlength="10"></textarea></label>
+                  <div class="vinculo-date-grid"><label>Data inicial<input type="date" name="dataInicioPretendida"></label><label>Data final<input type="date" name="dataFimPretendida"></label></div>
+                  <p class="section-note" data-vinculo-duration>Informe as datas para calcular a duração civil.</p>
+                </div>
+                <div data-vinculo-desligamento hidden>
+                  <label>Modalidade<select name="modalidadeSolicitada"><option value="DESLIGAMENTO_APOS_HOMOLOGACAO">Após homologação</option><option value="DESLIGAMENTO_FIM_SEMESTRE">Ao término do semestre letivo</option></select></label>
+                  <p class="vinculo-alerta">No desligamento ao fim do semestre não há homologação antecipada. Direitos e deveres permanecem até a decisão final, e o pedido pode ser cancelado antes dela.</p>
+                  <label>Observações<textarea name="observacoes" rows="4"></textarea></label>
+                </div>
+                <label>Documento ou referência opcional<input name="documentoReferencia" maxlength="500"></label>
+                <label class="profile-confirmation"><input type="checkbox" name="cienciaRegras" required> Declaro ciência das regras e da necessidade de decisão humana da Diretoria.</label>
+                <button class="primary-button" type="submit">Enviar solicitação</button>
+              </form>
+            </section>
+          </div>
+
+          <div class="modal-backdrop" id="admin-vinculo-modal" hidden>
+            <section class="modal-panel vinculo-admin-modal-panel" role="dialog" aria-modal="true" aria-labelledby="admin-vinculo-modal-title">
+              <div class="modal-topbar"><h2 id="admin-vinculo-modal-title">Solicitação de vínculo</h2><button class="secondary-button compact-button" type="button" data-admin-vinculo-close>Fechar</button></div>
+              <div id="admin-vinculo-modal-content"></div>
+            </section>
+          </div>
+        </main>
+      </div>
+
+      <footer class="portal-footer">
+        <span>GEAPA</span>
+        <span>Portal institucional <strong class="environment-badge" data-environment-badge hidden></strong></span>
+      </footer>
+    </div>
+
+    <div
+      id="portal-global-loading"
+      class="global-loading"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      hidden
+    >
+      <div class="global-loading-panel">
+        <div class="global-loading-brain" data-loader-svg aria-hidden="true">
+          <img src="assets/img/geapa-loader-brain.svg?v=efb08ccabf00" alt="" loading="eager">
+        </div>
+        <p id="portal-global-loading-message">Carregando...</p>
+      </div>
+    </div>
+
+    <div
+      id="portal-toast-region"
+      class="portal-toast-region"
+      aria-live="polite"
+      aria-relevant="additions text"
+    ></div>
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+  <script type="module" src="assets/physical-560120e5c1fbb33e/entry.mjs"></script>
+</body>
+</html>

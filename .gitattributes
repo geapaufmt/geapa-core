@@ -2,5 +2,6 @@
 *.gs -text
 *.js -text
 *.cjs -text
+*.mjs -text
 *.json -text
 *.html -text
