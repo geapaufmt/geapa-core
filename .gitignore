@@ -1,0 +1,43 @@
+# Credentials and local deployment bindings
+.clasp.json
+.clasprc*
+.env
+.env.*
+service-account*.json
+*service-account*.json
+*credentials*.json
+application_default_credentials.json
+firebase-tools.json
+.config/configstore/
+.firebase/
+.vercel/
+tokens/
+cookies*
+*.dpapi
+*.pem
+*.key
+
+# Installed packages and local/generated artifacts
+node_modules/
+coverage/
+.cache/
+private/
+journals/
+*.journal.json
+*.log
+tmp/
+temp/
+fixtures-generated/
+prototype/node-command-executor/base/
+prototype/node-command-executor/evidence/*
+!prototype/node-command-executor/evidence/summary.sanitized.json
+!prototype/node-command-executor/evidence/checks.sanitized.json
+
+# Editor/system files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~

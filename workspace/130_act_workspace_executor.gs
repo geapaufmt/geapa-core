@@ -1,0 +1,8 @@
+function f4ActivitiesWorkspaceExecutor_(services){
+ const M=f4ActivitiesModel_(),N=M.need;
+ // Transport/provider interfaces are injected only by Core; fake provider in local tests.
+ function start(effectRef,attemptId,fence){f4ActivitiesExecutionGate_(services)();return services.db.transaction(tx=>{const get=p=>tx.get(p).data(),path=M.path(effectRef),out=get(path),ap=path+'/attempts/'+attemptId,prior=get(ap);N(out&&out.status==='CLAIMED'&&out.attemptId===attemptId&&out.leaseFence===fence&&M.ms(out.leaseUntil)>services.clock()&&!prior,'CONFLICT','LEASE');services.revalidate(get,out);tx.set(ap,{effectId:effectRef.id,attemptId,leaseFence:fence,startedAt:M.stamp(services.clock()),executorIdentity:services.identity,preflightBasis:out.authorityBasis});return out;});}
+ function expire(effectRef){f4ActivitiesExecutionGate_(services)();return services.db.transaction(tx=>{const path=M.path(effectRef),out=tx.get(path).data();N(out&&out.status==='CLAIMED'&&M.ms(out.leaseUntil)<=services.clock(),'INVALID_STATE_TRANSITION');const a=tx.get(path+'/attempts/'+out.attemptId).data();const status=a?.startedAt?'UNKNOWN':'KNOWN_NO_EFFECT';tx.set(path,{...out,status,state:status,revision:out.revision+1});return {state:status};});}
+ function dispatch(effectRef,attemptId,fence){const out=start(effectRef,attemptId,fence);let observation;try{observation=services.provider.execute({effectId:effectRef.id,attemptId,kind:out.effectKind,targetRef:out.targetRef,policyRef:out.policyRef,details:out.details});}catch{observation={outcome:'UNKNOWN'};}N(['CONFIRMED','KNOWN_NO_EFFECT','UNKNOWN'].includes(observation.outcome));return services.recordObservation({effectRef,attemptId,leaseFence:fence,...observation});}
+ return {dispatch,start,expire};
+}

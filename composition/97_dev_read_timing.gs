@@ -1,0 +1,21 @@
+// Short-lived operator diagnostics. No identity, token, payload or business data.
+// Best effort only: cache availability never changes a request or its authority.
+function f4DevReadTiming_(){
+ const key='ACT_REAL_READ_TIMING_V1';
+ function enabled(){try{f4DevBoundary_().target();const c=JSON.parse(PropertiesService.getScriptProperties().getProperty('ACT_CORE_DEV_CONFIG')||'null');return ['REAL_DATA_REHEARSAL','DEV_OPERATIONAL'].includes(c?.mode);}catch{return false;}}
+ function begin(event){try{if(!enabled())return null;const body=JSON.parse(event.postData.contents);let action=null;
+  if(body.action==='core.members.own-read.v13'&&['profile','status','functions','directors','contact'].includes(body.request?.view))action='members.'+body.request.view;
+  if(body.action==='core.act.context.v13')action='act.context';
+  const stages={'core.act.portal-preview.v13':'act.preview','core.act.portal-prepare.v13':'act.prepare','core.admit.v13':'act.admit','core.act.process.v13':'act.process','core.status.v13':'act.status','core.act.workspace-upload.v13':'act.workspace-upload','core.act.workspace-reconcile.v13':'act.workspace-reconcile'};if(stages[body.action])action=stages[body.action];
+  if(body.action==='core.act.portal-read.v13')action=['/admin/atividades','/atividades/listar','/atividades/bundle','/atividades/detalhes-preload'].includes(body.request?.route)?'act.list':['/admin/atividades/detalhe','/atividades/detalhe'].includes(body.request?.route)?'act.detail':'act.other';
+  const command=body.request?.commandType;const value=action?{action,atMs:Date.now(),metrics:{},stages:{},counts:{reads:0,writes:0,firestoreCalls:0},command:/^ACT\.[A-Z_]+$/.test(command||'')?command:null}:null;f4DevReadTiming_.active_=value;return value;
+ }catch{return null;}}
+ function recent(){try{if(!enabled())return [];const rows=JSON.parse(CacheService.getScriptCache().get(key)||'[]');return Array.isArray(rows)?rows.filter(x=>Number.isSafeInteger(x.atMs)&&Date.now()-x.atMs<900000).slice(-20):[];}catch{return [];}}
+ function finish(start,code){try{if(!start||!enabled())return;const known=['OK',...f4Core_().codes,'M13_AUTHZ_DENIED','VALIDATION_ERROR','INCOMPLETE_REQUEST','AUTHORIZATION_DENIED','STALE_REVISION','CONFLICT','INVALID_STATE_TRANSITION','UNRESOLVED_DEPENDENCY','HUMAN_DECISION_REQUIRED','CONFIG_CAPABILITY_DISABLED','DEADLINE_VIOLATION','SCOPE_TOO_LARGE'];const row={action:start.action,atMs:start.atMs,elapsedMs:Math.max(0,Date.now()-start.atMs),code:known.includes(code)?code:'RECONCILIATION_REQUIRED',metrics:start.metrics||{},command:start.command,stages:start.stages,counts:start.counts};CacheService.getScriptCache().put(key,JSON.stringify([...recent(),row].slice(-20)),900);}catch{}}
+ function measure(label,fn){const active=f4DevReadTiming_.active_;if(!active||!['identity','firestore'].includes(label))return fn();const at=Date.now();try{return fn();}finally{try{const m=active.metrics[label]||(active.metrics[label]={calls:0,elapsedMs:0});m.calls++;m.elapsedMs+=Math.max(0,Date.now()-at);}catch{}}}
+ // Exclusive stage time avoids double-counting nested authorization/config work.
+ function stage(label,fn){const v=f4DevReadTiming_.active_;if(!v)return fn();const labels=['binding','authorization','config','canonicalReads','validation','transaction','auditReceipt','invalidation','projectionRebuild','serialization','prepare'];if(!labels.includes(label))return fn();const parent=v.frame,frame={start:Date.now(),children:0};v.frame=frame;try{return fn();}finally{const total=Math.max(0,Date.now()-frame.start),m=v.stages[label]||(v.stages[label]={calls:0,elapsedMs:0,inclusiveMs:0});m.calls++;m.elapsedMs+=Math.max(0,total-frame.children);m.inclusiveMs+=total;if(parent)parent.children+=total;v.frame=parent;}}
+ function command(name){const v=f4DevReadTiming_.active_;if(v&&/^ACT\.[A-Z_]+$/.test(name))v.command=name;}
+ function rpc(kind,reads,writes){const v=f4DevReadTiming_.active_;if(!v)return;v.counts.firestoreCalls++;v.counts.reads+=reads||0;v.counts.writes+=writes||0;const label='rpc_'+kind,m=v.metrics[label]||(v.metrics[label]={calls:0});m.calls++;}
+ return {begin,finish,recent,measure,stage,command,rpc};
+}

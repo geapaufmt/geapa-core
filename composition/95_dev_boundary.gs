@@ -1,0 +1,35 @@
+// Shared DEV transport boundary. Server-owned destination, no institutional activation.
+function f4DevBoundary_(){
+ if(f4DevBoundary_.value_)return f4DevBoundary_.value_;
+ const project='geapa-convergencia-dev',database='(default)',syntheticRoot='coreDevValidation/ACT_FUNCTIONAL_20261008',script='1M3GpuWwyRkV24nbHnopzj1q4J-Ea7zHv5eCG-ngOw0qR5lWDMvvv8UfD';
+ const name='projects/'+project+'/databases/'+database+'/documents',base='https://firestore.googleapis.com/v1/'+name;let session=null;const transactions=new Set();
+ function configuration(){const text=PropertiesService.getScriptProperties().getProperty('ACT_CORE_DEV_CONFIG');if(!text)return null;try{return JSON.parse(text)}catch{deny()}}
+ function configuredRoot(uid){const m=configuration();if(!m||!['REAL_DATA_REHEARSAL','DEV_OPERATIONAL'].includes(m.mode))return syntheticRoot;if(m.project!==project||m.root!==''||!Number.isSafeInteger(m.rehearsal?.expiresAt)||Date.now()>=m.rehearsal.expiresAt)deny();return m.mode==='DEV_OPERATIONAL'&&m.rehearsal.fixtureUids?.includes(uid)?syntheticRoot:'';}
+ function prefix(){const root=session?session.root:configuredRoot();return name+(root?'/'+root:'');}
+ function deny(){const e=new Error('DESTINATION_INVALID');e.code=e.message;throw e;}
+ function target(){if(ScriptApp.getScriptId()!==script||PropertiesService.getScriptProperties().getProperty('GEAPA_ENV')!=='DEV'||!['geapadev@gmail.com','secretariageapaufmt@gmail.com'].includes(Session.getEffectiveUser().getEmail()))deny();}
+ function check(){target();if(!session||Date.now()>=session.deadline)deny();}
+ function permit(c){return !!session&&Date.now()<session.deadline&&c?.environment==='DEV'&&c.projectId===project&&c.database===database;}
+ function path(v){if(typeof v!=='string'||v.length>1024||!/^([A-Za-z][A-Za-z0-9_]*\/[A-Za-z0-9_-]+)(\/[A-Za-z][A-Za-z0-9_]*\/[A-Za-z0-9_-]+)*$/.test(v)||v.startsWith('coreDevValidation/')||v.startsWith('projects/'))deny();return v;}
+ function logical(v){if(typeof v!=='string'||!v.startsWith(prefix()+'/'))deny();return path(v.slice((prefix()+'/').length));}
+ function fields(v){if(!v||typeof v!=='object')return;for(const [k,x]of Object.entries(v)){if(k==='referenceValue')logical(x);else if(x&&typeof x==='object')fields(x);}}
+ function exact(o,required,optional=[]){if(!o||typeof o!=='object'||Array.isArray(o)||required.some(k=>!Object.hasOwn(o,k))||Object.keys(o).some(k=>!required.includes(k)&&!optional.includes(k)))deny();}
+ function validate(url,opts){check();exact(opts,['method','headers','muteHttpExceptions','followRedirects'],['contentType','payload']);if(opts.muteHttpExceptions!==true||opts.followRedirects!==false)deny();let b;if(opts.payload!==undefined){if(typeof opts.payload!=='string'||opts.payload.length>4*1024*1024)deny();try{b=JSON.parse(opts.payload);}catch{deny();}}
+  if(opts.method==='get'){const [doc,query]=url.split('?');if(!doc.startsWith('https://firestore.googleapis.com/v1/'+prefix()+'/')||b!==undefined)deny();logical(doc.slice('https://firestore.googleapis.com/v1/'.length));if(query){if(!query.startsWith('transaction=')||!transactions.has(decodeURIComponent(query.slice(12))))deny();}return {kind:'read'};}
+  if(opts.method!=='post'||opts.contentType!=='application/json')deny();
+  if(url===base+':beginTransaction'){exact(b,['options']);exact(b.options,['readWrite']);exact(b.options.readWrite,[]);return {kind:'begin'};}
+  if(url===base+':rollback'){exact(b,['transaction']);if(!transactions.has(b.transaction))deny();return {kind:'rollback',transaction:b.transaction};}
+  if(url===base+':batchGet'){exact(b,['documents'],['transaction']);if(!Array.isArray(b.documents)||b.documents.length<1||b.documents.length>180||new Set(b.documents).size!==b.documents.length||b.transaction!==undefined&&!transactions.has(b.transaction))deny();b.documents.forEach(logical);return {kind:'batchRead'};}
+  if(url.endsWith(':runQuery')){const parent=url.slice(0,-9);if(parent!=='https://firestore.googleapis.com/v1/'+prefix()&&!parent.startsWith('https://firestore.googleapis.com/v1/'+prefix()+'/'))deny();if(parent!=='https://firestore.googleapis.com/v1/'+prefix())logical(parent.slice('https://firestore.googleapis.com/v1/'.length));exact(b,['structuredQuery']);const q=b.structuredQuery;if(!Number.isInteger(q.limit)||q.limit<1||q.limit>20||q.from?.length!==1||q.from[0].allDescendants||!/^[A-Za-z][A-Za-z0-9_]*$/.test(q.from[0].collectionId))deny();fields(q);return {kind:'query'};}
+  if(url!==base+':commit')deny();exact(b,['writes'],['transaction']);if(!Array.isArray(b.writes)||b.writes.length>400||b.transaction!==undefined&&!transactions.has(b.transaction))deny();if(session.root===''&&!session.operational&&b.writes.length)deny();const seen=new Set();for(const w of b.writes){const kind=Object.hasOwn(w,'delete')?'delete':'update';exact(w,[kind,'currentDocument'],kind==='update'?['updateMask']:[]);const dest=kind==='delete'?w.delete:w.update.name;logical(dest);if(seen.has(dest))deny();seen.add(dest);const c=w.currentDocument;exact(c,Object.hasOwn(c,'updateTime')?['updateTime']:['exists']);if(c.exists!==undefined&&typeof c.exists!=='boolean'||c.updateTime!==undefined&&!Number.isFinite(Date.parse(c.updateTime)))deny();if(kind==='update'){exact(w.update,['name','fields']);fields(w.update.fields);}}
+  session.writes+=b.writes.length;if(session.writes>2000)deny();return {kind:'commit',transaction:b.transaction,writes:b.writes.length};
+ }
+ function fetch(url,opts){return f4DevReadTiming_().measure('firestore',()=>fetchMeasured(url,opts));}
+ function fetchMeasured(url,opts){const i=validate(url,opts);if(i.kind==='commit'&&i.writes===0){if(!i.transaction)deny();const r=UrlFetchApp.fetch(base+':rollback',{...opts,payload:JSON.stringify({transaction:i.transaction})});transactions.delete(i.transaction);return r.getResponseCode()===200?{getResponseCode:()=>200,getContentText:()=>JSON.stringify({writeResults:[]})}:r;}
+  const r=UrlFetchApp.fetch(url,opts);if(i.kind==='begin'&&r.getResponseCode()===200){const t=JSON.parse(r.getContentText()).transaction;if(typeof t!=='string'||!t||transactions.has(t))deny();transactions.add(t);}if(i.transaction)transactions.delete(i.transaction);return r;
+ }
+ // uid only selects an operator-configured DEV fixture namespace. Every HTTP
+ // handler still verifies the token and canonical binding before any operation.
+ function run(fn,uid){target();if(session||typeof fn!=='function')deny();session={deadline:Date.now()+300000,writes:0,root:configuredRoot(uid),operational:configuration()?.mode==='DEV_OPERATIONAL'};try{return fn(Object.freeze({environment:'DEV',projectId:project,database,host:'firestore.googleapis.com',port:443}));}finally{session=null;transactions.clear();}}
+ return f4DevBoundary_.value_=Object.freeze({target,permit,check,path,logical,fetch,run,get root(){return session?session.root:configuredRoot()},script,project,database});
+}

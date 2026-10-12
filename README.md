@@ -1,3 +1,5 @@
+> **Branch de preservação DEV, sem deploy.** Consulte [Core v43](docs/CORE-DEV-V43.md) para a fonte de código e o estado canônico atual. O texto abaixo documenta a arquitetura histórica anterior à convergência.
+
 # GEAPA Core (Apps Script Library)
 
 Documentacao da evolucao cadastral DEV/HOMOLOG: [docs/MODELO_CADASTRAL_MEMBROS_V2.md](docs/MODELO_CADASTRAL_MEMBROS_V2.md).

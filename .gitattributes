@@ -1,0 +1,6 @@
+# Preserve exact Apps Script source bytes for immutable version/hash verification.
+*.gs -text
+*.js -text
+*.cjs -text
+*.json -text
+*.html -text
