@@ -1,0 +1,12 @@
+{
+  "functions": [{"source": ".", "codebase": "geapa-core-candidate", "runtime": "nodejs22", "predeploy": ["node -e \"throw Error('DEPLOY_NOT_AUTHORIZED')\""], "ignore": ["node_modules", "evidence", "test", "scripts", "*-debug.log"]}],
+  "firestore": {"rules": "test/firestore.rules"},
+  "emulators": {
+    "functions": {"host": "127.0.0.1", "port": 5107},
+    "auth": {"host": "127.0.0.1", "port": 9197},
+    "firestore": {"host": "127.0.0.1", "port": 8187},
+    "hub": {"host": "127.0.0.1", "port": 4407},
+    "logging": {"host": "127.0.0.1", "port": 4507},
+    "ui": {"enabled": false}, "singleProjectMode": true
+  }
+}

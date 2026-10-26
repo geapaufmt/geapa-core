@@ -1,0 +1,6114 @@
+{
+  "docs": {
+    "memberIdentities/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberIdentities-v1"
+        },
+        "id": {
+          "stringValue": "PES-000001"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "displayName": {
+          "stringValue": "Pessoa sintética"
+        },
+        "technicalAccount": {
+          "booleanValue": false
+        },
+        "active": {
+          "booleanValue": true
+        }
+      }
+    },
+    "memberLinks/VINC-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberLinks-v1"
+        },
+        "id": {
+          "stringValue": "VINC-001"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "type": {
+          "stringValue": "MEMBRO_EFETIVO"
+        },
+        "startDate": {
+          "stringValue": "2026-01-01"
+        },
+        "endDate": {
+          "nullValue": "NULL_VALUE"
+        },
+        "exitDate": {
+          "nullValue": "NULL_VALUE"
+        }
+      }
+    },
+    "memberAuthBindings/CF_ADMIN": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "binding-v1"
+        },
+        "id": {
+          "stringValue": "CF_ADMIN"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "uid": {
+          "stringValue": "CF_ADMIN"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "bindingVersion": {
+          "integerValue": "1"
+        },
+        "policyVersion": {
+          "integerValue": "1"
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        },
+        "createdAt": {
+          "integerValue": "1789401600000"
+        },
+        "updatedAt": {
+          "integerValue": "1789401600000"
+        },
+        "domainVersion": {
+          "stringValue": "m11"
+        }
+      }
+    },
+    "memberGovernanceBoards/DIR-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberGovernanceBoards-v1"
+        },
+        "id": {
+          "stringValue": "DIR-001"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "name": {
+          "stringValue": "Diretoria sintética"
+        },
+        "startDate": {
+          "stringValue": "2026-01-01"
+        },
+        "endDate": {
+          "stringValue": "2026-12-31"
+        }
+      }
+    },
+    "memberGovernanceTerms/TERM-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberGovernanceTerms-v1"
+        },
+        "id": {
+          "stringValue": "TERM-001"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "name": {
+          "stringValue": "Termo sintético"
+        },
+        "startDate": {
+          "stringValue": "2026-01-01"
+        },
+        "endDate": {
+          "stringValue": "2026-12-31"
+        }
+      }
+    },
+    "memberGovernanceBoardTerms/REL-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberGovernanceBoardTerms-v1"
+        },
+        "id": {
+          "stringValue": "REL-001"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "idDiretoria": {
+          "stringValue": "DIR-001"
+        },
+        "idTermo": {
+          "stringValue": "TERM-001"
+        },
+        "startDate": {
+          "stringValue": "2026-01-01"
+        },
+        "endDate": {
+          "stringValue": "2026-12-31"
+        }
+      }
+    },
+    "memberRoleCatalog/CARGO-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberRoleCatalog-v1"
+        },
+        "id": {
+          "stringValue": "CARGO-001"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "roleKey": {
+          "stringValue": "DIRETOR_ADMINISTRATIVO"
+        },
+        "group": {
+          "stringValue": "DIRETORIA"
+        },
+        "active": {
+          "booleanValue": true
+        }
+      }
+    },
+    "memberFunctions/VIG-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberFunctions-v1"
+        },
+        "id": {
+          "stringValue": "VIG-001"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "idVinculo": {
+          "stringValue": "VINC-001"
+        },
+        "idCargo": {
+          "stringValue": "CARGO-001"
+        },
+        "scopeKey": {
+          "stringValue": "ADMINISTRACAO"
+        },
+        "idDiretoria": {
+          "stringValue": "DIR-001"
+        },
+        "idTermo": {
+          "stringValue": "TERM-001"
+        },
+        "startDate": {
+          "stringValue": "2026-01-01"
+        },
+        "endDatePlanned": {
+          "stringValue": "2026-12-31"
+        },
+        "endDateReal": {
+          "nullValue": "NULL_VALUE"
+        }
+      }
+    },
+    "memberPrivateProfiles/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberPrivateProfiles-v1"
+        },
+        "id": {
+          "stringValue": "PES-000001"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "contactEmail": {
+          "stringValue": "synthetic@example.invalid"
+        },
+        "academicReference": {
+          "stringValue": "SYNTHETIC"
+        }
+      }
+    },
+    "memberAggregateHeads/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m11-head-v1"
+        },
+        "id": {
+          "stringValue": "PES-000001"
+        },
+        "kind": {
+          "stringValue": "PERSON"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "paths": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "memberIdentities/PES-000001"
+              },
+              {
+                "stringValue": "memberLinks/VINC-001"
+              },
+              {
+                "stringValue": "memberFunctions/VIG-001"
+              },
+              {
+                "stringValue": "memberPrivateProfiles/PES-000001"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "memberBoardHeads/DIR-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m11-head-v1"
+        },
+        "id": {
+          "stringValue": "DIR-001"
+        },
+        "kind": {
+          "stringValue": "BOARD"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "paths": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "memberGovernanceBoards/DIR-001"
+              },
+              {
+                "stringValue": "memberGovernanceBoardTerms/REL-001"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "memberCurrentStates/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-state-v1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "state": {
+          "stringValue": "MEMBRO_EFETIVO"
+        },
+        "blocked": {
+          "booleanValue": false
+        },
+        "stale": {
+          "booleanValue": false
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        },
+        "accessEpoch": {
+          "integerValue": "1"
+        },
+        "policyVersion": {
+          "integerValue": "1"
+        },
+        "asOf": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "startsAt": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "validUntil": {
+          "timestampValue": "9999-12-30T23:55:55.898Z"
+        },
+        "egressEndsAtExclusive": {
+          "nullValue": "NULL_VALUE"
+        },
+        "technicalAccount": {
+          "booleanValue": false
+        }
+      }
+    },
+    "memberPortalProfiles/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "safe-profile-v11"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "displayLabel": {
+          "stringValue": "Pessoa sintética"
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        }
+      }
+    },
+    "memberPublicProfiles/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-public-view-v1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "published": {
+          "booleanValue": false
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        }
+      }
+    },
+    "memberCurrentFunctions/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-functions-view-v1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        },
+        "asOf": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "validUntil": {
+          "timestampValue": "2027-01-13T15:28:58.365Z"
+        },
+        "records": {
+          "arrayValue": {
+            "values": [
+              {
+                "mapValue": {
+                  "fields": {
+                    "idPessoa": {
+                      "stringValue": "PES-000001"
+                    },
+                    "idVigencia": {
+                      "stringValue": "VIG-001"
+                    },
+                    "idVinculo": {
+                      "stringValue": "VINC-001"
+                    },
+                    "idCargo": {
+                      "stringValue": "CARGO-001"
+                    },
+                    "roleKey": {
+                      "stringValue": "DIRETOR_ADMINISTRATIVO"
+                    },
+                    "group": {
+                      "stringValue": "DIRETORIA"
+                    },
+                    "scopeKey": {
+                      "stringValue": "ADMINISTRACAO"
+                    },
+                    "idDiretoria": {
+                      "stringValue": "DIR-001"
+                    },
+                    "idTermo": {
+                      "stringValue": "TERM-001"
+                    },
+                    "startDate": {
+                      "stringValue": "2026-01-01"
+                    },
+                    "endDateReal": {
+                      "nullValue": "NULL_VALUE"
+                    },
+                    "endDatePlanned": {
+                      "stringValue": "2026-12-31"
+                    },
+                    "revision": {
+                      "integerValue": "1"
+                    },
+                    "sourceRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "fences": {
+          "arrayValue": {
+            "values": [
+              {
+                "mapValue": {
+                  "fields": {
+                    "path": {
+                      "stringValue": "memberBoardHeads/DIR-001"
+                    },
+                    "revision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              },
+              {
+                "mapValue": {
+                  "fields": {
+                    "path": {
+                      "stringValue": "memberGovernanceTerms/TERM-001"
+                    },
+                    "revision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              },
+              {
+                "mapValue": {
+                  "fields": {
+                    "path": {
+                      "stringValue": "memberRoleCatalog/CARGO-001"
+                    },
+                    "revision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "memberCurrentDirectors/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-directors-view-v1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        },
+        "asOf": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "validUntil": {
+          "timestampValue": "2027-01-13T15:28:58.365Z"
+        },
+        "records": {
+          "arrayValue": {
+            "values": [
+              {
+                "mapValue": {
+                  "fields": {
+                    "idPessoa": {
+                      "stringValue": "PES-000001"
+                    },
+                    "idVigencia": {
+                      "stringValue": "VIG-001"
+                    },
+                    "idCargo": {
+                      "stringValue": "CARGO-001"
+                    },
+                    "idDiretoria": {
+                      "stringValue": "DIR-001"
+                    },
+                    "idTermo": {
+                      "stringValue": "TERM-001"
+                    },
+                    "sourceRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "fences": {
+          "arrayValue": {
+            "values": [
+              {
+                "mapValue": {
+                  "fields": {
+                    "path": {
+                      "stringValue": "memberBoardHeads/DIR-001"
+                    },
+                    "revision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              },
+              {
+                "mapValue": {
+                  "fields": {
+                    "path": {
+                      "stringValue": "memberGovernanceTerms/TERM-001"
+                    },
+                    "revision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              },
+              {
+                "mapValue": {
+                  "fields": {
+                    "path": {
+                      "stringValue": "memberRoleCatalog/CARGO-001"
+                    },
+                    "revision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "memberStatusViews/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "safe-status-v11"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "state": {
+          "stringValue": "MEMBRO_EFETIVO"
+        },
+        "egressEndsAtExclusive": {
+          "nullValue": "NULL_VALUE"
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        }
+      }
+    },
+    "institutionalAccounts/PES-000001": {
+      "fields": {
+        "human": {
+          "booleanValue": true
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        }
+      }
+    },
+    "projectionProvenance/M1_memberPortalProfiles_PES-000001": {
+      "fields": {
+        "producer": {
+          "stringValue": "F4_M11"
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        },
+        "target": {
+          "stringValue": "memberPortalProfiles/PES-000001"
+        }
+      }
+    },
+    "projectionProvenance/M1_memberStatusViews_PES-000001": {
+      "fields": {
+        "producer": {
+          "stringValue": "F4_M11"
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        },
+        "target": {
+          "stringValue": "memberStatusViews/PES-000001"
+        }
+      }
+    },
+    "memberTransitionQueue/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m11-transition-v1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "personRevision": {
+          "integerValue": "1"
+        },
+        "expectedPersonRevision": {
+          "integerValue": "1"
+        },
+        "dueAt": {
+          "timestampValue": "2027-01-13T15:28:58.365Z"
+        },
+        "derivedAt": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        }
+      }
+    },
+    "portalAccessStatus/PES-000001/state/current": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "portal-access-status-v1"
+        },
+        "status": {
+          "stringValue": "ACTIVE"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "validUntil": {
+          "timestampValue": "9999-12-30T23:55:55.898Z"
+        }
+      }
+    },
+    "memberCurrentFunctions/PES-000001/index/current": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-function-index-v12"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "kind": {
+          "stringValue": "memberCurrentFunctions"
+        },
+        "ids": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "VIG-001"
+              }
+            ]
+          }
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        },
+        "asOf": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "validUntil": {
+          "timestampValue": "2027-01-13T15:28:58.365Z"
+        }
+      }
+    },
+    "memberCurrentDirectors/PES-000001/index/current": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-function-index-v12"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "kind": {
+          "stringValue": "memberCurrentDirectors"
+        },
+        "ids": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "VIG-001"
+              }
+            ]
+          }
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        },
+        "asOf": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "validUntil": {
+          "timestampValue": "2027-01-13T15:28:58.365Z"
+        }
+      }
+    },
+    "memberFunctionProofs/PES-000001/items/VIG-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-function-proof-v12"
+        },
+        "personRevision": {
+          "integerValue": "1"
+        },
+        "functionRevision": {
+          "integerValue": "1"
+        },
+        "boardId": {
+          "stringValue": "DIR-001"
+        },
+        "boardEpoch": {
+          "integerValue": "1"
+        },
+        "termId": {
+          "stringValue": "TERM-001"
+        },
+        "termRevision": {
+          "integerValue": "1"
+        },
+        "roleId": {
+          "stringValue": "CARGO-001"
+        },
+        "roleRevision": {
+          "integerValue": "1"
+        },
+        "startsAt": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "endsAtExclusive": {
+          "timestampValue": "2027-01-13T15:28:58.365Z"
+        },
+        "dto": {
+          "mapValue": {
+            "fields": {
+              "schemaVersion": {
+                "stringValue": "safe-member-function-v12"
+              },
+              "idPessoa": {
+                "stringValue": "PES-000001"
+              },
+              "idVigencia": {
+                "stringValue": "VIG-001"
+              },
+              "roleKey": {
+                "stringValue": "DIRETOR_ADMINISTRATIVO"
+              },
+              "group": {
+                "stringValue": "DIRETORIA"
+              },
+              "scopeKey": {
+                "stringValue": "ADMINISTRACAO"
+              },
+              "idDiretoria": {
+                "stringValue": "DIR-001"
+              },
+              "idTermo": {
+                "stringValue": "TERM-001"
+              },
+              "startDate": {
+                "stringValue": "2026-01-01"
+              },
+              "endDatePlanned": {
+                "stringValue": "2026-12-31"
+              },
+              "endDateReal": {
+                "nullValue": "NULL_VALUE"
+              }
+            }
+          }
+        }
+      }
+    },
+    "memberCurrentFunctions/PES-000001/items/VIG-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "safe-member-function-v12"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "idVigencia": {
+          "stringValue": "VIG-001"
+        },
+        "roleKey": {
+          "stringValue": "DIRETOR_ADMINISTRATIVO"
+        },
+        "group": {
+          "stringValue": "DIRETORIA"
+        },
+        "scopeKey": {
+          "stringValue": "ADMINISTRACAO"
+        },
+        "idDiretoria": {
+          "stringValue": "DIR-001"
+        },
+        "idTermo": {
+          "stringValue": "TERM-001"
+        },
+        "startDate": {
+          "stringValue": "2026-01-01"
+        },
+        "endDatePlanned": {
+          "stringValue": "2026-12-31"
+        },
+        "endDateReal": {
+          "nullValue": "NULL_VALUE"
+        }
+      }
+    },
+    "memberCurrentDirectors/PES-000001/items/VIG-001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "safe-member-function-v12"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "idVigencia": {
+          "stringValue": "VIG-001"
+        },
+        "roleKey": {
+          "stringValue": "DIRETOR_ADMINISTRATIVO"
+        },
+        "group": {
+          "stringValue": "DIRETORIA"
+        },
+        "scopeKey": {
+          "stringValue": "ADMINISTRACAO"
+        },
+        "idDiretoria": {
+          "stringValue": "DIR-001"
+        },
+        "idTermo": {
+          "stringValue": "TERM-001"
+        },
+        "startDate": {
+          "stringValue": "2026-01-01"
+        },
+        "endDatePlanned": {
+          "stringValue": "2026-12-31"
+        },
+        "endDateReal": {
+          "nullValue": "NULL_VALUE"
+        }
+      }
+    },
+    "portalUsers/CF_ADMIN": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "portal-binding-v11"
+        },
+        "uid": {
+          "stringValue": "CF_ADMIN"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "bindingVersion": {
+          "integerValue": "1"
+        },
+        "sourceRevision": {
+          "integerValue": "1"
+        },
+        "policyVersion": {
+          "integerValue": "1"
+        },
+        "technicalAccount": {
+          "booleanValue": false
+        }
+      }
+    },
+    "memberIdentities/PES-000002": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberIdentities-v1"
+        },
+        "id": {
+          "stringValue": "PES-000002"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000002"
+        },
+        "displayName": {
+          "stringValue": "Synthetic target"
+        },
+        "technicalAccount": {
+          "booleanValue": false
+        },
+        "active": {
+          "booleanValue": true
+        }
+      }
+    },
+    "memberLinks/VINC-002": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberLinks-v1"
+        },
+        "id": {
+          "stringValue": "VINC-002"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000002"
+        },
+        "type": {
+          "stringValue": "MEMBRO_EFETIVO"
+        },
+        "startDate": {
+          "stringValue": "2026-01-01"
+        },
+        "endDate": {
+          "nullValue": "NULL_VALUE"
+        },
+        "exitDate": {
+          "nullValue": "NULL_VALUE"
+        }
+      }
+    },
+    "memberPrivateProfiles/PES-000002": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m1-memberPrivateProfiles-v1"
+        },
+        "id": {
+          "stringValue": "PES-000002"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "origin": {
+          "stringValue": "SYNTHETIC_M1"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000002"
+        },
+        "contactEmail": {
+          "stringValue": "target@example.invalid"
+        },
+        "academicReference": {
+          "stringValue": "SYNTHETIC"
+        }
+      }
+    },
+    "memberAggregateHeads/PES-000002": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "m11-head-v1"
+        },
+        "id": {
+          "stringValue": "PES-000002"
+        },
+        "kind": {
+          "stringValue": "PERSON"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "paths": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "memberIdentities/PES-000002"
+              },
+              {
+                "stringValue": "memberLinks/VINC-002"
+              },
+              {
+                "stringValue": "memberPrivateProfiles/PES-000002"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "memberAuthorityControl/MEMBERS": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-authority-control-v13"
+        },
+        "id": {
+          "stringValue": "MEMBERS"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "mode": {
+          "stringValue": "CANONICAL"
+        },
+        "epoch": {
+          "integerValue": "1"
+        },
+        "policyEpoch": {
+          "integerValue": "1"
+        },
+        "readAuthzEpoch": {
+          "integerValue": "1"
+        },
+        "activeWriterVersion": {
+          "stringValue": "M13"
+        },
+        "approvalRef": {
+          "stringValue": "M621-D1"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "nullableFunctionApprovals": {
+          "mapValue": {
+            "fields": {
+              "SYN_CONS_1": {
+                "mapValue": {
+                  "fields": {
+                    "caseRef": {
+                      "stringValue": "add1094af15daa82fa0b6edd249175be1a4edcb397aa9b989de00403e7b1e8e4"
+                    },
+                    "approvalRef": {
+                      "stringValue": "M621-D1"
+                    },
+                    "evidenceHash": {
+                      "stringValue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    }
+                  }
+                }
+              },
+              "SYN_CONS_2": {
+                "mapValue": {
+                  "fields": {
+                    "caseRef": {
+                      "stringValue": "aeaff54772b1d4e5643d381fc0edca431dd92abe160bbe464ac60f064ad7b40b"
+                    },
+                    "approvalRef": {
+                      "stringValue": "M621-D1"
+                    },
+                    "evidenceHash": {
+                      "stringValue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    }
+                  }
+                }
+              },
+              "SYN_CONS_3": {
+                "mapValue": {
+                  "fields": {
+                    "caseRef": {
+                      "stringValue": "642917a378623dfbf7aca41cc36458b7d9839ba89f1a2c2fbec6079d4f3f51df"
+                    },
+                    "approvalRef": {
+                      "stringValue": "M621-D1"
+                    },
+                    "evidenceHash": {
+                      "stringValue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "selfReadPolicy": {
+          "mapValue": {
+            "fields": {
+              "policyId": {
+                "stringValue": "SYN_POLICY"
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              },
+              "capability": {
+                "stringValue": "MEMBERS_SELF_READ"
+              },
+              "eligibleStates": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "MEMBRO_EFETIVO"
+                    }
+                  ]
+                }
+              },
+              "fieldMasks": {
+                "mapValue": {
+                  "fields": {
+                    "MEMBERS_SELF_READ": {
+                      "arrayValue": {
+                        "values": [
+                          {
+                            "stringValue": "idPessoa"
+                          },
+                          {
+                            "stringValue": "idVigencia"
+                          },
+                          {
+                            "stringValue": "roleKey"
+                          },
+                          {
+                            "stringValue": "group"
+                          },
+                          {
+                            "stringValue": "scopeKey"
+                          },
+                          {
+                            "stringValue": "idDiretoria"
+                          },
+                          {
+                            "stringValue": "idTermo"
+                          },
+                          {
+                            "stringValue": "startDate"
+                          },
+                          {
+                            "stringValue": "endDatePlanned"
+                          },
+                          {
+                            "stringValue": "endDateReal"
+                          },
+                          {
+                            "stringValue": "displayLabel"
+                          },
+                          {
+                            "stringValue": "state"
+                          },
+                          {
+                            "stringValue": "egressEndsAtExclusive"
+                          },
+                          {
+                            "stringValue": "contactEmail"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              "issuedAt": {
+                "timestampValue": "2026-10-17T23:27:58.365Z"
+              },
+              "expiresAt": {
+                "timestampValue": "2026-10-18T00:28:58.365Z"
+              }
+            }
+          }
+        }
+      }
+    },
+    "memberAuthzSubjects/PES-000001": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-authz-subject-v13"
+        },
+        "idPessoa": {
+          "stringValue": "PES-000001"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "authzEpoch": {
+          "integerValue": "1"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "approvalRef": {
+          "stringValue": "SYN_APPROVAL"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        }
+      }
+    },
+    "memberAuthzPolicies/SYN_POLICY": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-authz-policy-v13"
+        },
+        "id": {
+          "stringValue": "SYN_POLICY"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "origin": {
+          "stringValue": "F4_M621_INSTITUTIONAL"
+        },
+        "approvalRef": {
+          "stringValue": "SYN_APPROVAL"
+        },
+        "issuedAt": {
+          "timestampValue": "2026-10-17T23:27:58.365Z"
+        },
+        "expiresAt": {
+          "timestampValue": "2026-10-18T00:28:58.365Z"
+        },
+        "capabilities": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "MEMBERS_PROFILE_CORRECT"
+              }
+            ]
+          }
+        },
+        "targets": {
+          "mapValue": {
+            "fields": {
+              "ownPerson": {
+                "booleanValue": false
+              },
+              "allowedTargetScopes": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "ADMINISTRACAO"
+                    }
+                  ]
+                }
+              },
+              "allowedBoards": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "allowedRoles": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "allowedPersons": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "PES-000002"
+                    }
+                  ]
+                }
+              },
+              "allowedResources": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "memberPrivateProfiles/PES-000002"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "fieldMasks": {
+          "mapValue": {
+            "fields": {
+              "MEMBERS_PROFILE_CORRECT": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "displayName"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "proofKind": {
+          "stringValue": "ROLE"
+        },
+        "actorSelector": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "ROLE"
+              },
+              "roleKey": {
+                "stringValue": "DIRETOR_ADMINISTRATIVO"
+              },
+              "group": {
+                "stringValue": "DIRETORIA"
+              },
+              "actorScope": {
+                "stringValue": "ADMINISTRACAO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "memberEvidenceAttestations/SYN_EVIDENCE": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-evidence-attestation-v13"
+        },
+        "id": {
+          "stringValue": "SYN_EVIDENCE"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "kind": {
+          "stringValue": "CADASTRAL_EVIDENCE"
+        },
+        "holderId": {
+          "stringValue": "PES-000002"
+        },
+        "linkId": {
+          "nullValue": "NULL_VALUE"
+        },
+        "targetResourceIds": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "memberPrivateProfiles/PES-000002"
+              }
+            ]
+          }
+        },
+        "effect": {
+          "stringValue": "CORRECAO"
+        },
+        "effectiveDate": {
+          "stringValue": "2026-09-14"
+        },
+        "issuerRef": {
+          "stringValue": "SYN_ISSUER"
+        },
+        "approvalRef": {
+          "stringValue": "SYN_APPROVAL"
+        },
+        "contentHash": {
+          "stringValue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "verifiedAt": {
+          "timestampValue": "2026-10-17T23:28:57.365Z"
+        },
+        "expiresAt": {
+          "timestampValue": "2026-10-18T00:28:58.365Z"
+        }
+      }
+    },
+    "presentationCapacityHeads/registry": {
+      "fields": {
+        "id": {
+          "stringValue": "registry"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "kind": {
+          "stringValue": "DOMAIN_FENCE"
+        },
+        "membersEpoch": {
+          "integerValue": "1"
+        },
+        "cycleRegistryEpoch": {
+          "integerValue": "1"
+        }
+      }
+    },
+    "presentationCycles/cccccccccccccccccccccccccccccccc": {
+      "fields": {
+        "id": {
+          "stringValue": "cccccccccccccccccccccccccccccccc"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "status": {
+          "stringValue": "OPEN"
+        },
+        "currentConfigRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "config"
+              },
+              "id": {
+                "stringValue": "config"
+              },
+              "parent": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "civilStart": {
+          "stringValue": "2026-01-01"
+        },
+        "civilEnd": {
+          "stringValue": "2027-12-31"
+        },
+        "policyVersionRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "policy"
+              },
+              "id": {
+                "stringValue": "policy"
+              }
+            }
+          }
+        }
+      }
+    },
+    "presentationPolicyReferences/policy": {
+      "fields": {
+        "id": {
+          "stringValue": "policy"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "approved": {
+          "booleanValue": true
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "commands": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "ACT.CYCLE_CREATE"
+              },
+              {
+                "stringValue": "ACT.CONFIG_RECORD"
+              },
+              {
+                "stringValue": "ACT.CONFIG_ACTIVATE"
+              },
+              {
+                "stringValue": "ACT.CYCLE_OPEN"
+              },
+              {
+                "stringValue": "ACT.SESSION_CONFIGURE"
+              },
+              {
+                "stringValue": "ACT.INCIDENCE_EVALUATE"
+              },
+              {
+                "stringValue": "ACT.CALENDAR_RESERVE"
+              },
+              {
+                "stringValue": "ACT.CALENDAR_RELEASE"
+              },
+              {
+                "stringValue": "ACT.CALENDAR_MOVE"
+              },
+              {
+                "stringValue": "ACT.JOINT_PROPOSE"
+              },
+              {
+                "stringValue": "ACT.JOINT_CONSENT"
+              },
+              {
+                "stringValue": "ACT.COMPOSITION_CONFIRM"
+              },
+              {
+                "stringValue": "ACT.CALENDAR_SWAP_CONFIRM"
+              },
+              {
+                "stringValue": "ACT.THEME_SUBMIT"
+              },
+              {
+                "stringValue": "ACT.THEME_COMPLEMENT"
+              },
+              {
+                "stringValue": "ACT.THEME_MATERIALITY_DECIDE"
+              },
+              {
+                "stringValue": "ACT.THEME_VALIDATE"
+              },
+              {
+                "stringValue": "ACT.THEME_WITHDRAW"
+              },
+              {
+                "stringValue": "ACT.THEME_TACIT_APPLY"
+              },
+              {
+                "stringValue": "ACT.COMPATIBILITY_DECIDE"
+              },
+              {
+                "stringValue": "ACT.DYNAMIC_SUBMIT"
+              },
+              {
+                "stringValue": "ACT.DYNAMIC_DECIDE"
+              },
+              {
+                "stringValue": "ACT.DYNAMIC_CANCEL"
+              },
+              {
+                "stringValue": "ACT.REALIZATION_RECOGNIZE"
+              },
+              {
+                "stringValue": "ACT.MATERIAL_SUBMIT"
+              },
+              {
+                "stringValue": "ACT.MATERIAL_REVIEW"
+              },
+              {
+                "stringValue": "ACT.MATERIAL_CORRECTION_REQUEST"
+              },
+              {
+                "stringValue": "ACT.CORRECTION_OPPORTUNITY_OPEN"
+              },
+              {
+                "stringValue": "ACT.MATERIAL_RECEIVE"
+              },
+              {
+                "stringValue": "ACT.MATERIAL_EXCEPTION"
+              },
+              {
+                "stringValue": "ACT.MATERIAL_CORRECTION_SUBMIT"
+              },
+              {
+                "stringValue": "ACT.MATERIAL_FINAL_EVALUATE"
+              },
+              {
+                "stringValue": "ACT.OBLIGATION_EVALUATE"
+              },
+              {
+                "stringValue": "ACT.MEMBER_EXIT_EFFECT"
+              },
+              {
+                "stringValue": "ACT.FINAL_TITLE_CONFIRM"
+              },
+              {
+                "stringValue": "ACT.OPERATIONAL_CHECK"
+              },
+              {
+                "stringValue": "ACT.PUBLICATION_APPROVE"
+              },
+              {
+                "stringValue": "ACT.PUBLICATION_WITHDRAW"
+              },
+              {
+                "stringValue": "ACT.RECONSIDERATION_REQUEST"
+              },
+              {
+                "stringValue": "ACT.RECONSIDERATION_DECIDE"
+              },
+              {
+                "stringValue": "ACT.CORRECTION_NOTICE_RECORD"
+              },
+              {
+                "stringValue": "ACT.CORRECTION_EXPIRE"
+              },
+              {
+                "stringValue": "ACT.PROJECTION_REBUILD"
+              },
+              {
+                "stringValue": "ACT.DRAFT_SAVE"
+              },
+              {
+                "stringValue": "ACT.DRAFT_DELETE"
+              },
+              {
+                "stringValue": "ACT.ARTIFACT_UPLOAD_REQUEST"
+              },
+              {
+                "stringValue": "ACT.ARTIFACT_ARCHIVE_REQUEST"
+              },
+              {
+                "stringValue": "ACT.PUBLICATION_COMMUNICATE"
+              },
+              {
+                "stringValue": "ACT.CORRECTION_NOTIFY"
+              },
+              {
+                "stringValue": "ACT.OUTBOX_CLAIM"
+              },
+              {
+                "stringValue": "ACT.OUTBOX_OBSERVE"
+              },
+              {
+                "stringValue": "ACT.OUTBOX_RECONCILE"
+              },
+              {
+                "stringValue": "ACT.CAPACITY_ASSESSMENT_SEAL"
+              }
+            ]
+          }
+        },
+        "publicScope": {
+          "stringValue": "PUBLIC"
+        },
+        "permittedDisplay": {
+          "stringValue": "Approved public label"
+        },
+        "analysisHours": {
+          "integerValue": "48"
+        }
+      }
+    },
+    "presentationPolicyReferences/axis": {
+      "fields": {
+        "id": {
+          "stringValue": "axis"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "approved": {
+          "booleanValue": true
+        }
+      }
+    },
+    "presentationCycles/cccccccccccccccccccccccccccccccc/configRevisions/config": {
+      "fields": {
+        "id": {
+          "stringValue": "config"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "approved": {
+          "booleanValue": true
+        },
+        "parameters": {
+          "mapValue": {
+            "fields": {
+              "calendarMode": {
+                "stringValue": "MEMBER_SELF_SCHEDULE"
+              },
+              "timezone": {
+                "stringValue": "America/Cuiaba"
+              },
+              "shared": {
+                "booleanValue": true
+              },
+              "quota": {
+                "booleanValue": false
+              },
+              "early": {
+                "booleanValue": true
+              },
+              "dynamic": {
+                "booleanValue": true
+              },
+              "dynamicLimit": {
+                "integerValue": "2"
+              },
+              "clockPolicyRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "policy"
+                    },
+                    "id": {
+                      "stringValue": "policy"
+                    }
+                  }
+                }
+              },
+              "publicationPolicyRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "policy"
+                    },
+                    "id": {
+                      "stringValue": "policy"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameterClasses": {
+          "stringValue": "OPERATIONAL"
+        },
+        "effectiveFrom": {
+          "timestampValue": "2026-10-17T23:28:57.365Z"
+        }
+      }
+    },
+    "presentationCapacityHeads/cccccccccccccccccccccccccccccccc": {
+      "fields": {
+        "id": {
+          "stringValue": "cccccccccccccccccccccccccccccccc"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "state": {
+          "stringValue": "SEALED"
+        },
+        "capacityEpoch": {
+          "integerValue": "1"
+        },
+        "dynamicActiveCount": {
+          "integerValue": "0"
+        },
+        "dynamicHistoricalCount": {
+          "integerValue": "0"
+        },
+        "synchronizedMembersEpoch": {
+          "integerValue": "1"
+        },
+        "synchronizedCycleRegistryEpoch": {
+          "integerValue": "1"
+        },
+        "validUntil": {
+          "timestampValue": "2026-10-18T23:28:58.365Z"
+        }
+      }
+    },
+    "presentationSessions/session": {
+      "fields": {
+        "id": {
+          "stringValue": "session"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "civilDate": {
+          "stringValue": "2026-12-20"
+        },
+        "config": {
+          "mapValue": {
+            "fields": {
+              "capacity": {
+                "integerValue": "2"
+              },
+              "destination": {
+                "stringValue": "ORDINARY"
+              }
+            }
+          }
+        },
+        "slots": {
+          "arrayValue": {
+            "values": []
+          }
+        },
+        "configRevision": {
+          "integerValue": "1"
+        },
+        "compositionRevision": {
+          "integerValue": "1"
+        }
+      }
+    },
+    "presentationSessions/session2": {
+      "fields": {
+        "id": {
+          "stringValue": "session2"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "civilDate": {
+          "stringValue": "2026-12-21"
+        },
+        "config": {
+          "mapValue": {
+            "fields": {
+              "capacity": {
+                "integerValue": "2"
+              },
+              "destination": {
+                "stringValue": "ORDINARY"
+              }
+            }
+          }
+        },
+        "slots": {
+          "arrayValue": {
+            "values": []
+          }
+        },
+        "configRevision": {
+          "integerValue": "1"
+        },
+        "compositionRevision": {
+          "integerValue": "1"
+        }
+      }
+    },
+    "presentationObligations/obligation": {
+      "fields": {
+        "id": {
+          "stringValue": "obligation"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "personRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "person"
+              },
+              "id": {
+                "stringValue": "PES-000001"
+              }
+            }
+          }
+        },
+        "unitRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "unit"
+              },
+              "id": {
+                "stringValue": "unit"
+              }
+            }
+          }
+        },
+        "incidenceState": {
+          "stringValue": "INCIDENT"
+        },
+        "result": {
+          "stringValue": "PENDING"
+        }
+      }
+    },
+    "presentationUnitHeads/unit": {
+      "fields": {
+        "id": {
+          "stringValue": "unit"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "personRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "person"
+              },
+              "id": {
+                "stringValue": "PES-000001"
+              }
+            }
+          }
+        },
+        "obligationRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "obligation"
+              },
+              "id": {
+                "stringValue": "obligation"
+              }
+            }
+          }
+        },
+        "presentationRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "presentation"
+              },
+              "id": {
+                "stringValue": "presentation"
+              }
+            }
+          }
+        },
+        "thematicRequestRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "thematic"
+              },
+              "id": {
+                "stringValue": "theme"
+              }
+            }
+          }
+        }
+      }
+    },
+    "presentationUnitHeads/unit2": {
+      "fields": {
+        "id": {
+          "stringValue": "unit2"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "personRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "person"
+              },
+              "id": {
+                "stringValue": "PES-000002"
+              }
+            }
+          }
+        },
+        "preAgendaBasisRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "policy"
+              },
+              "id": {
+                "stringValue": "policy"
+              }
+            }
+          }
+        }
+      }
+    },
+    "canonicalPresentations/presentation": {
+      "fields": {
+        "id": {
+          "stringValue": "presentation"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "personRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "person"
+              },
+              "id": {
+                "stringValue": "PES-000001"
+              }
+            }
+          }
+        },
+        "unitRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "unit"
+              },
+              "id": {
+                "stringValue": "unit"
+              }
+            }
+          }
+        },
+        "materialRequirementRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "requirement"
+              },
+              "id": {
+                "stringValue": "requirement"
+              }
+            }
+          }
+        },
+        "title": {
+          "stringValue": "Fictitious title"
+        },
+        "recordMode": {
+          "stringValue": "NEW_V2"
+        }
+      }
+    },
+    "presentationMaterialRequirements/requirement": {
+      "fields": {
+        "id": {
+          "stringValue": "requirement"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "personRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "person"
+              },
+              "id": {
+                "stringValue": "PES-000001"
+              }
+            }
+          }
+        },
+        "presentationRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "presentation"
+              },
+              "id": {
+                "stringValue": "presentation"
+              }
+            }
+          }
+        },
+        "currentRevisionRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "requirement"
+              },
+              "number": {
+                "integerValue": "1"
+              }
+            }
+          }
+        },
+        "materialStateRevision": {
+          "integerValue": "1"
+        },
+        "reviewEpoch": {
+          "integerValue": "1"
+        },
+        "opportunitiesEpoch": {
+          "integerValue": "1"
+        },
+        "openCorrectionCount": {
+          "integerValue": "0"
+        },
+        "items": {
+          "arrayValue": {
+            "values": [
+              {
+                "mapValue": {
+                  "fields": {
+                    "itemId": {
+                      "stringValue": "document"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "finalEndExclusive": {
+          "timestampValue": "2026-10-18T23:28:58.365Z"
+        },
+        "uploadPolicyRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "policy"
+              },
+              "id": {
+                "stringValue": "policy"
+              }
+            }
+          }
+        }
+      }
+    },
+    "presentationThematicRequests/theme": {
+      "fields": {
+        "id": {
+          "stringValue": "theme"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "personRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "person"
+              },
+              "id": {
+                "stringValue": "PES-000001"
+              }
+            }
+          }
+        },
+        "unitRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "unit"
+              },
+              "id": {
+                "stringValue": "unit"
+              }
+            }
+          }
+        },
+        "workflowState": {
+          "stringValue": "ANALYSIS"
+        },
+        "principalAxisRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "policy"
+              },
+              "id": {
+                "stringValue": "axis"
+              }
+            }
+          }
+        },
+        "submittedRevisionRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "theme"
+              },
+              "number": {
+                "integerValue": "1"
+              }
+            }
+          }
+        },
+        "priorityBasis": {
+          "mapValue": {
+            "fields": {
+              "completeAt": {
+                "timestampValue": "2026-10-17T23:28:57.365Z"
+              }
+            }
+          }
+        },
+        "manualDecisionEpoch": {
+          "integerValue": "0"
+        },
+        "analysisClock": {
+          "mapValue": {
+            "fields": {
+              "state": {
+                "stringValue": "RUNNING"
+              },
+              "policyRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "policy"
+                    },
+                    "id": {
+                      "stringValue": "policy"
+                    }
+                  }
+                }
+              },
+              "dueAt": {
+                "timestampValue": "2026-10-17T23:28:57.365Z"
+              },
+              "manualDecisionEpoch": {
+                "integerValue": "0"
+              }
+            }
+          }
+        }
+      }
+    },
+    "presentationCapacityAssessments/manifest": {
+      "fields": {
+        "id": {
+          "stringValue": "manifest"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "state": {
+          "stringValue": "SEALED"
+        },
+        "complete": {
+          "booleanValue": true
+        },
+        "items": {
+          "arrayValue": {
+            "values": []
+          }
+        },
+        "digest": {
+          "stringValue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "validUntil": {
+          "timestampValue": "2026-10-18T23:28:58.365Z"
+        },
+        "membersEpoch": {
+          "integerValue": "1"
+        },
+        "cycleRegistryEpoch": {
+          "integerValue": "1"
+        },
+        "configRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "config"
+              },
+              "id": {
+                "stringValue": "config"
+              },
+              "parent": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "personRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "person"
+              },
+              "id": {
+                "stringValue": "PES-000001"
+              }
+            }
+          }
+        },
+        "feasible": {
+          "booleanValue": true
+        },
+        "eligibleDate": {
+          "booleanValue": true
+        },
+        "preservesAcquiredRights": {
+          "booleanValue": true
+        },
+        "proposedChange": {
+          "mapValue": {
+            "fields": {
+              "unitRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "unit"
+                    },
+                    "id": {
+                      "stringValue": "unit"
+                    }
+                  }
+                }
+              },
+              "sessionRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "session"
+                    },
+                    "id": {
+                      "stringValue": "session"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "presentationRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "presentation"
+              },
+              "id": {
+                "stringValue": "presentation"
+              }
+            }
+          }
+        },
+        "requirementRevisionRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "requirement"
+              },
+              "number": {
+                "integerValue": "1"
+              }
+            }
+          }
+        },
+        "completeCoverage": {
+          "booleanValue": true
+        },
+        "basisEpoch": {
+          "integerValue": "1"
+        }
+      }
+    },
+    "presentationFlowCases/flow": {
+      "fields": {
+        "id": {
+          "stringValue": "flow"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "kind": {
+          "stringValue": "JOINT_PROPOSAL"
+        },
+        "state": {
+          "stringValue": "OPEN"
+        },
+        "unitRefs": {
+          "arrayValue": {
+            "values": [
+              {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "unit"
+                    },
+                    "id": {
+                      "stringValue": "unit"
+                    }
+                  }
+                }
+              },
+              {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "unit"
+                    },
+                    "id": {
+                      "stringValue": "unit2"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "proposalRevision": {
+          "integerValue": "1"
+        },
+        "deadline": {
+          "timestampValue": "2026-10-18T23:28:58.365Z"
+        }
+      }
+    },
+    "jobOutbox/effect": {
+      "fields": {
+        "id": {
+          "stringValue": "effect"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "cccccccccccccccccccccccccccccccc"
+              }
+            }
+          }
+        },
+        "status": {
+          "stringValue": "PENDING"
+        },
+        "state": {
+          "stringValue": "PENDING"
+        },
+        "effectKind": {
+          "stringValue": "DRIVE_CREATE"
+        },
+        "targetRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "presentation"
+              },
+              "id": {
+                "stringValue": "presentation"
+              }
+            }
+          }
+        },
+        "policyRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "policy"
+              },
+              "id": {
+                "stringValue": "policy"
+              }
+            }
+          }
+        },
+        "policyRevision": {
+          "integerValue": "1"
+        },
+        "leaseFence": {
+          "integerValue": "0"
+        },
+        "attemptCount": {
+          "integerValue": "0"
+        },
+        "nextAttemptAt": {
+          "timestampValue": "2026-10-17T23:28:58.365Z"
+        },
+        "authorityBasis": {
+          "mapValue": {
+            "fields": {}
+          }
+        },
+        "details": {
+          "mapValue": {
+            "fields": {}
+          }
+        }
+      }
+    },
+    "memberAuthzPolicies/ACT_POLICY": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "act-authz-policy-v13"
+        },
+        "id": {
+          "stringValue": "ACT_POLICY"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "origin": {
+          "stringValue": "ACT_CANONICAL_APPROVAL"
+        },
+        "approvalRef": {
+          "stringValue": "SYN_APPROVAL"
+        },
+        "issuedAt": {
+          "timestampValue": "2026-10-17T23:28:57.365000000Z"
+        },
+        "expiresAt": {
+          "timestampValue": "2026-10-18T23:33:02.365000000Z"
+        },
+        "proofKind": {
+          "stringValue": "ROLE"
+        },
+        "capabilities": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "ACTIVITY_BOARD_READ"
+              },
+              {
+                "stringValue": "ACTIVITY_CONFIG_MANAGE"
+              },
+              {
+                "stringValue": "ACTIVITY_MANAGE"
+              },
+              {
+                "stringValue": "ACTIVITY_REALIZATION_MANAGE"
+              }
+            ]
+          }
+        },
+        "actorSelector": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "ROLE"
+              },
+              "roleKey": {
+                "stringValue": "DIRETOR_ADMINISTRATIVO"
+              },
+              "group": {
+                "stringValue": "DIRETORIA"
+              },
+              "actorScope": {
+                "stringValue": "ADMINISTRACAO"
+              }
+            }
+          }
+        },
+        "targets": {
+          "mapValue": {
+            "fields": {
+              "ownPerson": {
+                "booleanValue": false
+              },
+              "allowedTargetScopes": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "ACTIVITIES"
+                    }
+                  ]
+                }
+              },
+              "allowedBoards": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "allowedRoles": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "allowedPersons": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "PES-000001"
+                    }
+                  ]
+                }
+              },
+              "allowedResources": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "resourceScope": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "ACTIVITIES"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "fieldMasks": {
+          "mapValue": {
+            "fields": {
+              "ACTIVITY_BOARD_READ": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "ACTIVITY_CONFIG_MANAGE": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "ACTIVITY_MANAGE": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "ACTIVITY_REALIZATION_MANAGE": {
+                "arrayValue": {
+                  "values": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "presentationCycles/fn_cycle": {
+      "fields": {
+        "cycleLabel": {
+          "stringValue": "Synthetic cycle"
+        },
+        "civilStart": {
+          "stringValue": "2020-01-01"
+        },
+        "civilEnd": {
+          "stringValue": "2030-12-31"
+        },
+        "status": {
+          "stringValue": "DRAFT"
+        },
+        "academicSemesterRefs": {
+          "arrayValue": {
+            "values": []
+          }
+        },
+        "id": {
+          "stringValue": "fn_cycle"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "schemaVersion": {
+          "stringValue": "act-v2-candidate"
+        },
+        "recordMode": {
+          "stringValue": "NEW_V2"
+        },
+        "originRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "DEV_FIXTURE"
+              }
+            }
+          }
+        },
+        "operationId": {
+          "stringValue": "fixture"
+        }
+      }
+    },
+    "activityPolicies/fn_policy": {
+      "fields": {
+        "approved": {
+          "booleanValue": true
+        },
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "fn_cycle"
+              }
+            }
+          }
+        },
+        "frequencyBasis": {
+          "mapValue": {
+            "fields": {
+              "unit": {
+                "stringValue": "ACTIVITY"
+              },
+              "justifiedMode": {
+                "stringValue": "COUNT_ABSENT"
+              },
+              "excusedMode": {
+                "stringValue": "COUNT_PRESENT"
+              }
+            }
+          }
+        },
+        "opensBeforeMinutes": {
+          "integerValue": "60"
+        },
+        "closesAfterMinutes": {
+          "integerValue": "60"
+        },
+        "previousJustificationDays": {
+          "integerValue": "1"
+        },
+        "justificationAfterDays": {
+          "integerValue": "1"
+        },
+        "acceptLateJustification": {
+          "booleanValue": true
+        },
+        "id": {
+          "stringValue": "fn_policy"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "schemaVersion": {
+          "stringValue": "act-v2-candidate"
+        },
+        "recordMode": {
+          "stringValue": "NEW_V2"
+        },
+        "originRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "DEV_FIXTURE"
+              }
+            }
+          }
+        },
+        "operationId": {
+          "stringValue": "fixture"
+        }
+      }
+    },
+    "activityTypes/approved_fixture_activityType": {
+      "fields": {
+        "typeRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "activityType"
+              },
+              "id": {
+                "stringValue": "meeting"
+              }
+            }
+          }
+        },
+        "name": {
+          "stringValue": "Synthetic meeting"
+        },
+        "countsAttendance": {
+          "booleanValue": true
+        },
+        "countsAbsence": {
+          "booleanValue": true
+        },
+        "durationMinutes": {
+          "integerValue": "60"
+        },
+        "visibility": {
+          "stringValue": "MEMBERS"
+        },
+        "allowsJustification": {
+          "booleanValue": true
+        },
+        "status": {
+          "stringValue": "ACTIVE"
+        },
+        "attendancePolicyRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "attendancePolicy"
+              },
+              "id": {
+                "stringValue": "fn_policy"
+              }
+            }
+          }
+        },
+        "decision": {
+          "mapValue": {
+            "fields": {
+              "reasonCode": {
+                "stringValue": "DEV_FIXTURE"
+              },
+              "reason": {
+                "stringValue": "Approved synthetic criteria"
+              }
+            }
+          }
+        },
+        "id": {
+          "stringValue": "approved_fixture_activityType"
+        },
+        "schemaVersion": {
+          "stringValue": "act-v2-candidate"
+        },
+        "recordMode": {
+          "stringValue": "NEW_V2"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "approved": {
+          "booleanValue": true
+        },
+        "usedByCount": {
+          "integerValue": "0"
+        },
+        "createdAt": {
+          "timestampValue": "2026-10-17T23:29:59.365Z"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-10-17T23:29:59.365Z"
+        }
+      }
+    },
+    "activityTypes/meeting": {
+      "fields": {
+        "name": {
+          "stringValue": "Synthetic meeting"
+        },
+        "countsAttendance": {
+          "booleanValue": true
+        },
+        "countsAbsence": {
+          "booleanValue": true
+        },
+        "attendancePolicyRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "fn_policy"
+              },
+              "kind": {
+                "stringValue": "attendancePolicy"
+              }
+            }
+          }
+        },
+        "durationMinutes": {
+          "integerValue": "60"
+        },
+        "visibility": {
+          "stringValue": "MEMBERS"
+        },
+        "allowsJustification": {
+          "booleanValue": true
+        },
+        "status": {
+          "stringValue": "ACTIVE"
+        },
+        "decision": {
+          "mapValue": {
+            "fields": {
+              "reasonCode": {
+                "stringValue": "DEV_CONTROLLED"
+              },
+              "reason": {
+                "stringValue": "Synthetic functional baseline"
+              },
+              "decidedAt": {
+                "timestampValue": "2026-10-17T23:29:59.365Z"
+              },
+              "actorPersonRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "person"
+                    },
+                    "id": {
+                      "stringValue": "PES-000001"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "id": {
+          "stringValue": "meeting"
+        },
+        "schemaVersion": {
+          "stringValue": "act-v2-candidate"
+        },
+        "recordMode": {
+          "stringValue": "NEW_V2"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "createdAt": {
+          "timestampValue": "2026-10-17T23:29:59.365Z"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-10-17T23:29:59.365Z"
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003e9"
+        },
+        "originRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "CORE_COMMAND"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003e9"
+              }
+            }
+          }
+        }
+      }
+    },
+    "activityTypes/meeting/revisions/1": {
+      "fields": {
+        "number": {
+          "integerValue": "1"
+        },
+        "predecessorRevision": {
+          "integerValue": "0"
+        },
+        "snapshot": {
+          "mapValue": {
+            "fields": {
+              "name": {
+                "stringValue": "Synthetic meeting"
+              },
+              "countsAttendance": {
+                "booleanValue": true
+              },
+              "countsAbsence": {
+                "booleanValue": true
+              },
+              "attendancePolicyRef": {
+                "mapValue": {
+                  "fields": {
+                    "id": {
+                      "stringValue": "fn_policy"
+                    },
+                    "kind": {
+                      "stringValue": "attendancePolicy"
+                    }
+                  }
+                }
+              },
+              "durationMinutes": {
+                "integerValue": "60"
+              },
+              "visibility": {
+                "stringValue": "MEMBERS"
+              },
+              "allowsJustification": {
+                "booleanValue": true
+              },
+              "status": {
+                "stringValue": "ACTIVE"
+              },
+              "decision": {
+                "mapValue": {
+                  "fields": {
+                    "reasonCode": {
+                      "stringValue": "DEV_CONTROLLED"
+                    },
+                    "reason": {
+                      "stringValue": "Synthetic functional baseline"
+                    },
+                    "decidedAt": {
+                      "timestampValue": "2026-10-17T23:29:59.365Z"
+                    },
+                    "actorPersonRef": {
+                      "mapValue": {
+                        "fields": {
+                          "kind": {
+                            "stringValue": "person"
+                          },
+                          "id": {
+                            "stringValue": "PES-000001"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "id": {
+                "stringValue": "meeting"
+              },
+              "schemaVersion": {
+                "stringValue": "act-v2-candidate"
+              },
+              "recordMode": {
+                "stringValue": "NEW_V2"
+              },
+              "revision": {
+                "integerValue": "1"
+              },
+              "createdAt": {
+                "timestampValue": "2026-10-17T23:29:59.365Z"
+              },
+              "updatedAt": {
+                "timestampValue": "2026-10-17T23:29:59.365Z"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003e9"
+              },
+              "originRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "CORE_COMMAND"
+                    },
+                    "operationId": {
+                      "stringValue": "000000000000000000000000000003e9"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "recordedAt": {
+          "timestampValue": "2026-10-17T23:29:59.365Z"
+        },
+        "actorAuthorityBasis": {
+          "mapValue": {
+            "fields": {
+              "schemaVersion": {
+                "stringValue": "act-authz-proof-v13"
+              },
+              "kind": {
+                "stringValue": "ROLE"
+              },
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "idPessoa": {
+                "stringValue": "PES-000001"
+              },
+              "capability": {
+                "stringValue": "ACTIVITY_CONFIG_MANAGE"
+              },
+              "authorityEpoch": {
+                "integerValue": "1"
+              },
+              "policyEpoch": {
+                "integerValue": "1"
+              },
+              "subjectEpoch": {
+                "integerValue": "1"
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "personRevision": {
+                "integerValue": "1"
+              },
+              "stateRevision": {
+                "integerValue": "1"
+              },
+              "targetsDigest": {
+                "stringValue": "7bcc0e6a97804850a046d807de659f6406453775e65f99d18c5831f9132c1663"
+              },
+              "evidenceRevisions": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "issuedAt": {
+                "timestampValue": "2026-10-17T23:29:59.365Z"
+              },
+              "expiresAt": {
+                "timestampValue": "2026-10-17T23:31:59.365Z"
+              },
+              "policyId": {
+                "stringValue": "ACT_POLICY"
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              },
+              "functionId": {
+                "stringValue": "VIG-001"
+              },
+              "functionRevision": {
+                "integerValue": "1"
+              },
+              "roleId": {
+                "stringValue": "CARGO-001"
+              },
+              "roleRevision": {
+                "integerValue": "1"
+              },
+              "actorScope": {
+                "stringValue": "ADMINISTRACAO"
+              },
+              "boardId": {
+                "stringValue": "DIR-001"
+              },
+              "boardEpoch": {
+                "integerValue": "1"
+              },
+              "termId": {
+                "stringValue": "TERM-001"
+              },
+              "termRevision": {
+                "integerValue": "1"
+              },
+              "relationId": {
+                "stringValue": "REL-001"
+              },
+              "relationRevision": {
+                "integerValue": "1"
+              },
+              "scope": {
+                "stringValue": "ACTIVITIES"
+              },
+              "functionBasis": {
+                "mapValue": {
+                  "fields": {
+                    "schemaVersion": {
+                      "stringValue": "act-authz-proof-v13"
+                    },
+                    "kind": {
+                      "stringValue": "ROLE"
+                    },
+                    "uid": {
+                      "stringValue": "CF_ADMIN"
+                    },
+                    "idPessoa": {
+                      "stringValue": "PES-000001"
+                    },
+                    "capability": {
+                      "stringValue": "ACTIVITY_CONFIG_MANAGE"
+                    },
+                    "authorityEpoch": {
+                      "integerValue": "1"
+                    },
+                    "policyEpoch": {
+                      "integerValue": "1"
+                    },
+                    "subjectEpoch": {
+                      "integerValue": "1"
+                    },
+                    "bindingVersion": {
+                      "integerValue": "1"
+                    },
+                    "personRevision": {
+                      "integerValue": "1"
+                    },
+                    "stateRevision": {
+                      "integerValue": "1"
+                    },
+                    "targetsDigest": {
+                      "stringValue": "7bcc0e6a97804850a046d807de659f6406453775e65f99d18c5831f9132c1663"
+                    },
+                    "evidenceRevisions": {
+                      "arrayValue": {
+                        "values": []
+                      }
+                    },
+                    "issuedAt": {
+                      "timestampValue": "2026-10-17T23:29:59.365Z"
+                    },
+                    "expiresAt": {
+                      "timestampValue": "2026-10-17T23:31:59.365Z"
+                    },
+                    "policyId": {
+                      "stringValue": "ACT_POLICY"
+                    },
+                    "policyRevision": {
+                      "integerValue": "1"
+                    },
+                    "functionId": {
+                      "stringValue": "VIG-001"
+                    },
+                    "functionRevision": {
+                      "integerValue": "1"
+                    },
+                    "roleId": {
+                      "stringValue": "CARGO-001"
+                    },
+                    "roleRevision": {
+                      "integerValue": "1"
+                    },
+                    "actorScope": {
+                      "stringValue": "ADMINISTRACAO"
+                    },
+                    "boardId": {
+                      "stringValue": "DIR-001"
+                    },
+                    "boardEpoch": {
+                      "integerValue": "1"
+                    },
+                    "termId": {
+                      "stringValue": "TERM-001"
+                    },
+                    "termRevision": {
+                      "integerValue": "1"
+                    },
+                    "relationId": {
+                      "stringValue": "REL-001"
+                    },
+                    "relationRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "actor": {
+          "mapValue": {
+            "fields": {
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "personId": {
+                "stringValue": "PES-000001"
+              },
+              "personRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "person"
+                    },
+                    "id": {
+                      "stringValue": "PES-000001"
+                    }
+                  }
+                }
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "kind": {
+                "stringValue": "BOARD_ACTOR"
+              }
+            }
+          }
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003e9"
+        }
+      }
+    },
+    "canonicalActivities/dev_meeting": {
+      "fields": {
+        "cycleRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "cycle"
+              },
+              "id": {
+                "stringValue": "fn_cycle"
+              }
+            }
+          }
+        },
+        "cycleId": {
+          "stringValue": "fn_cycle"
+        },
+        "academicSemesterId": {
+          "nullValue": "NULL_VALUE"
+        },
+        "guestParticipants": {
+          "arrayValue": {
+            "values": []
+          }
+        },
+        "title": {
+          "stringValue": "Synthetic meeting"
+        },
+        "location": {
+          "stringValue": "DEV"
+        },
+        "startsAt": {
+          "timestampValue": "2026-10-17T22:28:58.365Z"
+        },
+        "endsAt": {
+          "timestampValue": "2026-10-18T01:28:58.365Z"
+        },
+        "civilDate": {
+          "stringValue": "2026-10-17"
+        },
+        "typeRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "meeting"
+              },
+              "kind": {
+                "stringValue": "activityType"
+              }
+            }
+          }
+        },
+        "typeRevision": {
+          "integerValue": "1"
+        },
+        "typeSnapshot": {
+          "mapValue": {
+            "fields": {
+              "name": {
+                "stringValue": "Synthetic meeting"
+              },
+              "countsAttendance": {
+                "booleanValue": true
+              },
+              "countsAbsence": {
+                "booleanValue": true
+              },
+              "durationMinutes": {
+                "integerValue": "60"
+              },
+              "visibility": {
+                "stringValue": "MEMBERS"
+              },
+              "allowsJustification": {
+                "booleanValue": true
+              }
+            }
+          }
+        },
+        "details": {
+          "mapValue": {
+            "fields": {}
+          }
+        },
+        "format": {
+          "stringValue": ""
+        },
+        "publicationStatus": {
+          "stringValue": "RASCUNHO"
+        },
+        "publishedVisibility": {
+          "stringValue": "BOARD"
+        },
+        "status": {
+          "stringValue": "SCHEDULED"
+        },
+        "decision": {
+          "mapValue": {
+            "fields": {
+              "reasonCode": {
+                "stringValue": "DEV_CONTROLLED"
+              },
+              "reason": {
+                "stringValue": "Synthetic functional baseline"
+              },
+              "decidedAt": {
+                "timestampValue": "2026-10-17T23:31:00.365Z"
+              },
+              "actorPersonRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "person"
+                    },
+                    "id": {
+                      "stringValue": "PES-000001"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "id": {
+          "stringValue": "dev_meeting"
+        },
+        "schemaVersion": {
+          "stringValue": "act-v2-candidate"
+        },
+        "recordMode": {
+          "stringValue": "NEW_V2"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "createdAt": {
+          "timestampValue": "2026-10-17T23:31:00.365Z"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-10-17T23:31:00.365Z"
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003ea"
+        },
+        "originRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "CORE_COMMAND"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003ea"
+              }
+            }
+          }
+        }
+      }
+    },
+    "canonicalActivities/dev_meeting/revisions/1": {
+      "fields": {
+        "number": {
+          "integerValue": "1"
+        },
+        "predecessorRevision": {
+          "integerValue": "0"
+        },
+        "snapshot": {
+          "mapValue": {
+            "fields": {
+              "cycleRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "cycle"
+                    },
+                    "id": {
+                      "stringValue": "fn_cycle"
+                    }
+                  }
+                }
+              },
+              "cycleId": {
+                "stringValue": "fn_cycle"
+              },
+              "academicSemesterId": {
+                "nullValue": "NULL_VALUE"
+              },
+              "guestParticipants": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "title": {
+                "stringValue": "Synthetic meeting"
+              },
+              "location": {
+                "stringValue": "DEV"
+              },
+              "startsAt": {
+                "timestampValue": "2026-10-17T22:28:58.365Z"
+              },
+              "endsAt": {
+                "timestampValue": "2026-10-18T01:28:58.365Z"
+              },
+              "civilDate": {
+                "stringValue": "2026-10-17"
+              },
+              "typeRef": {
+                "mapValue": {
+                  "fields": {
+                    "id": {
+                      "stringValue": "meeting"
+                    },
+                    "kind": {
+                      "stringValue": "activityType"
+                    }
+                  }
+                }
+              },
+              "typeRevision": {
+                "integerValue": "1"
+              },
+              "typeSnapshot": {
+                "mapValue": {
+                  "fields": {
+                    "name": {
+                      "stringValue": "Synthetic meeting"
+                    },
+                    "countsAttendance": {
+                      "booleanValue": true
+                    },
+                    "countsAbsence": {
+                      "booleanValue": true
+                    },
+                    "durationMinutes": {
+                      "integerValue": "60"
+                    },
+                    "visibility": {
+                      "stringValue": "MEMBERS"
+                    },
+                    "allowsJustification": {
+                      "booleanValue": true
+                    }
+                  }
+                }
+              },
+              "details": {
+                "mapValue": {
+                  "fields": {}
+                }
+              },
+              "format": {
+                "stringValue": ""
+              },
+              "publicationStatus": {
+                "stringValue": "RASCUNHO"
+              },
+              "publishedVisibility": {
+                "stringValue": "BOARD"
+              },
+              "status": {
+                "stringValue": "SCHEDULED"
+              },
+              "decision": {
+                "mapValue": {
+                  "fields": {
+                    "reasonCode": {
+                      "stringValue": "DEV_CONTROLLED"
+                    },
+                    "reason": {
+                      "stringValue": "Synthetic functional baseline"
+                    },
+                    "decidedAt": {
+                      "timestampValue": "2026-10-17T23:31:00.365Z"
+                    },
+                    "actorPersonRef": {
+                      "mapValue": {
+                        "fields": {
+                          "kind": {
+                            "stringValue": "person"
+                          },
+                          "id": {
+                            "stringValue": "PES-000001"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "id": {
+                "stringValue": "dev_meeting"
+              },
+              "schemaVersion": {
+                "stringValue": "act-v2-candidate"
+              },
+              "recordMode": {
+                "stringValue": "NEW_V2"
+              },
+              "revision": {
+                "integerValue": "1"
+              },
+              "createdAt": {
+                "timestampValue": "2026-10-17T23:31:00.365Z"
+              },
+              "updatedAt": {
+                "timestampValue": "2026-10-17T23:31:00.365Z"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003ea"
+              },
+              "originRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "CORE_COMMAND"
+                    },
+                    "operationId": {
+                      "stringValue": "000000000000000000000000000003ea"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "recordedAt": {
+          "timestampValue": "2026-10-17T23:31:00.365Z"
+        },
+        "actorAuthorityBasis": {
+          "mapValue": {
+            "fields": {
+              "schemaVersion": {
+                "stringValue": "act-authz-proof-v13"
+              },
+              "kind": {
+                "stringValue": "ROLE"
+              },
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "idPessoa": {
+                "stringValue": "PES-000001"
+              },
+              "capability": {
+                "stringValue": "ACTIVITY_MANAGE"
+              },
+              "authorityEpoch": {
+                "integerValue": "1"
+              },
+              "policyEpoch": {
+                "integerValue": "1"
+              },
+              "subjectEpoch": {
+                "integerValue": "1"
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "personRevision": {
+                "integerValue": "1"
+              },
+              "stateRevision": {
+                "integerValue": "1"
+              },
+              "targetsDigest": {
+                "stringValue": "24da6f14b65fea841d5485b8c8471565c464cf6881dafb9291b9d698402fc239"
+              },
+              "evidenceRevisions": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "issuedAt": {
+                "timestampValue": "2026-10-17T23:31:00.365Z"
+              },
+              "expiresAt": {
+                "timestampValue": "2026-10-17T23:33:00.365Z"
+              },
+              "policyId": {
+                "stringValue": "ACT_POLICY"
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              },
+              "functionId": {
+                "stringValue": "VIG-001"
+              },
+              "functionRevision": {
+                "integerValue": "1"
+              },
+              "roleId": {
+                "stringValue": "CARGO-001"
+              },
+              "roleRevision": {
+                "integerValue": "1"
+              },
+              "actorScope": {
+                "stringValue": "ADMINISTRACAO"
+              },
+              "boardId": {
+                "stringValue": "DIR-001"
+              },
+              "boardEpoch": {
+                "integerValue": "1"
+              },
+              "termId": {
+                "stringValue": "TERM-001"
+              },
+              "termRevision": {
+                "integerValue": "1"
+              },
+              "relationId": {
+                "stringValue": "REL-001"
+              },
+              "relationRevision": {
+                "integerValue": "1"
+              },
+              "scope": {
+                "stringValue": "ACTIVITIES"
+              },
+              "functionBasis": {
+                "mapValue": {
+                  "fields": {
+                    "schemaVersion": {
+                      "stringValue": "act-authz-proof-v13"
+                    },
+                    "kind": {
+                      "stringValue": "ROLE"
+                    },
+                    "uid": {
+                      "stringValue": "CF_ADMIN"
+                    },
+                    "idPessoa": {
+                      "stringValue": "PES-000001"
+                    },
+                    "capability": {
+                      "stringValue": "ACTIVITY_MANAGE"
+                    },
+                    "authorityEpoch": {
+                      "integerValue": "1"
+                    },
+                    "policyEpoch": {
+                      "integerValue": "1"
+                    },
+                    "subjectEpoch": {
+                      "integerValue": "1"
+                    },
+                    "bindingVersion": {
+                      "integerValue": "1"
+                    },
+                    "personRevision": {
+                      "integerValue": "1"
+                    },
+                    "stateRevision": {
+                      "integerValue": "1"
+                    },
+                    "targetsDigest": {
+                      "stringValue": "24da6f14b65fea841d5485b8c8471565c464cf6881dafb9291b9d698402fc239"
+                    },
+                    "evidenceRevisions": {
+                      "arrayValue": {
+                        "values": []
+                      }
+                    },
+                    "issuedAt": {
+                      "timestampValue": "2026-10-17T23:31:00.365Z"
+                    },
+                    "expiresAt": {
+                      "timestampValue": "2026-10-17T23:33:00.365Z"
+                    },
+                    "policyId": {
+                      "stringValue": "ACT_POLICY"
+                    },
+                    "policyRevision": {
+                      "integerValue": "1"
+                    },
+                    "functionId": {
+                      "stringValue": "VIG-001"
+                    },
+                    "functionRevision": {
+                      "integerValue": "1"
+                    },
+                    "roleId": {
+                      "stringValue": "CARGO-001"
+                    },
+                    "roleRevision": {
+                      "integerValue": "1"
+                    },
+                    "actorScope": {
+                      "stringValue": "ADMINISTRACAO"
+                    },
+                    "boardId": {
+                      "stringValue": "DIR-001"
+                    },
+                    "boardEpoch": {
+                      "integerValue": "1"
+                    },
+                    "termId": {
+                      "stringValue": "TERM-001"
+                    },
+                    "termRevision": {
+                      "integerValue": "1"
+                    },
+                    "relationId": {
+                      "stringValue": "REL-001"
+                    },
+                    "relationRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "actor": {
+          "mapValue": {
+            "fields": {
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "personId": {
+                "stringValue": "PES-000001"
+              },
+              "personRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "person"
+                    },
+                    "id": {
+                      "stringValue": "PES-000001"
+                    }
+                  }
+                }
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "kind": {
+                "stringValue": "BOARD_ACTOR"
+              }
+            }
+          }
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003ea"
+        }
+      }
+    },
+    "activityAttendanceRegistry/current": {
+      "fields": {
+        "epoch": {
+          "integerValue": "2"
+        },
+        "id": {
+          "stringValue": "current"
+        },
+        "schemaVersion": {
+          "stringValue": "act-v2-candidate"
+        },
+        "recordMode": {
+          "stringValue": "NEW_V2"
+        },
+        "revision": {
+          "integerValue": "2"
+        },
+        "createdAt": {
+          "timestampValue": "2026-10-17T23:31:00.365Z"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-10-17T23:33:02.365Z"
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003ec"
+        },
+        "originRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "CORE_COMMAND"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003ec"
+              }
+            }
+          }
+        }
+      }
+    },
+    "activityAgendaViews/dev_meeting": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "act-activity-agenda-v1"
+        },
+        "id": {
+          "stringValue": "dev_meeting"
+        },
+        "sourceActivityRevision": {
+          "integerValue": "1"
+        },
+        "sourceCollectionRevision": {
+          "integerValue": "2"
+        },
+        "publicationStatus": {
+          "stringValue": "RASCUNHO"
+        },
+        "visibility": {
+          "stringValue": "BOARD"
+        },
+        "data": {
+          "mapValue": {
+            "fields": {
+              "recordMode": {
+                "stringValue": "NEW_V2"
+              },
+              "somenteConsulta": {
+                "booleanValue": false
+              },
+              "idAtividade": {
+                "stringValue": "dev_meeting"
+              },
+              "canonicalActivityRevision": {
+                "integerValue": "1"
+              },
+              "tituloPublico": {
+                "stringValue": "Synthetic meeting"
+              },
+              "tituloConteudoPublico": {
+                "stringValue": "Synthetic meeting"
+              },
+              "descricaoPublica": {
+                "stringValue": ""
+              },
+              "dataAtividade": {
+                "stringValue": "2026-10-17"
+              },
+              "diaSemana": {
+                "stringValue": "sábado"
+              },
+              "horarioInicio": {
+                "stringValue": "18:33"
+              },
+              "horarioFim": {
+                "stringValue": "21:33"
+              },
+              "horarioCompleto": {
+                "stringValue": "18:33 às 21:33"
+              },
+              "dataHoraInicio": {
+                "stringValue": "2026-10-17T22:33:02.467Z"
+              },
+              "dataHoraFim": {
+                "stringValue": "2026-10-18T01:33:02.467Z"
+              },
+              "local": {
+                "stringValue": "DEV"
+              },
+              "formato": {
+                "stringValue": ""
+              },
+              "publicoAlvo": {
+                "stringValue": ""
+              },
+              "tipoPublico": {
+                "stringValue": "Synthetic meeting"
+              },
+              "tipoAtividade": {
+                "stringValue": ""
+              },
+              "subtipoAtividade": {
+                "stringValue": ""
+              },
+              "idConfigModelo": {
+                "stringValue": "meeting"
+              },
+              "nomeModeloPortal": {
+                "stringValue": "Synthetic meeting"
+              },
+              "classificacaoAcesso": {
+                "stringValue": "INTERNA_MEMBROS"
+              },
+              "contaPresenca": {
+                "booleanValue": true
+              },
+              "contaFalta": {
+                "booleanValue": true
+              },
+              "geraCertificado": {
+                "booleanValue": false
+              },
+              "cargaHoraria": {
+                "integerValue": "1"
+              },
+              "statusOperacional": {
+                "stringValue": "PLANEJADA"
+              },
+              "statusPublico": {
+                "stringValue": "RASCUNHO"
+              },
+              "statusPublicacaoPortal": {
+                "stringValue": "RASCUNHO"
+              },
+              "visibilidadePortal": {
+                "stringValue": "DIRETORIA"
+              },
+              "chamadaDisponivelEm": {
+                "stringValue": "2026-10-17T21:33:02.467Z"
+              },
+              "chamadaEncerraEm": {
+                "stringValue": "2026-10-18T01:33:02.467Z"
+              },
+              "podeRegistrarChamadaAgora": {
+                "booleanValue": false
+              },
+              "podeRegistrarChamada": {
+                "booleanValue": false
+              },
+              "podeVisualizarChamada": {
+                "booleanValue": false
+              },
+              "chamadaFinalizada": {
+                "booleanValue": false
+              },
+              "statusChamada": {
+                "stringValue": "RASCUNHO"
+              },
+              "statusChamadaRotulo": {
+                "stringValue": "Chamada pendente"
+              },
+              "statusChamadaAtualizadoEm": {
+                "stringValue": "2026-10-17T23:37:06.467Z"
+              },
+              "podeVerDetalhes": {
+                "booleanValue": true
+              },
+              "podeEditar": {
+                "booleanValue": false
+              },
+              "possuiApresentacoes": {
+                "booleanValue": false
+              },
+              "qtdApresentacoes": {
+                "integerValue": "0"
+              },
+              "apresentacoes": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "apresentacoesPublicas": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "envolvidos": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "pendencias": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "ultimaAtualizacao": {
+                "stringValue": "2026-10-17T23:35:04.467Z"
+              }
+            }
+          }
+        },
+        "allowsJustification": {
+          "booleanValue": true
+        },
+        "justificationOpensAt": {
+          "timestampValue": "2026-10-17T19:28:58.365Z"
+        },
+        "projectedAt": {
+          "timestampValue": "2026-10-17T23:33:02.365Z"
+        }
+      }
+    },
+    "activityAttendanceCollections/dev_meeting": {
+      "fields": {
+        "activityRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "dev_meeting"
+              },
+              "kind": {
+                "stringValue": "activity"
+              }
+            }
+          }
+        },
+        "cycleId": {
+          "stringValue": "fn_cycle"
+        },
+        "academicSemesterId": {
+          "nullValue": "NULL_VALUE"
+        },
+        "policyRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "fn_policy"
+              },
+              "kind": {
+                "stringValue": "attendancePolicy"
+              }
+            }
+          }
+        },
+        "policyRevision": {
+          "integerValue": "1"
+        },
+        "justificationOpensAt": {
+          "timestampValue": "2026-10-17T19:28:58.365Z"
+        },
+        "acceptLateJustification": {
+          "booleanValue": true
+        },
+        "state": {
+          "stringValue": "DRAFT"
+        },
+        "opensAt": {
+          "timestampValue": "2026-10-17T21:28:58.365Z"
+        },
+        "closesAt": {
+          "timestampValue": "2026-10-18T01:28:58.365Z"
+        },
+        "justificationEndsAt": {
+          "timestampValue": "2026-10-18T23:28:58.365Z"
+        },
+        "rosterCount": {
+          "integerValue": "1"
+        },
+        "unrecordedCount": {
+          "integerValue": "1"
+        },
+        "frequencyBasis": {
+          "mapValue": {
+            "fields": {
+              "unit": {
+                "stringValue": "ACTIVITY"
+              },
+              "justifiedMode": {
+                "stringValue": "COUNT_ABSENT"
+              },
+              "excusedMode": {
+                "stringValue": "COUNT_PRESENT"
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              }
+            }
+          }
+        },
+        "decision": {
+          "mapValue": {
+            "fields": {
+              "reasonCode": {
+                "stringValue": "DEV_CONTROLLED"
+              },
+              "reason": {
+                "stringValue": "Synthetic functional baseline"
+              },
+              "decidedAt": {
+                "timestampValue": "2026-10-17T23:32:01.365Z"
+              },
+              "actorPersonRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "person"
+                    },
+                    "id": {
+                      "stringValue": "PES-000001"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "id": {
+          "stringValue": "dev_meeting"
+        },
+        "schemaVersion": {
+          "stringValue": "act-v2-candidate"
+        },
+        "recordMode": {
+          "stringValue": "NEW_V2"
+        },
+        "revision": {
+          "integerValue": "2"
+        },
+        "createdAt": {
+          "timestampValue": "2026-10-17T23:32:01.365Z"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-10-17T23:33:02.365Z"
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003ec"
+        },
+        "originRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "CORE_COMMAND"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003ec"
+              }
+            }
+          }
+        },
+        "rosterActivityRevision": {
+          "integerValue": "1"
+        },
+        "rosterMembersEpoch": {
+          "integerValue": "1"
+        },
+        "roster": {
+          "mapValue": {
+            "fields": {
+              "a_4a80ef44c58d391d677fa5666c55e702": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "attendance"
+                    },
+                    "id": {
+                      "stringValue": "a_4a80ef44c58d391d677fa5666c55e702"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "activityAttendanceCollections/dev_meeting/revisions/1": {
+      "fields": {
+        "number": {
+          "integerValue": "1"
+        },
+        "predecessorRevision": {
+          "integerValue": "0"
+        },
+        "snapshot": {
+          "mapValue": {
+            "fields": {
+              "activityRef": {
+                "mapValue": {
+                  "fields": {
+                    "id": {
+                      "stringValue": "dev_meeting"
+                    },
+                    "kind": {
+                      "stringValue": "activity"
+                    }
+                  }
+                }
+              },
+              "cycleId": {
+                "stringValue": "fn_cycle"
+              },
+              "academicSemesterId": {
+                "nullValue": "NULL_VALUE"
+              },
+              "policyRef": {
+                "mapValue": {
+                  "fields": {
+                    "id": {
+                      "stringValue": "fn_policy"
+                    },
+                    "kind": {
+                      "stringValue": "attendancePolicy"
+                    }
+                  }
+                }
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              },
+              "justificationOpensAt": {
+                "timestampValue": "2026-10-17T19:28:58.365Z"
+              },
+              "acceptLateJustification": {
+                "booleanValue": true
+              },
+              "state": {
+                "stringValue": "DRAFT"
+              },
+              "opensAt": {
+                "timestampValue": "2026-10-17T21:28:58.365Z"
+              },
+              "closesAt": {
+                "timestampValue": "2026-10-18T01:28:58.365Z"
+              },
+              "justificationEndsAt": {
+                "timestampValue": "2026-10-18T23:28:58.365Z"
+              },
+              "rosterCount": {
+                "integerValue": "0"
+              },
+              "unrecordedCount": {
+                "integerValue": "0"
+              },
+              "frequencyBasis": {
+                "mapValue": {
+                  "fields": {
+                    "unit": {
+                      "stringValue": "ACTIVITY"
+                    },
+                    "justifiedMode": {
+                      "stringValue": "COUNT_ABSENT"
+                    },
+                    "excusedMode": {
+                      "stringValue": "COUNT_PRESENT"
+                    },
+                    "policyRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              },
+              "decision": {
+                "mapValue": {
+                  "fields": {
+                    "reasonCode": {
+                      "stringValue": "DEV_CONTROLLED"
+                    },
+                    "reason": {
+                      "stringValue": "Synthetic functional baseline"
+                    },
+                    "decidedAt": {
+                      "timestampValue": "2026-10-17T23:32:01.365Z"
+                    },
+                    "actorPersonRef": {
+                      "mapValue": {
+                        "fields": {
+                          "kind": {
+                            "stringValue": "person"
+                          },
+                          "id": {
+                            "stringValue": "PES-000001"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "id": {
+                "stringValue": "dev_meeting"
+              },
+              "schemaVersion": {
+                "stringValue": "act-v2-candidate"
+              },
+              "recordMode": {
+                "stringValue": "NEW_V2"
+              },
+              "revision": {
+                "integerValue": "1"
+              },
+              "createdAt": {
+                "timestampValue": "2026-10-17T23:32:01.365Z"
+              },
+              "updatedAt": {
+                "timestampValue": "2026-10-17T23:32:01.365Z"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003eb"
+              },
+              "originRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "CORE_COMMAND"
+                    },
+                    "operationId": {
+                      "stringValue": "000000000000000000000000000003eb"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "recordedAt": {
+          "timestampValue": "2026-10-17T23:32:01.365Z"
+        },
+        "actorAuthorityBasis": {
+          "mapValue": {
+            "fields": {
+              "schemaVersion": {
+                "stringValue": "act-authz-proof-v13"
+              },
+              "kind": {
+                "stringValue": "ROLE"
+              },
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "idPessoa": {
+                "stringValue": "PES-000001"
+              },
+              "capability": {
+                "stringValue": "ACTIVITY_ATTENDANCE_MANAGE"
+              },
+              "authorityEpoch": {
+                "integerValue": "1"
+              },
+              "policyEpoch": {
+                "integerValue": "1"
+              },
+              "subjectEpoch": {
+                "integerValue": "1"
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "personRevision": {
+                "integerValue": "1"
+              },
+              "stateRevision": {
+                "integerValue": "1"
+              },
+              "targetsDigest": {
+                "stringValue": "e311222be59a12f960fbb30189362f9c55557487faa4661be49f6ddb9cab5191"
+              },
+              "evidenceRevisions": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "issuedAt": {
+                "timestampValue": "2026-10-17T23:32:01.365Z"
+              },
+              "expiresAt": {
+                "timestampValue": "2026-10-17T23:34:01.365Z"
+              },
+              "policyId": {
+                "stringValue": "ACT_POLICY"
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              },
+              "functionId": {
+                "stringValue": "VIG-001"
+              },
+              "functionRevision": {
+                "integerValue": "1"
+              },
+              "roleId": {
+                "stringValue": "CARGO-001"
+              },
+              "roleRevision": {
+                "integerValue": "1"
+              },
+              "actorScope": {
+                "stringValue": "ADMINISTRACAO"
+              },
+              "boardId": {
+                "stringValue": "DIR-001"
+              },
+              "boardEpoch": {
+                "integerValue": "1"
+              },
+              "termId": {
+                "stringValue": "TERM-001"
+              },
+              "termRevision": {
+                "integerValue": "1"
+              },
+              "relationId": {
+                "stringValue": "REL-001"
+              },
+              "relationRevision": {
+                "integerValue": "1"
+              },
+              "scope": {
+                "stringValue": "ACTIVITIES"
+              },
+              "functionBasis": {
+                "mapValue": {
+                  "fields": {
+                    "schemaVersion": {
+                      "stringValue": "act-authz-proof-v13"
+                    },
+                    "kind": {
+                      "stringValue": "ROLE"
+                    },
+                    "uid": {
+                      "stringValue": "CF_ADMIN"
+                    },
+                    "idPessoa": {
+                      "stringValue": "PES-000001"
+                    },
+                    "capability": {
+                      "stringValue": "ACTIVITY_ATTENDANCE_MANAGE"
+                    },
+                    "authorityEpoch": {
+                      "integerValue": "1"
+                    },
+                    "policyEpoch": {
+                      "integerValue": "1"
+                    },
+                    "subjectEpoch": {
+                      "integerValue": "1"
+                    },
+                    "bindingVersion": {
+                      "integerValue": "1"
+                    },
+                    "personRevision": {
+                      "integerValue": "1"
+                    },
+                    "stateRevision": {
+                      "integerValue": "1"
+                    },
+                    "targetsDigest": {
+                      "stringValue": "e311222be59a12f960fbb30189362f9c55557487faa4661be49f6ddb9cab5191"
+                    },
+                    "evidenceRevisions": {
+                      "arrayValue": {
+                        "values": []
+                      }
+                    },
+                    "issuedAt": {
+                      "timestampValue": "2026-10-17T23:32:01.365Z"
+                    },
+                    "expiresAt": {
+                      "timestampValue": "2026-10-17T23:34:01.365Z"
+                    },
+                    "policyId": {
+                      "stringValue": "ACT_POLICY"
+                    },
+                    "policyRevision": {
+                      "integerValue": "1"
+                    },
+                    "functionId": {
+                      "stringValue": "VIG-001"
+                    },
+                    "functionRevision": {
+                      "integerValue": "1"
+                    },
+                    "roleId": {
+                      "stringValue": "CARGO-001"
+                    },
+                    "roleRevision": {
+                      "integerValue": "1"
+                    },
+                    "actorScope": {
+                      "stringValue": "ADMINISTRACAO"
+                    },
+                    "boardId": {
+                      "stringValue": "DIR-001"
+                    },
+                    "boardEpoch": {
+                      "integerValue": "1"
+                    },
+                    "termId": {
+                      "stringValue": "TERM-001"
+                    },
+                    "termRevision": {
+                      "integerValue": "1"
+                    },
+                    "relationId": {
+                      "stringValue": "REL-001"
+                    },
+                    "relationRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "actor": {
+          "mapValue": {
+            "fields": {
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "personId": {
+                "stringValue": "PES-000001"
+              },
+              "personRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "person"
+                    },
+                    "id": {
+                      "stringValue": "PES-000001"
+                    }
+                  }
+                }
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "kind": {
+                "stringValue": "BOARD_ACTOR"
+              }
+            }
+          }
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003eb"
+        }
+      }
+    },
+    "activityAttendance/a_4a80ef44c58d391d677fa5666c55e702": {
+      "fields": {
+        "activityRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "dev_meeting"
+              },
+              "kind": {
+                "stringValue": "activity"
+              }
+            }
+          }
+        },
+        "personRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "PES-000001"
+              },
+              "kind": {
+                "stringValue": "person"
+              }
+            }
+          }
+        },
+        "ownerPersonRef": {
+          "stringValue": "PES-000001"
+        },
+        "membershipRef": {
+          "mapValue": {
+            "fields": {
+              "id": {
+                "stringValue": "VINC-001"
+              },
+              "kind": {
+                "stringValue": "membership"
+              }
+            }
+          }
+        },
+        "cycleId": {
+          "stringValue": "fn_cycle"
+        },
+        "academicSemesterId": {
+          "nullValue": "NULL_VALUE"
+        },
+        "status": {
+          "stringValue": "UNRECORDED"
+        },
+        "durationMinutes": {
+          "integerValue": "60"
+        },
+        "frequencyBasis": {
+          "mapValue": {
+            "fields": {
+              "unit": {
+                "stringValue": "ACTIVITY"
+              },
+              "justifiedMode": {
+                "stringValue": "COUNT_ABSENT"
+              },
+              "excusedMode": {
+                "stringValue": "COUNT_PRESENT"
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              }
+            }
+          }
+        },
+        "enrollmentBasis": {
+          "mapValue": {
+            "fields": {
+              "reasonCode": {
+                "stringValue": "DEV_CONTROLLED"
+              },
+              "reason": {
+                "stringValue": "Synthetic functional baseline"
+              },
+              "decidedAt": {
+                "timestampValue": "2026-10-17T23:33:02.365Z"
+              },
+              "actorPersonRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "person"
+                    },
+                    "id": {
+                      "stringValue": "PES-000001"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "id": {
+          "stringValue": "a_4a80ef44c58d391d677fa5666c55e702"
+        },
+        "schemaVersion": {
+          "stringValue": "act-v2-candidate"
+        },
+        "recordMode": {
+          "stringValue": "NEW_V2"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "createdAt": {
+          "timestampValue": "2026-10-17T23:33:02.365Z"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-10-17T23:33:02.365Z"
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003ec"
+        },
+        "originRef": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "CORE_COMMAND"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003ec"
+              }
+            }
+          }
+        }
+      }
+    },
+    "activityAttendance/a_4a80ef44c58d391d677fa5666c55e702/revisions/1": {
+      "fields": {
+        "number": {
+          "integerValue": "1"
+        },
+        "predecessorRevision": {
+          "integerValue": "0"
+        },
+        "snapshot": {
+          "mapValue": {
+            "fields": {
+              "activityRef": {
+                "mapValue": {
+                  "fields": {
+                    "id": {
+                      "stringValue": "dev_meeting"
+                    },
+                    "kind": {
+                      "stringValue": "activity"
+                    }
+                  }
+                }
+              },
+              "personRef": {
+                "mapValue": {
+                  "fields": {
+                    "id": {
+                      "stringValue": "PES-000001"
+                    },
+                    "kind": {
+                      "stringValue": "person"
+                    }
+                  }
+                }
+              },
+              "ownerPersonRef": {
+                "stringValue": "PES-000001"
+              },
+              "membershipRef": {
+                "mapValue": {
+                  "fields": {
+                    "id": {
+                      "stringValue": "VINC-001"
+                    },
+                    "kind": {
+                      "stringValue": "membership"
+                    }
+                  }
+                }
+              },
+              "cycleId": {
+                "stringValue": "fn_cycle"
+              },
+              "academicSemesterId": {
+                "nullValue": "NULL_VALUE"
+              },
+              "status": {
+                "stringValue": "UNRECORDED"
+              },
+              "durationMinutes": {
+                "integerValue": "60"
+              },
+              "frequencyBasis": {
+                "mapValue": {
+                  "fields": {
+                    "unit": {
+                      "stringValue": "ACTIVITY"
+                    },
+                    "justifiedMode": {
+                      "stringValue": "COUNT_ABSENT"
+                    },
+                    "excusedMode": {
+                      "stringValue": "COUNT_PRESENT"
+                    },
+                    "policyRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              },
+              "enrollmentBasis": {
+                "mapValue": {
+                  "fields": {
+                    "reasonCode": {
+                      "stringValue": "DEV_CONTROLLED"
+                    },
+                    "reason": {
+                      "stringValue": "Synthetic functional baseline"
+                    },
+                    "decidedAt": {
+                      "timestampValue": "2026-10-17T23:33:02.365Z"
+                    },
+                    "actorPersonRef": {
+                      "mapValue": {
+                        "fields": {
+                          "kind": {
+                            "stringValue": "person"
+                          },
+                          "id": {
+                            "stringValue": "PES-000001"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "id": {
+                "stringValue": "a_4a80ef44c58d391d677fa5666c55e702"
+              },
+              "schemaVersion": {
+                "stringValue": "act-v2-candidate"
+              },
+              "recordMode": {
+                "stringValue": "NEW_V2"
+              },
+              "revision": {
+                "integerValue": "1"
+              },
+              "createdAt": {
+                "timestampValue": "2026-10-17T23:33:02.365Z"
+              },
+              "updatedAt": {
+                "timestampValue": "2026-10-17T23:33:02.365Z"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003ec"
+              },
+              "originRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "CORE_COMMAND"
+                    },
+                    "operationId": {
+                      "stringValue": "000000000000000000000000000003ec"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "recordedAt": {
+          "timestampValue": "2026-10-17T23:33:02.365Z"
+        },
+        "actorAuthorityBasis": {
+          "mapValue": {
+            "fields": {
+              "schemaVersion": {
+                "stringValue": "act-authz-proof-v13"
+              },
+              "kind": {
+                "stringValue": "ROLE"
+              },
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "idPessoa": {
+                "stringValue": "PES-000001"
+              },
+              "capability": {
+                "stringValue": "ACTIVITY_ATTENDANCE_MANAGE"
+              },
+              "authorityEpoch": {
+                "integerValue": "1"
+              },
+              "policyEpoch": {
+                "integerValue": "1"
+              },
+              "subjectEpoch": {
+                "integerValue": "1"
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "personRevision": {
+                "integerValue": "1"
+              },
+              "stateRevision": {
+                "integerValue": "1"
+              },
+              "targetsDigest": {
+                "stringValue": "1db79735df35db08782501818e182c1d4d2e4847831132f52d128b2d3fccba8a"
+              },
+              "evidenceRevisions": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "issuedAt": {
+                "timestampValue": "2026-10-17T23:33:02.365Z"
+              },
+              "expiresAt": {
+                "timestampValue": "2026-10-17T23:35:02.365Z"
+              },
+              "policyId": {
+                "stringValue": "ACT_POLICY"
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              },
+              "functionId": {
+                "stringValue": "VIG-001"
+              },
+              "functionRevision": {
+                "integerValue": "1"
+              },
+              "roleId": {
+                "stringValue": "CARGO-001"
+              },
+              "roleRevision": {
+                "integerValue": "1"
+              },
+              "actorScope": {
+                "stringValue": "ADMINISTRACAO"
+              },
+              "boardId": {
+                "stringValue": "DIR-001"
+              },
+              "boardEpoch": {
+                "integerValue": "1"
+              },
+              "termId": {
+                "stringValue": "TERM-001"
+              },
+              "termRevision": {
+                "integerValue": "1"
+              },
+              "relationId": {
+                "stringValue": "REL-001"
+              },
+              "relationRevision": {
+                "integerValue": "1"
+              },
+              "scope": {
+                "stringValue": "ACTIVITIES"
+              },
+              "functionBasis": {
+                "mapValue": {
+                  "fields": {
+                    "schemaVersion": {
+                      "stringValue": "act-authz-proof-v13"
+                    },
+                    "kind": {
+                      "stringValue": "ROLE"
+                    },
+                    "uid": {
+                      "stringValue": "CF_ADMIN"
+                    },
+                    "idPessoa": {
+                      "stringValue": "PES-000001"
+                    },
+                    "capability": {
+                      "stringValue": "ACTIVITY_ATTENDANCE_MANAGE"
+                    },
+                    "authorityEpoch": {
+                      "integerValue": "1"
+                    },
+                    "policyEpoch": {
+                      "integerValue": "1"
+                    },
+                    "subjectEpoch": {
+                      "integerValue": "1"
+                    },
+                    "bindingVersion": {
+                      "integerValue": "1"
+                    },
+                    "personRevision": {
+                      "integerValue": "1"
+                    },
+                    "stateRevision": {
+                      "integerValue": "1"
+                    },
+                    "targetsDigest": {
+                      "stringValue": "1db79735df35db08782501818e182c1d4d2e4847831132f52d128b2d3fccba8a"
+                    },
+                    "evidenceRevisions": {
+                      "arrayValue": {
+                        "values": []
+                      }
+                    },
+                    "issuedAt": {
+                      "timestampValue": "2026-10-17T23:33:02.365Z"
+                    },
+                    "expiresAt": {
+                      "timestampValue": "2026-10-17T23:35:02.365Z"
+                    },
+                    "policyId": {
+                      "stringValue": "ACT_POLICY"
+                    },
+                    "policyRevision": {
+                      "integerValue": "1"
+                    },
+                    "functionId": {
+                      "stringValue": "VIG-001"
+                    },
+                    "functionRevision": {
+                      "integerValue": "1"
+                    },
+                    "roleId": {
+                      "stringValue": "CARGO-001"
+                    },
+                    "roleRevision": {
+                      "integerValue": "1"
+                    },
+                    "actorScope": {
+                      "stringValue": "ADMINISTRACAO"
+                    },
+                    "boardId": {
+                      "stringValue": "DIR-001"
+                    },
+                    "boardEpoch": {
+                      "integerValue": "1"
+                    },
+                    "termId": {
+                      "stringValue": "TERM-001"
+                    },
+                    "termRevision": {
+                      "integerValue": "1"
+                    },
+                    "relationId": {
+                      "stringValue": "REL-001"
+                    },
+                    "relationRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "actor": {
+          "mapValue": {
+            "fields": {
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "personId": {
+                "stringValue": "PES-000001"
+              },
+              "personRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "person"
+                    },
+                    "id": {
+                      "stringValue": "PES-000001"
+                    }
+                  }
+                }
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "kind": {
+                "stringValue": "BOARD_ACTOR"
+              }
+            }
+          }
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003ec"
+        }
+      }
+    },
+    "activityAttendanceCollections/dev_meeting/revisions/2": {
+      "fields": {
+        "number": {
+          "integerValue": "2"
+        },
+        "predecessorRevision": {
+          "integerValue": "1"
+        },
+        "snapshot": {
+          "mapValue": {
+            "fields": {
+              "activityRef": {
+                "mapValue": {
+                  "fields": {
+                    "id": {
+                      "stringValue": "dev_meeting"
+                    },
+                    "kind": {
+                      "stringValue": "activity"
+                    }
+                  }
+                }
+              },
+              "cycleId": {
+                "stringValue": "fn_cycle"
+              },
+              "academicSemesterId": {
+                "nullValue": "NULL_VALUE"
+              },
+              "policyRef": {
+                "mapValue": {
+                  "fields": {
+                    "id": {
+                      "stringValue": "fn_policy"
+                    },
+                    "kind": {
+                      "stringValue": "attendancePolicy"
+                    }
+                  }
+                }
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              },
+              "justificationOpensAt": {
+                "timestampValue": "2026-10-17T19:28:58.365Z"
+              },
+              "acceptLateJustification": {
+                "booleanValue": true
+              },
+              "state": {
+                "stringValue": "DRAFT"
+              },
+              "opensAt": {
+                "timestampValue": "2026-10-17T21:28:58.365Z"
+              },
+              "closesAt": {
+                "timestampValue": "2026-10-18T01:28:58.365Z"
+              },
+              "justificationEndsAt": {
+                "timestampValue": "2026-10-18T23:28:58.365Z"
+              },
+              "rosterCount": {
+                "integerValue": "1"
+              },
+              "unrecordedCount": {
+                "integerValue": "1"
+              },
+              "frequencyBasis": {
+                "mapValue": {
+                  "fields": {
+                    "unit": {
+                      "stringValue": "ACTIVITY"
+                    },
+                    "justifiedMode": {
+                      "stringValue": "COUNT_ABSENT"
+                    },
+                    "excusedMode": {
+                      "stringValue": "COUNT_PRESENT"
+                    },
+                    "policyRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              },
+              "decision": {
+                "mapValue": {
+                  "fields": {
+                    "reasonCode": {
+                      "stringValue": "DEV_CONTROLLED"
+                    },
+                    "reason": {
+                      "stringValue": "Synthetic functional baseline"
+                    },
+                    "decidedAt": {
+                      "timestampValue": "2026-10-17T23:32:01.365Z"
+                    },
+                    "actorPersonRef": {
+                      "mapValue": {
+                        "fields": {
+                          "kind": {
+                            "stringValue": "person"
+                          },
+                          "id": {
+                            "stringValue": "PES-000001"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "id": {
+                "stringValue": "dev_meeting"
+              },
+              "schemaVersion": {
+                "stringValue": "act-v2-candidate"
+              },
+              "recordMode": {
+                "stringValue": "NEW_V2"
+              },
+              "revision": {
+                "integerValue": "2"
+              },
+              "createdAt": {
+                "timestampValue": "2026-10-17T23:32:01.365Z"
+              },
+              "updatedAt": {
+                "timestampValue": "2026-10-17T23:33:02.365Z"
+              },
+              "operationId": {
+                "stringValue": "000000000000000000000000000003ec"
+              },
+              "originRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "CORE_COMMAND"
+                    },
+                    "operationId": {
+                      "stringValue": "000000000000000000000000000003ec"
+                    }
+                  }
+                }
+              },
+              "rosterActivityRevision": {
+                "integerValue": "1"
+              },
+              "rosterMembersEpoch": {
+                "integerValue": "1"
+              },
+              "roster": {
+                "mapValue": {
+                  "fields": {
+                    "a_4a80ef44c58d391d677fa5666c55e702": {
+                      "mapValue": {
+                        "fields": {
+                          "kind": {
+                            "stringValue": "attendance"
+                          },
+                          "id": {
+                            "stringValue": "a_4a80ef44c58d391d677fa5666c55e702"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "recordedAt": {
+          "timestampValue": "2026-10-17T23:33:02.365Z"
+        },
+        "actorAuthorityBasis": {
+          "mapValue": {
+            "fields": {
+              "schemaVersion": {
+                "stringValue": "act-authz-proof-v13"
+              },
+              "kind": {
+                "stringValue": "ROLE"
+              },
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "idPessoa": {
+                "stringValue": "PES-000001"
+              },
+              "capability": {
+                "stringValue": "ACTIVITY_ATTENDANCE_MANAGE"
+              },
+              "authorityEpoch": {
+                "integerValue": "1"
+              },
+              "policyEpoch": {
+                "integerValue": "1"
+              },
+              "subjectEpoch": {
+                "integerValue": "1"
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "personRevision": {
+                "integerValue": "1"
+              },
+              "stateRevision": {
+                "integerValue": "1"
+              },
+              "targetsDigest": {
+                "stringValue": "1db79735df35db08782501818e182c1d4d2e4847831132f52d128b2d3fccba8a"
+              },
+              "evidenceRevisions": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "issuedAt": {
+                "timestampValue": "2026-10-17T23:33:02.365Z"
+              },
+              "expiresAt": {
+                "timestampValue": "2026-10-17T23:35:02.365Z"
+              },
+              "policyId": {
+                "stringValue": "ACT_POLICY"
+              },
+              "policyRevision": {
+                "integerValue": "1"
+              },
+              "functionId": {
+                "stringValue": "VIG-001"
+              },
+              "functionRevision": {
+                "integerValue": "1"
+              },
+              "roleId": {
+                "stringValue": "CARGO-001"
+              },
+              "roleRevision": {
+                "integerValue": "1"
+              },
+              "actorScope": {
+                "stringValue": "ADMINISTRACAO"
+              },
+              "boardId": {
+                "stringValue": "DIR-001"
+              },
+              "boardEpoch": {
+                "integerValue": "1"
+              },
+              "termId": {
+                "stringValue": "TERM-001"
+              },
+              "termRevision": {
+                "integerValue": "1"
+              },
+              "relationId": {
+                "stringValue": "REL-001"
+              },
+              "relationRevision": {
+                "integerValue": "1"
+              },
+              "scope": {
+                "stringValue": "ACTIVITIES"
+              },
+              "functionBasis": {
+                "mapValue": {
+                  "fields": {
+                    "schemaVersion": {
+                      "stringValue": "act-authz-proof-v13"
+                    },
+                    "kind": {
+                      "stringValue": "ROLE"
+                    },
+                    "uid": {
+                      "stringValue": "CF_ADMIN"
+                    },
+                    "idPessoa": {
+                      "stringValue": "PES-000001"
+                    },
+                    "capability": {
+                      "stringValue": "ACTIVITY_ATTENDANCE_MANAGE"
+                    },
+                    "authorityEpoch": {
+                      "integerValue": "1"
+                    },
+                    "policyEpoch": {
+                      "integerValue": "1"
+                    },
+                    "subjectEpoch": {
+                      "integerValue": "1"
+                    },
+                    "bindingVersion": {
+                      "integerValue": "1"
+                    },
+                    "personRevision": {
+                      "integerValue": "1"
+                    },
+                    "stateRevision": {
+                      "integerValue": "1"
+                    },
+                    "targetsDigest": {
+                      "stringValue": "1db79735df35db08782501818e182c1d4d2e4847831132f52d128b2d3fccba8a"
+                    },
+                    "evidenceRevisions": {
+                      "arrayValue": {
+                        "values": []
+                      }
+                    },
+                    "issuedAt": {
+                      "timestampValue": "2026-10-17T23:33:02.365Z"
+                    },
+                    "expiresAt": {
+                      "timestampValue": "2026-10-17T23:35:02.365Z"
+                    },
+                    "policyId": {
+                      "stringValue": "ACT_POLICY"
+                    },
+                    "policyRevision": {
+                      "integerValue": "1"
+                    },
+                    "functionId": {
+                      "stringValue": "VIG-001"
+                    },
+                    "functionRevision": {
+                      "integerValue": "1"
+                    },
+                    "roleId": {
+                      "stringValue": "CARGO-001"
+                    },
+                    "roleRevision": {
+                      "integerValue": "1"
+                    },
+                    "actorScope": {
+                      "stringValue": "ADMINISTRACAO"
+                    },
+                    "boardId": {
+                      "stringValue": "DIR-001"
+                    },
+                    "boardEpoch": {
+                      "integerValue": "1"
+                    },
+                    "termId": {
+                      "stringValue": "TERM-001"
+                    },
+                    "termRevision": {
+                      "integerValue": "1"
+                    },
+                    "relationId": {
+                      "stringValue": "REL-001"
+                    },
+                    "relationRevision": {
+                      "integerValue": "1"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "actor": {
+          "mapValue": {
+            "fields": {
+              "uid": {
+                "stringValue": "CF_ADMIN"
+              },
+              "personId": {
+                "stringValue": "PES-000001"
+              },
+              "personRef": {
+                "mapValue": {
+                  "fields": {
+                    "kind": {
+                      "stringValue": "person"
+                    },
+                    "id": {
+                      "stringValue": "PES-000001"
+                    }
+                  }
+                }
+              },
+              "bindingVersion": {
+                "integerValue": "1"
+              },
+              "kind": {
+                "stringValue": "BOARD_ACTOR"
+              }
+            }
+          }
+        },
+        "operationId": {
+          "stringValue": "000000000000000000000000000003ec"
+        }
+      }
+    },
+    "memberAuthzPolicies/FAST_MEMBER_ROLE": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-authz-policy-v13"
+        },
+        "id": {
+          "stringValue": "FAST_MEMBER_ROLE"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "origin": {
+          "stringValue": "F4_M621_INSTITUTIONAL"
+        },
+        "approvalRef": {
+          "stringValue": "FAST_NODE_SYNTHETIC_ONLY"
+        },
+        "issuedAt": {
+          "timestampValue": "2026-10-17T23:33:01.365000000Z"
+        },
+        "expiresAt": {
+          "timestampValue": "2026-10-18T00:33:02.365000000Z"
+        },
+        "proofKind": {
+          "stringValue": "ROLE"
+        },
+        "capabilities": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "MEMBERS_INGRESS_EXECUTE"
+              }
+            ]
+          }
+        },
+        "actorSelector": {
+          "mapValue": {
+            "fields": {
+              "kind": {
+                "stringValue": "ROLE"
+              },
+              "roleKey": {
+                "stringValue": "DIRETOR_ADMINISTRATIVO"
+              },
+              "group": {
+                "stringValue": "DIRETORIA"
+              },
+              "actorScope": {
+                "stringValue": "ADMINISTRACAO"
+              }
+            }
+          }
+        },
+        "targets": {
+          "mapValue": {
+            "fields": {
+              "ownPerson": {
+                "booleanValue": false
+              },
+              "allowedTargetScopes": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "ADMINISTRACAO"
+                    }
+                  ]
+                }
+              },
+              "allowedBoards": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "allowedRoles": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "allowedPersons": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "allowedResources": {
+                "arrayValue": {
+                  "values": []
+                }
+              },
+              "commandScopes": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "ADMINISTRATIVE_INGRESS"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "fieldMasks": {
+          "mapValue": {
+            "fields": {
+              "MEMBERS_INGRESS_EXECUTE": {
+                "arrayValue": {
+                  "values": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "memberOperationalConfig/portal": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-operational-portal-v1"
+        },
+        "enabled": {
+          "booleanValue": true
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "approvalRef": {
+          "stringValue": "FAST_NODE_SYNTHETIC_ONLY"
+        },
+        "commands": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "members.ingress.execute"
+              }
+            ]
+          }
+        },
+        "policyIds": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "FAST_MEMBER_ROLE"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "memberOperationalConfig/registration": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-registration-policy-v1"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "enabled": {
+          "booleanValue": true
+        },
+        "stagedEnrollment": {
+          "booleanValue": true
+        },
+        "invitationLifetimeHours": {
+          "integerValue": "48"
+        },
+        "approvalRef": {
+          "stringValue": "FAST_NODE_SYNTHETIC_ONLY"
+        },
+        "courseIds": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "AGRONOMIA_UFMT_SINOP"
+              }
+            ]
+          }
+        },
+        "interestAxisIds": {
+          "arrayValue": {
+            "values": []
+          }
+        }
+      }
+    },
+    "memberOperationalConfig/notifications": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-notification-policy-v1"
+        },
+        "projectId": {
+          "stringValue": "geapa-convergencia-dev"
+        },
+        "environment": {
+          "stringValue": "DEV"
+        },
+        "enabled": {
+          "booleanValue": true
+        },
+        "mode": {
+          "stringValue": "DRY_RUN"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "approvalRef": {
+          "stringValue": "FAST_NODE_SYNTHETIC_ONLY"
+        }
+      }
+    },
+    "memberOperationalConfig/enrollmentTerms": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-enrollment-terms-v1"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "enabled": {
+          "booleanValue": true
+        },
+        "normTermVersion": {
+          "stringValue": "FAST_TERM"
+        },
+        "normVersionIds": {
+          "arrayValue": {
+            "values": [
+              {
+                "stringValue": "FAST_NORM"
+              }
+            ]
+          }
+        },
+        "imageTerm": {
+          "mapValue": {
+            "fields": {
+              "version": {
+                "stringValue": "FAST_IMAGE"
+              },
+              "optional": {
+                "booleanValue": true
+              },
+              "activationConsequence": {
+                "stringValue": "NONE"
+              },
+              "text": {
+                "stringValue": "Manifestação sintética opcional"
+              },
+              "purpose": {
+                "stringValue": "Teste isolado"
+              }
+            }
+          }
+        }
+      }
+    },
+    "institutionalNormVersions/FAST_NORM": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "institutional-norm-version-v1"
+        },
+        "versionId": {
+          "stringValue": "FAST_NORM"
+        },
+        "id": {
+          "stringValue": "REG_FAST"
+        },
+        "version": {
+          "stringValue": "V1"
+        },
+        "status": {
+          "stringValue": "CURRENT"
+        },
+        "appliesToEnrollment": {
+          "booleanValue": true
+        },
+        "approvalRef": {
+          "stringValue": "FAST_APPROVAL"
+        },
+        "approvedOn": {
+          "stringValue": "2026-01-01"
+        },
+        "effectiveFrom": {
+          "stringValue": "2026-01-02"
+        },
+        "immutableVersionRef": {
+          "stringValue": "SYNTHETIC_REVISION"
+        },
+        "pdfUrl": {
+          "stringValue": "https://example.invalid/norm.pdf"
+        }
+      }
+    },
+    "institutionalNormApprovals/FAST_APPROVAL": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "institutional-norm-approval-v1"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "normId": {
+          "stringValue": "REG_FAST"
+        },
+        "version": {
+          "stringValue": "V1"
+        },
+        "approvedOn": {
+          "stringValue": "2026-01-01"
+        },
+        "effectiveFrom": {
+          "stringValue": "2026-01-02"
+        },
+        "immutableVersionRef": {
+          "stringValue": "SYNTHETIC_REVISION"
+        },
+        "formalReference": {
+          "stringValue": "FAST_SYNTHETIC_MINUTES"
+        }
+      }
+    },
+    "memberCourseCatalog/AGRONOMIA_UFMT_SINOP": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-course-v1"
+        },
+        "id": {
+          "stringValue": "AGRONOMIA_UFMT_SINOP"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "name": {
+          "stringValue": "Engenharia Agronômica"
+        },
+        "institution": {
+          "stringValue": "UFMT"
+        },
+        "campus": {
+          "stringValue": "Sinop"
+        },
+        "level": {
+          "stringValue": "GRADUACAO"
+        }
+      }
+    },
+    "memberAdmissionApprovals/AP_4b5e022465d617fb932bf3721debbf2e52f98335": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "member-admission-approval-v1"
+        },
+        "id": {
+          "stringValue": "AP_4b5e022465d617fb932bf3721debbf2e52f98335"
+        },
+        "revision": {
+          "integerValue": "1"
+        },
+        "active": {
+          "booleanValue": true
+        },
+        "registrationDigest": {
+          "stringValue": "4b5e022465d617fb932bf3721debbf2e52f9833500ec36c628be35cbe8c04841"
+        },
+        "reference": {
+          "stringValue": "FAST_PREVIOUS_APPROVAL"
+        },
+        "approvedBy": {
+          "stringValue": "FAST_SYNTHETIC_DIRECTOR"
+        },
+        "approvedOn": {
+          "stringValue": "2026-10-01"
+        },
+        "membershipType": {
+          "stringValue": "MEMBRO_INGRESSANTE"
+        }
+      }
+    },
+    "portalReaderControl/current": {
+      "fields": {
+        "schemaVersion": {
+          "stringValue": "portal-reader-control-v1"
+        },
+        "enabled": {
+          "booleanValue": true
+        },
+        "generation": {
+          "integerValue": "1"
+        },
+        "operationalWrites": {
+          "booleanValue": true
+        },
+        "startsAt": {
+          "timestampValue": "2026-10-17T23:33:01.365000000Z"
+        },
+        "expiresAt": {
+          "timestampValue": "2026-10-18T00:33:02.365000000Z"
+        }
+      }
+    }
+  },
+  "actors": [
+    {
+      "uid": "CF_ADMIN",
+      "personId": "PES-000001"
+    },
+    {
+      "uid": "CF_MEMBER",
+      "personId": "P_cfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcf"
+    }
+  ],
+  "registration": {
+    "fullName": "FAST NODE Pessoa Sintética",
+    "email": "cf_member@example.invalid",
+    "rga": "2026999888",
+    "phone": "+5566999999999"
+  },
+  "now": 1792279982365
+}

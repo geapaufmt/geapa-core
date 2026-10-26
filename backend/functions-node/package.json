@@ -1,0 +1,29 @@
+{
+  "name": "geapa-core-functions-candidate",
+  "version": "0.2.0",
+  "private": true,
+  "main": "src/index.cjs",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "node scripts/build-domain.cjs",
+    "test": "node --test test/security.test.cjs test/runtime.test.cjs",
+    "test:stabilization": "node --test test/stabilization.test.cjs test/cycle-boundary.test.cjs test/cycle-settings-routing.test.cjs",
+    "test:cycle-settings": "node scripts/emulators.cjs cycle-settings",
+    "release": "node scripts/release.cjs",
+    "gcp-build": "node scripts/verify-release.cjs",
+    "deploy": "node -e \"throw Error('DEPLOY_NOT_AUTHORIZED')\""
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "9.3.1",
+    "@google-cloud/functions-framework": "5.0.5",
+    "firebase-admin": "14.5.0",
+    "firebase-functions": "7.4.0",
+    "google-auth-library": "11.3.1"
+  },
+  "devDependencies": {
+    "firebase-tools": "15.34.0",
+    "node-win-x64": "22.22.0"
+  }
+}
