@@ -1,0 +1,10 @@
+node_modules/
+generated/
+*-debug.log
+.firebase/
+.config/
+tmp/
+
+evidence/
+release/
+.npm-cache/

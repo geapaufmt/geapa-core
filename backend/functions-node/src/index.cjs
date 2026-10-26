@@ -1,0 +1,17 @@
+'use strict';
+if(process.env.GEAPA_RUNTIME==='EMULATOR')require('./local-network.cjs');
+const {onRequest}=require('firebase-functions/v2/https');
+const {handler}=require('./http.cjs');
+const {runtime}=require('./runtime.cjs');
+const {execute}=require('./executor.cjs');
+const {SERVICE_ACCOUNT}=require('./environment.cjs');
+const {recoverProjection}=require('./projection-recovery.cjs');
+const {readAct}=require('./act-readers.cjs');
+const projectionEnabled=process.env.GEAPA_PROJECTION_RECOVERY_ENABLED==='true';
+const actions=[...(process.env.GEAPA_ACT_FLOWS_ENABLED==='true'?['flowRoute','flowPreview','flowPrepare','flowPortalPrepare']:[]),'prepare','execute','status','recover',...(process.env.GEAPA_ACTIVITY_COMMANDS_ENABLED==='true'?['preview','activityRoute']:[]),...(projectionEnabled?['projectionRecover','projectionStatus']:[])];
+if(process.env.GEAPA_ACT_READERS_ENABLED==='true')actions.push('actRead');
+if(process.env.GEAPA_ACT_WORKSPACE_ENABLED==='true')actions.push('workspaceDownload');
+if(process.env.GEAPA_ACT_STORAGE_ENABLED==='true')actions.push('storageStart','storageStatus','storageChunk','storageFinalize','storageDownload','storageNotice');
+if(process.env.GEAPA_MEMBERS_ENABLED==='true')actions.push('memberPrepare','memberExecute','memberStatus','memberRecover','memberEnrollmentOpen','memberEnrollmentRead','memberEnrollmentPrepare');
+const dispatch=options=>options.body.action.startsWith('member')?require('./member-executor.cjs').executeMember(options):options.body.action==='storageNotice'?require('./storage-notice.cjs').acknowledge(options):options.body.action==='storageDownload'?require('./storage-download.cjs').download(options):options.body.action.startsWith('storage')?require('./storage-transfer.cjs').transfer(options):options.body.action==='workspaceDownload'?require('./workspace-download.cjs').download(options):options.body.action==='actRead'?readAct(options):options.body.action.startsWith('projection')?recoverProjection(options):execute(options);
+exports[require('./runtime-profile.cjs').profile.functionName]=onRequest({region:'southamerica-east1',memory:'512MiB',cpu:1,minInstances:0,maxInstances:2,concurrency:2,timeoutSeconds:120,serviceAccount:SERVICE_ACCOUNT,invoker:'public',cors:false},handler({runtime,execute:dispatch,actions}));
