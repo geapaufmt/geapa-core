@@ -93,7 +93,7 @@ function nodeActRead(request){
   return f4MemberOwnReader_().wire(f4MemberOwnReader_().projectTransaction(nodeTx,nodeActor,request.params,Date.now()));
  }
  if(f4MemberOperationalReader_({config:nodeConfig,identity:nodeActor,clock:Date.now}).routes.includes(request.route)||f4MemberProfileCorrectionReader_({config:nodeConfig,identity:nodeActor,clock:Date.now}).routes.includes(request.route))return f4MemberOperationalReader_({config:nodeConfig,identity:nodeActor,clock:Date.now}).read(request);
- const ports=f4ActivitiesFunctionalPorts_({config:nodeConfig,identity:nodeActor,settings:nodeSettings()});return f4ActivitiesPortalReader_({config:nodeConfig,ports,clock:Date.now},request);
+ const ports=f4ActivitiesFunctionalPorts_({config:nodeConfig,identity:nodeActor,settings:nodeSettings()});return f4ActivitiesPortalReader_({config:nodeConfig,identity:nodeActor,settings:nodeSettings(),ports,clock:Date.now},request);
 }
 
 // Both passes execute the original protected download resolver. No file ID,

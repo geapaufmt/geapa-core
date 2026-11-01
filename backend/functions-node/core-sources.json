@@ -230,6 +230,7 @@
     "workspace/130_act_workspace_executor.gs",
     "activities/v2/187_act_preagenda.gs",
     "activities/v2/188_act_preagenda_capacity.gs",
-    "activities/v2/198_act_context_actions.gs"
+    "activities/v2/198_act_context_actions.gs",
+    "activities/v2/189_board_competencies.gs"
   ]
 }
