@@ -34,7 +34,7 @@ function f4PortalReadModels_(options) {
  if(wants('activities')){
   start('activities');
   const prior=get('portalReaderViews/'+identity.uid+'/items/activities'),fence=get('portalReaderResourceFences/activities');
-  const signature=C.hash(F.encode({context:{...context,validUntil:0},settings:options.settings||{}}));
+  const signature=C.hash(F.encode({producer:'academic-semester-v1',context:{...context,validUntil:0},settings:options.settings||{}}));
   const plan=gate.operationalWrites&&!options.forceFullActivityList?f4ActivityListPatchPlan_(prior,b,fence,signature,now):null;
   let lists;
   if(plan){
