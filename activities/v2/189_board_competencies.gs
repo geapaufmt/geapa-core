@@ -13,6 +13,15 @@ function f4BoardCompetencies_(options){
    for(let page=0;page<5;page++){const rows=db.query({collection:'memberFunctions',filters:[{field:'idDiretoria',op:'EQUAL',value:boardId}],limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(cursor?{cursor:[cursor]}:{})});functions.push(...rows.map(r=>r.data));if(rows.length<20)break;N(page<4,'SCOPE_TOO_LARGE');cursor=new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+rows.at(-1).path);}
   }
   const ids=[...new Set(functions.map(f=>f.idPessoa))];N(ids.length<=40,'SCOPE_TOO_LARGE');
+  // Discover each dependency layer in bulk; loading one aggregate field at a
+  // time would waste SDK discovery rounds. All reads stay in one snapshot.
+  const prefetch=paths=>{const unique=[...new Set(paths)];N(unique.length<=720,'SCOPE_TOO_LARGE');for(let i=0;i<unique.length;i+=180)db.getMany(unique.slice(i,i+180));};
+  prefetch(ids.flatMap(id=>['memberAggregateHeads/'+id,'memberAuthzSubjects/'+id]));
+  prefetch(ids.flatMap(id=>get('memberAggregateHeads/'+id)?.paths||[]));
+  const allFunctions=ids.flatMap(id=>(get('memberAggregateHeads/'+id)?.paths||[]).filter(p=>p.startsWith('memberFunctions/')).map(get)).filter(Boolean);
+  prefetch(allFunctions.flatMap(f=>['memberBoardHeads/'+f.idDiretoria,'memberRoleCatalog/'+f.idCargo,'memberGovernanceTerms/'+f.idTermo]));
+  const boardPaths=[...new Set(allFunctions.flatMap(f=>get('memberBoardHeads/'+f.idDiretoria)?.paths||[]))];prefetch(boardPaths);
+  prefetch(boardPaths.filter(p=>p.startsWith('memberGovernanceBoardTerms/')).map(get).filter(Boolean).map(r=>'memberGovernanceTerms/'+r.idTermo));
   const contracts={...Object.fromEntries(Object.entries(f4ActivitiesContracts_()).map(([k,v])=>['ACT.'+k,v.capabilities])),...f4MemberCommandCatalog_().types};
   // These are the existing protected route documents, not a new permission matrix.
   const routes=[];let cursor;
