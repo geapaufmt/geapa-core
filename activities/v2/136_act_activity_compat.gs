@@ -2,7 +2,11 @@ function f4ActivitiesActivityCompat_(options){
  const M=f4ActivitiesModel_(),N=M.need,C=f4Core_(),F=f4Firestore_(),db=F.connect(options.config),ports=options.ports,clock=options.clock||Date.now;
  const board=()=>ports.readAuthority(['activityAttendanceRegistry/current'],false);
  function portalRelations(value){return {...value,apresentacoesPublicas:value.apresentacoes.map(p=>({...p,linkMaterialPublico:p.linkMaterial||''})),envolvidosPublicos:value.envolvidos};}
- function access(admin){if(admin)return {auth:board(),admin:true};try{return {auth:board(),admin:true}}catch(e){if(!['AUTHORIZATION_DENIED','AUTH_BINDING_INVALID','M13_AUTHZ_DENIED'].includes(e.code))throw e;return {auth:ports.readAuthority([],true,'ACTIVITY_AGENDA_READ_SELF'),admin:false}}}
+ const denied=e=>['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code);
+ function access(admin){return admin?{auth:board(),admin:true}:{auth:ports.readAuthority([],true,'ACTIVITY_AGENDA_READ_SELF'),admin:false};}
+ // A missing right to presentation administration must not deny an otherwise
+ // authorized activity detail. Never turn dependency/network failures into data.
+ function relations(a){try{return f4ActivitiesPresentationCompat_(options).activityRelations(a);}catch(e){if(!denied(e))throw e;return {apresentacoes:[],envolvidos:[],pendencias:[{tipo:'APRESENTACAO',status:'CONSULTA_RESTRITA'}]};}}
  function recheck(a){ports.recheckAuthority(a);}
  const iso=t=>t?new Date(M.ms(t)).toISOString():'';
  const hour=t=>Utilities.formatDate(new Date(M.ms(t)),'America/Cuiaba','HH:mm');
@@ -17,7 +21,9 @@ function f4ActivitiesActivityCompat_(options){
  function realizationHistory(a){const items=[],seen=new Set();let ref=a.realizationRef;while(ref&&ref.kind!=='NONE'){N(ref.kind==='activityRealization'&&!seen.has(ref.id)&&items.length<30,'UNRESOLVED_DEPENDENCY','REALIZATION_HISTORY');seen.add(ref.id);const value=db.get(M.path(ref));N(value?.activityRef?.id===a.id&&value.recognized===true,'UNRESOLVED_DEPENDENCY');items.push({id:value.id,ocorreu:value.occurred,dataOcorrencia:value.occurrenceTemporalObject.civilDate,motivo:value.basis.reason,reconhecidaEm:iso(value.recognizedAt)});ref=value.predecessorRef;}return items;}
  function read(route,params={}){return ports.readWithAuthoritySnapshot(check=>readSnapshot(route,params,check));}
  function readSnapshot(route,params,check,projectionPair=false,projectionIds=null){
-  const admin=route.startsWith('/admin/'),scope=access(admin),epoch=db.get('activityAttendanceRegistry/current')?.epoch||0,relatedProofs=[];let data;
+  const admin=route.startsWith('/admin/');let scope;
+  if(projectionPair){try{scope=access(true);}catch(e){if(!denied(e))throw e;scope=access(false);}}else scope=access(admin);
+  const epoch=db.get('activityAttendanceRegistry/current')?.epoch||0,relatedProofs=[];let data;
   if(route==='/atividades/modelo/membros-apresentadores'){N(scope.admin,'AUTHORIZATION_DENIED');data=f4ActivitiesMemberActivityCompat_(options,all,temporal).read(params);}
   else if(route==='/atividades/acoes-proprias'){
    C.exact(params,['items']);N(Array.isArray(params.items)&&params.items.length<=32,'SCOPE_TOO_LARGE');const seen=new Set();data={};
@@ -29,25 +35,29 @@ function f4ActivitiesActivityCompat_(options){
   else if(route==='/atividades/modelos'){N(scope.admin,'AUTHORIZATION_DENIED');data={modelos:all('activityTypes').filter(r=>r.data.status==='ACTIVE'&&r.data.portalModel).map(r=>f4ActivityPortalModelDto_(r.data))};}
   else if(['/atividades/detalhe','/admin/atividades/detalhe'].includes(route)){
    N(M.id(params.idAtividade),'VALIDATION_ERROR');const a=db.get('canonicalActivities/'+params.idAtividade);N(a&&a.sourceSnapshotState!=='ABSENT_FROM_CURRENT_SNAPSHOT'&&(scope.admin||a.publicationStatus==='PUBLICADO'&&['PUBLIC','MEMBERS'].includes(a.publishedVisibility)),'AUTHORIZATION_DENIED');
-   const collection=db.get('activityAttendanceCollections/'+a.id),item={...dto(a,collection,scope.admin),...priorJustification(a,collection,scope.auth.personId)};if(!admin&&scope.admin&&f4ActivityHasHistoricalRelations_(a))Object.assign(item,portalRelations(f4ActivitiesPresentationCompat_(options).activityRelations(a)));data=admin?{atividade:item,canonicalActivityRevision:a.revision,historicoRealizacao:realizationHistory(a),podeRegistrarRealizacao:ports.commandAvailable('ACTIVITY_REALIZE')&&a.recordMode!=='HISTORICAL_PARTIAL'&&!['CANCELLED','ARCHIVED'].includes(a.status),camposEditaveis:a.administrativeReview?.state==='CONFIRMED'||!ports.commandAvailable('ACTIVITY_SAVE')||a.recordMode==='HISTORICAL_PARTIAL'||a.realizationRef?[]:['tituloPublico','descricaoPublica','descricaoInterna','dataAtividade','horarioInicio','horarioFim','local','formato','responsavelInterno','responsavelEmail','publicoAlvo','observacoes'],modeloAplicado:{nomeModeloPortal:a.typeSnapshot?.name||'Não reconstruído'},...f4ActivitiesPresentationCompat_(options).activityRelations(a),podePublicar:ports.commandAvailable('ACTIVITY_PUBLICATION_SET')&&a.recordMode!=='HISTORICAL_PARTIAL'&&!a.realizationRef&&!['CANCELLED','ARCHIVED'].includes(a.status),podeOcultar:ports.commandAccess('ACTIVITY_PUBLICATION_SET',[M.ref('activity',a.id)])&&a.recordMode!=='HISTORICAL_PARTIAL'&&a.publicationStatus==='PUBLICADO',podeCancelar:ports.commandAccess('ACTIVITY_PUBLICATION_SET',[M.ref('activity',a.id)])&&a.recordMode!=='HISTORICAL_PARTIAL'&&!a.realizationRef&&!['CANCELLED','ARCHIVED'].includes(a.status),podeReabrir:ports.commandAvailable('ACTIVITY_PUBLICATION_SET')&&a.recordMode!=='HISTORICAL_PARTIAL'&&a.status==='CANCELLED'}:item;
+   if(admin)relatedProofs.push(ports.readAuthority(['canonicalActivities/'+a.id],false,'ACTIVITY_BOARD_READ'));
+   const collection=db.get('activityAttendanceCollections/'+a.id),item={...dto(a,collection,scope.admin),...priorJustification(a,collection,scope.auth.personId)};if(!admin&&scope.admin&&f4ActivityHasHistoricalRelations_(a))Object.assign(item,portalRelations(f4ActivitiesPresentationCompat_(options).activityRelations(a)));data=admin?{atividade:item,canonicalActivityRevision:a.revision,historicoRealizacao:realizationHistory(a),podeRegistrarRealizacao:ports.commandAvailable('ACTIVITY_REALIZE')&&a.recordMode!=='HISTORICAL_PARTIAL'&&!['CANCELLED','ARCHIVED'].includes(a.status),camposEditaveis:a.administrativeReview?.state==='CONFIRMED'||!ports.commandAvailable('ACTIVITY_SAVE')||a.recordMode==='HISTORICAL_PARTIAL'||a.realizationRef?[]:['tituloPublico','descricaoPublica','descricaoInterna','dataAtividade','horarioInicio','horarioFim','local','formato','responsavelInterno','responsavelEmail','publicoAlvo','observacoes'],modeloAplicado:{nomeModeloPortal:a.typeSnapshot?.name||'Não reconstruído'},...relations(a),podePublicar:ports.commandAvailable('ACTIVITY_PUBLICATION_SET')&&a.recordMode!=='HISTORICAL_PARTIAL'&&!a.realizationRef&&!['CANCELLED','ARCHIVED'].includes(a.status),podeOcultar:ports.commandAccess('ACTIVITY_PUBLICATION_SET',[M.ref('activity',a.id)])&&a.recordMode!=='HISTORICAL_PARTIAL'&&a.publicationStatus==='PUBLICADO',podeCancelar:ports.commandAccess('ACTIVITY_PUBLICATION_SET',[M.ref('activity',a.id)])&&a.recordMode!=='HISTORICAL_PARTIAL'&&!a.realizationRef&&!['CANCELLED','ARCHIVED'].includes(a.status),podeReabrir:ports.commandAvailable('ACTIVITY_PUBLICATION_SET')&&a.recordMode!=='HISTORICAL_PARTIAL'&&a.status==='CANCELLED'}:item;
   }else{
    N(['/atividades/listar','/atividades/bundle','/atividades/detalhes-preload','/admin/atividades'].includes(route),'VALIDATION_ERROR');
    // IDs are supplied only by the trusted projection producer, never by a Portal query.
    if(projectionIds)N(projectionPair&&Array.isArray(projectionIds)&&projectionIds.length<=64&&projectionIds.every(M.id)&&new Set(projectionIds).size===projectionIds.length,'SCOPE_TOO_LARGE');
    const source=projectionIds?db.getMany([...projectionIds].sort().map(id=>'canonicalActivities/'+id)).filter(Boolean):all('canonicalActivities').map(r=>r.data);
-   const rows=source.filter(a=>a.sourceSnapshotState!=='ABSENT_FROM_CURRENT_SNAPSHOT').filter(a=>scope.admin||a.publicationStatus==='PUBLICADO'&&['PUBLIC','MEMBERS'].includes(a.publishedVisibility));
+   const visible=a=>a.publicationStatus==='PUBLICADO'&&['PUBLIC','MEMBERS'].includes(a.publishedVisibility);
+   const adminIds=new Set();
+   if(scope.admin)for(const a of source){if(a.sourceSnapshotState==='ABSENT_FROM_CURRENT_SNAPSHOT')continue;try{const proof=ports.readAuthority(['canonicalActivities/'+a.id],false,'ACTIVITY_BOARD_READ');relatedProofs.push(proof);adminIds.add(a.id);}catch(e){if(!denied(e))throw e;}}
+   const rows=source.filter(a=>a.sourceSnapshotState!=='ABSENT_FROM_CURRENT_SNAPSHOT').filter(a=>projectionPair?adminIds.has(a.id)||visible(a):scope.admin?adminIds.has(a.id):visible(a));
    const collections=new Map();for(let i=0;i<rows.length;i+=100){const batch=rows.slice(i,i+100),values=db.getMany(batch.map(a=>'activityAttendanceCollections/'+a.id));batch.forEach((a,j)=>collections.set(a.id,values[j]));}
    // Historical provenance is fetched once per page group; no cache survives this read.
    const evidence=new Map(),paths=[...new Set(rows.flatMap(a=>[...(a.provenanceHead?['migrationEvidence/'+a.provenanceHead.id]:[]),...(a.academicSemesterId?['academicSemesters/'+a.academicSemesterId]:[])]))];
    for(let i=0;i<paths.length;i+=180){const batch=paths.slice(i,i+180),values=db.getMany(batch);batch.forEach((p,j)=>evidence.set(p,values[j]));}
    const literal=p=>evidence.has(p)?evidence.get(p):db.get(p);
-   const list=rows.map(a=>({...dto(a,collections.get(a.id),scope.admin,literal),...priorJustification(a,collections.get(a.id),scope.auth.personId)}));
+   const list=rows.filter(a=>!projectionPair||visible(a)).map(a=>({...dto(a,collections.get(a.id),projectionPair?false:scope.admin,literal),...priorJustification(a,collections.get(a.id),scope.auth.personId)}));
    // The private projection needs both existing contracts. Preserve the admin
    // rows before the normal history enrichments; do not rerun the whole list.
-   const adminList=projectionPair&&scope.admin?list.map(row=>({...row})):null;
+   const adminList=projectionPair&&scope.admin?rows.filter(a=>adminIds.has(a.id)).map(a=>dto(a,collections.get(a.id),true,literal)):null;
    // The existing history cards and preloaded detail consume these same fields.
    // Keep parent activity authorization, and batch only the literal historical relations.
-   if(!admin&&scope.admin){const historic=rows.filter(f4ActivityHasHistoricalRelations_),ids=new Set(historic.map(a=>a.id));
+   if(!admin&&!projectionPair&&scope.admin){const historic=rows.filter(f4ActivityHasHistoricalRelations_),ids=new Set(historic.map(a=>a.id));
     if(historic.length){for(let i=0;i<historic.length;i+=32)relatedProofs.push(ports.readAuthority(historic.slice(i,i+32).map(a=>'canonicalActivities/'+a.id),false,'ACTIVITY_BOARD_READ'));
      const cache=new Map(),batch=paths=>{const missing=[...new Set(paths)].filter(p=>!cache.has(p));for(let i=0;i<missing.length;i+=180){const part=missing.slice(i,i+180),v=db.getMany(part);part.forEach((p,j)=>cache.set(p,v[j]));}},get=p=>{if(!cache.has(p))cache.set(p,db.get(p));return cache.get(p)};
      batch(historic.flatMap(a=>(a.historicalPresentationRefs||[]).map(M.path)));
@@ -65,6 +75,7 @@ function f4ActivitiesActivityCompat_(options){
    if(projectionPair&&options.listMaintenance){const now=clock();options.listMaintenance.rows=rows.map(a=>{const c=collections.get(a.id),times=[a.startsAt,c?.opensAt,c?.justificationOpensAt].filter(Boolean).map(M.ms);if(c?.closesAt)times.push(M.ms(c.closesAt)+1);return {id:a.id,nextAt:a.presentationSessionRef?0:Math.min(...times.filter(t=>t>now),Number.MAX_SAFE_INTEGER)};});}
    data=projectionPair?f4ActivityProjectionListPack_(list,adminList,clock()):admin?f4ActivityProjectionAdminList_(list):route==='/atividades/listar'?list:{calendario:list,detalhesPorId:Object.fromEntries(list.map(d=>[d.idAtividade,d])),ultimaAtualizacao:new Date(clock()).toISOString()};
   }
+  if(projectionPair&&scope.admin)relatedProofs.push(ports.readAuthority([],true,'ACTIVITY_AGENDA_READ_SELF'));
   check([scope.auth,...relatedProofs]);N((db.get('activityAttendanceRegistry/current')?.epoch||0)===epoch,'STALE_REVISION','ACTIVITY_LIST_CHANGED');return {ok:true,data,...(route==='/atividades/acoes-proprias'?{sourceEpoch:epoch}:{})};
  }
  // The current Portal sends 18h00; the administrative editor also uses 18:00.
