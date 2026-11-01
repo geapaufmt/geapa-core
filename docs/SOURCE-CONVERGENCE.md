@@ -11,3 +11,5 @@ Nenhum dado, policy, IAM, Hosting, Function ou Storage foi alterado nesta conver
 Build de desenvolvimento possui ferramentas de emulador e dependência opcional Windows; pacote runtime utiliza lockfile próprio, com pins verificados e sem ferramentas locais. Não atualizar bibliotecas indiscriminadamente nesta convergência.
 
 Testes históricos não relacionados permanecem nos checkpoints. Suíte incluída cobre runtime, segurança HTTP, domínio/fonte, autorização, disponibilidade, vigência, ownership, recuperação, leitores e escopo real. Fixtures são sintéticas; não importar em ambiente institucional.
+
+Auditoria npm de 01/11: 18 avisos moderados no conjunto de desenvolvimento, 9 no grafo runtime, zero altos/críticos. Pins atuais preservados para equivalência com a publicação. Atualização dessas dependências transitivas fica registrada para manutenção separada, sem downgrade automático sugerido por npm audit.

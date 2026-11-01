@@ -1,11 +1,11 @@
 'use strict';
 const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto'),p=require('node:path');
-const source=['activities/v2/101_act_model.gs','shared/core/69_act_flow_executor.gs','shared/core/69_executor_ownership.gs'].map(f=>fs.readFileSync(p.resolve(__dirname,'../../..',f),'utf8')).join('\n');
+const source=['activities/v2/101_act_model.gs','members/112_member_executor.gs','shared/core/69_act_remaining_consumers.gs','shared/core/69_act_flow_executor.gs','shared/core/69_executor_ownership.gs'].map(f=>fs.readFileSync(p.resolve(__dirname,'../../..',f),'utf8')).join('\n')+'\n// Adapter-owned destination.'+fs.readFileSync(p.resolve(__dirname,'../../../shared/core/10_shared_core.gs'),'utf8').split('// Adapter-owned destination.')[1];
 const copy=x=>JSON.parse(JSON.stringify(x)),op='a'.repeat(32),activity='act_'+op,scopePath='activityRealExecutorScopes/REAL_REVIEW',index='activityRealExecutorIndex/current';
 function setup(){
  const C={need:(v,c)=>{if(!v)throw Error(c)},ms:x=>x,hash:x=>crypto.createHash('sha256').update(JSON.stringify(x)).digest('hex')},F={encode:x=>x,Timestamp:{fromMillis:x=>x}};
  const ctx=vm.createContext({f4Core_:()=>C,f4Firestore_:()=>F,f4MemberLedgerM13_:()=>({toReceipt:x=>x.receipt})});vm.runInContext(source,ctx);ctx.f4CommandExecutorId_=()=> 'CF_GEN2_DEV_EDIT_V1';
- const real=ctx.f4ActivityRealExecutor_(),f=ctx.f4ExecutorOwnership_(),routes=ctx.f4ActivityExecutorRoutes_(),config={environment:'DEV',projectId:'geapa-convergencia-dev'},now=1000;
+ const real=ctx.f4ActivityRealExecutor_(),f=ctx.f4ExecutorOwnership_(),routes=ctx.f4ActivityExecutorRoutes_(),config={environment:'DEV',projectId:'geapa-convergencia-dev',database:'(default)'},now=1000;
  const payload={activityRef:{kind:'activity',id:activity},typeRef:{kind:'activityType',id:'type'},cycleRef:{kind:'cycle',id:'cycle'},title:'Approved event',location:'DEV',startsAt:2000,endsAt:3000,status:'SCHEDULED',details:{},decision:{reasonCode:'PORTAL_MODEL_CREATION',reason:'approved'}};
  const portal={idConfig:'type',atividade:{cycleId:'cycle',tituloPublico:'Approved event'}};
  const scope={schemaVersion:'geapa-activity-real-scope-v1',id:'REAL_REVIEW',projectId:config.projectId,synthetic:false,revision:1,configRevision:1,state:'ACTIVE',mode:'DEV_SCOPED_OPERATIONAL',startsAt:0,expiresAt:10000,authorizationExpiresAt:10000,actorUids:['actor'],maxOperations:20,operationIds:[],intents:[{operationId:op,activityId:activity,payloadHash:real.hash(payload),portalPayloadHash:real.portalHash(portal),cycleId:'cycle',typeId:'type',cycleRevision:2,typeRevision:1,policyId:null,policyRevision:null}]};
