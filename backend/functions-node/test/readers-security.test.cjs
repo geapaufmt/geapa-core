@@ -28,6 +28,13 @@ test('all derived and canonical writes and preparation denied by reader store',(
 const db={projectId:DEMO,collection(){return {where(){return this},orderBy(){return this},limit(){return this},startAfter(){return this}}},doc:p=>p};
 const simple={collection:'activityJustifications',filters:[{field:'state',op:'EQUAL',value:encode('PENDING')}],limit:11,order:[{field:'__name__',direction:'ASCENDING'}]};
 const decode=require('../src/firestore.cjs').decode;
+
+test('board transparency queries reject unbounded, cross-board and cross-project plans',()=>{
+ const plan={collection:'memberFunctions',filters:[{field:'idDiretoria',op:'EQUAL',value:encode('DIR-2026')}],limit:20,order:[{field:'__name__',direction:'ASCENDING'}]};
+ a(readerQuery(db,plan,decode));a(readerQuery(db,{...plan,collection:'commandExecutorRoutes',filters:[]},decode));
+ for(const patch of [{limit:21},{filters:[]},{filters:[{...plan.filters[0],op:'NOT_EQUAL'}]},{filters:[{...plan.filters[0],value:encode('../OTHER')}]},{filters:[{...plan.filters[0],value:encode({id:'DIR-2026'})}]}])a.throws(()=>readerQuery(db,{...plan,...patch},decode),/QUERY_NOT_IN_PILOT/);
+ a.throws(()=>readerQuery(db,{...plan,cursor:[{referenceValue:'projects/prod/databases/(default)/documents/memberFunctions/x'}]},decode),/DESTINATION_INVALID/);
+});
 test('typed reader queries are bounded and do not broaden command query adapter',()=>{
  a(readerQuery(db,simple,decode));a.throws(()=>queryPlan(db,simple,decode),/QUERY_NOT_IN_PILOT/);
  for(const patch of [{limit:21},{limit:0},{collection:'memberPrivateProfiles'},{filters:[]},{filters:[{field:'state',op:'NOT_EQUAL',value:encode('PENDING')}]},{filters:[{field:'state',op:'EQUAL',value:encode('ALL')}]},{order:[{field:'private',direction:'ASCENDING'}]}])a.throws(()=>readerQuery(db,{...simple,...patch},decode),/QUERY_NOT_IN_PILOT/);
