@@ -1,0 +1,11 @@
+* text=auto eol=lf
+activities/** -text
+composition/** -text
+editorial/** -text
+jobs/** -text
+legacy/** -text
+members/** -text
+shared/** -text
+workspace/** -text
+backend/functions-node/src/** -text
+backend/functions-node/package-lock.runtime.json -text

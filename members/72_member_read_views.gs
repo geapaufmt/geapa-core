@@ -1,0 +1,17 @@
+// M64-B pure materializer: returns an in-memory pair only; no repository/writer is enabled.
+function f4MemberReadViews_(){
+ const K=f4MemberAuthzContracts_(),N=K.need,T=f4Firestore_().Timestamp;
+ function project(get,request,viewId,now){N(K.id(viewId));const a=f4MemberAuthz_().authorize(get,request,now),r=a.request,t=r.target,person=a.target.d['memberIdentities/'+t.personId],profile=a.target.d['memberPrivateProfiles/'+t.personId];N(['MEMBERS_SELF_READ','MEMBERS_CASE_READ','MEMBERS_PRIVATE_AUDIT'].includes(r.capability));let dto,path;let expires=Math.min(K.timestamp(a.proof.expiresAt),K.timestamp(a.targetDerived.state.validUntil));
+ if(r.capability==='MEMBERS_SELF_READ'){N(viewId==='SELF'&&t.fieldMask.length===1&&t.fieldMask[0]==='contactEmail'&&profile&&(r.kind==='DEV_ADMIN'||a.targetDerived.state.state==='MEMBRO_EFETIVO'));dto={schemaVersion:'safe-member-self-profile-v13',idPessoa:t.personId,contactEmail:profile.contactEmail,personRevision:a.target.h.revision,profileRevision:profile.revision,issuedAt:T.fromMillis(now),expiresAt:T.fromMillis(expires)};path='memberSelfProfiles/'+t.personId;}
+ else{const fields={idPessoa:t.personId,displayLabel:person.displayName};if(r.capability==='MEMBERS_CASE_READ'){
+ fields.state=a.targetDerived.state.state;fields.currentFunctions={};
+ for(const f of a.targetDerived.currentFunctions){try{K.match({...t,scopeKey:f.scopeKey,boardId:f.idDiretoria,roleKey:f.roleKey,resources:['memberFunctions/'+f.idVigencia]},r.kind==='EXPLICIT'?get('memberExplicitGrants/'+r.sourceId).targets:get('memberAuthzPolicies/'+r.sourceId).targets,a.binding.idPessoa);}catch{continue;}
+ fields.currentFunctions[f.idVigencia]=true;for(const source of [a.target.d['memberFunctions/'+f.idVigencia],a.target.d['memberGovernanceBoards/'+f.idDiretoria],a.target.d['memberGovernanceTerms/'+f.idTermo],...a.target.M.rows(a.target.d,'memberGovernanceBoardTerms').filter(x=>x.idDiretoria===f.idDiretoria&&x.idTermo===f.idTermo)]){const iv=a.target.M.interval(source.startDate,source.endDateReal||source.endDatePlanned||source.endDate);if(iv.z>now)expires=Math.min(expires,iv.z);if(iv.a>now)expires=Math.min(expires,iv.a);}}
+ }else{if(t.fieldMask.some(f=>['contactEmail','academicReference'].includes(f)))N(profile);if(profile){fields.contactEmail=profile.contactEmail;fields.academicReference=profile.academicReference;}}
+ const data={};for(const field of t.fieldMask){N(Object.prototype.hasOwnProperty.call(fields,field));data[field]=fields[field]}
+ dto={schemaVersion:'safe-member-read-view-v13',ownerUid:r.uid,idPessoa:t.personId,capability:r.capability,purpose:t.purpose,caseId:t.caseId,fieldMask:[...t.fieldMask],data,issuedAt:T.fromMillis(now),expiresAt:T.fromMillis(expires)};path='memberReadViews/'+r.uid+'/items/'+viewId;}
+ const proof={schemaVersion:'member-read-proof-v13',ownerUid:r.uid,idPessoa:a.binding.idPessoa,targetId:t.personId,actorPersonRevision:a.actor.h.revision,targetPersonRevision:a.target.h.revision,bindingVersion:a.binding.bindingVersion,subjectEpoch:a.subject.authzEpoch,policyEpoch:a.control.policyEpoch,authorityEpoch:a.control.epoch,readAuthzEpoch:a.control.readAuthzEpoch,issuedAt:T.fromMillis(now),expiresAt:T.fromMillis(expires),fieldsDigest:K.digest(t.fieldMask),targetsDigest:K.digest(t),kind:r.kind,capability:r.capability,actorScope:r.actorScope,dto};
+ return {[path]:dto,['memberReadProofs/'+r.uid+'/items/'+viewId]:proof};
+ }
+ return {project};
+}

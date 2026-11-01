@@ -1,0 +1,9 @@
+node_modules/
+generated/
+evidence/
+release/
+private/
+.env*
+.firebase/
+.config/
+*.log

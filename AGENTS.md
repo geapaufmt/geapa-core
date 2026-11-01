@@ -1,64 +1,13 @@
-# Diretrizes Permanentes do Sistema GEAPA
+# Core GEAPA: instruções atuais
 
-Este repositorio faz parte do Sistema GEAPA. Ao atuar aqui, priorize estabilidade, desempenho e seguranca antes de ampliar funcionalidades.
-
-## Prioridades
-
-- Priorize performance antes de novas funcionalidades.
-- Prefira melhorias que reduzam tempo de carregamento, chamadas ao backend e leituras repetidas.
-- Nao altere producao, publique versoes ou execute pushes/deploys sem instrucao explicita.
-- Documente mudancas relevantes em README, comentarios operacionais ou notas de migracao quando afetarem contratos, dados, permissoes ou performance.
-
-## Arquitetura
-
-- GitHub Pages e o front-end.
-- Apps Script e o backend/API.
-- Google Sheets e banco interno do sistema, nao interface principal para usuarios finais.
-- O front-end pode orientar navegacao e experiencia, mas permissoes e autorizacoes criticas devem ser validadas no backend.
-
-## Performance
-
-Metas de resposta percebida:
-
-- Pagina inicial: 1,5 a 3 s.
-- Aba Atividades: 1 a 2,5 s.
-- Detalhes de atividade: 0,5 a 1,5 s.
-- Troca entre telas ja carregadas: instantanea ou quase instantanea.
-
-Diretrizes praticas:
-
-- Use views `PORTAL_*` para leitura rapida sempre que existirem.
-- Evite cruzamentos pesados em tempo real no Apps Script.
-- Nao faca leituras amplas de multiplas abas para cada interacao do usuario se uma view consolidada ou cache resolver.
-- Reduza chamadas ao backend agrupando dados necessarios por tela.
-- Use cache quando fizer sentido, especialmente para dados de leitura frequente e baixa volatilidade.
-- Prefira respostas enxutas, com apenas os campos necessarios para o front.
-
-## Apps Script
-
-- Use leitura e escrita em lote (`getValues`, `setValues`, ranges agregados) em vez de loops com chamadas por celula.
-- Em escritas sensiveis, use `LockService` para evitar concorrencia e duplicidade.
-- Separe leitura de escrita; nao misture consultas de tela com mutacoes.
-- Nao implemente autorizacao critica somente no front-end.
-- Retorne erros controlados, sem expor IDs internos de planilhas, tokens, chaves ou dados de terceiros.
-
-## Views e Dados
-
-- Nao remova views existentes sem migracao documentada.
-- Antes de substituir uma view, registre o contrato antigo, o contrato novo e os consumidores impactados.
-- Prefira criar ou evoluir views `PORTAL_*` para telas do portal em vez de fazer cruzamentos pesados no momento da requisicao.
-- Evite retornar listas completas quando a tela precisa apenas de um registro, resumo ou subconjunto paginado.
-
-## Front-end do Portal
-
-- Trate dados vindos do Apps Script como contratos de API.
-- Evite chamadas redundantes ao backend ao trocar entre telas ja carregadas.
-- Reaproveite dados em memoria quando forem validos para a sessao/tela.
-- Use permissoes retornadas pelo backend para montar navegacao, mas mantenha validacao real no backend.
-
-## Seguranca Operacional
-
-- Nao exponha e-mails ou dados de terceiros sem necessidade do caso de uso.
-- Nao use dados mockados para logica oficial.
-- Nao escreva em planilhas oficiais em testes sem instrucao explicita.
-- Prefira funcoes internas com sufixo `_` e wrappers publicos claros para contratos consumidos por outros modulos.
+- Fonte única de regras institucionais, contratos, autorização, domínio e operações sobre dados.
+- Frontend, TypeScript, Design System, navegação e Hosting pertencem a geapaufmt/geapa-portal.
+- Preservar Auth, App Check, vínculo/função vigente, capability/policy, máscaras, CAS, ownership, idempotência, receipts, leases, auditoria, fences e recuperação.
+- Não criar segunda autoridade em Sheets, cache de navegador ou adaptador Node.
+- Não inferir vigência de norma, decisão humana, aprovação, vínculo ou permissão.
+- Fontes .gs canônicas são reutilizadas pelo bundle Node: editar a fonte listada em core-sources.json, nunca generated/.
+- Compilar a partir de checkpoint versionado; testar com Node 22 e fixtures sintéticas. Não criar fatos institucionais em PROD para testes.
+- Não versionar overlays nominais, evidências privadas, tokens, credenciais ou dumps de Firestore/Auth.
+- Push/PR/merge não autorizam deploy. Exigir autorização de ambiente, manifesto e rollback antes de efeitos remotos.
+- Preservar worktrees e checkpoints. Não fazer force-push ou downgrade de executor com operações recuperáveis.
+- docs/history e arquivos antigos são referência de compatibilidade; suas descrições Apps Script/Sheets não definem a arquitetura operacional atual.
