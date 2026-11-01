@@ -26,7 +26,7 @@ function f4ActivitiesAcademicCommands_(x){
    history(p.semesterRef,old?'ACADEMIC_SEMESTER_EDITED':'ACADEMIC_SEMESTER_CREATED');return {semesterRef:p.semesterRef};
   },
   CYCLE_GOVERNANCE_EDIT(){
-   valid();N(actor.kind==='BOARD_ACTOR','AUTHORIZATION_DENIED');const old=load(p.cycleRef,true);
+   valid();N(actor.kind==='BOARD_ACTOR','AUTHORIZATION_DENIED');const old=load(p.cycleRef,true);N(old.status!=='CLOSED'&&old.recordMode!=='HISTORICAL_PARTIAL','INVALID_STATE_TRANSITION','CLOSED_CYCLE_READ_ONLY');
    // A changed date must not silently invalidate existing presentation planning.
    N(old.status==='DRAFT'||old.civilStart===p.civilStart&&old.civilEnd===p.civilEnd,'INVALID_STATE_TRANSITION','ACTIVE_CYCLE_DATES_LOCKED');
    const next={...old,cycleLabel:p.label.trim(),civilStart:p.civilStart,civilEnd:p.civilEnd};
