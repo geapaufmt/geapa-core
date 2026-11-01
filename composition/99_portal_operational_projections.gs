@@ -122,7 +122,7 @@ function f4PortalProjectionRebuild_(options,viewIds){
   for(const [path,view]of Object.entries(docs)){
    const b=view.basis;N(b.generation===gate.generation&&now<C.ms(b.expiresAt),'STALE_REVISION');
    if(b.dataFence){const current=get('portalReaderResourceFences/'+b.dataFence.id);N((current?.revision||0)===b.dataFence.revision,'STALE_REVISION');}
-   if(view.viewId==='frequency')N(view.data.epoch===(get('activityAttendanceRegistry/current')?.epoch||0),'STALE_REVISION');
+   if(view.viewId==='frequency')N(view.data.producer==='frequency-cycle-v1'&&view.data.epoch===(get('activityAttendanceRegistry/current')?.epoch||0),'STALE_REVISION');
    get(path);
   }
   // All reads precede the write phase; facts and fence revisions form a CAS.
@@ -165,7 +165,7 @@ function f4PortalProjectionRecoveryInspect_(options,id){
  if(!view)return {state:'MISSING'};
  const b=view.basis,f=db.get('portalReaderResourceFences/'+id);
  const match=b&&Object.keys(current).filter(k=>!['issuedAt','expiresAt'].includes(k)).every(k=>JSON.stringify(b[k])===JSON.stringify(current[k]));
- return {state:match&&view.schemaVersion==='portal-reader-view-v1'&&view.viewId===id&&now<C.ms(b.expiresAt)&&(id==='frequency'?view.data?.epoch===(db.get('activityAttendanceRegistry/current')?.epoch||0):b.dataFence?.id===id&&b.dataFence.revision===(f?.revision||0))?'CURRENT':'STALE'};
+ return {state:match&&view.schemaVersion==='portal-reader-view-v1'&&view.viewId===id&&now<C.ms(b.expiresAt)&&(id==='frequency'?view.data?.producer==='frequency-cycle-v1'&&view.data?.epoch===(db.get('activityAttendanceRegistry/current')?.epoch||0):b.dataFence?.id===id&&b.dataFence.revision===(f?.revision||0))?'CURRENT':'STALE'};
 }
 
 // A generation change must recover the direct context document as well as its

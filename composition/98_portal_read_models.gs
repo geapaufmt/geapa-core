@@ -59,7 +59,7 @@ function f4PortalReadModels_(options) {
  // attendance or a percentage. Its epoch is checked independently by Rules.
  if(wants('frequency')){start('frequency');const fa=ports.readAuthority([],true,'ACTIVITY_ATTENDANCE_READ_SELF'),fb=basis(fa.q.sourceId,fa.q.capability,fa.q.kind,C.ms(fa.proof.expiresAt));options.proofs?.push(fa);
  const frequency=f4ActivitiesFrequencyCompat_({...options,ports}),result=options.basisOnly?null:frequency.read('/v2/minha-frequencia');fb.expiresAt=F.Timestamp.fromMillis(Math.min(C.ms(fb.expiresAt),frequency.validUntil()));
- check([fa]);add('frequency',fb,{epoch:get('activityAttendanceRegistry/current')?.epoch||0,result});}
+ check([fa]);add('frequency',fb,{producer:'frequency-cycle-v1',epoch:get('activityAttendanceRegistry/current')?.epoch||0,result});}
  // The enclosing source snapshot rechecks all proofs against fresh time and
  // fresh batched authority sources, never the earlier projection timestamp.
  return docs;

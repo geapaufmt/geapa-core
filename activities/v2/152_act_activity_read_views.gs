@@ -9,6 +9,27 @@ function f4ActivityAcademicMetadata_(a,get){
  const canonical=semester?.id===academicSemesterId&&text(semester?.label)?text(semester.label):'';
  return {academicSemesterId,cycleId,academicSemesterLabel:canonical,historicalSemesterLabel,historicalCycleId:text(literal?.CICLO)||null,semesterProvenanceRef:literal?{kind:'evidence',id:a.provenanceHead.id}:null,semesterResolution:academicSemesterId?(canonical?'CANONICAL':'UNRESOLVED_REFERENCE'):historicalSemesterLabel?'HISTORICAL_DECLARED':'UNDEFINED',rotuloSemestre:academicSemesterId?canonical:historicalSemesterLabel};
 }
+
+// Resolve membership in a real activity cycle from stored references only.
+// Legacy period labels are documentary aliases, never cycle identifiers.
+function f4ActivityFrequencyCycle_(activity,collection,fact,get,semesters){
+ const text=v=>typeof v==='string'?v.trim():'',ref=v=>text(v?.id)||(v?.resolution==='RESOLVED'?text(v.ref?.id):'');
+ const ids=new Set(),sources=[],unresolved=[];
+ function cycle(id,source){if(!id)return;const c=get('presentationCycles/'+id);if(c?.id===id){ids.add(id);sources.push(source);}else unresolved.push(source);}
+ function semester(id,source){if(!id)return;const s=get('academicSemesters/'+id);if(s?.id===id&&s.cycleId)cycle(s.cycleId,source);else unresolved.push(source);}
+ for(const [row,label] of [[activity,'activity'],[collection,'collection'],[fact,'attendance']]){cycle(text(row?.cycleId)||ref(row?.cycleRef),label+'.cycle');semester(text(row?.academicSemesterId)||ref(row?.academicSemesterRef),label+'.semester');}
+ const sessionId=ref(activity?.presentationSessionRef)||ref(activity?.sessionRef);
+ if(sessionId){const s=get('presentationSessions/'+sessionId);if(s)cycle(text(s.cycleId)||ref(s.cycleRef),'session.cycle');else unresolved.push('session');}
+ function result(kind){const id=ids.size===1&&!unresolved.length?[...ids][0]:null;return {cycleId:id,cycleLabel:id?(get('presentationCycles/'+id).cycleLabel||id):'',cycleResolution:id?kind:ids.size>1?'CONFLICT':'UNRESOLVED',cycleResolutionSources:sources,cycleResolutionPending:unresolved};}
+ if(ids.size||unresolved.length)return result('CANONICAL');
+ const meta=f4ActivityAcademicMetadata_(activity,get);
+ if(meta.historicalCycleId)cycle(meta.historicalCycleId,'activity.documentaryCycle');
+ function label(value,source){if(!value)return;const candidates=semesters.filter(s=>s.label===value);if(candidates.length===1)semester(candidates[0].id,source);else if(candidates.length>1)unresolved.push(source+'.ambiguous');}
+ label(meta.historicalSemesterLabel,'activity.documentarySemester');
+ const periodId=text(fact?.periodId)||ref(collection?.periodRef);
+ if(periodId){const p=get('activityFrequencyPeriods/'+periodId);if(p){cycle(text(p.cycleId)||ref(p.cycleRef),'period.cycle');semester(text(p.academicSemesterId)||ref(p.academicSemesterRef),'period.semester');label(text(p.label),'period.documentedLabel');}}
+ return result('DOCUMENTED');
+}
 function f4ActivityPortalDto_(a,c,admin,clock,presentations=[],get){
  const M=f4ActivitiesModel_(),iso=t=>t?new Date(M.ms(t)).toISOString():'',hour=t=>t?Utilities.formatDate(new Date(M.ms(t)),'America/Cuiaba','HH:mm'):'';
   const historical=a.recordMode==='HISTORICAL_PARTIAL',type=a.typeSnapshot||{},model=type.portalModel||{},details=a.details||{},now=clock(),within=c&&now>=M.ms(c.opensAt)&&now<=M.ms(c.closesAt),finalized=c?.state==='CLOSED',state=finalized?'FINALIZADA':c?.draftSavedAt&&(!c.reopenedAt||M.ms(c.draftSavedAt)>=M.ms(c.reopenedAt))?'SALVA':c?.state==='REOPENED'?'REABERTA':'RASCUNHO';
