@@ -11,3 +11,5 @@ test('bounded nominal cohort and malformed documented relation fail closed',()=>
 
 test('category classification is preserved when relation details are masked',()=>{const h=setup();h.policy.fieldMasks.PEOPLE_DIRECTORY_READ=['idPessoa','displayLabel','categories'];const r=h.read({category:'ACADEMIC'});a(r.data.total>0);a(r.data.items.every(v=>v.categories.includes('ACADEMIC')&&!Object.hasOwn(v,'relations')));});
 test('documented coordinator is distinct from advisor and does not create membership',()=>{const h=setup();h.docs['memberInstitutionalRelations/PERSON_001'].records[0].type='COORDINATOR';const r=h.read({personId:'PERSON_001'},true);a.equal(r.data.state,'SEM_VINCULO');a.equal(r.data.relations[0].type,'COORDINATOR');a(r.data.categories.includes('ACADEMIC'));});
+
+test('board transparency names the new read capability without implying a write grant',()=>{const h=setup();a.equal(JSON.parse(h.domain.run('()=>f4BoardCapabilityLabel_("PEOPLE_DIRECTORY_READ")',{})),'Consultar diretório institucional de pessoas');a.equal(JSON.parse(h.domain.run('()=>f4BoardCapabilityLabel_("MEMBERS_CASE_READ")',{})),'Consultar casos de membros');});
