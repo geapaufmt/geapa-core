@@ -234,6 +234,9 @@
     "activities/v2/189_board_competencies.gs",
     "members/100_people_directory.gs",
     "members/101_member_tenure_presentation.gs",
-    "activities/v2/199_act_axis_content.gs"
+    "activities/v2/199_act_axis_content.gs",
+    "members/112_member_egress_recognition.gs",
+    "members/113_member_access_catalog.gs",
+    "members/114_member_team_projection.gs"
   ]
 }
