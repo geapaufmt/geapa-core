@@ -23,7 +23,7 @@ function f4PeopleDirectory_({config,identity,clock=Date.now}) {
  function relation(get,id){
   const v=get('memberInstitutionalRelations/'+id);if(!v)return [];
   C.exact(v,['schemaVersion','idPessoa','revision','approvalRef','records']);N(v.schemaVersion==='people-relations-v1'&&v.idPessoa===id&&C.rev(v.revision)&&C.id(v.approvalRef)&&Array.isArray(v.records)&&v.records.length<=20,'RECONCILIATION_REQUIRED');
-  const types=['ACADEMIC_COLLABORATOR','PROFESSOR','ADVISOR','EXTERNAL_PARTICIPANT','SPEAKER'];
+  const types=['ACADEMIC_COLLABORATOR','PROFESSOR','ADVISOR','COORDINATOR','EXTERNAL_PARTICIPANT','SPEAKER'];
   return v.records.map(r=>{C.exact(r,['id','type','label','sourceRef','startDate','endDate']);N(C.id(r.id)&&types.includes(r.type)&&typeof r.label==='string'&&r.label.length<=120&&C.id(r.sourceRef),'RECONCILIATION_REQUIRED');for(const d of [r.startDate,r.endDate])if(d!==null)C.civilStart(d);N(!r.startDate||!r.endDate||r.startDate<=r.endDate,'RECONCILIATION_REQUIRED');return {id:r.id,type:r.type,label:r.label,startDate:r.startDate,endDate:r.endDate};});
  }
  function general(get,id,a,now){
@@ -33,11 +33,11 @@ function f4PeopleDirectory_({config,identity,clock=Date.now}) {
   for(const path of h.paths.filter(generalPath)){const v=get(path);N(v&&v.idPessoa===id,'RECONCILIATION_REQUIRED');docs[path]=v;}
   R.dependencies(docs,get);const target={h,d:docs,M},person=docs['memberIdentities/'+id];N(person,'RECONCILIATION_REQUIRED');
   if(person.technicalAccount)return null;
-  const d=target.M.derive(target.d,id,target.h.revision,now),mask=a.masks(id),relations=mask.includes('relations')?relation(get,id):[],categories=[];
+  const d=target.M.derive(target.d,id,target.h.revision,now),mask=a.masks(id),relations=(mask.includes('relations')||mask.includes('categories'))?relation(get,id):[],categories=[];
   if(mask.includes('categories')){
    if(['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','MEMBRO_EM_ESPERA','SUSPENSO'].includes(d.state.state))categories.push('MEMBER');
    if(d.state.state==='EGRESSO')categories.push('EGRESS');
-   if(relations.some(r=>['ACADEMIC_COLLABORATOR','PROFESSOR','ADVISOR'].includes(r.type)))categories.push('ACADEMIC');
+   if(relations.some(r=>['ACADEMIC_COLLABORATOR','PROFESSOR','ADVISOR','COORDINATOR'].includes(r.type)))categories.push('ACADEMIC');
    if(relations.some(r=>r.type==='EXTERNAL_PARTICIPANT'))categories.push('EXTERNAL');
    if(!categories.length)categories.push('UNCLASSIFIED');
   }
