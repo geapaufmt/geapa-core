@@ -70,6 +70,7 @@ function f4PeopleDirectory_({config,identity,clock=Date.now}) {
     // History is institutional data too; it needs its own explicit field mask.
     const mask=a.masks(p.personId),detail={...x.dto};
     if(mask.includes('history'))detail.history={links:x.target.M.rows(x.target.d,'memberLinks').map(v=>({id:v.id,type:v.type,startDate:v.startDate,endDate:v.endDate})),functions:x.target.M.rows(x.target.d,'memberFunctions').map(v=>({id:v.id,roleKey:x.target.d['memberRoleCatalog/'+v.idCargo].roleKey,startDate:v.startDate,endDate:v.endDateReal||v.endDatePlanned}))};
+    if(mask.includes('history'))detail.presentation=f4MemberTenurePresentation_(x.target.d,p.personId,x.derived,now);
     detail.privateFieldsAvailable=false;
     return {ok:true,data:detail,validUntil:a.expiresAt};
    }
