@@ -237,6 +237,7 @@
     "activities/v2/199_act_axis_content.gs",
     "members/112_member_egress_recognition.gs",
     "members/113_member_access_catalog.gs",
-    "members/114_member_team_projection.gs"
+    "members/114_member_team_projection.gs",
+    "institutional/200_institutional_directory.gs"
   ]
 }
