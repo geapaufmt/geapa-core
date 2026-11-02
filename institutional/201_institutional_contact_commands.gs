@@ -5,9 +5,10 @@ function f4InstitutionalContactCommands_(){
  const C=f4Core_(),F=f4Firestore_(),N=f4MemberAuthzContracts_().need,M=f4InstitutionalDirectoryModel_(),P=f4TransactionPlans_();
  const CONTROL='institutionalEditControl/current',PATH='institutionalDirectory/identity',TYPE='institutional.contact.update';
  const hash=v=>C.hash(F.encode(v)),hex=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
- function control(get,config,identity,now,admit){
+ function control(get,config,identity,now,admit,inspection=false){
   C.destination(config);const c=get(CONTROL);
-  N(c?.schemaVersion==='institutional-edit-control-v1'&&c.projectId===config.projectId&&c.resource===PATH&&c.publicationEnabled===false&&c.commandType===TYPE&&c.executor===f4CommandExecutorId_()&&C.rev(c.revision)&&c.revision>0&&C.rev(c.epoch)&&c.epoch>0&&Array.isArray(c.actorUids)&&c.actorUids.length>0&&c.actorUids.length<=16&&c.actorUids.includes(identity.uid),'ACCESS_REVOKED');
+  const actual=f4CommandExecutorId_(),expected=inspection&&actual==='CANONICAL_READ_ONLY'?(f4ExecutionEnvironment_().production?'CF_GEN2_PROD_V1':'CF_GEN2_DEV_EDIT_V1'):actual;
+  N(c?.schemaVersion==='institutional-edit-control-v1'&&c.projectId===config.projectId&&c.resource===PATH&&c.publicationEnabled===false&&c.commandType===TYPE&&c.executor===expected&&C.rev(c.revision)&&c.revision>0&&C.rev(c.epoch)&&c.epoch>0&&Array.isArray(c.actorUids)&&c.actorUids.length>0&&c.actorUids.length<=16&&c.actorUids.includes(identity.uid),'ACCESS_REVOKED');
   N(Array.isArray(c.fields)&&c.fields.length>0&&c.fields.length<=6&&new Set(c.fields).size===c.fields.length&&c.fields.every(f=>Object.hasOwn(M.editable,f)),'ACCESS_REVOKED');
   N(c.rateLimit?.windowMs===3600000&&Number.isInteger(c.rateLimit.maxAdmissions)&&c.rateLimit.maxAdmissions>0&&c.rateLimit.maxAdmissions<=20,'ACCESS_REVOKED');
   if(admit)N(c.enabled===true&&f4ServiceAvailability_().live(c,now),'PILOT_DISABLED');
