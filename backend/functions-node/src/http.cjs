@@ -29,7 +29,7 @@ function handler({runtime,execute,log=console.info,actions=['prepare','execute',
    const m=/^Bearer ([^\s]+)$/.exec(req.headers.authorization||'');if(!m)fail('AUTH_BINDING_INVALID');
    if(req.headers['x-firebase-appcheck']&&String(req.headers['x-firebase-appcheck']).length>16000)fail('APP_CHECK_INVALID');
    const deps=await runtime();const result=await execute({...deps,token:m[1],body:req.body,origin,appCheckToken:req.headers['x-firebase-appcheck']});
-   metrics=Object.fromEntries(Object.entries(result.metrics||{}).filter(([k,v])=>['reads','writes','sdkCalls','transactionAttempts','totalMs','authMs','prepareMs','admissionMs','reserveMs','claimMs','finalizeMs','projectionMs'].includes(k)&&Number.isFinite(v)));return res.json(result);
+   metrics=Object.fromEntries(Object.entries(result.metrics||{}).filter(([k,v])=>['reads','writes','sdkCalls','transactionAttempts','totalMs','authMs','prepareMs','admissionMs','reserveMs','claimMs','publishMs','firestoreMs','discoveryRounds','queryCalls','finalizeMs','projectionMs'].includes(k)&&Number.isFinite(v)));return res.json(result);
   }catch(e){internalCode=['READ_DISCOVERY_LIMIT','QUERY_NOT_IN_PILOT','M1_SOURCE_MISSING'].includes(e.code)?e.code:Number.isInteger(e.code)&&e.code>=0&&e.code<=16?'SDK_'+e.code:null;code=codes.has(e.code)?e.code:'RECONCILIATION_REQUIRED';return res.status(code==='NOT_FOUND'?404:code==='UNRESOLVED_DEPENDENCY'?422:code==='AUTH_BINDING_INVALID'?401:code.includes('CONFLICT')||code==='STALE_REVISION'?409:code==='RECONCILIATION_REQUIRED'?503:403).json({error:{code}});
   }finally{
    // No request payloads, raw errors, headers, credentials, names or email in logs.
