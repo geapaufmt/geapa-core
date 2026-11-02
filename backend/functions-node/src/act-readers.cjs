@@ -73,7 +73,7 @@ async function readAct({db,auth,appCheck,token,appCheckToken,origin,body,hooks={
   await hooks.beforeReturn?.();await verify();control(pinned,identity.uid,request.route);
   // A read-only SDK transaction need not issue a commit. Explicitly recheck the
   // observed authorization/epoch versions after producing the DTO.
-  const paths=[...store.active.touched].filter(p=>/^(institutionalDirectory|member|coreDevAdmins\/|projectionRecoveryControl\/|actStorageControl\/|actHistoricalFile|presentationArtifacts\/|canonicalPresentations\/|canonicalActivities\/|activityExecutorControl\/|portalReaderControl\/|portalReaderResourceFences\/|activityAttendanceRegistry\/|presentationCapacityHeads\/registry$)/.test(p));
+  const paths=[...store.active.touched].filter(p=>/^(institutionalDirectory|institutionalNorm|activityPolicies\/|presentationCycles\/|member|coreDevAdmins\/|projectionRecoveryControl\/|actStorageControl\/|actHistoricalFile|presentationArtifacts\/|canonicalPresentations\/|canonicalActivities\/|activityExecutorControl\/|portalReaderControl\/|portalReaderResourceFences\/|activityAttendanceRegistry\/|presentationCapacityHeads\/registry$)/.test(p));
   for(let i=0;i<paths.length;i+=180){
    const part=paths.slice(i,i+180),docs=await store.measure(()=>db.getAll(...part.map(p=>store.ref(p))));store.metrics.reads+=part.length;
    docs.forEach((d,j)=>{const old=store.active.cache.get(part[j]);if(d.exists!==old.exists||d.exists&&require('./firestore.cjs').encode(d.updateTime).timestampValue!==old.stamp)fail('ACCESS_REVOKED');});
