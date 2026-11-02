@@ -15,3 +15,11 @@ test('member admin and out-of-scope detail denied independently of publication',
 test('projection pair separates scoped admin rows from published SELF rows',()=>{const h=setup(),out=h.reader.readProjectionList();a.deepEqual(Array.from(out.admin.data.atividades,x=>x.idAtividade),['CURRENT','DRAFT']);a.deepEqual(Array.from(out.bundle.data.calendario,x=>x.idAtividade),['CURRENT','OLD']);a(out.bundle.data.calendario.every(x=>!('descricaoInterna'in x)));a(h.checks.some(p=>p.self));});
 test('expired authorization, revocation and unavailable backend are never filtered as missing rows',()=>{for(const code of ['ACCESS_REVOKED','AUTH_BINDING_INVALID','SDK_9']){const h=setup('RH',{authority:(r,self)=>{if(r.includes('canonicalActivities/CURRENT'))throw Object.assign(Error(code),{code});}});a.throws(()=>h.reader.read('/admin/atividades'),new RegExp(code));}a.throws(()=>setup('RH',{final:()=>{throw Error('ACCESS_REVOKED')}}).reader.read('/atividades/listar'),/ACCESS_REVOKED/);});
 test('normal unpublished detail denied even for president',()=>a.throws(()=>setup('PRESIDENTE').reader.read('/atividades/detalhe',{idAtividade:'DRAFT'}),/AUTHORIZATION_DENIED/));
+
+test('bounded board proofs cover each returned row and exclude the denied row',()=>{
+ const h=setup(),out=h.reader.readProjectionList(),proofs=h.checks.filter(p=>p.cap==='ACTIVITY_BOARD_READ');
+ const ids=out.admin.data.atividades.map(r=>'canonicalActivities/'+r.idAtividade);
+ for(const id of ids)a(proofs.some(p=>p.resources.includes(id)));
+ a(proofs.every(p=>!p.resources.includes('canonicalActivities/OLD')));
+ a(h.calls.some(p=>p.resources.length===3)); // Mixed scope retries each row.
+});

@@ -44,7 +44,15 @@ function f4ActivitiesActivityCompat_(options){
    const source=projectionIds?db.getMany([...projectionIds].sort().map(id=>'canonicalActivities/'+id)).filter(Boolean):all('canonicalActivities').map(r=>r.data);
    const visible=a=>a.publicationStatus==='PUBLICADO'&&['PUBLIC','MEMBERS'].includes(a.publishedVisibility);
    const adminIds=new Set();
-   if(scope.admin)for(const a of source){if(a.sourceSnapshotState==='ABSENT_FROM_CURRENT_SNAPSHOT')continue;try{const proof=ports.readAuthority(['canonicalActivities/'+a.id],false,'ACTIVITY_BOARD_READ');relatedProofs.push(proof);adminIds.add(a.id);}catch(e){if(!denied(e))throw e;}}
+   if(scope.admin){
+    // The existing authorizer validates EVERY resource in a proof. Share that
+    // work across bounded groups, retaining its normal fresh final recheck.
+    // A group spanning different policies falls back to the original per-row
+    // authorization; a denied row never inherits another row's access.
+    const candidates=source.filter(a=>a.sourceSnapshotState!=='ABSENT_FROM_CURRENT_SNAPSHOT');
+    const authorize=group=>{const proof=ports.readAuthority(group.map(a=>'canonicalActivities/'+a.id),false,'ACTIVITY_BOARD_READ');relatedProofs.push(proof);group.forEach(a=>adminIds.add(a.id));};
+    for(let i=0;i<candidates.length;i+=32){const group=candidates.slice(i,i+32);try{authorize(group);}catch(e){if(!denied(e))throw e;for(const row of group)try{authorize([row]);}catch(inner){if(!denied(inner))throw inner;}}}
+   }
    const rows=source.filter(a=>a.sourceSnapshotState!=='ABSENT_FROM_CURRENT_SNAPSHOT').filter(a=>projectionPair?adminIds.has(a.id)||visible(a):scope.admin?adminIds.has(a.id):visible(a));
    const collections=new Map();for(let i=0;i<rows.length;i+=100){const batch=rows.slice(i,i+100),values=db.getMany(batch.map(a=>'activityAttendanceCollections/'+a.id));batch.forEach((a,j)=>collections.set(a.id,values[j]));}
    // Historical provenance is fetched once per page group; no cache survives this read.
