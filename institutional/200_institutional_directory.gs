@@ -31,6 +31,7 @@ function f4InstitutionalDirectoryModel_(){
   N(text(input.value,300)&&input.value===input.value.trim()&&!/[\r\n\x00-\x1f]/.test(input.value),'COMMAND_PAYLOAD_INVALID');
   const type=editable[input.fieldId];N(type==='EMAIL'?/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.value):type==='HTTPS'?/^https:\/\/[A-Za-z0-9.-]+(?::443)?(?:\/[^\s]*)?$/.test(input.value)&&!/^https:\/\/(?:localhost|127\.|169\.254\.|10\.|192\.168\.)/i.test(input.value):input.value.length>=3,'COMMAND_PAYLOAD_INVALID');
   const old=v.records.find(r=>r.id===input.fieldId);N(old&&old.visibility==='BOARD','RESOURCE_NOT_FOUND');
+  N(old.classification==='EDITORIAL'&&old.canonical===null&&old.fields.filter(f=>f.label==='Valor').length===1,'RECONCILIATION_REQUIRED');
   return {kind:'CONTACT_CHANGE_PROPOSAL',admissionEnabled:false,expectedRevision:v.revision,beforeHash:C.hash(v),fieldId:input.fieldId,value:input.value,reason:input.reason,approvalRequired:true,publicUpdate:false};
  }
  function publicFields(v,approval){
@@ -39,7 +40,19 @@ function f4InstitutionalDirectoryModel_(){
   N(v.section==='identity'&&Array.isArray(approval.fields)&&approval.fields.length>0&&new Set(approval.fields).size===approval.fields.length&&approval.fields.every(x=>allowed.includes(x)),'AUTHORIZATION_DENIED');
   return approval.fields.map(id=>{const r=v.records.find(x=>x.id===id);N(r?.visibility==='BOARD'&&!r.issues.length,'RECONCILIATION_REQUIRED');const value=r.fields.find(f=>f.label==='Valor')?.value;N(text(value,300)&&!/(?:chat\.whatsapp\.com|joinchat|token=)/i.test(value),'AUTHORIZATION_DENIED');return {id,value};});
  }
- return {sections,validate,dto,prepareContact,publicFields};
+ return {sections,validate,dto,prepareContact,publicFields,editable};
+}
+
+// Shared ROLE resolution: a directory read never implies permission to edit.
+function f4InstitutionalPolicies_(get,identity,now,ids,cap,path){
+ const C=f4Core_(),K=f4MemberAuthzContracts_(),N=C.need;
+ N(now<identity.expiresAt,'ACCESS_REVOKED');
+ const actor=f4MemberAuthz_().identify(get,identity.uid,now);
+ N(Array.isArray(ids)&&ids.length>0&&ids.length<=16&&new Set(ids).size===ids.length&&ids.every(C.id),'AUTHORIZATION_DENIED');
+ const policies=ids.map(id=>get('memberAuthzPolicies/'+id)).filter(Boolean).filter(p=>{
+  K.policy(p);return p.active&&p.proofKind==='ROLE'&&p.capabilities.includes(cap)&&C.ms(p.issuedAt)<=now&&now<C.ms(p.expiresAt)&&!p.targets.ownPerson&&p.targets.allowedPersons.includes(actor.actor.h.id)&&p.targets.allowedResources.includes(path)&&actor.derived.currentFunctions.some(f=>f.roleKey===p.actorSelector.roleKey&&f.group===p.actorSelector.group&&f.scopeKey===p.actorSelector.actorScope);
+ });N(policies.length>0,'AUTHORIZATION_DENIED');
+ return {actor,policies,mask:[...new Set(policies.flatMap(p=>p.fieldMasks[cap]))],validUntil:Math.min(now+60000,identity.expiresAt,C.ms(actor.state.validUntil),C.ms(actor.derived.state.validUntil),...policies.map(p=>C.ms(p.expiresAt)))};
 }
 
 function f4InstitutionalDirectoryRead_(options,params){
@@ -50,13 +63,11 @@ function f4InstitutionalDirectoryRead_(options,params){
   const actor=A.identify(get,options.identity.uid,now),control=get('institutionalDirectoryControl/current');
   N(control?.schemaVersion==='institutional-directory-control-v1'&&control.enabled===true&&Array.isArray(control.policyIds)&&control.policyIds.length>0&&control.policyIds.length<=16,'FEATURE_DISABLED');
   const path='institutionalDirectory/'+params.section;
-  const policies=control.policyIds.map(id=>get('memberAuthzPolicies/'+id)).filter(Boolean).filter(p=>{
-   K.policy(p);return p.active&&p.proofKind==='ROLE'&&p.capabilities.includes(cap)&&C.ms(p.issuedAt)<=now&&now<C.ms(p.expiresAt)&&!p.targets.ownPerson&&p.targets.allowedPersons.includes(actor.actor.h.id)&&p.targets.allowedResources.includes(path)&&actor.derived.currentFunctions.some(f=>f.roleKey===p.actorSelector.roleKey&&f.group===p.actorSelector.group&&f.scopeKey===p.actorSelector.actorScope);
-  });N(policies.length>0,'AUTHORIZATION_DENIED');
-  const mask=[...new Set(policies.flatMap(p=>p.fieldMasks[cap]))];N(mask.includes('summary'),'AUTHORIZATION_DENIED');
+  const resolved=f4InstitutionalPolicies_(get,options.identity,now,control.policyIds,cap,path),policies=resolved.policies,mask=resolved.mask;N(mask.includes('summary'),'AUTHORIZATION_DENIED');
   const v=get(path);N(v,'PROJECTION_NOT_READY');const rows=M.dto(v,mask).map(r=>{if(!r.canonical)return r;const live=get(r.canonical.path);return {...r,canonical:{path:r.canonical.path,status:live?String(live.status||'REGISTRO CANÔNICO EXISTENTE'):'REFERÊNCIA AUSENTE',evidence:live?'Consulta canônica atual'+(live.revision?' · revisão '+live.revision:'')+(live.effectiveFrom?' · vigência '+live.effectiveFrom:'')+'. Mapeamento documental: '+r.canonical.evidence:'Referência não localizada; a fonte documental não assume sua autoridade.'}};}),normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  let editableFields=[];const edit=get('institutionalEditControl/current');if(v.section==='identity'&&edit?.enabled===true&&typeof f4InstitutionalContactCommands_==='function'){try{const resolved=f4InstitutionalContactCommands_().control(get,options.config,options.identity,now,true);editableFields=v.records.filter(r=>r.visibility==='BOARD'&&r.classification==='EDITORIAL'&&r.canonical===null&&r.fields.filter(f=>f.label==='Valor').length===1&&resolved.c.fields.includes(r.id)&&resolved.auth.mask.includes(r.id)).map(r=>r.id);}catch(e){if(!['AUTHORIZATION_DENIED','ACCESS_REVOKED','PILOT_DISABLED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}}
   const filtered=rows.filter(r=>(!params.kind||r.kind===params.kind)&&(!params.query||normalize(r.id+' '+r.title).includes(normalize(params.query))));
   filtered.sort((a,b)=>a.title.localeCompare(b.title,'pt-BR')||a.id.localeCompare(b.id));
-  return {ok:true,data:{schemaVersion:'institutional-consultation-v1',section:v.section,revision:v.revision,sourceHash:v.sourceHash,nature:v.nature,items:filtered.slice((params.page-1)*10,params.page*10),total:filtered.length,page:params.page,pages:Math.max(1,Math.ceil(filtered.length/10)),kinds:[...new Set(rows.map(r=>r.kind))].sort(),editingEnabled:false,validUntil:Math.min(now+60000,options.identity.expiresAt,C.ms(actor.state.validUntil),C.ms(actor.derived.state.validUntil),...policies.map(p=>C.ms(p.expiresAt)))}};
+  return {ok:true,data:{schemaVersion:'institutional-consultation-v1',section:v.section,revision:v.revision,sourceHash:v.sourceHash,nature:v.nature,items:filtered.slice((params.page-1)*10,params.page*10),total:filtered.length,page:params.page,pages:Math.max(1,Math.ceil(filtered.length/10)),kinds:[...new Set(rows.map(r=>r.kind))].sort(),editingEnabled:editableFields.length>0,editableFields,validUntil:Math.min(now+60000,options.identity.expiresAt,C.ms(actor.state.validUntil),C.ms(actor.derived.state.validUntil),...policies.map(p=>C.ms(p.expiresAt)))}};
  });
 }
