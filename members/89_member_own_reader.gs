@@ -9,7 +9,7 @@ function f4MemberOwnReader_(){
   const technical=f4DevAdmin_().profile(get,identity.uid,now),actor=technical?f4DevAdmin_().identify(get,identity.uid,now):A.identify(get,identity.uid,now),id=actor.binding.idPessoa,control=actor.control,sp=control.selfReadPolicy;
   const functions=['functions','directors','functionHistory','tenures'].includes(input.view),fields=functions?f4MemberContracts_().dtoFields:input.view==='profile'?(technical||sp.fieldMasks.MEMBERS_SELF_READ.includes('profileDetails')?f4MemberProfileContract_().readFields:['idPessoa','displayLabel']):input.view==='status'?(actor.derived.state.state==='MEMBRO_INGRESSANTE'?['idPessoa','state']:['idPessoa','state','egressEndsAtExclusive']):['contactEmail'];
   const records=input.view==='functionHistory'?Object.entries(actor.actor.d).filter(([path,f])=>path.startsWith('memberFunctions/')&&f.idPessoa===id&&actor.actor.M.interval(f.startDate,f.endDateReal||f.endDatePlanned).z<=now).map(([,f])=>{const role=actor.actor.d['memberRoleCatalog/'+f.idCargo];N(role,'AUTH_BINDING_INVALID');return {idPessoa:id,idVigencia:f.id,roleKey:role.roleKey,group:role.group,scopeKey:f.scopeKey,idDiretoria:f.idDiretoria,idTermo:f.idTermo,startDate:f.startDate,endDatePlanned:f.endDatePlanned||null,endDateReal:f.endDateReal||null};}):input.view==='directors'?actor.derived.currentDirectors:actor.derived.currentFunctions;
-  const resources=input.view==='profile'&&fields.includes('profileDetails')?actor.actor.h.paths.filter(p=>/^member(Identities|Identifiers|PrivateProfiles)\//.test(p)):functions?['memberCurrentStates/'+id,...records.map(f=>'memberFunctions/'+f.idVigencia)]:[(input.view==='profile'?'memberIdentities/':input.view==='contact'?'memberPrivateProfiles/':'memberCurrentStates/')+id];
+  const resources=input.view==='profile'&&fields.includes('profileDetails')?actor.actor.h.paths.filter(p=>/^member(Identities|Identifiers|PrivateProfiles)\//.test(p)):functions?['memberCurrentStates/'+id,...(input.view==='tenures'?Object.keys(actor.actor.d).filter(p=>p.startsWith('memberFunctions/')):records.map(f=>'memberFunctions/'+f.idVigencia))]:[(input.view==='profile'?'memberIdentities/':input.view==='contact'?'memberPrivateProfiles/':'memberCurrentStates/')+id];
   const request={schemaVersion:'member-authz-request-v13',uid:identity.uid,kind:technical?'DEV_ADMIN':'SELF',capability:'MEMBERS_SELF_READ',sourceId:technical?identity.uid:sp.policyId,functionId:null,actorScope:null,expected:{authorityEpoch:control.epoch,policyEpoch:control.policyEpoch,readAuthzEpoch:control.readAuthzEpoch,subjectEpoch:actor.subject.authzEpoch,bindingVersion:actor.binding.bindingVersion,personRevision:actor.actor.h.revision,authorizationRevision:technical?technical.revision:sp.policyRevision},tokenExpiresAt:F.Timestamp.fromMillis(identity.expiresAt),admissionExpiresAt:F.Timestamp.fromMillis(identity.expiresAt),target:{personId:id,scopeKey:null,boardId:null,roleKey:null,resources,caseId:null,purpose:null,fieldMask:fields,linkId:null,effect:null,effectiveDate:null},evidenceRefs:[]};
   const authorized=A.authorize(get,request,now);let data;
   if(input.view==='contact')data=f4MemberReadViews_().project(get,request,'SELF',now)['memberSelfProfiles/'+id];
@@ -22,15 +22,11 @@ function f4MemberOwnReader_(){
   A.recheck(get,request,authorized.proof,now);
   const expiry=Math.min(identity.expiresAt,C.ms(authorized.proof.expiresAt),C.ms(actor.derived.state.validUntil),...Object.values(actor.actor.d).filter(v=>v.startDate&&/^m1-member(Functions|Governance)/.test(v.schemaVersion)).flatMap(v=>{const i=actor.actor.M.interval(v.startDate,v.endDateReal||v.endDatePlanned||v.endDate);return [i.a,i.z].filter(t=>t>now);}));
   // The legacy DTO stays intact. Consolidation is additional read metadata,
-  // protected by a second SELF authorization over every contributing function.
+  // protected by the SELF authorization over every contributing function.
   let presentation;
   if(input.view==='tenures'){
-   const allFunctions=Object.entries(actor.actor.d).filter(([p])=>p.startsWith('memberFunctions/')).map(([p])=>p);
-   const displayRequest={...request,target:{...request.target,resources:['memberCurrentStates/'+id,...allFunctions]}};
-   const displayProof=A.authorize(get,displayRequest,now);
    const projected=f4MemberTenurePresentation_(actor.actor.d,id,actor.derived,now);
    presentation={schemaVersion:projected.schemaVersion,asOf:projected.asOf,tenures:projected.tenures.map(({idVinculo,...v})=>v)};
-   A.recheck(get,displayRequest,displayProof.proof,now);
   }
   return {view:input.view,data:presentation||data,validUntil:expiry,decisionEligible:false};
  }

@@ -49,14 +49,6 @@ function f4BoardCompetencies_(options){
   check([proof]);return {ok:true,data:{schemaVersion:'board-competencies-v1',asOf:new Date(now).toISOString(),validUntil:Math.min(options.identity.expiresAt,now+60000),items,notice:'Consulta informativa. Cada operação revalida vínculo, função, policy, recurso e precondições. Atribuição institucional não concede acesso técnico automaticamente.'}};
  });
 }
-// Presentation of already documented consecutive appointments only. This does
-// not extend a function, change its source or authorize a future operation.
-function f4BoardVisibleTenure_(current,rows){
- let end=current.endDateReal||current.endDatePlanned||null;
- const matching=rows.filter(f=>['idPessoa','idVinculo','idCargo','idDiretoria','scopeKey'].every(k=>f[k]===current[k])).sort((a,b)=>a.startDate.localeCompare(b.startDate));
- for(const next of matching){if(!end||next.startDate<=current.startDate)continue;const tomorrow=new Date(Date.parse(end+'T00:00:00Z')+86400000).toISOString().slice(0,10);if(next.startDate===tomorrow)end=next.endDateReal||next.endDatePlanned||null;}
- return {startDate:current.startDate,endDate:end};
-}
 function f4BoardDuties_(role){
  // Documentary summaries of the verified Regimento vigente (14/05/2026), art.29.
  // Temporary offices require their own appointment act; never infer its content.
