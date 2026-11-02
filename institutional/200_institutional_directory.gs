@@ -45,7 +45,7 @@ function f4InstitutionalDirectoryModel_(){
 
 // Shared ROLE resolution: a directory read never implies permission to edit.
 function f4InstitutionalPolicies_(get,identity,now,ids,cap,path){
- const C=f4Core_(),K=f4MemberAuthzContracts_(),N=C.need;
+ const C=f4Core_(),K=f4MemberAuthzContracts_(),N=K.need;
  N(now<identity.expiresAt,'ACCESS_REVOKED');
  const actor=f4MemberAuthz_().identify(get,identity.uid,now);
  N(Array.isArray(ids)&&ids.length>0&&ids.length<=16&&new Set(ids).size===ids.length&&ids.every(C.id),'AUTHORIZATION_DENIED');
@@ -56,7 +56,7 @@ function f4InstitutionalPolicies_(get,identity,now,ids,cap,path){
 }
 
 function f4InstitutionalDirectoryRead_(options,params){
- const C=f4Core_(),K=f4MemberAuthzContracts_(),A=f4MemberAuthz_(),N=C.need,M=f4InstitutionalDirectoryModel_(),cap='INSTITUTIONAL_DIRECTORY_READ';
+ const C=f4Core_(),K=f4MemberAuthzContracts_(),A=f4MemberAuthz_(),N=K.need,M=f4InstitutionalDirectoryModel_(),cap='INSTITUTIONAL_DIRECTORY_READ';
  C.exact(params,['section','query','kind','page']);N(M.sections.includes(params.section)&&typeof params.query==='string'&&params.query.length<=80&&typeof params.kind==='string'&&params.kind.length<=64&&Number.isInteger(params.page)&&params.page>=1&&params.page<=15,'COMMAND_PAYLOAD_INVALID');
  return f4Firestore_().connect(options.config).transaction(tx=>{
   const get=p=>tx.get(p).data(),now=(options.clock||Date.now)();N(now<options.identity.expiresAt,'ACCESS_REVOKED');
