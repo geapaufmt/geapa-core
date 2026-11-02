@@ -43,7 +43,8 @@ class ReaderStore extends Store{
  }
  async transaction(fn){
   this.metrics.transactions++;const started=performance.now();
-  try{return await this.db.runTransaction(async native=>{this.metrics.transactionAttempts++;return this.evaluate(fn,native);},bootstrapRoutes.includes(this.request.route)?{}:{readOnly:true});}
+  const derivedWriter=bootstrapRoutes.includes(this.request.route)&&!['/admin/pessoas','/admin/pessoas/detalhe'].includes(this.request.route);
+  try{return await this.db.runTransaction(async native=>{this.metrics.transactionAttempts++;return this.evaluate(fn,native);},derivedWriter?{}:{readOnly:true});}
   finally{this.metrics.transactionWallMs=(this.metrics.transactionWallMs||0)+performance.now()-started;}
  }
 }
