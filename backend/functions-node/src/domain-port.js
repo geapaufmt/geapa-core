@@ -88,6 +88,7 @@ function nodePilotOperation(key,create){
 }
 
 function nodeActRead(request){
+ if(['/admin/pessoas','/admin/pessoas/detalhe'].includes(request.route))return f4PeopleDirectory_({config:nodeConfig,identity:nodeActor,clock:Date.now}).read(request);
  if(request.route==='/members/own'){
   f4Core_().exact(request,['route','params']);
   return f4MemberOwnReader_().wire(f4MemberOwnReader_().projectTransaction(nodeTx,nodeActor,request.params,Date.now()));

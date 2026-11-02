@@ -1,6 +1,6 @@
 'use strict';
 // Transport and derived-write limits only; private DTOs and policies remain Core.
-const routes=Object.freeze(['/members/own','/members/operational-context','/meu-vinculo/acompanhamento','/meu-perfil/correcoes','/admin/correcoes-cadastrais','/admin/correcoes-cadastrais/detalhe','/admin/membros','/admin/ingressos-membros','/admin/ingressos-membros/catalogos','/meu-vinculo/opcoes','/meu-vinculo/solicitacoes','/admin/solicitacoes-vinculo','/admin/solicitacoes-vinculo/detalhe']);
+const routes=Object.freeze(['/admin/pessoas','/admin/pessoas/detalhe','/members/own','/members/operational-context','/meu-vinculo/acompanhamento','/meu-perfil/correcoes','/admin/correcoes-cadastrais','/admin/correcoes-cadastrais/detalhe','/admin/membros','/admin/ingressos-membros','/admin/ingressos-membros/catalogos','/meu-vinculo/opcoes','/meu-vinculo/solicitacoes','/admin/solicitacoes-vinculo','/admin/solicitacoes-vinculo/detalhe']);
 const projections={'/members/own':'self','/members/operational-context':'members_context','/admin/ingressos-membros/catalogos':'members_catalog','/meu-vinculo/opcoes':'members_self','/meu-vinculo/solicitacoes':'members_self'};
 function validateWrites(s,request,uid){
  const {fail}=require('./environment.cjs'),{decode}=require('./firestore.cjs');

@@ -30,7 +30,7 @@ class ReaderStore extends Store{
   if(x.kind==='pilotConfig')return JSON.stringify({root:ROOT,shared:false,executor:'CANONICAL_READ_ONLY',epoch:this.control.revision,settings:{commands:this.control.readModelCommands,policyIds:this.control.policyIds,admissionsPerHour:0,jobs:[],activityAgendaDirect:false}});
   // Resolve the directory's prefetched states before deciding which aggregates
   // need derivation. Unknown discovery placeholders are not missing projections.
-  if(x.kind==='getAll'&&this.request.route==='/admin/membros'){
+  if(x.kind==='getAll'&&['/admin/membros','/admin/pessoas','/admin/pessoas/detalhe'].includes(this.request.route)){
    const result=super.io(raw);
    if(x.paths.some(p=>!this.active.cache.has(p)))fail('DISCOVERY_READ_PENDING');
    return result;
