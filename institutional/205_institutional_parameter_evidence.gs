@@ -1,0 +1,10 @@
+// Read-only evidence adapter: it never activates documentary values.
+function f4InstitutionalParameterEvidence_(record,get,links){
+ const field=k=>record.fields.find(f=>f.label===k)?.value||'',bindings={
+  SUSPENSAO_MINIMA:{path:'memberOperationalConfig/voluntarySuspension',field:'minimumDays',consumer:'Membros · suspensão voluntária'},
+  BLOQUEIO_DESLIGAMENTO_ANTES_APRESENTACAO:{path:'memberOperationalConfig/voluntaryExit',field:'presentationBlockDays',consumer:'Membros · desligamento voluntário'},
+  DESLIGAMENTO_VOLUNTARIO_DECISAO_FINAL_EXIGE_ATA:{path:'memberOperationalConfig/voluntaryExit',field:'minutes.valor',consumer:'Membros · decisão final'}
+ },binding=bindings[record.id],source=binding?get(binding.path):null,value=binding?.field.split('.').reduce((v,k)=>v?.[k],source),documented=field('VALOR');
+ const present=value!==undefined&&value!==null,print=v=>typeof v==='boolean'?(v?'SIM':'NAO'):String(v),conflict=present&&print(value)!==documented;
+ return {documentedValue:documented,effectiveValue:present?print(value):null,unit:field('UNIDADE'),type:field('TIPO_VALOR'),basis:field('BASE_LEGAL'),references:links,documentaryReview:field('ULTIMA_REVISAO'),consumers:binding?[binding.consumer]:field('MODULO_SISTEMA').split(';').filter(Boolean),sourcePath:binding?.path||null,effectiveRevision:source?.revision??null,integration:present?(conflict?'VALUE_CONFLICT':'INTEGRATED'):'REVIEW_REQUIRED',limits:'Alteração depende de autoridade normativa comprovada; não há editor livre.',conflicts:[...(conflict?['O valor documental diverge do valor canônico; o valor vigente foi preservado.']:[]),...(!links.some(l=>l.current)?['A referência documental não comprova vínculo a uma versão vigente.']:[]),...(!binding?['O consumidor deve ser reconciliado por ciclo ou contrato; não existe valor global comprovado.']:[])],historyAvailable:false,futureWorkflow:{state:'CLOSED',stages:['NORM_PROPOSAL','COMPETENT_DECISION','APPROVAL_AND_VALIDITY_EVIDENCE','CONSUMER_IMPACT_REVIEW','CANONICAL_ACTIVATION','AUDIT'],automaticActivation:false}};
+}

@@ -241,7 +241,8 @@
     "institutional/200_institutional_directory.gs",
     "institutional/201_institutional_contact_commands.gs",
     "institutional/202_institutional_norms.gs",
-    "institutional/203_institutional_visibility.gs"
+    "institutional/203_institutional_visibility.gs",
+    "institutional/204_institutional_parameters.gs",
+    "institutional/205_institutional_parameter_evidence.gs"
   ]
 }
-
