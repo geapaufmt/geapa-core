@@ -18,6 +18,7 @@ function f4ActivitiesAttendanceRoster_(options){
     const person=docs['memberIdentities/'+head.id];if(person.technicalAccount)continue;
     const derived=memberModel.derive(docs,head.id,head.revision,at).state;
     if(!['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','SUSPENSO'].includes(derived.state))continue;
+    if(activity.typeSnapshot.participantTypes&&!activity.typeSnapshot.participantTypes.includes(derived.state==='MEMBRO_INGRESSANTE'?'INGRESSANTE':'MEMBRO'))continue;
     const links=memberModel.rows(docs,'memberLinks').filter(l=>{const range=memberModel.interval(l.startDate,l.endDate);return range.a<=at&&at<range.z});N(links.length===1,'UNRESOLVED_DEPENDENCY','MEMBERS_LINK');
     const personRef=M.ref('person',head.id),id='a_'+M.hash({activity:activityRef.id,person:head.id}).slice(0,32),applicable=derived.state!=='SUSPENSO';
     records[id]={personRef,membershipRef:M.ref('membership',links[0].id),personRevision:head.revision,participantType:'MEMBRO',applicableAtDate:applicable,countsAttendance:applicable&&activity.typeSnapshot.countsAttendance,countsAbsence:applicable&&activity.typeSnapshot.countsAbsence!==false,notApplicableReason:applicable?'':'SITUACAO_NAO_CONTABILIZA_CHAMADA'};

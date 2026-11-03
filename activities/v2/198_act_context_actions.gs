@@ -19,6 +19,7 @@ function f4ActivityContextActions_(options,id){
   else add('cancel','Cancelar atividade','ACTIVITY_PUBLICATION_SET',normal&&notCancelled&&!a.realizationRef,'Atividade histórica, encerrada ou já realizada.');
   add('realize','Registrar realização','ACTIVITY_REALIZE',normal&&notCancelled&&!a.realizationRef&&a.civilDate<=M.day(now),'A atividade precisa ser operacional, ainda não realizada e ocorrer até hoje.');
   add('attendance','Gerenciar chamada','ATTENDANCE_FINALIZE',normal&&notCancelled&&!!c,'Não existe chamada operacional elegível.');
+  if(c?.state==='CLOSED')add('attendance-view','Visualizar chamada',null,true,'');
   N((c?.exceptionalWindowRefs||[]).length<=32&&Object.keys(c?.roster||{}).length<=200,'SCOPE_TOO_LARGE');
   const windows=(c?.exceptionalWindowRefs||[]).map(r=>({ref:r,value:get(M.path(r))})).filter(v=>v.value?.activityRefs?.some(r=>r.id===id));
   const active=windows.some(v=>v.value.status==='OPEN'&&M.ms(v.value.newDeadline)>now);

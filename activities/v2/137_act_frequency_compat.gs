@@ -6,10 +6,10 @@ function f4ActivitiesFrequencyCompat_(options){
  function prefetch(paths){const missing=[...new Set(paths)].filter(p=>!cache.has(p));for(let i=0;i<missing.length;i+=180){const batch=missing.slice(i,i+180),values=db.getMany(batch);batch.forEach((p,j)=>cache.set(p,values[j]));}}
  function hydrate(facts,admin){semesters=facts.length?all('academicSemesters'):[];semesters.forEach(s=>cache.set('academicSemesters/'+s.id,s));prefetch(facts.flatMap(f=>[M.path(f.activityRef),'activityAttendanceCollections/'+f.activityRef.id,...(f.periodId?['activityFrequencyPeriods/'+f.periodId]:[]),...(f.cycleId?['presentationCycles/'+f.cycleId]:[]),...((f.pendingJustificationRef||f.lastJustificationRef||f.justificationDecisionRef)?[M.path(f.pendingJustificationRef||f.lastJustificationRef||f.justificationDecisionRef)]:[]),...(admin?['memberAggregateHeads/'+f.personRef.id,'memberIdentities/'+f.personRef.id,'memberPortalProfiles/'+f.personRef.id]:[])]));prefetch(facts.flatMap(f=>get('activityAttendanceCollections/'+f.activityRef.id)?.exceptionalWindowRefs||[]).map(M.path));prefetch(facts.flatMap(f=>{const a=get(M.path(f.activityRef)),c=get('activityAttendanceCollections/'+f.activityRef.id);return [...(a?.provenanceHead?.id?['migrationEvidence/'+a.provenanceHead.id]:[]),...(c?.periodRef?[M.path(c.periodRef)]:[])];}));}
  function all(collection,filters=[]){let cursor,rows=[];for(let page=0;page<50;page++){const next=db.query({collection,filters,limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(cursor?{cursor:[cursor]}:{})});rows.push(...next.map(r=>r.data));if(next.length<20)return rows;cursor=new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+collection+'/'+next[next.length-1].data.id);}N(false,'SCOPE_TOO_LARGE','FREQUENCY_REQUIRES_PAGING');}
- const justStatus=s=>({PREVIOUS:'PREVIA',PENDING:'ENVIADA',CORRECTION_REQUESTED:'AJUSTE_SOLICITADO',APPROVED:'DEFERIDA',EXCUSED:'ABONADA',REJECTED:'INDEFERIDA',CLOSED_WITHOUT_ABSENCE:'ENCERRADA_SEM_FALTA'}[s]||'');
- function row(fact,admin=false){
+ const justStatus=s=>({PREVIOUS:'PREVIA',PENDING:'ENVIADA',CORRECTION_REQUESTED:'AJUSTE_SOLICITADO',APPROVED:'DEFERIDA',EXCUSED:'ABONADA',REJECTED:'INDEFERIDA',CLOSED_WITHOUT_ABSENCE:'ENCERRADA_SEM_FALTA',HISTORICAL_PARTIAL:'HISTORICO_INCOMPLETO'}[s]||'');
+ function row(fact,admin=false,selectedJustification){
   const activity=get(M.path(fact.activityRef)),collection=get('activityAttendanceCollections/'+fact.activityRef.id);N(activity&&collection,'UNRESOLVED_DEPENDENCY');
-  const j=(fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef)&&get(M.path(fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef)),now=clock(),late=!!collection.justificationEndsAt&&now>M.ms(collection.justificationEndsAt),before=!!activity.startsAt&&now<M.ms(activity.startsAt),open=!j||j.state==='CORRECTION_REQUESTED'||j.state==='PREVIOUS'&&before;
+  const j=selectedJustification||((fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef)&&get(M.path(fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef))),now=clock(),late=!!collection.justificationEndsAt&&now>M.ms(collection.justificationEndsAt),before=!!activity.startsAt&&now<M.ms(activity.startsAt),open=!j||j.state==='CORRECTION_REQUESTED'||j.state==='PREVIOUS'&&before;
   const exceptional=late?f4AttendanceExceptionalWindow_(get,collection,fact,activity,now):null;
   const outsideDeadline=late&&!exceptional&&!j?.submittedUnderExceptionalWindow;
   [activity.startsAt,collection.justificationOpensAt,collection.justificationEndsAt,exceptional?.value.newDeadline].forEach(boundary);
@@ -17,7 +17,7 @@ function f4ActivitiesFrequencyCompat_(options){
   const status={PRESENT:fact.modality==='REMOTA'?'PRESENTE_REMOTO':'PRESENTE_PRESENCIAL',ABSENT:'FALTA',JUSTIFIED:'JUSTIFICADA',EXCUSED:'ABONADA',NOT_APPLICABLE:'NAO_SE_APLICA',UNRECORDED:'SEM_REGISTRO'}[fact.status];
   const calendar=f4ActivityAcademicMetadata_(activity,get),cycle=f4ActivityFrequencyCycle_(activity,collection,fact,get,semesters);
   const dto={...calendar,...cycle,idRegistroPresenca:fact.id,idAtividade:activity.id,tituloAtividade:activity.title,tituloPublico:activity.title,dataAtividade:activity.civilDate,statusPresenca:status,statusPresencaRotulo:{PRESENTE_REMOTO:'Presente remoto',PRESENTE_PRESENCIAL:'Presente presencial',FALTA:'Falta',JUSTIFICADA:'Justificada',ABONADA:'Abonada',NAO_SE_APLICA:'Não se aplica',SEM_REGISTRO:'Sem registro'}[status],ciclo:cycle.cycleId||'',...(exceptional?{exceptionalWindowId:exceptional.ref.id,prazoExtraordinario:iso(exceptional.value.newDeadline),mensagemPrazoExtraordinario:'Prazo extraordinário para justificativa aberto até '+Utilities.formatDate(new Date(M.ms(exceptional.value.newDeadline)),'America/Cuiaba','dd/MM/yyyy HH:mm')}:{}) ,dataLimiteJustificativa:iso(collection.justificationEndsAt),prazoJustificativa:iso(collection.justificationEndsAt),idJustificativa:j?.id||'',statusJustificativa:justStatus(j?.state),justificativaPreviaPendente:j?.state==='PREVIOUS',foraPrazo:outsideDeadline,statusPrazo:outsideDeadline?'FORA_DO_PRAZO':'NO_PRAZO',envioForaDoPrazo:outsideDeadline?'SIM':'NAO',exigeCienciaForaPrazo:outsideDeadline,podeEnviarJustificativa:!!canRequest,podeComplementarJustificativa:!!canRequest&&j?.state==='CORRECTION_REQUESTED',podeVerJustificativa:!!j,acaoJustificativa:!canRequest?'':j?.state==='CORRECTION_REQUESTED'?'COMPLEMENTAR_JUSTIFICATIVA':outsideDeadline?'ENVIAR_JUSTIFICATIVA_FORA_PRAZO':'ENVIAR_JUSTIFICATIVA',motivoDeclarado:j?.reasonCode||'',descricaoJustificativa:j?.reason||'',observacaoPublica:j?.decisionReason||'',linkDocumentoComprobatorio:j?.proofLink||'',possuiDocumentoComprobatorio:j?.proofLink||j?.proofArtifactRef?'SIM':'NAO',canonicalProofAvailable:j?.proofArtifactRef?.kind==='activityArtifact',enviadaEm:iso(j?.submittedAt)};
-  if(admin){const h=get('memberAggregateHeads/'+fact.personRef.id),person=get('memberIdentities/'+fact.personRef.id),profile=get('memberPortalProfiles/'+fact.personRef.id);dto.nomePessoa=profile&&h&&profile.sourceRevision===h.revision?profile.displayLabel:person?.displayName||'';dto.idPessoa=fact.personRef.id;dto.observacoesInternas=j?.internalReason||'';const pending=j?.state==='PENDING'&&j.recordMode!=='HISTORICAL_PARTIAL';dto.acoesGestao={podeDeferir:pending,podeAbonar:pending&&!!fact.frequencyBasis?.excusedMode,podeIndeferir:pending,podeSolicitarAjuste:pending};}
+  if(admin){const h=get('memberAggregateHeads/'+fact.personRef.id),person=get('memberIdentities/'+fact.personRef.id),profile=get('memberPortalProfiles/'+fact.personRef.id);dto.nomePessoa=profile&&h&&profile.sourceRevision===h.revision?profile.displayLabel:person?.displayName||'';dto.idPessoa=fact.personRef.id;dto.observacoesInternas=j?.internalReason||'';const readiness=f4JustificationDecisionReadiness_(j,fact,activity),authorized=ports.commandAccess('ATTENDANCE_JUSTIFICATION_DECIDE',[M.ref('justification',j.id)]),pending=readiness.eligible&&authorized;dto.impedimentoAnalise=readiness.eligible&&!authorized?'Sua autorização não permite decidir esta justificativa.':readiness.reason;dto.fila=queueGroup(j,fact,activity);dto.acoesGestao={podeDeferir:pending,podeAbonar:pending&&['EXCLUDE','COUNT_PRESENT','COUNT_ABSENT'].includes(fact.frequencyBasis?.excusedMode),podeIndeferir:pending,podeSolicitarAjuste:pending};if(!authorized){for(const field of ['observacoesInternas','motivoDeclarado','descricaoJustificativa','observacaoPublica','linkDocumentoComprobatorio'])delete dto[field];dto.possuiDocumentoComprobatorio='NAO';dto.canonicalProofAvailable=false;}}
   const countable=(fact.recordMode==='HISTORICAL_PARTIAL'&&fact.historicalAttendanceFact===true||!!collection.lastFinalizedAt&&!!fact.officialRecordedAt)&&activity.legacyStatus!=='CANCELADA'&&!['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(activity.status);
   return {dto,derived:{...fact,countable,cycleId:cycle.cycleId,activityCivilDate:activity.civilDate,activityTime:activity.startsAt?Utilities.formatDate(new Date(M.ms(activity.startsAt)),'America/Cuiaba','HH:mm'):'',justificationApproved:fact.justificationApproved===true||j?.state==='APPROVED'||fact.recordMode==='HISTORICAL_PARTIAL'&&['JUSTIFIED','EXCUSED'].includes(fact.status)}};
  }
@@ -28,25 +28,52 @@ function f4ActivitiesFrequencyCompat_(options){
   const net=value.counts.ABSENT+rows.filter(r=>r.countable&&(r.officialCountBasis||r).countsAbsence!==false&&(r.officialCountBasis||r).applicableAtDate!==false&&(r.status==='JUSTIFIED'&&r.frequencyBasis?.justifiedMode==='COUNT_ABSENT'||r.status==='EXCUSED'&&r.frequencyBasis?.excusedMode==='COUNT_ABSENT')).length;
   return {totalRegistros:rows.length,totalAtividades:['PRESENT','ABSENT','JUSTIFIED','EXCUSED'].reduce((n,k)=>n+value.counts[k],0),totalPresencas:value.counts.PRESENT,totalFaltas:value.counts.ABSENT,totalJustificadas:value.counts.JUSTIFIED,totalAbonadas:value.counts.EXCUSED,totalNaoAplicaveis:value.counts.NOT_APPLICABLE,totalPendentes:value.pending,faltasLiquidas:complete?net:null,percentualFrequencia:value.percentage===null?null:Math.round(value.percentage*100)/100,baseCompleta:complete,mensagemPortal:complete?'':'Totais dos fatos disponíveis. A base histórica ou os pesos não permitem apurar faltas líquidas e percentual completo com segurança.'};
  }
- // Merge three bounded state queries. Only the displayed page is hydrated.
- // The attendance epoch fences pagination against decisions between pages.
- function pendingPage(params,epoch){
-  C.exact(params,Object.hasOwn(params,'cursor')?['cursor']:[]);
-  const cursor=params.cursor;
-  if(cursor){C.exact(cursor,['afterId','epoch']);N(M.id(cursor.afterId)&&Number.isSafeInteger(cursor.epoch)&&cursor.epoch>=0,'VALIDATION_ERROR');N(cursor.epoch===epoch,'STALE_REVISION');}
-  const after=cursor?new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+'activityJustifications/'+cursor.afterId):null;
-  const rows=['PREVIOUS','PENDING','CORRECTION_REQUESTED'].flatMap(state=>db.query({collection:'activityJustifications',filters:[{field:'state',op:'EQUAL',value:state}],limit:11,order:[{field:'__name__',direction:'ASCENDING'}],...(after?{cursor:[after]}:{})}).map(r=>r.data)).sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
-  const items=rows.slice(0,10);
-  return {items,pagination:{pageSize:10,hasMore:rows.length>10,nextCursor:rows.length>10?{afterId:items[items.length-1].id,epoch}:null}};
+ // Filter by canonical cycle before pagination, never by submission date.
+ // Cursor binds the selected cycle, queue and attendance epoch.
+ function queueGroup(j,f,a){return ['APPROVED','EXCUSED','REJECTED','CLOSED_WITHOUT_ABSENCE'].includes(j.state)?'HISTORY':f4JustificationDecisionReadiness_(j,f,a).eligible?'ANALYSIS':'ACTION_REQUIRED';}
+ function pendingPage(params,epoch,check){
+  C.exact(params,['cursor','cycleId','queue'].filter(k=>Object.hasOwn(params,k)));
+  const cycles=all('presentationCycles');cycles.forEach(c=>cache.set('presentationCycles/'+c.id,c));
+  const current=cycles.filter(c=>c.status==='OPEN'),cycleId=params.cycleId||(current.length===1?current[0].id:null),queue=params.queue||'ALL';
+  N(M.id(cycleId)&&cycles.some(c=>c.id===cycleId),'VALIDATION_ERROR','SELECT_CANONICAL_CYCLE');N(['ALL','ANALYSIS','ACTION_REQUIRED','HISTORY'].includes(queue),'VALIDATION_ERROR');
+  const cursor=params.cursor;if(cursor){C.exact(cursor,['afterId','epoch','cycleId','queue']);N(M.id(cursor.afterId)&&cursor.epoch===epoch&&cursor.cycleId===cycleId&&cursor.queue===queue,'STALE_REVISION','JUSTIFICATION_PAGE_CHANGED');}
+  semesters=all('academicSemesters');semesters.forEach(s=>cache.set('academicSemesters/'+s.id,s));
+  const states=queue==='HISTORY'?['APPROVED','EXCUSED','REJECTED','CLOSED_WITHOUT_ABSENCE']:queue==='ALL'?['PREVIOUS','PENDING','CORRECTION_REQUESTED','HISTORICAL_PARTIAL','APPROVED','EXCUSED','REJECTED','CLOSED_WITHOUT_ABSENCE']:['PREVIOUS','PENDING','CORRECTION_REQUESTED','HISTORICAL_PARTIAL'];
+  let afterId=cursor?.afterId,items=[],done=false;const authorizations=new Map();
+  for(let scan=0;scan<50&&!done&&items.length<11;scan++){
+   const after=afterId?new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+'activityJustifications/'+afterId):null;
+   const merged=states.flatMap(state=>db.query({collection:'activityJustifications',filters:[{field:'state',op:'EQUAL',value:state}],limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(after?{cursor:[after]}:{})}).map(r=>r.data)).sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0),batch=merged.slice(0,20);
+   done=merged.length<20;
+   prefetch(batch.flatMap(j=>[M.path(j.activityRef),M.path(j.attendanceRef),'activityAttendanceCollections/'+j.activityRef.id]));
+   for(const j of batch){
+    afterId=j.id;const a=get(M.path(j.activityRef)),f=get(M.path(j.attendanceRef)),c=get('activityAttendanceCollections/'+j.activityRef.id);
+    if(!a)continue;
+    const cycle=f4ActivityFrequencyCycle_(a,c||{},f||{},get,semesters);if(cycle.cycleId!==cycleId)continue;
+    if(!authorizations.has(a.id)){try{const proof=ports.readAuthority([M.path(j.activityRef)],false);check([proof]);authorizations.set(a.id,true);}catch(e){if(!['AUTHORIZATION_DENIED','ACCESS_REVOKED','M13_AUTHZ_DENIED'].includes(e.code))throw e;authorizations.set(a.id,false);}}
+    if(!authorizations.get(a.id))continue;
+    if(queue!=='ALL'&&queueGroup(j,f,a)!==queue)continue;
+    cache.set('activityJustifications/'+j.id,j);items.push(j);if(items.length===11)break;
+   }
+  }
+  N(done||items.length===11,'SCOPE_TOO_LARGE','JUSTIFICATION_SCAN_LIMIT');
+  const page=items.slice(0,10);return {items:page,cycleId,queue,cycles:cycles.map(c=>({id:c.id,label:c.cycleLabel||c.id,status:c.status})),pagination:{pageSize:10,hasMore:items.length>10,nextCursor:items.length>10?{afterId:page[page.length-1].id,epoch,cycleId,queue}:null}};
  }
- function read(route,params={}){
+ function read(route,params={}){return ports.readWithAuthoritySnapshot(check=>readSnapshot(route,params,check));}
+ function readSnapshot(route,params={},check){
   if(route!=='/v2/justificativas/pendencias')C.exact(params,[]);
   cache.clear();temporalValidUntil=Infinity;
-  const admin=route==='/v2/justificativas/pendencias',auth=ports.readAuthority(admin?['activityAttendanceRegistry/current']:[],!admin),epoch=get('activityAttendanceRegistry/current')?.epoch||0;let data;
+  const admin=route==='/v2/justificativas/pendencias',auth=ports.readAuthority(admin?['activityAttendanceRegistry/current']:[],!admin),epoch=get('activityAttendanceRegistry/current')?.epoch||0;let data;check([auth]);
   if(route==='/v2/minha-frequencia'){
    const values=all('activityAttendance',[{field:'ownerPersonRef',op:'EQUAL',value:auth.personId}]);N(values.every(f=>f.ownerPersonRef===auth.personId&&f.personRef.id===auth.personId),'AUTHORIZATION_DENIED');hydrate(values,false);const items=pair(values.map(f=>row(f))),periods=[...new Set(items.map(r=>r.dto.ciclo).filter(Boolean))].sort().reverse();
    data={contrato:'MINHA_FREQUENCIA_DETALHADA_V2',cycleGrouping:'GEAPA_CYCLE_V1',registros:items.filter(r=>r.dto.ciclo).map(r=>r.dto),registrosPendentes:items.filter(r=>!r.dto.ciclo).map(r=>r.dto),ciclos:periods.map(id=>({ciclo:id,cycleId:id,rotuloCiclo:get('presentationCycles/'+id)?.cycleLabel||id,resumo:summary(items.filter(r=>r.dto.ciclo===id).map(r=>r.derived)),registros:items.filter(r=>r.dto.ciclo===id).map(r=>r.dto)})),ultimaAtualizacao:new Date(clock()).toISOString()};
-  }else if(admin){const page=pendingPage(params,epoch),pending=page.items;pending.forEach(j=>cache.set('activityJustifications/'+j.id,j));prefetch(pending.map(j=>M.path(j.attendanceRef)));const facts=pending.map(j=>{const f=get(M.path(j.attendanceRef));N(f,'UNRESOLVED_DEPENDENCY');return f});hydrate(facts,true);data={justificativas:facts.map(f=>row(f,true).dto),pagination:page.pagination,ultimaAtualizacao:new Date(clock()).toISOString()};}
+  }else if(admin){
+   const page=pendingPage(params,epoch,check),entries=page.items,facts=entries.map(j=>get(M.path(j.attendanceRef))).filter(Boolean);hydrate(facts,true);
+   const rows=entries.map(j=>{const f=get(M.path(j.attendanceRef)),a=get(M.path(j.activityRef)),c=get('activityAttendanceCollections/'+j.activityRef.id);
+    if(f&&c)return row(f,true,j).dto;
+    // No synthetic attendance is manufactured for an orphaned imported request.
+    return {idJustificativa:j.id,idAtividade:j.activityRef.id,tituloAtividade:a?.title||j.activityRef.id,idPessoa:j.personRef?.id||'',ciclo:page.cycleId,statusJustificativa:justStatus(j.state)||'HISTORICO_INCOMPLETO',enviadaEm:iso(j.submittedAt),fila:queueGroup(j,f,a),impedimentoAnalise:'Referência de frequência ou chamada ausente; requer reconciliação documental.',acoesGestao:{podeDeferir:false,podeAbonar:false,podeIndeferir:false,podeSolicitarAjuste:false}};
+   });data={justificativas:rows,pagination:page.pagination,cycleId:page.cycleId,queue:page.queue,cycles:page.cycles,ultimaAtualizacao:new Date(clock()).toISOString()};}
+
   else{N(route==='/v2/justificativas/config','VALIDATION_ERROR');data={motivos:[{valor:'SAUDE',rotulo:'Saúde'},{valor:'COMPROMISSO_ACADEMICO',rotulo:'Compromisso acadêmico'},{valor:'COMPROMISSO_PROFISSIONAL',rotulo:'Compromisso profissional'},{valor:'MOTIVO_PESSOAL_RELEVANTE',rotulo:'Motivo pessoal relevante'},{valor:'FORCA_MAIOR',rotulo:'Força maior'},{valor:'OUTRO',rotulo:'Outro'}]};}
   ports.recheckAuthority(auth);N((db.get('activityAttendanceRegistry/current')?.epoch||0)===epoch,'STALE_REVISION');return {ok:true,data};
  }

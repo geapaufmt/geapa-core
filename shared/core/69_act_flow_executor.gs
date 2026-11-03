@@ -14,7 +14,7 @@ function f4ActFlowExecutor_(){
  function scope(get,v){const s=get('actFlowExecutorScopes/'+v.scopeId);N(f4ExecutionEnvironment_().scope(s)&&s.id===v.scopeId&&C.rev(s.revision)&&s.revision>0&&Array.isArray(s.resourcePaths)&&s.resourcePaths.length>0&&s.resourcePaths.length<=480&&new Set(s.resourcePaths).size===s.resourcePaths.length&&s.resourcePaths.every(p=>M.validPath(p)&&p.split('/').length<=4),'ACCESS_REVOKED');if(s.operational)f4ActCycleBoundary_().validate(s.operational);if('modelCreateOnly'in s)N(s.modelCreateOnly===true&&!s.operational&&v.commandType==='ACT.ACTIVITY_TYPE_SAVE','ACCESS_REVOKED');return s;}
  function fields(get,r,v){
   N(supports(r)&&v.commandType===r.commandType,'COMMAND_TYPE_INVALID');f4ActivitiesPipeline_().validate(r);
-  const s=scope(get,v),expected=r.target.expected;if(s.modelCreateOnly)f4ActivityModelCreation_().validate(get,r,s.resourcePaths);if(s.operational){N(s.operational.commands.includes(r.commandType),'ACCESS_REVOKED');if(r.commandType==='ACT.ACTIVITY_PUBLICATION_SET'&&r.payload.action==='PUBLISH')f4ActivityExecutorRoutes_().publication(['BOARD','MEMBERS'],r.payload.visibility||get('canonicalActivities/'+r.payload.activityRef.id)?.publishedVisibility||'BOARD');}if(r.commandType==='ACT.ACTIVITY_SAVE'){const a=get('canonicalActivities/'+r.payload.activityRef?.id);N(a?.presentationSessionRef&&expected.some(e=>e.kind==='activity'&&e.id===a.id&&C.rev(e.revision)&&e.revision>0),'COMMAND_PAYLOAD_INVALID');f4ActivityExecutorRoutes_().editFields(r,a);}
+  const s=scope(get,v),expected=r.target.expected;if(r.commandType==='ACT.CYCLE_FREQUENCY_PLAN_RECOGNIZE')N(v.availabilityMode==='TIMEBOXED'&&!s.operational&&s.resourcePaths.includes(path(r.payload.cycleRef))&&s.resourcePaths.includes(path(r.payload.recognitionRef)),'ACCESS_REVOKED','RECOGNITION_REQUIRES_BOUNDED_CAMPAIGN');if(s.modelCreateOnly)f4ActivityModelCreation_().validate(get,r,s.resourcePaths);if(s.operational){N(s.operational.commands.includes(r.commandType),'ACCESS_REVOKED');if(r.commandType==='ACT.ACTIVITY_PUBLICATION_SET'&&r.payload.action==='PUBLISH')f4ActivityExecutorRoutes_().publication(['BOARD','MEMBERS'],r.payload.visibility||get('canonicalActivities/'+r.payload.activityRef.id)?.publishedVisibility||'BOARD');}if(r.commandType==='ACT.ACTIVITY_SAVE'){const a=get('canonicalActivities/'+r.payload.activityRef?.id);N(a?.presentationSessionRef&&expected.some(e=>e.kind==='activity'&&e.id===a.id&&C.rev(e.revision)&&e.revision>0),'COMMAND_PAYLOAD_INVALID');f4ActivityExecutorRoutes_().editFields(r,a);}
   if(r.commandType==='ACT.ACTIVITY_PROMOTE_OPERATIONAL'&&(f4ExecutionEnvironment_().production||s.promotionIntents)){const intents=s.promotionIntents;N(Array.isArray(intents)&&intents.length>0&&intents.length<=3&&new Set(intents.map(i=>i.operationId)).size===intents.length&&intents.every(i=>C.op(i.operationId)&&/^[a-f0-9]{64}$/.test(i.requestHash)),'ACCESS_REVOKED');N(intents.some(i=>i.operationId===r.operationId&&i.requestHash===f4ActivityPromotionIntentHash_(r)),'ACCESS_REVOKED','PROMOTION_INTENT_NOT_APPROVED');}
   N(expected.length>0&&r.target.scope.targetRefs?.length>0,'COMMAND_PAYLOAD_INVALID');
   // Preserve previously approved exact roots; additional resources require the optional canonical cycle boundary.
@@ -29,7 +29,11 @@ function f4ActFlowExecutor_(){
    N(!d||sharedFence||(s.resourcePaths.includes(p)||scopedChild||s.operational&&f4ActCycleBoundary_().contains(get,p,s.operational,true)),'SCOPE_INVALID');
    N(d?.recordMode!=='HISTORICAL_PARTIAL'||['ACT.PRESENTATION_CONTINUITY_CONNECT','ACT.HISTORICAL_PREAGENDA_RECOGNIZE'].includes(r.commandType)&&ref.kind==='presentation'&&ref.id===r.payload.presentationRef.id&&s.resourcePaths.includes(p)||['ACT.ACTIVITY_ADMIN_REVIEW','ACT.ACTIVITY_PROMOTE_OPERATIONAL'].includes(r.commandType)&&ref.kind==='activity'&&ref.id===r.payload.activityRef.id&&s.resourcePaths.includes(p)&&d.administrativeReview,'PILOT_RESOURCE_DENIED');
   }
-  N(r.target.scope.targetRefs.some(ref=>s.resourcePaths.includes(path(ref))||s.operational&&f4ActCycleBoundary_().contains(get,path(ref),s.operational,false)),'PILOT_RESOURCE_DENIED');
+  // An original model without attendance has no existing policy anchor. A
+  // protected, explicit opt-in permits only its operation-derived new output;
+  // institutional authoring permission and all canonical validators still run.
+  const originalOutput=s.originalModelCreation===true&&r.commandType==='ACT.ACTIVITY_MODEL_DRAFT_SAVE'&&r.payload.typeRef?.kind==='activityType'&&r.payload.typeRef.id==='cfg_'+r.operationId&&!get(path(r.payload.typeRef))&&expected.some(e=>e.kind==='activityType'&&e.id===r.payload.typeRef.id&&e.exists===false)&&r.target.scope.targetRefs.length===1&&path(r.target.scope.targetRefs[0])===path(r.payload.typeRef);
+  N(originalOutput||r.target.scope.targetRefs.some(ref=>s.resourcePaths.includes(path(ref))||s.operational&&f4ActCycleBoundary_().contains(get,path(ref),s.operational,false)),'PILOT_RESOURCE_DENIED');
  }
  function select(get,r,config){if(!supports(r))return null;if(['ACT.ACTIVITY_SAVE','ACT.ACTIVITY_PUBLICATION_SET','ACT.ACTIVITY_REALIZE'].includes(r.commandType)&&!get('canonicalActivities/'+r.payload?.activityRef?.id)?.presentationSessionRef)return null;const id='ACT_FLOW_'+r.commandType.slice(4);if(!get('commandExecutorRoutes/'+id))return null;const v=route(get,config,id);fields(get,r,v);return id;}
  function resource(r){return C.hash({commandType:r.commandType,scope:r.target.scope}).slice(0,32);}
@@ -44,9 +48,10 @@ function f4ActCycleBoundary_(){
  const list=(v,n)=>Array.isArray(v)&&v.length<=n&&new Set(v).size===v.length;
  const catalogs=['activityTypes','activityPolicies','activityAttachmentPolicies','academicSemesters','presentationAxes','presentationPolicyReferences','migrationEvidence'];
  function validate(s){
-  N(s&&Object.keys(s).sort().join()===['schemaVersion','cycleIds','readOnlyPaths','commands'].sort().join()&&s.schemaVersion==='act-cycle-boundary-v1','SCOPE_INVALID');
+  N(s&&Object.keys(s).sort().join()===['schemaVersion','cycleIds','readOnlyPaths','commands',...('originalModelUsage'in s?['originalModelUsage']:[])].sort().join()&&s.schemaVersion==='act-cycle-boundary-v1','SCOPE_INVALID');
+  N(!('originalModelUsage'in s)||s.originalModelUsage===true&&s.commands.length===1&&s.commands[0]==='ACT.ACTIVITY_SAVE','SCOPE_INVALID');
   N(list(s.cycleIds,8)&&s.cycleIds.length>0&&s.cycleIds.every(C.id)&&list(s.readOnlyPaths,80)&&s.readOnlyPaths.every(p=>M.validPath(p)&&p.split('/').length===2&&(catalogs.includes(p.split('/')[0])||['presentationCapacityHeads/registry','activityAttendanceRegistry/current'].includes(p))),'SCOPE_INVALID');
-  N(list(s.commands,80)&&s.commands.length>0&&s.commands.every(c=>typeof c==='string'&&c.startsWith('ACT.')&&Object.prototype.hasOwnProperty.call(f4ActivitiesContracts_(),c.slice(4)))&&!s.commands.some(c=>['ACT.ACTIVITY_PROMOTE_OPERATIONAL','ACT.HISTORICAL_PREAGENDA_RECOGNIZE','ACT.ACTIVITY_ADMIN_REVIEW'].includes(c)),'SCOPE_INVALID');return s;
+  N(list(s.commands,80)&&s.commands.length>0&&s.commands.every(c=>typeof c==='string'&&c.startsWith('ACT.')&&Object.prototype.hasOwnProperty.call(f4ActivitiesContracts_(),c.slice(4)))&&!s.commands.some(c=>['ACT.CYCLE_FREQUENCY_PLAN_RECOGNIZE','ACT.ACTIVITY_PROMOTE_OPERATIONAL','ACT.HISTORICAL_PREAGENDA_RECOGNIZE','ACT.ACTIVITY_ADMIN_REVIEW'].includes(c)),'SCOPE_INVALID');return s;
  }
  function cycle(get,path,depth=0,seen=new Set(),budget={n:0}){
   const cache=budget.cache||(budget.cache=new Map());if(cache.has(path))return cache.get(path);
@@ -66,7 +71,7 @@ function f4ActCycleBoundary_(){
   }
   const result=ids.length&&new Set(ids).size===1?ids[0]:null;if(result)cache.set(path,result);return result;
  }
- function contains(get,path,s,readOnly){validate(s);if(readOnly&&s.readOnlyPaths.includes(path))return !!get(path);if(s.readOnlyPaths.includes(path))return false;const id=cycle(get,path);return !!id&&s.cycleIds.includes(id)&&get('presentationCycles/'+id)?.recordMode!=='HISTORICAL_PARTIAL'&&get('presentationCycles/'+id)?.id===id;}
+ function contains(get,path,s,readOnly){validate(s);if(readOnly&&s.originalModelUsage===true&&/^activityTypes\/[A-Za-z0-9_-]+$/.test(path)&&s.cycleIds.some(id=>f4OriginalModelUsage_(get,get(path),id)))return true;if(readOnly&&s.readOnlyPaths.includes(path))return !!get(path);if(s.readOnlyPaths.includes(path))return false;const id=cycle(get,path);return !!id&&s.cycleIds.includes(id)&&get('presentationCycles/'+id)?.recordMode!=='HISTORICAL_PARTIAL'&&get('presentationCycles/'+id)?.id===id;}
  return {validate,cycle,contains};
 }
 

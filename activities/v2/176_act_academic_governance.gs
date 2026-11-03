@@ -51,6 +51,21 @@ function f4ActivityFrequencyPolicy_(policy){
  N(policy?.approved&&b&&['ACTIVITY','MINUTE'].includes(b.unit)&&['EXCLUDE','COUNT_PRESENT','COUNT_ABSENT'].includes(b.justifiedMode)&&['EXCLUDE','COUNT_PRESENT','COUNT_ABSENT'].includes(b.excusedMode),'CONFIG_CAPABILITY_DISABLED','CANONICAL_FREQUENCY_POLICY_REQUIRED');
  return {unit:b.unit,justifiedMode:b.justifiedMode,excusedMode:b.excusedMode,policyRevision:policy.revision};
 }
+// New activity form: resolve context from canonical dates, never from a month
+// split or identifier. Explicit references remain compatible with older clients.
+function f4ActivityCreationContext_(get,type,value,now){
+ const M=f4ActivitiesModel_(),N=M.need,day=value.dataAtividade,today=M.day(now);
+ let cycleRef=value.cycleId?M.ref('cycle',value.cycleId):type.attendancePolicyRef?get(M.path(type.attendancePolicyRef))?.cycleRef:null;
+ if(!cycleRef){const candidates=(type.governance?.usageAuthorizations||[]).filter(g=>{
+  const c=get(M.path(g.cycleRef));return c&&c.status==='OPEN'&&c.civilStart<=today&&today<=c.civilEnd&&c.civilStart<=day&&day<=c.civilEnd&&f4OriginalModelUsage_(get,type,c.id);
+ });N(candidates.length===1,'UNRESOLVED_DEPENDENCY',candidates.length?'AMBIGUOUS_CURRENT_CYCLE':'CURRENT_CYCLE_REQUIRED');cycleRef=candidates[0].cycleRef;}
+ const cycle=get(M.path(cycleRef));N(cycle,'UNRESOLVED_DEPENDENCY');
+ if(!value.cycleId)N(cycle.status==='OPEN'&&cycle.civilStart<=today&&today<=cycle.civilEnd,'UNRESOLVED_DEPENDENCY','CURRENT_CYCLE_REQUIRED');
+ let semesterRef=value.academicSemesterId?M.ref('academicSemester',value.academicSemesterId):null;
+ if(!semesterRef){const matches=(cycle.academicSemesterRefs||[]).map(r=>get(M.path(r))).filter(s=>s?.cycleId===cycle.id&&s.civilStart&&s.civilEnd&&s.civilStart<=day&&day<=s.civilEnd);N(matches.length<=1,'CONFLICT','AMBIGUOUS_ACADEMIC_SEMESTER');if(matches.length)semesterRef=M.ref('academicSemester',matches[0].id);}
+ const context=f4ActivityCycleContext_(get,cycleRef,semesterRef,day),semester=semesterRef&&get(M.path(semesterRef));
+ return {...context,academicSemesterRef:semesterRef,cycleLabel:cycle.cycleLabel||cycle.id,cycleRevision:cycle.revision,academicSemesterLabel:semester?.label||semester?.semesterLabel||semester?.id||null,academicSemesterRevision:semester?.revision||null};
+}
 function f4AttendanceCycleFields_(activity,collection){
  const M=f4ActivitiesModel_(),cycleId=activity.cycleId||activity.cycleRef?.id||collection.cycleId;
  M.need(M.id(cycleId),'UNRESOLVED_DEPENDENCY','ATTENDANCE_CYCLE_REQUIRED');
