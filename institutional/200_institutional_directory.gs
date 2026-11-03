@@ -56,6 +56,7 @@ function f4InstitutionalPolicies_(get,identity,now,ids,cap,path){
 }
 
 function f4InstitutionalDirectoryRead_(options,params){
+ if(params?.view==='instruments')return f4InstitutionalNormRead_(options,params);
  const C=f4Core_(),K=f4MemberAuthzContracts_(),A=f4MemberAuthz_(),N=K.need,M=f4InstitutionalDirectoryModel_(),cap='INSTITUTIONAL_DIRECTORY_READ';
  C.exact(params,['section','query','kind','page']);N(M.sections.includes(params.section)&&typeof params.query==='string'&&params.query.length<=80&&typeof params.kind==='string'&&params.kind.length<=64&&Number.isInteger(params.page)&&params.page>=1&&params.page<=15,'COMMAND_PAYLOAD_INVALID');
  return f4Firestore_().connect(options.config).transaction(tx=>{
@@ -71,3 +72,4 @@ function f4InstitutionalDirectoryRead_(options,params){
   return {ok:true,data:{schemaVersion:'institutional-consultation-v1',section:v.section,revision:v.revision,sourceHash:v.sourceHash,nature:v.nature,items:filtered.slice((params.page-1)*10,params.page*10),total:filtered.length,page:params.page,pages:Math.max(1,Math.ceil(filtered.length/10)),kinds:[...new Set(rows.map(r=>r.kind))].sort(),editingEnabled:editableFields.length>0,editableFields,validUntil:Math.min(now+60000,options.identity.expiresAt,C.ms(actor.state.validUntil),C.ms(actor.derived.state.validUntil),...policies.map(p=>C.ms(p.expiresAt)))}};
  });
 }
+

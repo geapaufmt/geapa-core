@@ -239,6 +239,9 @@
     "members/113_member_access_catalog.gs",
     "members/114_member_team_projection.gs",
     "institutional/200_institutional_directory.gs",
-    "institutional/201_institutional_contact_commands.gs"
+    "institutional/201_institutional_contact_commands.gs",
+    "institutional/202_institutional_norms.gs",
+    "institutional/203_institutional_visibility.gs"
   ]
 }
+
