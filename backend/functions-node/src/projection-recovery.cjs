@@ -30,8 +30,13 @@ function validateControl(c){
  return c;
 }
 class RecoveryStore extends Store{
- constructor(db,identity,viewId,control,commandKey){super(db,identity);this.queryConcurrency=4;this.viewId=viewId;this.pinned=control;this.commandKey=commandKey;this.viewPath='portalReaderViews/'+identity.uid+'/items/'+viewId;this.leasePath='projectionRecoveryLeases/'+hash(identity.uid+'|'+viewId);this.budgetPath='projectionRecoveryBudgets/'+hash(identity.uid+(commandKey?'|command|'+commandKey.operationId+'|'+viewId:''));}
+ constructor(db,identity,viewId,control,commandKey){super(db,identity);this.queryConcurrency=4;this.viewId=viewId;this.pinned=control;this.commandKey=commandKey;this.discoveredPaths=new Set();this.viewPath='portalReaderViews/'+identity.uid+'/items/'+viewId;this.leasePath='projectionRecoveryLeases/'+hash(identity.uid+'|'+viewId);this.budgetPath='projectionRecoveryBudgets/'+hash(identity.uid+(commandKey?'|command|'+commandKey.operationId+'|'+viewId:''));}
+ hostRead(path){this.discoveredPaths.add(path);return super.hostRead(path);}
  guard(){
+  // Paths only, never values/proofs: each publish attempt batch-reads current
+  // sources inside its own SDK transaction. Changed heads discover new paths
+  // normally; no cache survives a transaction or an SDK retry.
+  if(this.buildId&&this.active&&!this.active.recoveryPrefetched){this.active.recoveryPrefetched=true;for(const path of this.publishReadPaths||[])super.hostRead(path);}
   fence();const c=validateControl(this.hostRead(CONTROL));
   if(['DEV_READERS_OPERATIONAL','PROD_READERS_OPERATIONAL'].includes(c.mode)&&!c.actorUids.includes(this.identity.uid))fail('PILOT_DISABLED');
   if(this.pinned&&JSON.stringify(c)!==JSON.stringify(this.pinned))fail('ACCESS_REVOKED');
@@ -47,7 +52,7 @@ class RecoveryStore extends Store{
   if(this.buildId){const l=this.hostRead(this.leasePath);if(l?.ownerUid!==this.identity.uid||l.viewId!==this.viewId||l.recoveryId!==this.buildId||l.state!=='REBUILDING'||l.expiresAt<=Date.now())fail('OPERATION_CONFLICT');this.leaseDeadline=l.expiresAt;}
   return c;
  }
- io(raw){const x=JSON.parse(raw);if(x.kind==='pilotConfig')return JSON.stringify({root:ROOT,shared:false,executor:'DERIVED_PROJECTION_ONLY',epoch:this.control.revision,settings:{commands:this.control.readModelCommands,policyIds:this.control.policyIds,admissionsPerHour:0,jobs:[],activityAgendaDirect:false}});return super.io(raw);}
+ io(raw){const x=JSON.parse(raw);if(x.kind==='get')this.discoveredPaths.add(x.path);else if(x.kind==='getAll')for(const path of x.paths)this.discoveredPaths.add(path);if(x.kind==='pilotConfig')return JSON.stringify({root:ROOT,shared:false,executor:'DERIVED_PROJECTION_ONLY',epoch:this.control.revision,settings:{commands:this.control.readModelCommands,policyIds:this.control.policyIds,admissionsPerHour:0,jobs:[],activityAgendaDirect:false}});return super.io(raw);}
  validateWrites(s){
   const allowed=this.buildId?[this.viewPath,this.leasePath]:[this.leasePath,this.budgetPath];
   for(const w of s.writes){
@@ -79,6 +84,7 @@ async function recoverProjection({db,auth,appCheck,token,appCheckToken,origin,bo
  validateReadModelCommands(domain,control.readModelCommands);
  const recoveryId=randomUUID().replaceAll('-','');
  store.beforeCommit=async()=>{await verify();validateControl(control);};
+ const claimStarted=performance.now();
  const decision=await store.transaction(()=>{
   const observed=run('(id)=>nodeProjectionInspect(id)',viewId),now=Date.now();
   const lease=store.hostRead(store.leasePath),budget=store.hostRead(store.budgetPath);
@@ -93,14 +99,18 @@ async function recoverProjection({db,auth,appCheck,token,appCheckToken,origin,bo
   store.set(store.leasePath,{schemaVersion:'projection-recovery-lease-v1',ownerUid:identity.uid,viewId,recoveryId,state:'REBUILDING',startedAt:now,expiresAt:now+LEASE_MS});
   return {state:'CLAIMED',priorState:observed.state,recoveryId};
  });
+ timing.claimMs=performance.now()-claimStarted;
  if(decision.state==='CLAIMED'){
+  store.publishReadPaths=[...store.discoveredPaths].filter(path=>path!==store.budgetPath);
   await hooks.afterClaim?.();store.buildId=recoveryId;
   store.beforeCommit=async()=>{await verify();await hooks.beforePublish?.();validateControl(control);if(store.leaseDeadline<=Date.now())fail('OPERATION_CONFLICT');};
+  const publishStarted=performance.now();
   await store.transaction(()=>{
    // Lease and the complete Core source/proof read set share the publish CAS.
    run('(ids)=>nodeProject(ids)',[viewId]);
    store.set(store.leasePath,{schemaVersion:'projection-recovery-lease-v1',ownerUid:identity.uid,viewId,recoveryId,state:'CURRENT',expiresAt:Date.now(),completedAt:Date.now()});
   });
+  timing.publishMs=performance.now()-publishStarted;
   await hooks.afterPublish?.();decision.state='CURRENT';
  }
  // A lost response is resolved by the same UID+view status selector, not a new

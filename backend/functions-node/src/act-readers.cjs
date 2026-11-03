@@ -13,7 +13,7 @@ function control(c,uid,route){
  if(['DEV_READERS_OPERATIONAL','PROD_READERS_OPERATIONAL'].includes(c.mode)&&['/admin/apresentacoes/cotas','/admin/apresentacoes/incidencia'].includes(route))fail('CONFIG_CAPABILITY_DISABLED');
  const r=c.specializedReaders;
  if(r?.enabled!==true||!Array.isArray(r.actorUids)||!r.actorUids.length||r.actorUids.length>(require('./environment.cjs').PRODUCTION?128:16)||!r.actorUids.includes(uid)||
- !Array.isArray(r.routes)||!r.routes.length||r.routes.length>48||!r.routes.includes(route))fail('PILOT_DISABLED');
+ !Array.isArray(r.routes)||!r.routes.length||r.routes.length>(r.routes.includes('/admin/gestao-institucional')?49:48)||new Set(r.routes).size!==r.routes.length||!r.routes.includes(route))fail('PILOT_DISABLED');
  return c;
 }
 class ReaderStore extends Store{
@@ -30,7 +30,7 @@ class ReaderStore extends Store{
   if(x.kind==='pilotConfig')return JSON.stringify({root:ROOT,shared:false,executor:'CANONICAL_READ_ONLY',epoch:this.control.revision,settings:{commands:this.control.readModelCommands,policyIds:this.control.policyIds,admissionsPerHour:0,jobs:[],activityAgendaDirect:false}});
   // Resolve the directory's prefetched states before deciding which aggregates
   // need derivation. Unknown discovery placeholders are not missing projections.
-  if(x.kind==='getAll'&&this.request.route==='/admin/membros'){
+  if(x.kind==='getAll'&&['/admin/membros','/admin/pessoas','/admin/pessoas/detalhe'].includes(this.request.route)){
    const result=super.io(raw);
    if(x.paths.some(p=>!this.active.cache.has(p)))fail('DISCOVERY_READ_PENDING');
    return result;
@@ -43,7 +43,8 @@ class ReaderStore extends Store{
  }
  async transaction(fn){
   this.metrics.transactions++;const started=performance.now();
-  try{return await this.db.runTransaction(async native=>{this.metrics.transactionAttempts++;return this.evaluate(fn,native);},bootstrapRoutes.includes(this.request.route)?{}:{readOnly:true});}
+  const derivedWriter=bootstrapRoutes.includes(this.request.route)&&!['/admin/pessoas','/admin/pessoas/detalhe'].includes(this.request.route);
+  try{return await this.db.runTransaction(async native=>{this.metrics.transactionAttempts++;return this.evaluate(fn,native);},derivedWriter?{}:{readOnly:true});}
   finally{this.metrics.transactionWallMs=(this.metrics.transactionWallMs||0)+performance.now()-started;}
  }
 }
@@ -72,7 +73,7 @@ async function readAct({db,auth,appCheck,token,appCheckToken,origin,body,hooks={
   await hooks.beforeReturn?.();await verify();control(pinned,identity.uid,request.route);
   // A read-only SDK transaction need not issue a commit. Explicitly recheck the
   // observed authorization/epoch versions after producing the DTO.
-  const paths=[...store.active.touched].filter(p=>/^(member|coreDevAdmins\/|projectionRecoveryControl\/|actStorageControl\/|actHistoricalFile|presentationArtifacts\/|canonicalPresentations\/|canonicalActivities\/|activityExecutorControl\/|portalReaderControl\/|portalReaderResourceFences\/|activityAttendanceRegistry\/|presentationCapacityHeads\/registry$)/.test(p));
+  const paths=[...store.active.touched].filter(p=>/^(institutionalOperationalParameters|institutionalParameter|institutionalDirectory|institutionalEditControl|institutionalNorm|institutionalPresentation|institutionalVisibilityControl|activityPolicies\/|presentationCycles\/|member|coreDevAdmins\/|projectionRecoveryControl\/|actStorageControl\/|actHistoricalFile|presentationArtifacts\/|canonicalPresentations\/|canonicalActivities\/|activityExecutorControl\/|portalReaderControl\/|portalReaderResourceFences\/|activityAttendanceRegistry\/|presentationCapacityHeads\/registry$)/.test(p));
   for(let i=0;i<paths.length;i+=180){
    const part=paths.slice(i,i+180),docs=await store.measure(()=>db.getAll(...part.map(p=>store.ref(p))));store.metrics.reads+=part.length;
    docs.forEach((d,j)=>{const old=store.active.cache.get(part[j]);if(d.exists!==old.exists||d.exists&&require('./firestore.cjs').encode(d.updateTime).timestampValue!==old.stamp)fail('ACCESS_REVOKED');});

@@ -6,7 +6,7 @@ const {PROJECT,ROOT,fail}=require('./environment.cjs');
 function queryPlan(db,plan,decode,specialized=false){
  if(specialized)return require('./reader-query.cjs').readerQuery(db,plan,decode);
  if(!plan||Object.keys(plan).some(k=>!['collection','filters','limit','order','cursor'].includes(k))||
-  !['calendarAssignments','canonicalActivities','presentationArtifacts','activityAttendance','memberAggregateHeads','presentationSessions','presentationObligations','activityTypes','presentationCycles','presentationUnitHeads','presentationCorrectionOpportunities'].includes(plan.collection)||
+  !['calendarAssignments','canonicalActivities','presentationArtifacts','activityAttendance','memberAggregateHeads','presentationSessions','presentationObligations','activityTypes','academicSemesters','presentationCycles','presentationUnitHeads','presentationCorrectionOpportunities'].includes(plan.collection)||
   !Number.isInteger(plan.limit)||plan.limit<1||plan.limit>(['canonicalActivities','presentationArtifacts'].includes(plan.collection)?100:20)||
   !Array.isArray(plan.filters)||plan.filters.length>1||
   JSON.stringify(plan.order)!==JSON.stringify([{field:'__name__',direction:'ASCENDING'}]))fail('QUERY_NOT_IN_PILOT');

@@ -7,7 +7,8 @@ function f4PortalReadModels_(options) {
  return ports.readWithAuthoritySnapshot((check,get)=>{
  const technical=f4DevAdmin_().profile(get,identity.uid,now),actor=technical?f4DevAdmin_().identify(get,identity.uid,now):f4MemberAuthz_().identify(get,identity.uid,now),docs={};
  const requested=options.viewIds?new Set(options.viewIds):null,wants=id=>!requested||requested.has(id),gate=get('portalReaderControl/current');
- const context=ports.context();
+ const context=ports.context(wants('context')&&!options.basisOnly);
+ const {navigation:discovery,...projectionContext}=context;
  const auth=ports.readAuthority(context.board?['activityAttendanceRegistry/current']:[],!context.board,context.board?'ACTIVITY_BOARD_READ':'ACTIVITY_AGENDA_READ_SELF');
  function basis(policyId,capability,kind,expiry) {
   if(technical)return {generation:get('portalReaderControl/current').generation,ownerUid:identity.uid,personId:actor.binding.idPessoa,bindingVersion:actor.binding.bindingVersion,personRevision:actor.actor.h.revision,authorityEpoch:actor.control.epoch,kind:'DEV_ADMIN',profileRevision:technical.revision,capability,issuedAt:F.Timestamp.fromMillis(now),expiresAt:F.Timestamp.fromMillis(Math.min(expiry,C.ms(technical.expiresAt)))};
@@ -34,7 +35,7 @@ function f4PortalReadModels_(options) {
  if(wants('activities')){
   start('activities');
   const prior=get('portalReaderViews/'+identity.uid+'/items/activities'),fence=get('portalReaderResourceFences/activities');
-  const signature=C.hash(F.encode({context:{...context,validUntil:0},settings:options.settings||{}}));
+  const signature=C.hash(F.encode({producer:'scoped-activity-agenda-v2',context:{...projectionContext,validUntil:0},settings:options.settings||{}}));
   const plan=gate.operationalWrites&&!options.forceFullActivityList?f4ActivityListPatchPlan_(prior,b,fence,signature,now):null;
   let lists;
   if(plan){
@@ -54,12 +55,12 @@ function f4PortalReadModels_(options) {
   N(JSON.stringify(F.encode(docs['portalReaderViews/'+identity.uid+'/items/activities'])).length<700000,'SCOPE_TOO_LARGE');
  }
  const detailIds=requested?[...requested].filter(id=>id.startsWith('activity_')):rows.map(row=>'activity_'+row.idAtividade);
- for(const id of detailIds){start(id);const params={idAtividade:id.slice(9)};add(id,b,{normal:compat.read('/atividades/detalhe',params),...(context.board?{admin:compat.read('/admin/atividades/detalhe',params)}:{})});}
+ for(const id of detailIds){start(id);const params={idAtividade:id.slice(9)};const activity=get('canonicalActivities/'+params.idAtividade),published=activity?.publicationStatus==='PUBLICADO'&&['PUBLIC','MEMBERS'].includes(activity.publishedVisibility);add(id,b,{normal:published?compat.read('/atividades/detalhe',params):null,...(context.board?{admin:compat.read('/admin/atividades/detalhe',params)}:{})});}
  // Empty frequency is preserved as an empty factual result, never invented
  // attendance or a percentage. Its epoch is checked independently by Rules.
  if(wants('frequency')){start('frequency');const fa=ports.readAuthority([],true,'ACTIVITY_ATTENDANCE_READ_SELF'),fb=basis(fa.q.sourceId,fa.q.capability,fa.q.kind,C.ms(fa.proof.expiresAt));options.proofs?.push(fa);
  const frequency=f4ActivitiesFrequencyCompat_({...options,ports}),result=options.basisOnly?null:frequency.read('/v2/minha-frequencia');fb.expiresAt=F.Timestamp.fromMillis(Math.min(C.ms(fb.expiresAt),frequency.validUntil()));
- check([fa]);add('frequency',fb,{epoch:get('activityAttendanceRegistry/current')?.epoch||0,result});}
+ check([fa]);add('frequency',fb,{producer:'frequency-cycle-v1',epoch:get('activityAttendanceRegistry/current')?.epoch||0,result});}
  // The enclosing source snapshot rechecks all proofs against fresh time and
  // fresh batched authority sources, never the earlier projection timestamp.
  return docs;
