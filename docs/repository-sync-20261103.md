@@ -11,15 +11,25 @@ published checkpoints. It does not deploy a service or authorize a parameter.
 DEV package checkpoint: `8d44b786bd1d`. Release-manifest SHA-256:
 `cfbac10f408c3a3882d56492d0206f7d794c83438b78e46fb4f7edf13f50545f`.
 The official-main reconciliation commit `ec7ec1bdc79c3794d0c6b2f05d3dcf42d7406da2`
-preserved that checkpoint's tree. Subsequent documentation commits do not
-change the deployed artifact.
+preserved that checkpoint's tree. The later lookup correction in
+`f047bef80c1a190269a8e22c605dfb99cdecde94` is source-ready, not deployed: it
+retains administrative authorization for model and presenter lookups without
+changing the ordinary SELF agenda reader. A new release must identify this
+delta explicitly; repository main is not a declaration of deployed bytes.
 
-Validation: 316 passing Node tests, seven emulator-dependent skips in that
+Validation: 318 passing Node tests, seven emulator-dependent skips in that
 run; the focused bootstrap/navigation/parameter emulator gate separately
 passed 36 tests/groups. Revocation, lack of ACT authority and response fences
 were covered. Private execution evidence and deployment overlays stay outside
-the repository. The full physical two-person parameter reversal remains a
-separate release gate until recorded; merging source does not claim that proof.
+the repository. Authenticated DEV proposal, distinct-person acknowledgement
+and activation were confirmed through the Portal, with matching receipt,
+audit, ownership and one history event per operation. A reverse proposal was
+also confirmed, but its acknowledgement/activation remain unproven: the second
+actor encountered `appCheck/recaptcha-error` before token exchange, and browser
+control subsequently stopped because it could not verify the active origin.
+Temporary DEV controls and synthetic policies were closed with CAS/readback.
+The synthetic value remains false at revision 2; no snapshot rollback or
+duplicate command was used. Production activation remains NO-GO.
 
 CI performs clean dependency installation, build, tests and local release
 packaging. It has read-only repository permissions and no deployment step.
