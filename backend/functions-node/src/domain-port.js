@@ -69,7 +69,7 @@ function nodeActivityRoute(input){
   if(type.portalModel?.memberPresentation){ports.recheckAuthority(auth);f4Core_().need(nodeConfig.environment!=='PROD','CONFIG_CAPABILITY_DISABLED');return {executor:'APPS_SCRIPT_DEV',routeId:null};}
   const real=f4ActivityRealExecutor_().preview(nodeRead,nodeConfig,p,nodeActor.uid,Date.now());
   if(real){ports.recheckAuthority(auth);return real;}
-  const policy=type.attendancePolicyRef&&nodeRead(f4ActivitiesModel_().path(type.attendancePolicyRef));payload={...payload,typeRef:{kind:'activityType',id:type.id},cycleRef:p.atividade?.cycleId?{kind:'cycle',id:p.atividade.cycleId}:policy?.cycleRef};
+  const context=f4ActivityCreationContext_(nodeRead,type,p.atividade||{},Date.now());payload={...payload,typeRef:{kind:'activityType',id:type.id},cycleRef:{kind:'cycle',id:context.cycleId}};
  }
  const r={commandType:op==='CREATE'||op==='EDIT'?'ACT.ACTIVITY_SAVE':op==='REALIZE'?'ACT.ACTIVITY_REALIZE':'ACT.ACTIVITY_PUBLICATION_SET',target:{expected:op==='CREATE'?[{kind:'activity',id:payload.activityRef.id,exists:false}]:[]},payload},routes=f4ActivityExecutorRoutes_(),id=routes.select(nodeRead,r,nodeConfig);
  if(!id){ports.recheckAuthority(auth);f4Core_().need(nodeConfig.environment!=='PROD','CONFIG_CAPABILITY_DISABLED');return {executor:'APPS_SCRIPT_DEV',routeId:null};}
