@@ -21,6 +21,3 @@ function fixture(n=3){const d={},activity='SYN_IMPORT_ACTIVITY',cycle='GEAPA_202
 }
 function intentFor(d){const h=setup(d);return {schemaVersion:'act-import-reconstruction-intent-v1',operationId:'SYN_RECOGNITION_1',cycleId:'GEAPA_2026',activityId:'SYN_IMPORT_ACTIVITY',closureEvidenceRef:ref('evidence','SYN_CLOSURE'),academicSemesterId:'SYN_SEM',typeId:'SYN_TYPE',typeRevision:1,typeCriteria:plain(h.ctx.f4ActivityConfigNormativeFields_('activityType',d['activityTypes/SYN_TYPE'])),policyId:'SYN_POLICY',policyRevision:1,historicalApplicability:{status:'PROVEN',sourceRefs:['SYNTHETIC_APPROVED_BASIS'],notClaimingCurrentRevisionExistedAtOriginalDate:true},factIds:Object.keys(d).filter(p=>p.startsWith('activityAttendance/')).map(p=>p.split('/')[1]),justificationIds:['SYN_J'],readSet:Object.entries(d).filter(([p])=>!p.endsWith('/current')&&!p.endsWith('/registry')).map(([path,data])=>({path,hash:hash(data)}))};}
 module.exports={fixture,intentFor,setup,hash,plain,ref};
-
-
-

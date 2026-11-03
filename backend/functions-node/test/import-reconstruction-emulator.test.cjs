@@ -11,4 +11,3 @@ test('full reconstruction transaction: CAS, read-set drift, concurrent owners, l
  await ref('activityAttendance/SYN_F0').update({revision:3});await a.rejects(rollback(),/LATER_EFFECT/);await ref('activityAttendance/SYN_F0').update({revision:2});await rollback();a.equal((await ref('canonicalActivities/'+intent.activityId).get()).data().recordMode,'HISTORICAL_PARTIAL');a.equal((await ref('activityAttendance/SYN_F0').get()).data().status,'ABSENT');a.equal((await ref('reconciliationReceipts/'+winning.operationId).get()).data().state,'COMPLETED');a.equal(hash(source),beforeHash);
  }finally{await db.terminate();}
 });
-
