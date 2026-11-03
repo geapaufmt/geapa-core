@@ -76,6 +76,29 @@ function f4ActivitiesModelFrequencyCommands_(x){
    M.civil(d.approvalDate);N(d.approvalDate<=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),'VALIDATION_ERROR','FUTURE_APPROVAL_DATE');
    const next={...d,state:'APPROVED',approval:record,recognizedAt:M.stamp(now)};
    revision(p.cycleRef,{...c,frequencyPlanning:{...c.frequencyPlanning,periods:periods.map(v=>v.periodId===d.periodId?next:v)}});history(p.cycleRef,'CYCLE_FREQUENCY_PLAN_APPROVED');fence();return {cycleRef:p.cycleRef,periodId:d.periodId,absenceLimit:d.absenceLimit,state:'APPROVED'};
+  },
+  CYCLE_FREQUENCY_PLAN_RECOGNIZE(){
+   const record=decision(),c=load(p.cycleRef,true);
+   N(p.cycleRef.kind==='cycle'&&c.recordMode==='NEW_V2'&&c.status==='OPEN','INVALID_STATE_TRANSITION','RECOGNITION_REQUIRES_OPEN_CYCLE');
+   N(c.frequencyPlanning==null,'INVALID_STATE_TRANSITION','ORIGINAL_PLANNING_ALREADY_RECORDED');
+   N(p.recognitionRef?.kind==='policy','VALIDATION_ERROR');
+   const approval=load(p.recognitionRef,true);
+   N(approval?.usage==='FREQUENCY_PLANNING_RECOGNITION'&&approval.active===true&&approval.approved===true&&approval.cycleRef?.id===c.id&&approval.cycleRef.kind==='cycle','AUTHORIZATION_DENIED','RECOGNITION_NOT_APPROVED');
+   N(approval.expectedCycleRevision===c.revision,'STALE_REVISION','RECOGNITION_CYCLE_CHANGED');
+   N(M.ms(approval.issuedAt)<=now&&now<M.ms(approval.expiresAt),'AUTHORIZATION_DENIED','RECOGNITION_APPROVAL_EXPIRED');
+   N(approval.planHash===M.hash(p.plan),'STALE_REVISION','RECOGNITION_PLAN_CHANGED');
+   N(Array.isArray(approval.sources)&&approval.sources.length>0&&approval.sources.length<=8,'UNRESOLVED_DEPENDENCY','RECOGNITION_SOURCES_REQUIRED');
+   for(const source of approval.sources){N(source.ref?.kind==='evidence'&&/^[a-f0-9]{64}$/.test(source.hash),'VALIDATION_ERROR');N(M.hash(load(source.ref,true))===source.hash,'STALE_REVISION','RECOGNITION_SOURCE_CHANGED');}
+   const policy=load(p.plan.policyRef,true),plan=f4CycleFrequencyPlanning_().validate(p.plan,c,policy);
+   N(approval.normativePolicyRef?.kind==='policy'&&approval.normativePolicyRef.id===p.plan.policyRef.id&&approval.normativePolicyRevision===policy.revision&&approval.normativeRulesHash===M.hash(policy.frequencyPlanning),'STALE_REVISION','RECOGNITION_NORM_CHANGED');
+   N(plan.classification==='PLANNED_MEETINGS'&&plan.normativeMeetingsCount>0&&plan.equivalenceEvidence.trim()&&approval.periodConfirmed===true,'HUMAN_DECISION_REQUIRED','RECOGNITION_EVIDENCE_REQUIRED');
+   N(typeof approval.approvalEvidence==='string'&&approval.approvalEvidence.trim()&&approval.approvalEvidence.length<=800,'HUMAN_DECISION_REQUIRED','RECOGNITION_APPROVAL_EVIDENCE_REQUIRED');
+   // Unknown original approval is represented as unknown, never replaced by now.
+   if(plan.approvalDate){M.civil(plan.approvalDate);N(plan.approvalDate<=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),'VALIDATION_ERROR','FUTURE_APPROVAL_DATE');}
+   const recognition={...record,approvalRef:p.recognitionRef,approvalRevision:approval.revision,sources:approval.sources,approvalEvidence:approval.approvalEvidence,originalApproval:{date:plan.approvalDate||null,precision:plan.approvalDate?'DAY':'UNKNOWN',body:plan.approvingBody||null,evidence:plan.approvalEvidence||null}};
+   const next={...plan,state:'APPROVED',planRevision:1,definitionHash:M.hash(plan),recognition,recognizedAt:M.stamp(now)};
+   revision(p.cycleRef,{...c,frequencyPlanning:{schemaVersion:'cycle-frequency-planning-v1',periods:[next]}});
+   history(p.cycleRef,'CYCLE_ORIGINAL_FREQUENCY_PLAN_RECOGNIZED');fence();return {cycleRef:p.cycleRef,periodId:plan.periodId,absenceLimit:plan.absenceLimit,state:'APPROVED',cycleStatus:c.status};
   }
  };
 }
@@ -84,14 +107,15 @@ function f4ActivityModelFrequencyCompatRoutes_(){return {
  '/admin/atividades/modelos/aprovar':'ACTIVITY_MODEL_APPROVE',
  '/admin/atividades/modelos/disponibilidade':'ACTIVITY_MODEL_AVAILABILITY_SET',
  '/admin/ciclos-semestres/frequencia/salvar':'CYCLE_FREQUENCY_PLAN_SAVE',
- '/admin/ciclos-semestres/frequencia/aprovar':'CYCLE_FREQUENCY_PLAN_APPROVE'
+ '/admin/ciclos-semestres/frequencia/aprovar':'CYCLE_FREQUENCY_PLAN_APPROVE',
+ '/admin/ciclos-semestres/frequencia/reconhecer':'CYCLE_FREQUENCY_PLAN_RECOGNIZE'
 };}
 function f4ActivityModelFrequencyCompat_(options){
  const M=f4ActivitiesModel_(),C=f4Core_(),N=M.need,db=f4Firestore_().connect(options.config),ports=options.ports;
  function prepare(input){
   C.exact(input,['operationId','route','payload']);const cmd=f4ActivityModelFrequencyCompatRoutes_()[input.route],p=input.payload;N(cmd,'VALIDATION_ERROR');
   const model=cmd.startsWith('ACTIVITY_MODEL_'),ref=M.ref(model?'activityType':'cycle',p.id||(cmd==='ACTIVITY_MODEL_DRAFT_SAVE'?'cfg_'+input.operationId:''));
-  const extra={ACTIVITY_MODEL_DRAFT_SAVE:['definition'],ACTIVITY_MODEL_APPROVE:['definitionHash','evidence'],ACTIVITY_MODEL_AVAILABILITY_SET:['status'],CYCLE_FREQUENCY_PLAN_SAVE:['plan'],CYCLE_FREQUENCY_PLAN_APPROVE:['periodId','definitionHash']}[cmd];
+  const extra={ACTIVITY_MODEL_DRAFT_SAVE:['definition'],ACTIVITY_MODEL_APPROVE:['definitionHash','evidence'],ACTIVITY_MODEL_AVAILABILITY_SET:['status'],CYCLE_FREQUENCY_PLAN_SAVE:['plan'],CYCLE_FREQUENCY_PLAN_APPROVE:['periodId','definitionHash'],CYCLE_FREQUENCY_PLAN_RECOGNIZE:['plan','recognitionRef']}[cmd];
   C.exact(p,['id','revision','reason',...extra]);N(Number.isInteger(p.revision)&&p.revision>=0,'VALIDATION_ERROR');
   const auth=ports.readAuthority(['activityAttendanceRegistry/current'],false),old=db.get(M.path(ref));N((old?.revision||0)===p.revision,'STALE_REVISION');
   const payload={[model?'typeRef':'cycleRef']:ref,reason:p.reason};for(const k of extra)payload[k]=p[k];
