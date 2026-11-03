@@ -2,7 +2,7 @@
 const a=require('node:assert/strict'),{seed}=require('./fixtures.cjs'),{decode,encode}=require('../src/firestore.cjs'),{createDomain}=require('../src/domain.cjs');
 function setup(role='DIRETOR_RECURSOS_HUMANOS',change=()=>{}){
  const f=seed(),docs=Object.fromEntries(Object.entries(f.docs).map(([p,v])=>[p,decode({mapValue:v})]));
- const scope=role==='DIRETOR_RECURSOS_HUMANOS'?'RECURSOS_HUMANOS':'PRESIDENCIA';
+ const scope=role==='DIRETOR_RECURSOS_HUMANOS'?'RECURSOS_HUMANOS':role==='DIRETOR_ADMINISTRATIVO'?'ADMINISTRACAO':'PRESIDENCIA';
  docs['memberRoleCatalog/CARGO-001'].roleKey=role;docs['memberFunctions/VIG-001'].scopeKey=scope;
  const policy=docs['memberAuthzPolicies/CF_DEV_ACT_POLICY'];policy.capabilities=['ACTIVITY_BOARD_READ'];policy.fieldMasks={ACTIVITY_BOARD_READ:[]};policy.actorSelector={kind:'ROLE',roleKey:role,group:'DIRETORIA',actorScope:scope};
  // No technical DEV_ADMIN and no production identity or credentials.
