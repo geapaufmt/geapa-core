@@ -18,7 +18,7 @@ function f4InstitutionalNorms_(){
    const direct=['DOC_ID','DOC_ALVO','DOCUMENTO_RELACIONADO_ID'].map(k=>({key:k,value:field(r,k)})).filter(x=>x.value);
    const base=field(r,'BASE_LEGAL'),device=field(r,'DISPOSITIVO_ID');
    if(base)direct.push({key:'BASE_LEGAL',value:base});if(device)direct.push({key:'DISPOSITIVO_ID',value:device});
-   return direct.flatMap(x=>{if(byId.has(x.value))return [{versionId:x.value,evidence:x.key+' = '+x.value}];const linked=all.get(x.value),doc=linked&&field(linked,'DOC_ID');return linked?.kind==='DISPOSITIVOS_NORMATIVOS'&&byId.has(doc)?[{versionId:doc,evidence:x.key+' = '+x.value+' → DOC_ID = '+doc}]:[];});
+   return direct.flatMap(x=>x.value.split(/[;,]/).map(value=>({key:x.key,value:value.trim()}))).filter(x=>x.value).flatMap(x=>{if(byId.has(x.value))return [{versionId:x.value,evidence:x.key+' = '+x.value}];const linked=all.get(x.value),doc=linked&&field(linked,'DOC_ID');return linked?.kind==='DISPOSITIVOS_NORMATIVOS'&&byId.has(doc)?[{versionId:doc,evidence:x.key+' = '+x.value+' → DOC_ID = '+doc}]:[];});
   }
   for(const r of records){let links=r.kind==='DOCUMENTOS_NORMATIVOS'?[{versionId:r.id,evidence:'Identidade documental DOC_ID'}]:targets(r);links=links.filter((x,i,a)=>a.findIndex(y=>y.versionId===x.versionId)===i);
    const explicit=field(r,'DOC_ID')||field(r,'DOC_ALVO');if(explicit&&!byId.has(explicit))links=[];
