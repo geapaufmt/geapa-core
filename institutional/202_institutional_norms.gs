@@ -50,10 +50,10 @@ function f4InstitutionalNormRead_(options,params){
   else if(params.instrument==='UNRESOLVED')rows=rows.filter(r=>!r.relation.links.length);else if(params.instrument)rows=rows.filter(r=>r.relation.links.some(l=>l.instrumentId===params.instrument));
   const hiddenCount=rows.filter(r=>r.presentation?.hidden===true).length;
   rows=rows.filter(r=>params.visibility==='ALL'||(params.visibility==='HIDDEN')===(r.presentation?.hidden===true)).filter(r=>!params.query||normalize(r.id+' '+r.title+' '+r.fields.map(f=>f.value).join(' ')).includes(normalize(params.query)));
-  rows.sort((a,b)=>a.relation.group.localeCompare(b.relation.group)||a.id.localeCompare(b.id));
+  const order=['versions','provisions','proposals','faq','explanations','parameters','governance'];rows.sort((a,b)=>order.indexOf(a.relation.group)-order.indexOf(b.relation.group)||(a.relation.group==='versions'?Number(b.relation.links.some(l=>l.current))-Number(a.relation.links.some(l=>l.current)):0)||a.id.localeCompare(b.id));
   // Do not expose relationships/contents from sections without a read policy or fields mask.
   const safeIndex={...idx,relations:undefined};delete safeIndex.relations;
-  return {ok:true,data:{schemaVersion:'institutional-instruments-view-v1',section:params.section,index:safeIndex,instrument:params.instrument,items:rows.slice((params.page-1)*40,params.page*40),total:rows.length,page:params.page,pages:Math.max(1,Math.ceil(rows.length/40)),hiddenCount,unavailableSections:unavailable,revision:sections[params.section].revision,validUntil:Math.min(...auths.map(a=>a.validUntil)),publicationEnabled:false}};
+  return {ok:true,data:{schemaVersion:'institutional-instruments-view-v1',section:params.section,index:safeIndex,instrument:params.instrument,items:params.section==='norms'&&!params.instrument?[]:rows.slice((params.page-1)*40,params.page*40),total:rows.length,page:params.page,pages:Math.max(1,Math.ceil(rows.length/40)),hiddenCount,unavailableSections:unavailable,revision:sections[params.section].revision,validUntil:Math.min(...auths.map(a=>a.validUntil)),publicationEnabled:false}};
  });
 }
 
