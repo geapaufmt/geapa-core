@@ -175,6 +175,7 @@ function f4AttendanceCommands_(x) {
    N(end>start&&end-start<=86400000,'VALIDATION_ERROR');N(['SCHEDULED','CANCELLED'].includes(p.status),'VALIDATION_ERROR');
    const attendancePolicy=type.attendancePolicyRef?load(type.attendancePolicyRef):null,cycleContext=f4ActivityCycleContext_(x.get,p.cycleRef||old?.cycleRef||attendancePolicy?.cycleRef,p.academicSemesterRef||(old?.academicSemesterId?M.ref('academicSemester',old.academicSemesterId):null),M.day(start));
    if(type.governance&&(!old||old.typeRef.id!==p.typeRef.id))N(type.governance.state==='APPROVED'&&(!type.attendancePolicyRef||attendancePolicy?.revision===type.governance.attendancePolicyRevision),'STALE_REVISION','MODEL_POLICY_CHANGED');
+   if(type.governance&&(!old||old.typeRef.id!==p.typeRef.id||old.cycleId!==cycleContext.cycleId))N(f4OriginalModelUsage_(x.get,type,cycleContext.cycleId),'AUTHORIZATION_DENIED','MODEL_USAGE_NOT_AUTHORIZED');
    const c=load(collectionRef(p.activityRef),false,true),structural=old&&(old.typeRef.id!==p.typeRef.id||M.ms(old.startsAt)!==start||M.ms(old.endsAt)!==end||old.cycleId!==cycleContext.cycleId||(old.academicSemesterId||null)!==cycleContext.academicSemesterId);
    N(!old?.realizationRef&&(!structural||!c||c.state==='DRAFT'&&c.rosterCount===0&&!c.preRosterFactCount),'INVALID_STATE_TRANSITION','ACTIVITY_ALREADY_COLLECTING');
    if(old?.presentationSessionRef&&(M.ms(old.startsAt)!==start||M.ms(old.endsAt)!==end))f4ActivitiesApplyActivityCalendar_(x,old);

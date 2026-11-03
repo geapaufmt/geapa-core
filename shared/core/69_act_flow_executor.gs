@@ -48,7 +48,8 @@ function f4ActCycleBoundary_(){
  const list=(v,n)=>Array.isArray(v)&&v.length<=n&&new Set(v).size===v.length;
  const catalogs=['activityTypes','activityPolicies','activityAttachmentPolicies','academicSemesters','presentationAxes','presentationPolicyReferences','migrationEvidence'];
  function validate(s){
-  N(s&&Object.keys(s).sort().join()===['schemaVersion','cycleIds','readOnlyPaths','commands'].sort().join()&&s.schemaVersion==='act-cycle-boundary-v1','SCOPE_INVALID');
+  N(s&&Object.keys(s).sort().join()===['schemaVersion','cycleIds','readOnlyPaths','commands',...('originalModelUsage'in s?['originalModelUsage']:[])].sort().join()&&s.schemaVersion==='act-cycle-boundary-v1','SCOPE_INVALID');
+  N(!('originalModelUsage'in s)||s.originalModelUsage===true&&s.commands.length===1&&s.commands[0]==='ACT.ACTIVITY_SAVE','SCOPE_INVALID');
   N(list(s.cycleIds,8)&&s.cycleIds.length>0&&s.cycleIds.every(C.id)&&list(s.readOnlyPaths,80)&&s.readOnlyPaths.every(p=>M.validPath(p)&&p.split('/').length===2&&(catalogs.includes(p.split('/')[0])||['presentationCapacityHeads/registry','activityAttendanceRegistry/current'].includes(p))),'SCOPE_INVALID');
   N(list(s.commands,80)&&s.commands.length>0&&s.commands.every(c=>typeof c==='string'&&c.startsWith('ACT.')&&Object.prototype.hasOwnProperty.call(f4ActivitiesContracts_(),c.slice(4)))&&!s.commands.some(c=>['ACT.CYCLE_FREQUENCY_PLAN_RECOGNIZE','ACT.ACTIVITY_PROMOTE_OPERATIONAL','ACT.HISTORICAL_PREAGENDA_RECOGNIZE','ACT.ACTIVITY_ADMIN_REVIEW'].includes(c)),'SCOPE_INVALID');return s;
  }
@@ -70,7 +71,7 @@ function f4ActCycleBoundary_(){
   }
   const result=ids.length&&new Set(ids).size===1?ids[0]:null;if(result)cache.set(path,result);return result;
  }
- function contains(get,path,s,readOnly){validate(s);if(readOnly&&s.readOnlyPaths.includes(path))return !!get(path);if(s.readOnlyPaths.includes(path))return false;const id=cycle(get,path);return !!id&&s.cycleIds.includes(id)&&get('presentationCycles/'+id)?.recordMode!=='HISTORICAL_PARTIAL'&&get('presentationCycles/'+id)?.id===id;}
+ function contains(get,path,s,readOnly){validate(s);if(readOnly&&s.originalModelUsage===true&&/^activityTypes\/[A-Za-z0-9_-]+$/.test(path)&&s.cycleIds.some(id=>f4OriginalModelUsage_(get,get(path),id)))return true;if(readOnly&&s.readOnlyPaths.includes(path))return !!get(path);if(s.readOnlyPaths.includes(path))return false;const id=cycle(get,path);return !!id&&s.cycleIds.includes(id)&&get('presentationCycles/'+id)?.recordMode!=='HISTORICAL_PARTIAL'&&get('presentationCycles/'+id)?.id===id;}
  return {validate,cycle,contains};
 }
 

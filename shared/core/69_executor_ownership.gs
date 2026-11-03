@@ -129,7 +129,7 @@ function f4ActivityExecutorRoutes_(){
   const op=operation(r),id=r.payload?.activityRef?.id,a=get('canonicalActivities/'+id),create=op==='CREATE',type=create?r.payload.typeRef:a?.typeRef;
   const template=create&&!r.payload.cycleRef&&type?get('activityTypes/'+type.id):null,policy=template?.attendancePolicyRef?get('activityPolicies/'+template.attendancePolicyRef.id):null,cycle=create?r.payload.cycleRef||policy?.cycleRef:a?.cycleRef;
   if(a?.presentationSessionRef||a?.recordMode==='HISTORICAL_PARTIAL')return false;
-  if(!cycle||!type||!v.cycleIds.includes(cycle.id)||!v.typeIds.includes(type.id)||v.resourceIds.length&&!v.resourceIds.includes(id))return false;
+  if(!cycle||!type||!v.cycleIds.includes(cycle.id)||!(v.typeIds.includes(type.id)||create&&v.originalModelUsage===true&&f4OriginalModelUsage_(get,get('activityTypes/'+type.id),cycle.id))||v.resourceIds.length&&!v.resourceIds.includes(id))return false;
   const scope=get('activityExecutorScopes/'+cycle.id);
   N(f4ExecutionEnvironment_().scope(scope)&&scope.cycleId===cycle.id,'ACCESS_REVOKED');return true;
  }

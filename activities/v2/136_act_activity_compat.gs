@@ -32,7 +32,7 @@ function f4ActivitiesActivityCompat_(options){
     N(a.revision===item.sourceActivityRevision&&(c?.revision||0)===item.sourceCollectionRevision,'STALE_REVISION','AGENDA_CHANGED');data[item.id]=priorJustification(a,c,scope.auth.personId);
    }
   }
-  else if(route==='/atividades/modelos'){N(scope.admin,'AUTHORIZATION_DENIED');data={modelos:all('activityTypes').filter(r=>r.data.status==='ACTIVE'&&r.data.portalModel).map(r=>f4ActivityPortalModelDto_(r.data))};}
+  else if(route==='/atividades/modelos'){N(scope.admin,'AUTHORIZATION_DENIED');data={modelos:all('activityTypes').filter(r=>r.data.status==='ACTIVE'&&r.data.portalModel).map(r=>({...f4ActivityPortalModelDto_(r.data),...(r.data.governance?{originalModel:true,usageContexts:(r.data.governance.usageAuthorizations||[]).filter(g=>f4OriginalModelUsage_(p=>db.get(p),r.data,g.cycleRef.id)).map(g=>({id:g.cycleRef.id,label:db.get(M.path(g.cycleRef))?.cycleLabel||g.cycleRef.id}))}:{})})).filter(v=>!v.originalModel||v.usageContexts.length)};}
   else if(['/atividades/detalhe','/admin/atividades/detalhe'].includes(route)){
    N(M.id(params.idAtividade),'VALIDATION_ERROR');const a=db.get('canonicalActivities/'+params.idAtividade);N(a&&a.sourceSnapshotState!=='ABSENT_FROM_CURRENT_SNAPSHOT'&&(scope.admin||a.publicationStatus==='PUBLICADO'&&['PUBLIC','MEMBERS'].includes(a.publishedVisibility)),'AUTHORIZATION_DENIED');
    if(admin)relatedProofs.push(ports.readAuthority(['canonicalActivities/'+a.id],false,'ACTIVITY_BOARD_READ'));
@@ -95,6 +95,7 @@ function f4ActivitiesActivityCompat_(options){
   N(typeof v.tituloPublico==='string'&&v.tituloPublico.trim()&&v.tituloPublico.length<=180&&typeof v.local==='string'&&v.local.trim(),'INCOMPLETE_REQUEST');
   const details=f4ActivityPortalDetails_(Object.fromEntries(Object.entries(v).filter(([k])=>['descricaoPublica','descricaoInterna','formato','responsavelInterno','responsavelEmail','publicoAlvo','observacoes'].includes(k))));N(details.formato,'INCOMPLETE_REQUEST');
   const cycleRef=v.cycleId?M.ref('cycle',v.cycleId):type.attendancePolicyRef?db.get(M.path(type.attendancePolicyRef))?.cycleRef:null,academicSemesterRef=v.academicSemesterId?M.ref('academicSemester',v.academicSemesterId):null;f4ActivityCycleContext_(p=>db.get(p),cycleRef,academicSemesterRef,v.dataAtividade);
+  if(type.governance)N(f4OriginalModelUsage_(p=>db.get(p),type,cycleRef?.id),'AUTHORIZATION_DENIED','MODEL_USAGE_NOT_AUTHORIZED');
   return {type,cycleRef,academicSemesterRef,temporal:temporal(v),details,modelContent,token:M.hash({idConfig:type.id,revision:type.revision,atividade:v,modelContent})};
  }
  function preview(body){return ports.withSourceSnapshot(()=>{const auth=board(),v=creation(body);recheck(auth);return {ok:true,data:{atividadePreview:{...body.atividade,statusOperacional:'PLANEJADA',statusPublicacaoPortal:'RASCUNHO',visibilidadePortal:'DIRETORIA'},confirmacaoToken:v.token}};});}

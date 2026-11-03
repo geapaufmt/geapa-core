@@ -21,6 +21,19 @@ function f4ActivityModelDefinition_(d,load){
  if(d.attendancePolicyRef){N(d.attendancePolicyRef.kind==='attendancePolicy','VALIDATION_ERROR');const policy=load(d.attendancePolicyRef,true);f4ActivityFrequencyPolicy_(policy);policyRevision=policy.revision;}
  return {...d,portalModel:m,policyRevision};
 }
+// Definition approval and permission to use it in a cycle are separate decisions.
+// Read at admission and again in the transaction; never authorize by ID prefix.
+function f4OriginalModelUsage_(get,type,cycleId){
+ const M=f4ActivitiesModel_();
+ if(type?.recordMode!=='NEW_V2'||type.status!=='ACTIVE'||type.governance?.schemaVersion!=='original-activity-model-v1'||type.governance.state!=='APPROVED')return false;
+ const cycle=get('presentationCycles/'+cycleId),grant=type.governance.usageAuthorizations?.find(v=>v.cycleRef?.id===cycleId&&v.cycleRef.kind==='cycle');
+ if(cycle?.recordMode!=='NEW_V2'||cycle.status!=='OPEN'||!grant?.enabled||grant.definitionHash!==type.governance.definitionHash)return false;
+ const fields={};for(const k of ['name','durationMinutes','visibility','countsAttendance','countsAbsence','allowsJustification','portalModel','purpose','organizer','participantTypes','allowedFormats','academicRequirements','attendancePolicyRef'])if(k in type)fields[k]=type[k];
+ if(M.hash(fields)!==grant.definitionHash)return false;
+ if(type.countsAttendance&&!type.attendancePolicyRef)return false;
+ if(type.attendancePolicyRef){const p=get(M.path(type.attendancePolicyRef));if(p?.recordMode!=='NEW_V2'||p.approved!==true||p.active===false||p.cycleRef?.id!==cycleId||p.revision!==grant.attendancePolicyRevision||p.revision!==type.governance.attendancePolicyRevision)return false;try{f4ActivityFrequencyPolicy_(p);}catch(e){return false;}}
+ return true;
+}
 function f4CycleFrequencyPlanning_(){
  const M=f4ActivitiesModel_(),C=f4Core_(),N=M.need;
  function validate(plan,cycle,policy){
@@ -61,6 +74,19 @@ function f4ActivitiesModelFrequencyCommands_(x){
    revision(p.typeRef,{...d,status:'ACTIVE',decision:{...approval,evidence:p.evidence},governance:{...d.governance,state:'APPROVED',approval:{...approval,evidence:p.evidence}}});history(p.typeRef,'ACTIVITY_ORIGINAL_MODEL_APPROVED');fence();return {typeRef:p.typeRef,state:'APPROVED'};
   },
   ACTIVITY_MODEL_AVAILABILITY_SET(){const record=decision(),d=model();N(d.governance.state==='APPROVED'&&['ACTIVE','INACTIVE'].includes(p.status),'INVALID_STATE_TRANSITION');revision(p.typeRef,{...d,status:p.status,availabilityDecision:record});history(p.typeRef,'ACTIVITY_MODEL_AVAILABILITY_CHANGED');fence();return {typeRef:p.typeRef,status:p.status};},
+  ACTIVITY_MODEL_USAGE_SET(){
+   const record=decision(),d=model(),c=load(p.cycleRef,true);
+   N(p.cycleRef.kind==='cycle'&&c.recordMode==='NEW_V2'&&c.status==='OPEN','INVALID_STATE_TRANSITION','MODEL_USAGE_REQUIRES_OPEN_CYCLE');
+   N(typeof p.enabled==='boolean'&&d.governance.state==='APPROVED','INVALID_STATE_TRANSITION');
+   N(p.definitionHash===d.governance.definitionHash,'STALE_REVISION','MODEL_DEFINITION_CHANGED');
+   N(typeof p.evidence==='string'&&p.evidence.trim()&&p.evidence.length<=800,'HUMAN_DECISION_REQUIRED','MODEL_USAGE_EVIDENCE_REQUIRED');
+   const grants=d.governance.usageAuthorizations||[],old=grants.find(v=>v.cycleRef.id===c.id);
+   N(old||grants.length<8,'SCOPE_TOO_LARGE');
+   const grant={cycleRef:p.cycleRef,enabled:p.enabled,definitionHash:p.definitionHash,attendancePolicyRevision:d.governance.attendancePolicyRevision,decision:{...record,evidence:p.evidence.trim()}},next={...d,governance:{...d.governance,usageAuthorizations:[...grants.filter(v=>v.cycleRef.id!==c.id),grant]}};
+   if(d.attendancePolicyRef)load(d.attendancePolicyRef,true);
+   N(!p.enabled||f4OriginalModelUsage_(x.get,next,c.id),'CONFIG_CAPABILITY_DISABLED','MODEL_USAGE_INCOMPATIBLE');
+   revision(p.typeRef,next);history(p.typeRef,p.enabled?'ACTIVITY_MODEL_USAGE_AUTHORIZED':'ACTIVITY_MODEL_USAGE_REVOKED');fence();return {typeRef:p.typeRef,cycleRef:p.cycleRef,enabled:p.enabled};
+  },
   CYCLE_FREQUENCY_PLAN_SAVE(){
    const record=decision(),c=cycle(),policy=load(p.plan.policyRef,true),plan=f4CycleFrequencyPlanning_().validate(p.plan,c,policy),periods=c.frequencyPlanning?.periods||[],old=periods.find(v=>v.periodId===plan.periodId);
    N(!old||old.state==='DRAFT','INVALID_STATE_TRANSITION','ORIGINAL_PLANNING_LOCKED');
@@ -106,6 +132,7 @@ function f4ActivityModelFrequencyCompatRoutes_(){return {
  '/admin/atividades/modelos/original':'ACTIVITY_MODEL_DRAFT_SAVE',
  '/admin/atividades/modelos/aprovar':'ACTIVITY_MODEL_APPROVE',
  '/admin/atividades/modelos/disponibilidade':'ACTIVITY_MODEL_AVAILABILITY_SET',
+ '/admin/atividades/modelos/uso':'ACTIVITY_MODEL_USAGE_SET',
  '/admin/ciclos-semestres/frequencia/salvar':'CYCLE_FREQUENCY_PLAN_SAVE',
  '/admin/ciclos-semestres/frequencia/aprovar':'CYCLE_FREQUENCY_PLAN_APPROVE',
  '/admin/ciclos-semestres/frequencia/reconhecer':'CYCLE_FREQUENCY_PLAN_RECOGNIZE'
@@ -115,7 +142,7 @@ function f4ActivityModelFrequencyCompat_(options){
  function prepare(input){
   C.exact(input,['operationId','route','payload']);const cmd=f4ActivityModelFrequencyCompatRoutes_()[input.route],p=input.payload;N(cmd,'VALIDATION_ERROR');
   const model=cmd.startsWith('ACTIVITY_MODEL_'),ref=M.ref(model?'activityType':'cycle',p.id||(cmd==='ACTIVITY_MODEL_DRAFT_SAVE'?'cfg_'+input.operationId:''));
-  const extra={ACTIVITY_MODEL_DRAFT_SAVE:['definition'],ACTIVITY_MODEL_APPROVE:['definitionHash','evidence'],ACTIVITY_MODEL_AVAILABILITY_SET:['status'],CYCLE_FREQUENCY_PLAN_SAVE:['plan'],CYCLE_FREQUENCY_PLAN_APPROVE:['periodId','definitionHash'],CYCLE_FREQUENCY_PLAN_RECOGNIZE:['plan','recognitionRef']}[cmd];
+  const extra={ACTIVITY_MODEL_DRAFT_SAVE:['definition'],ACTIVITY_MODEL_APPROVE:['definitionHash','evidence'],ACTIVITY_MODEL_AVAILABILITY_SET:['status'],ACTIVITY_MODEL_USAGE_SET:['cycleRef','enabled','definitionHash','evidence'],CYCLE_FREQUENCY_PLAN_SAVE:['plan'],CYCLE_FREQUENCY_PLAN_APPROVE:['periodId','definitionHash'],CYCLE_FREQUENCY_PLAN_RECOGNIZE:['plan','recognitionRef']}[cmd];
   C.exact(p,['id','revision','reason',...extra]);N(Number.isInteger(p.revision)&&p.revision>=0,'VALIDATION_ERROR');
   const auth=ports.readAuthority(['activityAttendanceRegistry/current'],false),old=db.get(M.path(ref));N((old?.revision||0)===p.revision,'STALE_REVISION');
   const payload={[model?'typeRef':'cycleRef']:ref,reason:p.reason};for(const k of extra)payload[k]=p[k];
