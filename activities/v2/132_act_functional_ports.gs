@@ -185,7 +185,7 @@ function f4ActivitiesFunctionalPorts_(options){
   }return false;
  }
  function commandConfigured(command){return settings.commands.includes(command)&&!!f4ActivitiesContracts_()[command];}
- function context(includeNavigation=true){return readWithAuthoritySnapshot(recheck=>{
+ function activityContext(includeNavigation=true){return readWithAuthoritySnapshot(recheck=>{
   let auth,board=false,materialOnly=false;try{auth=readAuthority(['activityAttendanceRegistry/current'],false);board=true}catch(e){if(!['AUTHORIZATION_DENIED','AUTH_BINDING_INVALID','ACCESS_REVOKED','M13_AUTHZ_DENIED'].includes(e.code))throw e;try{auth=readAuthority([],true,'ACTIVITY_AGENDA_READ_SELF');}catch(inner){if(!['AUTHORIZATION_DENIED','AUTH_BINDING_INVALID','ACCESS_REVOKED','M13_AUTHZ_DENIED'].includes(inner.code))throw inner;auth=readAuthority([],true,'PRESENTATION_MATERIAL_READ_SELF');materialOnly=true;}}
   const head=get('memberAggregateHeads/'+auth.personId),person=get('memberIdentities/'+auth.personId),profile=get('memberPortalProfiles/'+auth.personId);
   N(head&&person,'UNRESOLVED_DEPENDENCY');recheck([auth]);
@@ -194,6 +194,19 @@ function f4ActivitiesFunctionalPorts_(options){
   const navigation=includeNavigation?f4AdministrativeNavigationHints_({get,identity,now:clock(),board,probe:(resources,capability,scope)=>{const proof=readAuthority(resources,false,capability,scope);recheck([proof]);}}):null;
   return {schemaVersion:'act-portal-context-v1',operationalPreferences:f4InstitutionalParameters_().preference(get),idPessoa:auth.personId,nome:profile?.sourceRevision===head.revision?profile.displayLabel:person.displayName||'',accessProfile:auth.proof.kind==='DEV_ADMIN'?'DEV_ADMIN':null,board,materialOnly,...(navigation?{navigation}:{}),activityAgendaDirect:settings.activityAgendaDirect===true,canManageActivity:board&&hints.has('ACTIVITY_MANAGE')&&settings.commands.includes('ACTIVITY_SAVE'),canRealizeActivity:board&&hints.has('ACTIVITY_REALIZATION_MANAGE')&&settings.commands.includes('ACTIVITY_REALIZE'),canConfigureActivity:board&&hints.has('ACTIVITY_CONFIG_MANAGE')&&settings.commands.includes('ACTIVITY_TYPE_SAVE'),canCreateActivity:board&&hints.has('ACTIVITY_MANAGE')&&settings.commands.includes('ACTIVITY_SAVE'),canRegisterAttendance:board&&hints.has('ACTIVITY_ATTENDANCE_MANAGE')&&settings.commands.includes('ATTENDANCE_FINALIZE'),validUntil:Math.min(identity.expiresAt,clock()+60000,navigation?.validUntil??Infinity)};
  });}
+ // Institutional consultation has independent canonical ROLE policies.
+ // Never renew unrelated ACT privileges merely to enter another module.
+ function context(includeNavigation=true){
+  try{return activityContext(includeNavigation);}catch(e){
+   if(!includeNavigation||!['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code))throw e;
+   return sourceSnapshot(()=>{
+    const result=f4InstitutionalBootstrapContext_({get,identity,now:clock()}),entries=[...snapshot.entries()],paths=entries.map(([p])=>p);
+    options.authorityPaths?.push(...paths);
+    sourceSnapshot(()=>{for(const [p,v] of entries)N(C.hash(get(p)==null?null:F.encode(get(p)))===C.hash(v==null?null:F.encode(v)),'ACCESS_REVOKED');f4InstitutionalBootstrapContext_({get,identity,now:clock()});},true,paths);
+    return result;
+   },true);
+  }
+ }
  function authorizePrepared(reader,request){
   N(request?.commandType?.startsWith('ACT.')&&settings.commands.includes(request.commandType.slice(4)),'CONFIG_CAPABILITY_DISABLED');
   const q=f4ActivitiesPipeline_().authorization(reader,request,identity,clock(),identity.expiresAt)[0];

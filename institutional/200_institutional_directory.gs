@@ -55,6 +55,24 @@ function f4InstitutionalPolicies_(get,identity,now,ids,cap,path){
  return {actor,policies,mask:[...new Set(policies.flatMap(p=>p.fieldMasks[cap]))],validUntil:Math.min(now+60000,identity.expiresAt,C.ms(actor.state.validUntil),C.ms(actor.derived.state.validUntil),...policies.map(p=>C.ms(p.expiresAt)))};
 }
 
+// Minimal shell context, not ACT authority. No private directory or ACT facts.
+function f4InstitutionalBootstrapContext_({get,identity,now}){
+ const C=f4Core_(),N=C.need,control=get('institutionalDirectoryControl/current');
+ N(control?.schemaVersion==='institutional-directory-control-v1'&&control.enabled===true,'AUTHORIZATION_DENIED');
+ const routes={'admin-atividades':false,'admin-justificativas':false,'admin-eixos-tematicos':false,'diretoria-competencias':false,'perfis-permissoes':false,'admin-apresentacoes':false};
+ let authority=null,validUntil=Math.min(identity.expiresAt,now+60000);
+ for(const section of ['identity','parameters','norms','governance']){
+  routes['institutional-'+section]=false;
+  try{const auth=f4InstitutionalPolicies_(get,identity,now,control.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/'+section);
+   if(auth.mask.includes('summary')){authority=auth;routes['institutional-'+section]=true;validUntil=Math.min(validUntil,auth.validUntil);}
+  }catch(e){if(!['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
+ }
+ N(authority,'AUTHORIZATION_DENIED');const actor=authority.actor,personId=actor.actor.h.id,person=get('memberIdentities/'+personId);N(person,'UNRESOLVED_DEPENDENCY');
+ return {schemaVersion:'act-portal-context-v1',idPessoa:personId,nome:person.displayName||'',accessProfile:null,board:false,materialOnly:false,institutionalOnly:true,
+  navigation:{schemaVersion:'admin-navigation-hints-v1',director:actor.derived.currentDirectors.length>0,validUntil,routes},activityAgendaDirect:false,
+  canManageActivity:false,canRealizeActivity:false,canConfigureActivity:false,canCreateActivity:false,canRegisterAttendance:false,validUntil};
+}
+
 function f4InstitutionalDirectoryRead_(options,params){
  if(params?.view==='instruments')return f4InstitutionalNormRead_(options,params);
  if(params?.section==='parameters')return f4InstitutionalOperationalRead_(options,params);
