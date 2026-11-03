@@ -7,7 +7,8 @@ function f4PortalReadModels_(options) {
  return ports.readWithAuthoritySnapshot((check,get)=>{
  const technical=f4DevAdmin_().profile(get,identity.uid,now),actor=technical?f4DevAdmin_().identify(get,identity.uid,now):f4MemberAuthz_().identify(get,identity.uid,now),docs={};
  const requested=options.viewIds?new Set(options.viewIds):null,wants=id=>!requested||requested.has(id),gate=get('portalReaderControl/current');
- const context=ports.context();
+ const context=ports.context(wants('context')&&!options.basisOnly);
+ const {navigation:discovery,...projectionContext}=context;
  const auth=ports.readAuthority(context.board?['activityAttendanceRegistry/current']:[],!context.board,context.board?'ACTIVITY_BOARD_READ':'ACTIVITY_AGENDA_READ_SELF');
  function basis(policyId,capability,kind,expiry) {
   if(technical)return {generation:get('portalReaderControl/current').generation,ownerUid:identity.uid,personId:actor.binding.idPessoa,bindingVersion:actor.binding.bindingVersion,personRevision:actor.actor.h.revision,authorityEpoch:actor.control.epoch,kind:'DEV_ADMIN',profileRevision:technical.revision,capability,issuedAt:F.Timestamp.fromMillis(now),expiresAt:F.Timestamp.fromMillis(Math.min(expiry,C.ms(technical.expiresAt)))};
@@ -34,7 +35,7 @@ function f4PortalReadModels_(options) {
  if(wants('activities')){
   start('activities');
   const prior=get('portalReaderViews/'+identity.uid+'/items/activities'),fence=get('portalReaderResourceFences/activities');
-  const signature=C.hash(F.encode({producer:'scoped-activity-agenda-v2',context:{...context,validUntil:0},settings:options.settings||{}}));
+  const signature=C.hash(F.encode({producer:'scoped-activity-agenda-v2',context:{...projectionContext,validUntil:0},settings:options.settings||{}}));
   const plan=gate.operationalWrites&&!options.forceFullActivityList?f4ActivityListPatchPlan_(prior,b,fence,signature,now):null;
   let lists;
   if(plan){
