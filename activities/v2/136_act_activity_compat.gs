@@ -21,7 +21,7 @@ function f4ActivitiesActivityCompat_(options){
  function realizationHistory(a){const items=[],seen=new Set();let ref=a.realizationRef;while(ref&&ref.kind!=='NONE'){N(ref.kind==='activityRealization'&&!seen.has(ref.id)&&items.length<30,'UNRESOLVED_DEPENDENCY','REALIZATION_HISTORY');seen.add(ref.id);const value=db.get(M.path(ref));N(value?.activityRef?.id===a.id&&value.recognized===true,'UNRESOLVED_DEPENDENCY');items.push({id:value.id,ocorreu:value.occurred,dataOcorrencia:value.occurrenceTemporalObject.civilDate,motivo:value.basis.reason,reconhecidaEm:iso(value.recognizedAt)});ref=value.predecessorRef;}return items;}
  function read(route,params={}){return ports.readWithAuthoritySnapshot(check=>readSnapshot(route,params,check));}
  function readSnapshot(route,params,check,projectionPair=false,projectionIds=null){
-  const admin=route.startsWith('/admin/');let scope;
+  const admin=route.startsWith('/admin/')||['/atividades/modelos','/atividades/modelo/membros-apresentadores'].includes(route);let scope;
   if(projectionPair){try{scope=access(true);}catch(e){if(!denied(e))throw e;scope=access(false);}}else scope=access(admin);
   const epoch=db.get('activityAttendanceRegistry/current')?.epoch||0,relatedProofs=[];let data;
   if(route==='/atividades/modelo/membros-apresentadores'){N(scope.admin,'AUTHORIZATION_DENIED');data=f4ActivitiesMemberActivityCompat_(options,all,temporal).read(params);}
