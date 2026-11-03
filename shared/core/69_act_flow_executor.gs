@@ -29,7 +29,11 @@ function f4ActFlowExecutor_(){
    N(!d||sharedFence||(s.resourcePaths.includes(p)||scopedChild||s.operational&&f4ActCycleBoundary_().contains(get,p,s.operational,true)),'SCOPE_INVALID');
    N(d?.recordMode!=='HISTORICAL_PARTIAL'||['ACT.PRESENTATION_CONTINUITY_CONNECT','ACT.HISTORICAL_PREAGENDA_RECOGNIZE'].includes(r.commandType)&&ref.kind==='presentation'&&ref.id===r.payload.presentationRef.id&&s.resourcePaths.includes(p)||['ACT.ACTIVITY_ADMIN_REVIEW','ACT.ACTIVITY_PROMOTE_OPERATIONAL'].includes(r.commandType)&&ref.kind==='activity'&&ref.id===r.payload.activityRef.id&&s.resourcePaths.includes(p)&&d.administrativeReview,'PILOT_RESOURCE_DENIED');
   }
-  N(r.target.scope.targetRefs.some(ref=>s.resourcePaths.includes(path(ref))||s.operational&&f4ActCycleBoundary_().contains(get,path(ref),s.operational,false)),'PILOT_RESOURCE_DENIED');
+  // An original model without attendance has no existing policy anchor. A
+  // protected, explicit opt-in permits only its operation-derived new output;
+  // institutional authoring permission and all canonical validators still run.
+  const originalOutput=s.originalModelCreation===true&&r.commandType==='ACT.ACTIVITY_MODEL_DRAFT_SAVE'&&r.payload.typeRef?.kind==='activityType'&&r.payload.typeRef.id==='cfg_'+r.operationId&&!get(path(r.payload.typeRef))&&expected.some(e=>e.kind==='activityType'&&e.id===r.payload.typeRef.id&&e.exists===false)&&r.target.scope.targetRefs.length===1&&path(r.target.scope.targetRefs[0])===path(r.payload.typeRef);
+  N(originalOutput||r.target.scope.targetRefs.some(ref=>s.resourcePaths.includes(path(ref))||s.operational&&f4ActCycleBoundary_().contains(get,path(ref),s.operational,false)),'PILOT_RESOURCE_DENIED');
  }
  function select(get,r,config){if(!supports(r))return null;if(['ACT.ACTIVITY_SAVE','ACT.ACTIVITY_PUBLICATION_SET','ACT.ACTIVITY_REALIZE'].includes(r.commandType)&&!get('canonicalActivities/'+r.payload?.activityRef?.id)?.presentationSessionRef)return null;const id='ACT_FLOW_'+r.commandType.slice(4);if(!get('commandExecutorRoutes/'+id))return null;const v=route(get,config,id);fields(get,r,v);return id;}
  function resource(r){return C.hash({commandType:r.commandType,scope:r.target.scope}).slice(0,32);}
