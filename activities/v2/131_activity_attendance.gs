@@ -262,9 +262,9 @@ function f4AttendanceCommands_(x) {
   },
   ATTENDANCE_JUSTIFICATION_DECIDE(){
    const j=load(p.justificationRef,true),fact=load(j.attendanceRef,true),c=collection(fact.activityRef),activity=load(fact.activityRef,true);
-   N(j.state==='PENDING'&&['APPROVE','EXCUSE','REJECT','REQUEST_CORRECTION'].includes(p.decision)&&fact.pendingJustificationRef?.id===p.justificationRef.id,'INVALID_STATE_TRANSITION');
-   N(fact.revision===j.basisAttendanceRevision&&['ABSENT','UNRECORDED'].includes(fact.status),'STALE_REVISION','ATTENDANCE_CHANGED_AFTER_REQUEST');
-   N(activity.typeSnapshot.allowsJustification&&!['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(activity.status),'INVALID_STATE_TRANSITION');text(p.reason);if(p.internalReason!==undefined)N(typeof p.internalReason==='string'&&p.internalReason.length<=2000,'VALIDATION_ERROR');
+   const readiness=f4JustificationDecisionReadiness_(j,fact,activity);
+   N(readiness.eligible,readiness.code,readiness.reason);
+   N(['APPROVE','EXCUSE','REJECT','REQUEST_CORRECTION'].includes(p.decision),'INVALID_STATE_TRANSITION');text(p.reason);if(p.internalReason!==undefined)N(typeof p.internalReason==='string'&&p.internalReason.length<=2000,'VALIDATION_ERROR');
    const state={APPROVE:'APPROVED',EXCUSE:'EXCUSED',REJECT:'REJECTED',REQUEST_CORRECTION:'CORRECTION_REQUESTED'}[p.decision];
    N(p.decision!=='EXCUSE'||['EXCLUDE','COUNT_PRESENT','COUNT_ABSENT'].includes(fact.frequencyBasis.excusedMode),'CONFIG_CAPABILITY_DISABLED','EXCUSED_FREQUENCY_POLICY_REQUIRED');
    revision(p.justificationRef,{...j,state,decisionReason:p.reason,...(p.internalReason!==undefined?{internalReason:p.internalReason}:{}),decidedAt:M.stamp(now),decidedBy:actor.personRef,exceptional:j.late===true&&['APPROVE','EXCUSE'].includes(p.decision),basisAttendanceRevision:fact.revision+1});
@@ -273,6 +273,38 @@ function f4AttendanceCommands_(x) {
    revision(j.attendanceRef,next);fence();history('JUSTIFICATION_'+state,p.justificationRef,fact.personRef.id,p.reason);return {state};
   }
  };
+}
+
+// Shared preconditions for the decision command and administrative affordances.
+// This does not authorize the actor and never repairs an imported fact.
+function f4JustificationDecisionReadiness_(j,f,a){
+ const deny=(code,reason)=>({eligible:false,code,reason});
+ if(!j||!f||!a)return deny('UNRESOLVED_DEPENDENCY','Referência de atividade ou frequência ausente.');
+ if([j,f,a].some(d=>d.recordMode==='HISTORICAL_PARTIAL'))return deny('UNRESOLVED_DEPENDENCY','Registro histórico requer reconciliação documental; não possui base operacional completa.');
+ if(j.state!=='PENDING')return deny('INVALID_STATE_TRANSITION',j.state==='PREVIOUS'?'Justificativa prévia: aguarda o registro da chamada.':j.state==='CORRECTION_REQUESTED'?'Aguarda complementação do solicitante.':'Decisão ou encerramento já registrado.');
+ if(j.attendanceRef?.id!==f.id||j.activityRef?.id!==a.id||f.activityRef?.id!==a.id||j.personRef?.id!==f.personRef?.id||f.pendingJustificationRef?.id!==j.id)return deny('INVALID_STATE_TRANSITION','A referência pendente não corresponde ao registro de frequência.');
+ if(!Number.isSafeInteger(j.basisAttendanceRevision)||f.revision!==j.basisAttendanceRevision||!['ABSENT','UNRECORDED'].includes(f.status))return deny('STALE_REVISION','A frequência mudou ou a revisão-base da solicitação está ausente.');
+ if(!a.typeSnapshot?.allowsJustification||['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status))return deny('INVALID_STATE_TRANSITION','A atividade não admite decisão de justificativa neste estado.');
+ return {eligible:true,code:null,reason:''};
+}
+
+// One-time import reconciliation planner, not an attendance command. Callers
+// must commit its read set, collection, receipt, audit and epoch atomically.
+// It deliberately cannot reconstruct a roster, frequency basis or partial fact.
+function f4ImportedAttendanceRecognitionPlan_(input){
+ const M=f4ActivitiesModel_(),N=M.need,{activity:a,collection:c,facts,evidence,expectedRevision,operationId,actorRef,now}=input;
+ N(M.id(operationId)&&actorRef?.kind==='person'&&M.id(actorRef.id),'VALIDATION_ERROR');
+ N(a&&c&&c.activityRef?.id===a.id&&c.id===a.id&&c.revision===expectedRevision,'STALE_REVISION');
+ N(!c.lastFinalizedAt&&!c.closedAt&&!c.completionRecognition,'INVALID_STATE_TRANSITION','ALREADY_FINALIZED');
+ N(a.recordMode!=='HISTORICAL_PARTIAL'&&c.recordMode!=='HISTORICAL_PARTIAL'&&c.state==='CLOSED','UNRESOLVED_DEPENDENCY','PARTIAL_RECORD_REMAINS_PROTECTED');
+ N(evidence?.schemaVersion==='completed-attendance-import-evidence-v1'&&evidence.activityId===a.id&&evidence.completed===true&&typeof evidence.sourceHash==='string'&&/^[a-f0-9]{64}$/.test(evidence.sourceHash),'UNRESOLVED_DEPENDENCY','COMPLETION_EVIDENCE_REQUIRED');
+ M.civil(a.civilDate);N(a.civilDate<='2026-10-22'&&a.status==='OCCURRED','INVALID_STATE_TRANSITION');
+ N(Array.isArray(facts)&&facts.length>0&&facts.length<=200&&facts.length===c.rosterCount&&Object.keys(c.roster||{}).length===facts.length&&new Set(facts.map(f=>f.id)).size===facts.length,'UNRESOLVED_DEPENDENCY','ATTENDANCE_ROSTER');
+ N(facts.every(f=>f.recordMode!=='HISTORICAL_PARTIAL'&&c.roster[f.id]?.id===f.id&&f.activityRef?.id===a.id&&f.personRef?.kind==='person'&&Number.isSafeInteger(f.revision)&&f.revision>0&&!!f.officialRecordedAt&&!!f.officialCountBasis&&['ACTIVITY','MINUTE'].includes(f.frequencyBasis?.unit)&&['PRESENT','ABSENT','JUSTIFIED','EXCUSED','NOT_APPLICABLE'].includes(f.status)),'UNRESOLVED_DEPENDENCY','OFFICIAL_FACTS_INCOMPLETE');
+ const summary={totalParticipantes:facts.length,totalPresentes:facts.filter(f=>f.status==='PRESENT').length,totalFaltas:facts.filter(f=>['ABSENT','JUSTIFIED','EXCUSED'].includes(f.status)).length,totalNaoSeAplica:facts.filter(f=>f.status==='NOT_APPLICABLE').length};
+ N(Object.keys(summary).every(k=>c.officialSummary?.[k]===summary[k])&&c.unrecordedCount===0,'UNRESOLVED_DEPENDENCY','OFFICIAL_SUMMARY_MISMATCH');
+ const time=Date.parse(a.civilDate+'T21:00:00-04:00');N(Number.isFinite(now)&&now>=time&&Utilities.formatDate(new Date(time),'America/Cuiaba','yyyy-MM-dd HH:mm')===a.civilDate+' 21:00','VALIDATION_ERROR');
+ return {schemaVersion:'imported-attendance-recognition-plan-v1',operationId,activityId:a.id,expectedRevision,readSet:[{path:M.path(M.ref('activity',a.id)),revision:a.revision},{path:M.path(M.ref('attendanceCollection',c.id)),revision:c.revision},...facts.map(f=>({path:M.path(M.ref('attendance',f.id)),revision:f.revision}))],collection:{...c,revision:c.revision+1,lastFinalizedAt:M.stamp(time),completionRecognition:{kind:'ADMINISTRATIVE_CONVENTION',timezone:'America/Cuiaba',conventionalTime:'21:00',notCapturedAtOriginalClosure:true,reconciledAt:M.stamp(now),recognizedBy:actorRef,operationId,sourceHash:evidence.sourceHash}},individualWrites:[],historyEvent:'IMPORTED_ATTENDANCE_COMPLETION_RECOGNIZED'};
 }
 
 // One explicit calculation; no discipline, rounding thresholds, or inferred absences.
