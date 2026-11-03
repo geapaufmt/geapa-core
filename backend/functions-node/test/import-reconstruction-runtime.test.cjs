@@ -1,0 +1,9 @@
+const {test}=require('node:test'),a=require('assert/strict'),fs=require('fs'),vm=require('vm'),path=require('path'),{createDomain}=require('../src/domain.cjs'),{fixture,intentFor}=require('./fixtures/import-reconstruction.cjs');
+test('actual Core runtime validates recognition, timestamp types and existing agenda projection',()=>{
+ const d=fixture();delete d['canonicalActivities/SYN_IMPORT_ACTIVITY'].administrativeReview;d['canonicalActivities/SYN_IMPORT_ACTIVITY'].historicalPresentationRefs=[];
+ const domain=createDomain(()=>{throw Error('UNEXPECTED_IO');});vm.runInContext(fs.readFileSync(path.resolve(__dirname,'../../../activities/v2/206_act_import_reconstruction.gs'),'utf8'),domain.context);
+ const r=JSON.parse(domain.run(`input=>{const p=f4ImportedActivityReconstructionPlan_({intent:input.intent,get:path=>input.docs[path],actorRef:{kind:'person',id:'SYN_RH'},now:input.now});for(const w of p.writes)input.docs[w.path]=w.data;const out=[];f4ActivitiesProjectAttendanceReads_({M:f4ActivitiesModel_(),N:f4ActivitiesModel_().need,now:input.now,get:path=>input.docs[path],set:(path,data)=>out.push({path,data})},p.writes.map(w=>[w.path,w.data]));return {writes:p.writes.length,agenda:f4Firestore_().encode(out[0].data),date:f4ActivitiesModel_().day(p.writes[0].data.startsAt.toMillis()),official:f4Firestore_().encode(p.writes[2].data.officialRecordedAt)};}`,{docs:d,intent:intentFor(d),now:Date.parse('2026-11-03T18:00Z')}));
+ a.equal(r.writes,7);a.equal(r.date,'2026-09-10');a.equal(Date.parse(r.official.timestampValue),Date.parse('2026-11-03T18:00:00Z'));a.equal(r.agenda.mapValue.fields.sourceActivityRevision.integerValue,'2');a.equal(r.agenda.mapValue.fields.data.mapValue.fields.statusOperacional.stringValue,'REALIZADA');a.equal(r.agenda.mapValue.fields.data.mapValue.fields.chamadaFinalizada.booleanValue,true);
+});
+
+
