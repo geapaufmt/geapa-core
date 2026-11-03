@@ -15,7 +15,7 @@ test('original models and planning through actual shared executor / ROLE / emula
  await t.test('original model without attendance requires explicit creation boundary and no existing output',async()=>{
   const operationId=crypto.randomBytes(16).toString('hex'),id='cfg_'+operationId,def=definition();def.countsAttendance=false;def.countsAbsence=false;def.allowsJustification=false;delete def.attendancePolicyRef;
   const payload={typeRef:{kind:'activityType',id},definition:def,reason:'Synthetic no-attendance model'},input={operationId,commandType:'ACT.ACTIVITY_MODEL_DRAFT_SAVE',payload};
-  const p=doc('memberAuthzPolicies/CF_DEV_ACT_POLICY');await p.update({'targets.resourceScope':{kind:'ACTIVITIES'}});
+  const p=doc('memberAuthzPolicies/CF_DEV_ACT_POLICY'),priorPolicy=(await p.get()).data();await p.update({'targets.resourceScope':{kind:'ACTIVITIES'},'targets.allowedTargetScopes':['ACTIVITIES']});
   await a.rejects(call('flowPrepare',input));
   await doc('actFlowExecutorScopes/SYN_MODEL_FREQUENCY').update({originalModelCreation:true});
   const q=(await call('flowPrepare',input)).request;await call('execute',q);
@@ -23,6 +23,7 @@ test('original models and planning through actual shared executor / ROLE / emula
   const foreign='cfg_'+crypto.randomBytes(16).toString('hex');await doc('activityTypes/'+foreign).set({...saved,id:foreign});
   await a.rejects(call('flowPrepare',{operationId:foreign.slice(4),commandType:input.commandType,payload:{...payload,typeRef:{kind:'activityType',id:foreign}}}));
   const other=crypto.randomBytes(16).toString('hex');await a.rejects(call('flowPrepare',{operationId:other,commandType:input.commandType,payload:{...payload,typeRef:{kind:'activityType',id:'UNRELATED_NEW_MODEL'}}}));
+  await p.set(priorPolicy);
  });
  await t.test('prepare and create original model with genuine Core ROLE policy',async()=>{draft=await prepare('ACTIVITY_MODEL_DRAFT_SAVE',{typeRef:{kind:'activityType',id:modelId},definition:definition(),reason:'Synthetic original model'});const r=await call('execute',draft);a(['COMPLETED','RECOVERED'].includes(resultState(r)),JSON.stringify(r));a.equal((await doc('activityTypes/'+modelId).get()).data().governance.state,'DRAFT');});
  await t.test('approval lost response recovers receipt and never duplicates revision',async()=>{const m=(await doc('activityTypes/'+modelId).get()).data();approval=await prepare('ACTIVITY_MODEL_APPROVE',{typeRef:{kind:'activityType',id:modelId},definitionHash:m.governance.definitionHash,evidence:'SYN_EVIDENCE',reason:'Synthetic approval'});await a.rejects(call('execute',approval,{afterCommit:()=>{throw Error('SYN_LOST_RESPONSE')}}),/SYN_LOST_RESPONSE/);const revision=(await doc('activityTypes/'+modelId).get()).data().revision;await call('execute',approval);a.equal((await doc('activityTypes/'+modelId).get()).data().revision,revision);const owner=(await doc('commandExecutorOwners/'+approval.operationId).get()).data();a.equal(owner.executor,EXECUTOR);a.equal((await doc('commandLedger/'+approval.operationId).get()).data().state,'COMPLETED');});
