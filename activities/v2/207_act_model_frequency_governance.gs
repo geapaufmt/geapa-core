@@ -56,7 +56,7 @@ function f4ActivitiesModelFrequencyCommands_(x){
   ACTIVITY_MODEL_APPROVE(){
    const approval=decision(),d=model();N(d.governance.state==='DRAFT','INVALID_STATE_TRANSITION');N(p.definitionHash===d.governance.definitionHash,'STALE_REVISION','MODEL_DEFINITION_CHANGED');
    const fields={};for(const k of ['name','durationMinutes','visibility','countsAttendance','countsAbsence','allowsJustification','portalModel','purpose','organizer','participantTypes','allowedFormats','academicRequirements','attendancePolicyRef'])if(k in d)fields[k]=d[k];
-   const validated=f4ActivityModelDefinition_(fields,load);N(validated.policyRevision===d.governance.attendancePolicyRevision,'STALE_REVISION','MODEL_POLICY_CHANGED');
+   N(M.hash(fields)===d.governance.definitionHash,'STALE_REVISION','MODEL_DEFINITION_CHANGED');const validated=f4ActivityModelDefinition_(fields,load);N(validated.policyRevision===d.governance.attendancePolicyRevision,'STALE_REVISION','MODEL_POLICY_CHANGED');
    N(typeof p.evidence==='string'&&p.evidence.trim()&&p.evidence.length<=800,'HUMAN_DECISION_REQUIRED','MODEL_APPROVAL_EVIDENCE_REQUIRED');
    revision(p.typeRef,{...d,status:'ACTIVE',decision:{...approval,evidence:p.evidence},governance:{...d.governance,state:'APPROVED',approval:{...approval,evidence:p.evidence}}});history(p.typeRef,'ACTIVITY_ORIGINAL_MODEL_APPROVED');fence();return {typeRef:p.typeRef,state:'APPROVED'};
   },

@@ -26,6 +26,7 @@ function f4AttendanceCommands_(x) {
  function operationalCriteria(ref,old,proposed){
   let basis=old;
   if(!basis){N(p.operationalTemplateRef?.kind===ref.kind&&M.path(p.operationalTemplateRef)!==M.path(ref),'CONFIG_CAPABILITY_DISABLED','APPROVED_OPERATIONAL_TEMPLATE_REQUIRED');basis=load(p.operationalTemplateRef,true);}
+  N(!basis.governance,'CONFIG_CAPABILITY_DISABLED','ORIGINAL_MODEL_USE_GOVERNANCE_COMMAND');
   N(basis.recordMode!=='HISTORICAL_PARTIAL'&&(ref.kind==='activityType'?!!basis.decision:basis.approved===true),'CONFIG_CAPABILITY_DISABLED','APPROVED_OPERATIONAL_TEMPLATE_REQUIRED');
   N(M.hash(f4ActivityConfigNormativeFields_(ref.kind,basis))===M.hash(f4ActivityConfigNormativeFields_(ref.kind,proposed)),'AUTHORIZATION_DENIED','NORMATIVE_CHANGE_NOT_OPERATIONAL');
  }
@@ -108,7 +109,7 @@ function f4AttendanceCommands_(x) {
     N(p.attendanceRef.id===factRef(p.activityRef,actor.personRef).id,'AUTHORIZATION_DENIED');
     const head=x.get('memberAggregateHeads/'+actor.personId),paths=head.paths.filter(path=>/^member(Identities|Links|Events)\//.test(path));x.prefetch(paths);
     const docs=Object.fromEntries(paths.map(path=>[path,x.get(path)])),member=f4MemberModel_(true),at=M.ms(a.startsAt),state=member.derive(docs,actor.personId,head.revision,at).state;
-    N(['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE'].includes(state.state),'AUTHORIZATION_DENIED');
+    N(['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE'].includes(state.state),'AUTHORIZATION_DENIED');N(!a.typeSnapshot.participantTypes||a.typeSnapshot.participantTypes.includes(state.state==='MEMBRO_INGRESSANTE'?'INGRESSANTE':'MEMBRO'),'AUTHORIZATION_DENIED','MODEL_PARTICIPANT_NOT_ALLOWED');
     const links=member.rows(docs,'memberLinks').filter(l=>{const r=member.interval(l.startDate,l.endDate);return r.a<=at&&at<r.z});N(links.length===1,'UNRESOLVED_DEPENDENCY');
     fact={revision:0,activityRef:p.activityRef,personRef:actor.personRef,ownerPersonRef:actor.personId,membershipRef:M.ref('membership',links[0].id),...f4AttendanceCycleFields_(a,c),status:'UNRECORDED',durationMinutes:a.typeSnapshot.durationMinutes,frequencyBasis:c.frequencyBasis,applicableAtDate:true,participantType:'MEMBRO',countsAttendance:a.typeSnapshot.countsAttendance,countsAbsence:a.typeSnapshot.countsAbsence!==false};
    }
@@ -168,11 +169,12 @@ function f4AttendanceCommands_(x) {
   ACTIVITY_ADMIN_REVIEW(){const result=f4ActivityReview_().handle(x);fence();return result;},
   ACTIVITY_SAVE(){
    N(p.activityRef.kind==='activity'&&p.typeRef.kind==='activityType','VALIDATION_ERROR');const old=load(p.activityRef,true,true),type=load(p.typeRef,true);
-   N(old?.administrativeReview?.state!=='CONFIRMED','INVALID_STATE_TRANSITION','ACTIVITY_REVIEW_LOCKED');N(type.status==='ACTIVE','CONFIG_CAPABILITY_DISABLED');const start=instant(p.startsAt),end=instant(p.endsAt);
+   N(old?.administrativeReview?.state!=='CONFIRMED','INVALID_STATE_TRANSITION','ACTIVITY_REVIEW_LOCKED');N(type.status==='ACTIVE'||type.governance?.state==='APPROVED'&&old?.typeRef.id===p.typeRef.id,'CONFIG_CAPABILITY_DISABLED');const start=instant(p.startsAt),end=instant(p.endsAt);
    N(!old||old.typeRef.id!==p.typeRef.id||Number.isSafeInteger(old.typeRevision)&&old.typeRevision>0&&old.typeSnapshot,'UNRESOLVED_DEPENDENCY','ACTIVITY_MODEL_SNAPSHOT_REQUIRED');
    N(!old?.presentationSessionRef||p.status===old.status,'INVALID_STATE_TRANSITION','USE_ACTIVITY_CANCELLATION');
    N(end>start&&end-start<=86400000,'VALIDATION_ERROR');N(['SCHEDULED','CANCELLED'].includes(p.status),'VALIDATION_ERROR');
    const attendancePolicy=type.attendancePolicyRef?load(type.attendancePolicyRef):null,cycleContext=f4ActivityCycleContext_(x.get,p.cycleRef||old?.cycleRef||attendancePolicy?.cycleRef,p.academicSemesterRef||(old?.academicSemesterId?M.ref('academicSemester',old.academicSemesterId):null),M.day(start));
+   if(type.governance&&(!old||old.typeRef.id!==p.typeRef.id))N(type.governance.state==='APPROVED'&&(!type.attendancePolicyRef||attendancePolicy?.revision===type.governance.attendancePolicyRevision),'STALE_REVISION','MODEL_POLICY_CHANGED');
    const c=load(collectionRef(p.activityRef),false,true),structural=old&&(old.typeRef.id!==p.typeRef.id||M.ms(old.startsAt)!==start||M.ms(old.endsAt)!==end||old.cycleId!==cycleContext.cycleId||(old.academicSemesterId||null)!==cycleContext.academicSemesterId);
    N(!old?.realizationRef&&(!structural||!c||c.state==='DRAFT'&&c.rosterCount===0&&!c.preRosterFactCount),'INVALID_STATE_TRANSITION','ACTIVITY_ALREADY_COLLECTING');
    if(old?.presentationSessionRef&&(M.ms(old.startsAt)!==start||M.ms(old.endsAt)!==end))f4ActivitiesApplyActivityCalendar_(x,old);
@@ -226,7 +228,7 @@ function f4AttendanceCommands_(x) {
    history('ATTENDANCE_CONFIGURED',p.activityRef,null,activity.title);return {collectionRef:ref};
   },
   ATTENDANCE_ENROLL(){
-   const activity=load(p.activityRef,true),c=collection(p.activityRef);N(c.state==='DRAFT'&&activity.status!=='CANCELLED','INVALID_STATE_TRANSITION');eligibleMembership(p.personRef,p.membershipRef,M.ms(activity.startsAt));
+   const activity=load(p.activityRef,true),c=collection(p.activityRef);N(c.state==='DRAFT'&&activity.status!=='CANCELLED','INVALID_STATE_TRANSITION');const link=eligibleMembership(p.personRef,p.membershipRef,M.ms(activity.startsAt));N(!activity.typeSnapshot.participantTypes||activity.typeSnapshot.participantTypes.includes(link.type==='MEMBRO_INGRESSANTE'?'INGRESSANTE':'MEMBRO'),'AUTHORIZATION_DENIED','MODEL_PARTICIPANT_NOT_ALLOWED');
    const ref=factRef(p.activityRef,p.personRef);N(!load(ref,true,true),'CONFLICT','ATTENDANCE_ALREADY_ENROLLED');
    revision(ref,{activityRef:p.activityRef,personRef:p.personRef,ownerPersonRef:p.personRef.id,membershipRef:p.membershipRef,...f4AttendanceCycleFields_(activity,c),status:'UNRECORDED',durationMinutes:activity.typeSnapshot.durationMinutes,frequencyBasis:c.frequencyBasis,enrollmentBasis:decision(p.decision)});
    const membersFence=load(M.ref('capacity','registry'));N(Number.isSafeInteger(membersFence.membersEpoch)&&(!c.rosterCount||c.rosterMembersEpoch===membersFence.membersEpoch),'STALE_REVISION','ATTENDANCE_MEMBERS_CHANGED');
