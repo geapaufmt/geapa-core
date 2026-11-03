@@ -41,3 +41,13 @@ explicit policies must authorize each environment. Production stays closed
 until the authenticated two-actor DEV flow, activation and reverse operation
 are proven and the activation manifest approved. Preserve prior operations and
 use a new audited reversal; never restore a snapshot over newer facts.
+
+## Institutional-only bootstrap
+
+Portal navigation does not require an unrelated ACT grant. When the ordinary
+ACT context is denied, an enabled institutional directory control and a valid
+ROLE summary policy can supply a minimal institutional context. It grants no
+ACT flags, facts or commands. The actual directory and parameter endpoints
+still revalidate their own permissions. Projection-basis requests cannot use
+this fallback. Source revisions are rechecked and the Node response fence
+rejects a concurrent revocation before returning the context.
