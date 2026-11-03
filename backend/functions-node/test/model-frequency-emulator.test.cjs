@@ -32,13 +32,16 @@ test('original models and planning through actual shared executor / ROLE / emula
  await t.test('sealed open-cycle recognition: concurrent requests, lost response, recovery and no frequency facts',async()=>{
   await seed();const h=require('./frequency-recognition.test.cjs').setup();h.docs['presentationPolicyReferences/SYN_RECOGNITION'].issuedAt=Date.now()-1000;h.docs['presentationPolicyReferences/SYN_RECOGNITION'].expiresAt=Date.now()+3600000;
   for(const [p,v]of Object.entries(h.docs))await doc(p).set(v);
+  // A real OPEN cycle may reference a large presentation graph. Recognition
+  // pins its own sources, not unrelated presentations/configuration history.
+  await doc('presentationCycles/SYN_CYCLE').update({presentationRefs:Array.from({length:60},(_,i)=>({kind:'presentation',id:'UNRELATED_'+i})),currentConfigRef:{kind:'config',parent:'SYN_CYCLE',id:'UNRELATED_CONFIG'}});
   const command='CYCLE_FREQUENCY_PLAN_RECOGNIZE',payload=h.payload;
   invalidAuth=true;await a.rejects(prepare(command,payload));invalidAuth=false;
   const policy=doc('memberAuthzPolicies/CF_DEV_ACT_POLICY');await policy.update({active:false});await a.rejects(prepare(command,payload));await policy.update({active:true});
   await doc('activityAttendance/SYN_PRESERVED_FACT').set({id:'SYN_PRESERVED_FACT',revision:7,result:'PRESENT',source:'SYNTHETIC_IMMUTABLE_SENTINEL'});
   const factsBefore=await db.collection('activityAttendance').get(),factsHash=x=>JSON.stringify(x.docs.map(d=>[d.id,d.data()]).sort());
   const portalInput={operationId:crypto.randomBytes(16).toString('hex'),route:'/admin/ciclos-semestres/frequencia/reconhecer',payload:{id:'SYN_CYCLE',revision:1,plan:payload.plan,recognitionRef:payload.recognitionRef,reason:payload.reason}};
-  const one=(await call('flowPortalPrepare',portalInput)).request,two=await prepare(command,payload);let committed=false;
+  const one=(await call('flowPortalPrepare',portalInput)).request,two=await prepare(command,payload);a(one.target.expected.every(r=>!['presentation','config'].includes(r.kind)));a(one.target.expected.some(r=>r.kind==='evidence'&&r.id==='SYN_RECOGNITION'));a(one.target.expected.some(r=>r.kind==='policy'&&r.id==='SYN_NORM'));let committed=false;
   await a.rejects(call('execute',one,{afterCommit:()=>{committed=true;throw Error('SYN_RECOGNITION_LOST_RESPONSE')}}),/SYN_RECOGNITION_LOST_RESPONSE/);a(committed);
   const after=(await doc('presentationCycles/SYN_CYCLE').get()).data();a.equal(after.status,'OPEN');a.equal(after.revision,2);a.equal(after.frequencyPlanning.periods[0].absenceLimit,5);a.equal(after.frequencyPlanning.periods[0].recognition.originalApproval.date,null);
   await call('execute',one);const conflicting=await Promise.allSettled([call('execute',two)]);a.equal((await doc('presentationCycles/SYN_CYCLE').get()).data().revision,2);a.equal((await doc('commandReceipts/'+one.operationId).get()).data().state,'COMPLETED');
