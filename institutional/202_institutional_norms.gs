@@ -1,6 +1,6 @@
 // Derived documentary index. It never changes normative authority or public publication.
 function f4InstitutionalNorms_(){
- const C=f4Core_(),N=C.need,M=f4InstitutionalDirectoryModel_();
+ const C=f4Core_(),N=f4MemberAuthzContracts_().need,M=f4InstitutionalDirectoryModel_();
  const field=(r,k)=>r.fields.find(f=>f.label===k)?.value||'';
  function index(sections,get,now){
   const records=Object.entries(sections).flatMap(([section,v])=>{M.validate(v);return v.records.filter(r=>r.visibility==='BOARD').map(r=>({...r,section}));});
@@ -28,13 +28,13 @@ function f4InstitutionalNorms_(){
   const instruments=[...new Set(versions.map(v=>v.instrumentId))].map(id=>{const rows=versions.filter(v=>v.instrumentId===id);return {id,title:id==='REGIMENTO_GEAPA'?'Regimento Interno do GEAPA':rows[0].title,description:rows[0].description,versionIds:rows.map(v=>v.id),currentVersionIds:rows.filter(v=>v.current).map(v=>v.id)};});
   return {schemaVersion:'institutional-norm-index-v1',sourceHash:C.hash(Object.entries(sections).map(([k,v])=>({section:k,revision:v.revision,hash:C.hash(v)}))),instruments,versions,relations};
  }
- function eligible(r){return r.visibility==='BOARD'&&!r.canonical&&((r.kind==='PROPOSTAS_E_EMENDAS'&&['RASCUNHO','EM_PROPOSTA'].includes(r.status))||r.kind==='PORTAL_GEAPA'||(r.kind==='Ata / deliberação'&&['RASCUNHO','EM_REDACAO'].includes(r.status)));}
+ function eligible(r){return r.visibility==='BOARD'&&!r.canonical&&((r.kind==='PROPOSTAS_E_EMENDAS'&&['RASCUNHO','EM_PROPOSTA'].includes(r.status))||r.kind==='PORTAL_GEAPA'||(r.kind==='Ata / deliberação'&&['RASCUNHO','EM_REDACAO'].includes(r.status)&&!field(r,'DOCUMENTO_RELACIONADO_ID')&&!['APROVADA','APROVADO'].includes(field(r,'RESULTADO'))));}
  function overlay(v,section){if(!v)return {schemaVersion:'institutional-presentation-v1',section,revision:0,entries:[]};C.exact(v,['schemaVersion','section','revision','entries']);N(v.schemaVersion==='institutional-presentation-v1'&&v.section===section&&['norms','governance'].includes(section)&&C.rev(v.revision)&&Array.isArray(v.entries)&&v.entries.length<=150,'SCHEMA_INVALID');N(new Set(v.entries.map(e=>e.recordId)).size===v.entries.length,'SCHEMA_INVALID');for(const e of v.entries){C.exact(e,['recordId','hidden','reason','actorPersonId','at','operationId']);N(C.id(e.recordId)&&typeof e.hidden==='boolean'&&typeof e.reason==='string'&&e.reason.length>=10&&e.reason.length<=1000&&C.id(e.actorPersonId)&&C.op(e.operationId)&&Number.isSafeInteger(e.at),'SCHEMA_INVALID');}return v;}
  return {index,field,eligible,overlay};
 }
 
 function f4InstitutionalNormRead_(options,params){
- const C=f4Core_(),N=C.need,M=f4InstitutionalDirectoryModel_(),I=f4InstitutionalNorms_();
+ const C=f4Core_(),N=f4MemberAuthzContracts_().need,M=f4InstitutionalDirectoryModel_(),I=f4InstitutionalNorms_();
  C.exact(params,['section','view','instrument','query','visibility','page']);N(['norms','governance'].includes(params.section)&&params.view==='instruments'&&typeof params.instrument==='string'&&params.instrument.length<=80&&typeof params.query==='string'&&params.query.length<=80&&['VISIBLE','HIDDEN','ALL'].includes(params.visibility)&&Number.isInteger(params.page)&&params.page>=1&&params.page<=50,'COMMAND_PAYLOAD_INVALID');
  return f4Firestore_().connect(options.config).transaction(tx=>{
   const get=p=>tx.get(p).data(),now=(options.clock||Date.now)(),control=get('institutionalDirectoryControl/current');N(control?.enabled===true&&control.schemaVersion==='institutional-directory-control-v1','FEATURE_DISABLED');
@@ -45,7 +45,7 @@ function f4InstitutionalNormRead_(options,params){
   const histories={};for(const s of Object.keys(visibility)){const h=get('institutionalPresentationHistory/'+s);N(!h||(h.schemaVersion==='institutional-presentation-history-v1'&&Array.isArray(h.events)&&h.events.length<=500),'SCHEMA_INVALID');histories[s]=h?.events||[];}
   const actions={};for(const s of Object.keys(visibility)){actions[s]=[];try{const a=f4InstitutionalVisibilityCommands_().control(get,options.config,options.identity,now,true,s,true);actions[s]=sections[s].records.filter(r=>I.eligible(r)&&a.c.recordIds[s]?.includes(r.id)&&a.auth.mask.includes('presentation')).map(r=>r.id);}catch(e){if(!['AUTHORIZATION_DENIED','ACCESS_REVOKED','PILOT_DISABLED','FEATURE_DISABLED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}}
   const normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  let rows=Object.entries(sections).flatMap(([s,v])=>M.dto(v,masks[s]).map(r=>{const rel=idx.relations.find(x=>x.section===s&&x.recordId===r.id),presentation=visibility[s]?.entries.find(e=>e.recordId===r.id)||null;return {...r,section:s,relation:rel,presentation,presentationHistory:(histories[s]||[]).filter(e=>e.recordId===r.id),canChangePresentation:actions[s]?.includes(r.id)||false,sourceRevision:v.revision,presentationRevision:visibility[s]?.revision||0};}));
+  let rows=Object.entries(sections).flatMap(([s,v])=>M.dto(v,masks[s]).map(r=>{const rel=idx.relations.find(x=>x.section===s&&x.recordId===r.id),presentation=I.eligible(v.records.find(x=>x.id===r.id))?(visibility[s]?.entries.find(e=>e.recordId===r.id)||null):null;return {...r,section:s,relation:rel,presentation,presentationHistory:(histories[s]||[]).filter(e=>e.recordId===r.id),canChangePresentation:actions[s]?.includes(r.id)||false,sourceRevision:v.revision,presentationRevision:visibility[s]?.revision||0};}));
   if(params.section==='governance')rows=rows.filter(r=>r.section==='governance');
   else if(params.instrument==='UNRESOLVED')rows=rows.filter(r=>!r.relation.links.length);else if(params.instrument)rows=rows.filter(r=>r.relation.links.some(l=>l.instrumentId===params.instrument));
   const hiddenCount=rows.filter(r=>r.presentation?.hidden===true).length;

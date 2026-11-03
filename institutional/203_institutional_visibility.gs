@@ -1,6 +1,6 @@
 // Presentation only. Atomic canonical transaction; no normative or public write.
 function f4InstitutionalVisibilityCommands_(){
- const C=f4Core_(),F=f4Firestore_(),N=C.need,I=f4InstitutionalNorms_(),P=f4TransactionPlans_();
+ const C=f4Core_(),F=f4Firestore_(),N=f4MemberAuthzContracts_().need,I=f4InstitutionalNorms_(),P=f4TransactionPlans_();
  const CONTROL='institutionalVisibilityControl/current',TYPE='institutional.document.visibility';
  const hash=v=>C.hash(F.encode(v)),hex=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v),path=s=>'institutionalPresentation/'+s;
  function control(get,config,identity,now,admit,section,inspection=false){
@@ -24,7 +24,7 @@ function f4InstitutionalVisibilityCommands_(){
  }
  function digest(config,uid,r){return hash({projectId:config.projectId,ownerUid:uid,commandType:TYPE,...r});}
  function status(tx,o,key){C.exact(key,['operationId','digest']);N(C.op(key.operationId)&&hex(key.digest),'COMMAND_PAYLOAD_INVALID');const get=p=>tx.get(p).data(),r=get('institutionalVisibilityReceipts/'+key.operationId),owner=get('commandExecutorOwners/'+key.operationId);
-  if(!r){N(!owner,'RECONCILIATION_REQUIRED');return {state:'NOT_ADMITTED',operationId:key.operationId};}
+  if(!r){const c=get(CONTROL),section=Object.keys(c?.recordIds||{}).find(s=>['norms','governance'].includes(s));control(get,o.config,o.identity,o.clock(),false,section);N(!owner,'RECONCILIATION_REQUIRED');return {state:'NOT_ADMITTED',operationId:key.operationId};}
   const {c}=control(get,o.config,o.identity,o.clock(),false,r.section);N(r.ownerUid===o.identity.uid&&r.digest===key.digest&&r.projectId===o.config.projectId&&r.executor===c.executor&&r.state==='COMPLETED'&&owner?.digest===r.digest&&owner.ownerUid===r.ownerUid&&owner.executor===r.executor&&owner.commandType===TYPE,'ACCESS_REVOKED');return {state:'COMPLETED',operationId:r.operationId,revision:r.revisionAfter,recordId:r.recordId,hidden:r.hidden,publicUpdate:false};
  }
  function execute(tx,o,r){C.exact(r,['operationId','input','documentHash','epoch','controlRevision','validUntil','digest']);N(C.op(r.operationId)&&hex(r.documentHash)&&hex(r.digest),'COMMAND_PAYLOAD_INVALID');const {digest:given,...semantic}=r;N(given===digest(o.config,o.identity.uid,semantic),'OPERATION_CONFLICT');
