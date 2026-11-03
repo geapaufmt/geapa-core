@@ -34,7 +34,7 @@ function f4CycleFrequencyPlanning_(){
   N(policy?.approved===true&&policy.active===true&&policy.usage==='FREQUENCY_PLANNING','CONFIG_CAPABILITY_DISABLED','FREQUENCY_PLANNING_POLICY_REQUIRED');
   const r=policy.frequencyPlanning;
   N(r&&r.classification==='PLANNED_MEETINGS'&&r.rounding==='FLOOR'&&Number.isInteger(r.maxAbsenceBasisPoints)&&r.maxAbsenceBasisPoints>=0&&r.maxAbsenceBasisPoints<=10000&&Number.isInteger(r.minimumAttendanceBasisPoints)&&r.minimumAttendanceBasisPoints>=0&&r.minimumAttendanceBasisPoints<=10000&&typeof r.absenceNorm==='string'&&r.absenceNorm.trim()&&typeof r.attendanceNorm==='string'&&r.attendanceNorm.trim(),'CONFIG_CAPABILITY_DISABLED','FREQUENCY_NORMATIVE_BASIS_REQUIRED');
-  return {...plan,rules:{...r},policyRevision:policy.revision,absenceLimit:plan.classification==='PLANNED_MEETINGS'?Math.floor(plan.normativeMeetingsCount*r.maxAbsenceBasisPoints/10000):null};
+  return {...plan,rules:{classification:r.classification,rounding:r.rounding,maxAbsenceBasisPoints:r.maxAbsenceBasisPoints,minimumAttendanceBasisPoints:r.minimumAttendanceBasisPoints,absenceNorm:r.absenceNorm,attendanceNorm:r.attendanceNorm},policyRevision:policy.revision,absenceLimit:plan.classification==='PLANNED_MEETINGS'?Math.floor(plan.normativeMeetingsCount*r.maxAbsenceBasisPoints/10000):null};
  }
  function opening(c){if(c.frequencyPlanningRequired)N(c.frequencyPlanning?.periods?.length>0&&c.frequencyPlanning.periods.every(p=>p.state==='APPROVED'),'HUMAN_DECISION_REQUIRED','FREQUENCY_PLANNING_APPROVAL_REQUIRED');}
  return {validate,opening};
