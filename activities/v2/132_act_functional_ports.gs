@@ -191,7 +191,8 @@ function f4ActivitiesFunctionalPorts_(options){
   N(head&&person,'UNRESOLVED_DEPENDENCY');recheck([auth]);
   const hints=materialOnly?new Set():capabilityHints();
   // UI hints only. Every prepare/admission/commit reauthorizes the real command.
-  return {schemaVersion:'act-portal-context-v1',idPessoa:auth.personId,nome:profile?.sourceRevision===head.revision?profile.displayLabel:person.displayName||'',accessProfile:auth.proof.kind==='DEV_ADMIN'?'DEV_ADMIN':null,board,materialOnly,activityAgendaDirect:settings.activityAgendaDirect===true,canManageActivity:board&&hints.has('ACTIVITY_MANAGE')&&settings.commands.includes('ACTIVITY_SAVE'),canRealizeActivity:board&&hints.has('ACTIVITY_REALIZATION_MANAGE')&&settings.commands.includes('ACTIVITY_REALIZE'),canConfigureActivity:board&&hints.has('ACTIVITY_CONFIG_MANAGE')&&settings.commands.includes('ACTIVITY_TYPE_SAVE'),canCreateActivity:board&&hints.has('ACTIVITY_MANAGE')&&settings.commands.includes('ACTIVITY_SAVE'),canRegisterAttendance:board&&hints.has('ACTIVITY_ATTENDANCE_MANAGE')&&settings.commands.includes('ATTENDANCE_FINALIZE'),validUntil:Math.min(identity.expiresAt,clock()+60000)};
+  const navigation=f4AdministrativeNavigationHints_({get,identity,now:clock(),board,probe:(resources,capability,scope)=>{const proof=readAuthority(resources,false,capability,scope);recheck([proof]);}});
+  return {schemaVersion:'act-portal-context-v1',idPessoa:auth.personId,nome:profile?.sourceRevision===head.revision?profile.displayLabel:person.displayName||'',accessProfile:auth.proof.kind==='DEV_ADMIN'?'DEV_ADMIN':null,board,materialOnly,navigation,activityAgendaDirect:settings.activityAgendaDirect===true,canManageActivity:board&&hints.has('ACTIVITY_MANAGE')&&settings.commands.includes('ACTIVITY_SAVE'),canRealizeActivity:board&&hints.has('ACTIVITY_REALIZATION_MANAGE')&&settings.commands.includes('ACTIVITY_REALIZE'),canConfigureActivity:board&&hints.has('ACTIVITY_CONFIG_MANAGE')&&settings.commands.includes('ACTIVITY_TYPE_SAVE'),canCreateActivity:board&&hints.has('ACTIVITY_MANAGE')&&settings.commands.includes('ACTIVITY_SAVE'),canRegisterAttendance:board&&hints.has('ACTIVITY_ATTENDANCE_MANAGE')&&settings.commands.includes('ATTENDANCE_FINALIZE'),validUntil:Math.min(identity.expiresAt,clock()+60000,navigation.validUntil)};
  });}
  function authorizePrepared(reader,request){
   N(request?.commandType?.startsWith('ACT.')&&settings.commands.includes(request.commandType.slice(4)),'CONFIG_CAPABILITY_DISABLED');
@@ -202,6 +203,24 @@ function f4ActivitiesFunctionalPorts_(options){
  // Transaction prefetch uses that transaction's own reads, never this cache.
  function prefetchAuthority(tx){f4ActivitiesPrefetchCommand_(tx,identity.uid);for(let i=0;i<settings.policyIds.length;i+=180)tx.getAll(settings.policyIds.slice(i,i+180).map(id=>'memberAuthzPolicies/'+id));}
  return {withSourceSnapshot:fn=>sourceSnapshot(fn,true),recheckAuthority:auth=>sourceSnapshot(()=>f4SharedAuthz_().recheck(get,auth.q,auth.proof,clock()),true),authorizePreparedFresh:request=>sourceSnapshot(()=>authorizePrepared(get,request),true),prefetchAuthority,prepare,read,readAuthority,capabilityHints,commandAvailable,commandAccess,commandConfigured,readWithAuthoritySnapshot,resume,context,authorizeUpload,authorizePrepared};
+}
+
+// Safe feature-discovery metadata only. No private section is read here, no
+// permission is granted, and every section/command retains its own authorizer.
+function f4AdministrativeNavigationHints_({get,identity,now,board,probe}){
+ let director=false,validUntil=Math.min(identity.expiresAt,now+60000);
+ try{const actor=f4MemberAuthz_().identify(get,identity.uid,now);director=actor.derived.currentDirectors.length>0;
+  validUntil=Math.min(validUntil,f4Core_().ms(actor.derived.state.validUntil),...Object.values(actor.actor.d).filter(v=>v.startDate&&/^m1-member(Functions|Governance)/.test(v.schemaVersion)).flatMap(v=>{const i=actor.actor.M.interval(v.startDate,v.endDateReal||v.endDatePlanned||v.endDate);return [i.a,i.z].filter(t=>t>now);}));
+ }catch{}
+ const routes={'admin-atividades':board,'admin-justificativas':board,'admin-eixos-tematicos':board,'diretoria-competencias':board&&director,'perfis-permissoes':board&&director,'admin-apresentacoes':false};
+ try{probe(['presentationCapacityHeads/registry'],'PRESENTATION_BOARD_READ','PRESENTATIONS_PLAN');routes['admin-apresentacoes']=true;}catch{}
+ const control=get('institutionalDirectoryControl/current');
+ for(const section of ['identity','parameters','norms','governance']){
+  routes['institutional-'+section]=false;
+  if(control?.schemaVersion!=='institutional-directory-control-v1'||control.enabled!==true)continue;
+  try{const auth=f4InstitutionalPolicies_(get,identity,now,control.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/'+section);routes['institutional-'+section]=auth.mask.includes('summary');validUntil=Math.min(validUntil,auth.validUntil);}catch{}
+ }
+ return {schemaVersion:'admin-navigation-hints-v1',director,validUntil,routes};
 }
 
 
