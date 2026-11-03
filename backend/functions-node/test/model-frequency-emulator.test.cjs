@@ -35,15 +35,18 @@ test('original models and planning through actual shared executor / ROLE / emula
   const command='CYCLE_FREQUENCY_PLAN_RECOGNIZE',payload=h.payload;
   invalidAuth=true;await a.rejects(prepare(command,payload));invalidAuth=false;
   const policy=doc('memberAuthzPolicies/CF_DEV_ACT_POLICY');await policy.update({active:false});await a.rejects(prepare(command,payload));await policy.update({active:true});
-  const factsBefore=await db.collection('activityAttendanceRecords').get(),factsHash=x=>JSON.stringify(x.docs.map(d=>[d.id,d.data()]).sort());
-  const one=await prepare(command,payload),two=await prepare(command,payload);let committed=false;
+  await doc('activityAttendance/SYN_PRESERVED_FACT').set({id:'SYN_PRESERVED_FACT',revision:7,result:'PRESENT',source:'SYNTHETIC_IMMUTABLE_SENTINEL'});
+  const factsBefore=await db.collection('activityAttendance').get(),factsHash=x=>JSON.stringify(x.docs.map(d=>[d.id,d.data()]).sort());
+  const portalInput={operationId:crypto.randomBytes(16).toString('hex'),route:'/admin/ciclos-semestres/frequencia/reconhecer',payload:{id:'SYN_CYCLE',revision:1,plan:payload.plan,recognitionRef:payload.recognitionRef,reason:payload.reason}};
+  const one=(await call('flowPortalPrepare',portalInput)).request,two=await prepare(command,payload);let committed=false;
   await a.rejects(call('execute',one,{afterCommit:()=>{committed=true;throw Error('SYN_RECOGNITION_LOST_RESPONSE')}}),/SYN_RECOGNITION_LOST_RESPONSE/);a(committed);
   const after=(await doc('presentationCycles/SYN_CYCLE').get()).data();a.equal(after.status,'OPEN');a.equal(after.revision,2);a.equal(after.frequencyPlanning.periods[0].absenceLimit,5);a.equal(after.frequencyPlanning.periods[0].recognition.originalApproval.date,null);
   await call('execute',one);const conflicting=await Promise.allSettled([call('execute',two)]);a.equal((await doc('presentationCycles/SYN_CYCLE').get()).data().revision,2);a.equal((await doc('commandReceipts/'+one.operationId).get()).data().state,'COMPLETED');
   const ledger=(await doc('commandLedger/'+one.operationId).get()).data();a(ledger.revisionAfter.every(x=>['presentationCycles','activityHistory','activityAttendanceRegistry','memberAggregateHeads'].includes(x.resourceType)),JSON.stringify(ledger.revisionAfter));
   for(const x of ledger.revisionAfter.filter(x=>x.resourceType==='memberAggregateHeads'))a.deepEqual(x,ledger.revisionBefore.find(y=>y.resourceType===x.resourceType&&y.id===x.id));
-  a.equal(factsHash(await db.collection('activityAttendanceRecords').get()),factsHash(factsBefore));
+  a.equal(factsHash(await db.collection('activityAttendance').get()),factsHash(factsBefore));
   const repeated=await prepare(command,payload),rejected=await call('execute',repeated);a.equal(resultState(rejected),'FAILED');a.equal((await doc('presentationCycles/SYN_CYCLE').get()).data().revision,2);a.equal((await doc('commandExecutorOwners/'+one.operationId).get()).data().executor,EXECUTOR);
  });
  }finally{await db.terminate();}
 });
+
