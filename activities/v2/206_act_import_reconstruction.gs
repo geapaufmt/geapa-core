@@ -135,7 +135,8 @@ function f4ImportedActivityReconstructionPlan_(input) {
 }
 
 // Two finite documentary corrections use the same sealed command, archives and
-// fences. They do not promote a historical record or synthesize attendance.
+// fences. Documentary recognition does not grant ordinary operational eligibility
+// or synthesize attendance, models, sessions, obligations or approvals.
 function f4ImportedNonAttendancePlan_({intent,get,load,now,actorRef,a,source,hash}){
  const M=f4ActivitiesModel_(),N=M.need,variant=intent.variant,cycle=load('cycle',intent.cycleId);
  N(['HISTORICAL_RESCHEDULE','HISTORICAL_NO_CALL','HISTORICAL_CANCELLED'].includes(variant)&&a.recordMode==='HISTORICAL_PARTIAL'&&source.literal?.ID_ATIVIDADE===a.id&&source.literal.CICLO===cycle.id&&cycle.status==='OPEN','INVALID_STATE_TRANSITION');
@@ -165,7 +166,7 @@ function f4ImportedNonAttendancePlan_({intent,get,load,now,actorRef,a,source,has
   N(Array.isArray(intent.calendarSnapshots)&&intent.calendarSnapshots.length===intent.calendarIds.length,'UNRESOLVED_DEPENDENCY','SEALED_CALENDAR_REQUIRED');
   for(const [index,id] of intent.calendarIds.entries()){const other=get(M.path(M.ref('activity',id))),sealed=intent.calendarSnapshots[index];N(other&&sealed.id===id&&hash(f4ImportedCalendarFields_(other))===sealed.hash,'STALE_REVISION','CALENDAR_CHANGED');if(other.id===a.id||other.status==='CANCELLED'||other.legacyStatus==='CANCELADA'||other.civilDate!==decision.civilDate)continue;N(other.startsAt&&other.endsAt,'UNRESOLVED_DEPENDENCY','CALENDAR_TIME_UNKNOWN');N(M.ms(other.endsAt)<=start||M.ms(other.startsAt)>=end,'CONFLICT','CALENDAR_OVERLAP');}
   const history=[...(a.scheduleRecognition?.priorDates||[]),a.civilDate];
-  next=evolve(a,{civilDate:decision.civilDate,startsAt:M.stamp(start),endsAt:M.stamp(end),academicSemesterId:sem.id,scheduleRecognition:{...recognition,priorDates:[...new Set(history)],previousStartsAt:a.startsAt||null,previousEndsAt:a.endsAt||null}});
+  next=terminal({status:'SCHEDULED',civilDate:decision.civilDate,startsAt:M.stamp(start),endsAt:M.stamp(end),academicSemesterId:sem.id,scheduleRecognition:{...recognition,priorDates:[...new Set(history)],previousStartsAt:a.startsAt||null,previousEndsAt:a.endsAt||null}});
   N(a.historicalPresentationRefs?.length>0,'UNRESOLVED_DEPENDENCY','PRESENTATION_LINEAGE');
   for(const ref of a.historicalPresentationRefs){const pr=load('presentation',ref.id);N(pr.recordMode==='HISTORICAL_PARTIAL'&&pr.activityRef?.resolution==='RESOLVED'&&pr.activityRef.ref.id===a.id,'UNRESOLVED_DEPENDENCY','PRESENTATION_LINEAGE');writes.push({path:M.path(ref),data:evolve(pr,{scheduledCivilDate:decision.civilDate,scheduleRecognition:recognition})});}
  }

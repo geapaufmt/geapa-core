@@ -13,7 +13,7 @@ function f4ActivityReview_(){
   // The sealed recognition command reconstructs imported fields from immutable
   // evidence; it is not an ordinary edit and cannot change the review itself.
   if(cmd==='ACTIVITY_IMPORT_RECOGNIZE'&&old.recordMode==='HISTORICAL_PARTIAL'&&next.importRecognition?.previousRevision===old.revision&&next.importRecognition?.kind==='DOCUMENTARY_RECOGNITION')return;
-  if(cmd==='ACTIVITY_IMPORT_RECOGNIZE'&&old.recordMode==='HISTORICAL_PARTIAL'&&next.recordMode==='HISTORICAL_RECOGNIZED'&&next.historicalResolution?.previousRevision===old.revision&&['HISTORICAL_NO_CALL','HISTORICAL_CANCELLED'].includes(next.historicalResolution.kind))return;
+  if(cmd==='ACTIVITY_IMPORT_RECOGNIZE'&&old.recordMode==='HISTORICAL_PARTIAL'&&next.recordMode==='HISTORICAL_RECOGNIZED'&&next.historicalResolution?.previousRevision===old.revision&&['HISTORICAL_NO_CALL','HISTORICAL_CANCELLED','HISTORICAL_RESCHEDULE'].includes(next.historicalResolution.kind))return;
   const protectedFields=['title','location','format','startsAt','endsAt','civilDate','details','typeRef','typeSnapshot','typeRevision','modelContent','cycleRef','cycleId','academicSemesterId','personRef','guestParticipants','historicalPresentationRefs'];
   const reschedule=cmd==='ACTIVITY_IMPORT_RECOGNIZE'&&old.recordMode==='HISTORICAL_PARTIAL'&&next.recordMode==='HISTORICAL_PARTIAL'&&next.scheduleRecognition?.kind==='HISTORICAL_RESCHEDULE'&&next.scheduleRecognition.previousRevision===old.revision;
   N(protectedFields.filter(k=>!reschedule||!['startsAt','endsAt','civilDate','academicSemesterId'].includes(k)).every(k=>C.hash(f4Firestore_().encode(old[k]??null))===C.hash(f4Firestore_().encode(next[k]??null))),'INVALID_STATE_TRANSITION','ACTIVITY_REVIEW_LOCKED');
