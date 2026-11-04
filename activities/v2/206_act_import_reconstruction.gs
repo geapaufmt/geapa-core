@@ -6,12 +6,14 @@ function f4ImportedActivityReconstructionPlan_(input) {
  const normalized=v=>v&&typeof v.toMillis==='function'?{_seconds:v.seconds,_nanoseconds:v.nanoseconds}:Array.isArray(v)?v.map(normalized):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,normalized(x)])):v;
  const hash=v=>f4Core_().hash(JSON.parse(JSON.stringify(normalized(v)))),eq=(a,b)=>hash(a)===hash(b);
  N(intent?.schemaVersion==='act-import-reconstruction-intent-v1'&&M.id(intent.operationId)&&actorRef?.kind==='person'&&M.id(actorRef.id),'VALIDATION_ERROR');
- N(intent.cycleId==='GEAPA_2026'&&intent.historicalApplicability?.status==='PROVEN'&&intent.historicalApplicability.sourceRefs?.length>0,'UNRESOLVED_DEPENDENCY','HISTORICAL_CRITERIA_NOT_PROVEN');
+ const syntheticCycle=intent.cycleId!=='GEAPA_2026'&&!f4ExecutionEnvironment_().production&&/^SYN_IMPORT_[A-Za-z0-9_]+$/.test(intent.cycleId);
+ N((intent.cycleId==='GEAPA_2026'||syntheticCycle)&&intent.historicalApplicability?.status==='PROVEN'&&intent.historicalApplicability.sourceRefs?.length>0,'UNRESOLVED_DEPENDENCY','HISTORICAL_CRITERIA_NOT_PROVEN');
  N(Array.isArray(intent.readSet)&&intent.readSet.length>0&&intent.readSet.length<=250&&new Set(intent.readSet.map(x=>x.path)).size===intent.readSet.length,'VALIDATION_ERROR');
  const loaded={},reads=new Set();for(const r of intent.readSet){N(typeof r.hash==='string'&&/^[a-f0-9]{64}$/.test(r.hash),'VALIDATION_ERROR');const d=get(r.path);N(d&&hash(d)===r.hash,'STALE_REVISION',r.path);loaded[r.path]=d;}
  function load(kind,id){const path=M.path(M.ref(kind,id));N(Object.hasOwn(loaded,path),'UNRESOLVED_DEPENDENCY','UNSEALED_DEPENDENCY');reads.add(path);return loaded[path];}
  const a=load('activity',intent.activityId),c=load('attendanceCollection',a.id),source=load('evidence',a.provenanceHead.id),l=source.literal;
  const cycle=load('cycle',intent.cycleId),type=load('activityType',intent.typeId),policy=load('attendancePolicy',intent.policyId);
+ if(syntheticCycle)N(cycle.originRef?.kind==='SYNTHETIC_RECONCILIATION_FIXTURE','AUTHORIZATION_DENIED');
  N(a.recordMode==='HISTORICAL_PARTIAL'&&c.recordMode==='HISTORICAL_PARTIAL'&&c.id===a.id&&c.activityRef?.id===a.id,'INVALID_STATE_TRANSITION');
  N(l?.ID_ATIVIDADE===a.id&&l.CICLO===cycle.id&&l.STATUS_OPERACIONAL==='REALIZADA'&&a.legacyStatus==='REALIZADA'&&!a.status&&!a.realizationRef,'UNRESOLVED_DEPENDENCY','REALIZATION_SOURCE');
  M.civil(a.civilDate);N(a.civilDate<='2026-10-22'&&cycle.status==='OPEN'&&cycle.civilStart<=a.civilDate&&cycle.civilEnd>=a.civilDate,'INVALID_STATE_TRANSITION','CYCLE_OR_DATE');
