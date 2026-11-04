@@ -5,7 +5,7 @@ function f4ActivityContextActions_(options,id){
  return ports.readWithAuthoritySnapshot((check,get)=>{
   const ref=M.ref('activity',id),auth=ports.readAuthority([M.path(ref)],false),a=get(M.path(ref));
   N(a&&a.sourceSnapshotState!=='ABSENT_FROM_CURRENT_SNAPSHOT','RESOURCE_NOT_FOUND');check([auth]);
-  const now=clock(),c=get('activityAttendanceCollections/'+id),historical=a.recordMode==='HISTORICAL_PARTIAL',locked=a.administrativeReview?.state==='CONFIRMED';
+  const now=clock(),c=get('activityAttendanceCollections/'+id),historical=['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(a.recordMode),locked=a.administrativeReview?.state==='CONFIRMED';
   const actions=[],memo=new Map();
   function allowed(command,refs=[ref]){const key=command+refs.map(M.path).join();if(!memo.has(key))memo.set(key,ports.commandAccess(command,refs));return memo.get(key);}
   function add(id,label,command,enabled,reason,refs){if(!command||allowed(command,refs))actions.push({id,label,enabled:!!enabled,reason:enabled?'':reason});}
@@ -38,8 +38,8 @@ function f4ActivityContextActions_(options,id){
 function f4ExceptionalWindowEligibility_(get,a,c,now){
  // Historical provenance may contain a NOT_RECONSTRUCTED marker, not a typed
  // cycle reference. It is never operational eligibility or authority.
- if(a.recordMode==='HISTORICAL_PARTIAL')return {eligible:false,reason:'Registro histórico somente leitura.'};
+ if(['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(a.recordMode))return {eligible:false,reason:'Registro histórico somente leitura.'};
  const M=f4ActivitiesModel_(),cycle=a.cycleRef&&get(M.path(a.cycleRef)),day=M.day(now);
- const reason=a.recordMode==='HISTORICAL_PARTIAL'?'Registro histórico somente leitura.':!cycle||cycle.status!=='OPEN'||!cycle.civilStart||!cycle.civilEnd||day<cycle.civilStart||day>cycle.civilEnd?'O ciclo não está em andamento.':['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status)?'A atividade não admite chamada disciplinar.':!a.typeSnapshot?.countsAbsence||!a.typeSnapshot?.allowsJustification?'A atividade não admite justificativas de falta.':!c?.lastFinalizedAt||c.state!=='CLOSED'?'A chamada precisa estar finalizada.':'';
+ const reason=['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(a.recordMode)?'Registro histórico somente leitura.':!cycle||cycle.status!=='OPEN'||!cycle.civilStart||!cycle.civilEnd||day<cycle.civilStart||day>cycle.civilEnd?'O ciclo não está em andamento.':['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status)?'A atividade não admite chamada disciplinar.':!a.typeSnapshot?.countsAbsence||!a.typeSnapshot?.allowsJustification?'A atividade não admite justificativas de falta.':!c?.lastFinalizedAt||c.state!=='CLOSED'?'A chamada precisa estar finalizada.':'';
  return {eligible:!reason,reason};
 }

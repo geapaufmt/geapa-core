@@ -135,19 +135,26 @@ function f4ImportedActivityReconstructionPlan_(input) {
 }
 
 // Two finite documentary corrections use the same sealed command, archives and
-// fences. They do not promote a historical record or synthesize attendance.
+// fences. Documentary recognition does not grant ordinary operational eligibility
+// or synthesize attendance, models, sessions, obligations or approvals.
 function f4ImportedNonAttendancePlan_({intent,get,load,now,actorRef,a,source,hash}){
  const M=f4ActivitiesModel_(),N=M.need,variant=intent.variant,cycle=load('cycle',intent.cycleId);
- N(['HISTORICAL_RESCHEDULE','HISTORICAL_NO_CALL'].includes(variant)&&a.recordMode==='HISTORICAL_PARTIAL'&&source.literal?.ID_ATIVIDADE===a.id&&source.literal.CICLO===cycle.id&&cycle.status==='OPEN','INVALID_STATE_TRANSITION');
+ N(['HISTORICAL_RESCHEDULE','HISTORICAL_NO_CALL','HISTORICAL_CANCELLED'].includes(variant)&&a.recordMode==='HISTORICAL_PARTIAL'&&source.literal?.ID_ATIVIDADE===a.id&&source.literal.CICLO===cycle.id&&cycle.status==='OPEN','INVALID_STATE_TRANSITION');
  if(cycle.id!=='GEAPA_2026')N(!f4ExecutionEnvironment_().production&&cycle.originRef?.kind==='SYNTHETIC_RECONCILIATION_FIXTURE','AUTHORIZATION_DENIED');
  N(intent.factIds?.length===0&&intent.justificationIds?.length===0&&!get('activityAttendanceCollections/'+a.id),'UNRESOLVED_DEPENDENCY','NO_CALL_REQUIRED');
  N(intent.documentaryAdjustmentRef?.kind==='policy','VALIDATION_ERROR');const decision=load('policy',intent.documentaryAdjustmentRef.id);
  N(decision.usage===variant&&decision.activityId===a.id&&decision.sourceHash===hash(source)&&decision.approved===true&&decision.active===true&&decision.reason&&decision.decisionEvidenceRef?.kind==='evidence'&&hash(load('evidence',decision.decisionEvidenceRef.id))===decision.decisionEvidenceHash,'UNRESOLVED_DEPENDENCY','DOCUMENTARY_DECISION_REQUIRED');
  const recognition={schemaVersion:'act-import-recognition-v1',kind:variant,previousRevision:a.revision,operationId:intent.operationId,recognizedAt:M.stamp(now),recognizedBy:actorRef,manifestHash:hash(intent),approvalRef:intent.documentaryAdjustmentRef,sourceRef:a.provenanceHead};
  const evolve=(d,patch)=>({...d,...patch,revision:d.revision+1,operationId:intent.operationId,updatedAt:M.stamp(now)});let next,writes=[];
+ const terminal=patch=>evolve(a,{...patch,recordMode:'HISTORICAL_RECOGNIZED',cycleId:cycle.id,cycleRef:M.ref('cycle',cycle.id),historicalResolution:{...recognition,schemaVersion:'activity-historical-resolution-v1',state:'FINAL',previousMode:'HISTORICAL_PARTIAL',ordinaryOperationsAllowed:false}});
  if(variant==='HISTORICAL_NO_CALL'){
   N(a.legacyStatus==='REALIZADA'&&source.literal.STATUS_OPERACIONAL==='REALIZADA'&&!a.status&&!a.realizationRef,'INVALID_STATE_TRANSITION');
-  next=evolve(a,{attendanceRecognition:{...recognition,state:'NO_CALL',createsFrequencyFacts:false}});
+  M.civil(a.civilDate);const realizationRef=M.ref('activityRealization','rec_'+intent.operationId);
+  next=terminal({status:'OCCURRED',realizationRef,attendanceRecognition:{...recognition,state:'NO_CALL',createsFrequencyFacts:false}});
+  writes.push({path:M.path(realizationRef),data:{schemaVersion:a.schemaVersion,id:realizationRef.id,revision:1,recordMode:'NEW_V2',originRef:a.provenanceHead,operationId:intent.operationId,activityRef:M.ref('activity',a.id),occurred:true,recognized:true,occurrenceTemporalObject:{precision:'DAY',civilDate:a.civilDate},basis:{reasonCode:'IMPORTED_NO_CALL_RECOGNIZED',sourceRef:a.provenanceHead,recognition},predecessorRef:{kind:'NONE'},recognizedAt:M.stamp(now)}});
+ }else if(variant==='HISTORICAL_CANCELLED'){
+  N(a.legacyStatus==='CANCELADA'&&source.literal.STATUS_OPERACIONAL==='CANCELADA'&&!a.status&&!a.realizationRef,'INVALID_STATE_TRANSITION');
+  next=terminal({status:'CANCELLED'});
  }else{
   N(a.legacyStatus==='PLANEJADA'&&source.literal.STATUS_OPERACIONAL==='PLANEJADA'&&!a.status&&!a.realizationRef&&!a.presentationSessionRef,'INVALID_STATE_TRANSITION');
   M.civil(decision.civilDate);N(decision.civilDate>=M.day(now)&&cycle.civilStart<=decision.civilDate&&decision.civilDate<=cycle.civilEnd,'INVALID_STATE_TRANSITION','RESCHEDULE_DATE');
@@ -159,11 +166,12 @@ function f4ImportedNonAttendancePlan_({intent,get,load,now,actorRef,a,source,has
   N(Array.isArray(intent.calendarSnapshots)&&intent.calendarSnapshots.length===intent.calendarIds.length,'UNRESOLVED_DEPENDENCY','SEALED_CALENDAR_REQUIRED');
   for(const [index,id] of intent.calendarIds.entries()){const other=get(M.path(M.ref('activity',id))),sealed=intent.calendarSnapshots[index];N(other&&sealed.id===id&&hash(f4ImportedCalendarFields_(other))===sealed.hash,'STALE_REVISION','CALENDAR_CHANGED');if(other.id===a.id||other.status==='CANCELLED'||other.legacyStatus==='CANCELADA'||other.civilDate!==decision.civilDate)continue;N(other.startsAt&&other.endsAt,'UNRESOLVED_DEPENDENCY','CALENDAR_TIME_UNKNOWN');N(M.ms(other.endsAt)<=start||M.ms(other.startsAt)>=end,'CONFLICT','CALENDAR_OVERLAP');}
   const history=[...(a.scheduleRecognition?.priorDates||[]),a.civilDate];
-  next=evolve(a,{civilDate:decision.civilDate,startsAt:M.stamp(start),endsAt:M.stamp(end),academicSemesterId:sem.id,scheduleRecognition:{...recognition,priorDates:[...new Set(history)],previousStartsAt:a.startsAt||null,previousEndsAt:a.endsAt||null}});
+  next=terminal({status:'SCHEDULED',civilDate:decision.civilDate,startsAt:M.stamp(start),endsAt:M.stamp(end),academicSemesterId:sem.id,scheduleRecognition:{...recognition,priorDates:[...new Set(history)],previousStartsAt:a.startsAt||null,previousEndsAt:a.endsAt||null}});
   N(a.historicalPresentationRefs?.length>0,'UNRESOLVED_DEPENDENCY','PRESENTATION_LINEAGE');
   for(const ref of a.historicalPresentationRefs){const pr=load('presentation',ref.id);N(pr.recordMode==='HISTORICAL_PARTIAL'&&pr.activityRef?.resolution==='RESOLVED'&&pr.activityRef.ref.id===a.id,'UNRESOLVED_DEPENDENCY','PRESENTATION_LINEAGE');writes.push({path:M.path(ref),data:evolve(pr,{scheduledCivilDate:decision.civilDate,scheduleRecognition:recognition})});}
  }
  writes.unshift({path:M.path(M.ref('activity',a.id)),data:next});
+ M.validate(M.ref('activity',a.id),next);
  return {schemaVersion:'act-import-reconstruction-plan-v1',operationId:intent.operationId,manifestHash:hash(intent),readSet:intent.readSet,writes,factsPreservedHash:hash([]),preservedJustificationIds:[],historyEvent:variant,requiredFences:['activityAttendanceRegistry/current','presentationCapacityHeads/registry'],requiresEmptyOwnershipAndLeases:true};
 }
 function f4ImportedCalendarFields_(a){const M=f4ActivitiesModel_();return {id:a.id,civilDate:a.civilDate||null,status:a.status||null,legacyStatus:a.legacyStatus||null,startsAt:a.startsAt?M.ms(a.startsAt):null,endsAt:a.endsAt?M.ms(a.endsAt):null};}
