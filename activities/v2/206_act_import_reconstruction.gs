@@ -58,7 +58,8 @@ function f4ImportedActivityReconstructionPlan_(input) {
  if(latest?.type==='CHAMADA_REABERTA'&&intent.reopeningRecognitionRef){
   const r=load('policy',intent.reopeningRecognitionRef.id),facts=intent.factIds.map(id=>load('attendance',id)),material=facts.map(f=>({id:f.id,personRef:f.personRef,status:f.status,countsAttendance:f.countsAttendance,countsAbsence:f.countsAbsence,applicableAtDate:f.applicableAtDate}));
   N(r.usage==='IMPORTED_REOPENING_RECOGNITION'&&r.approved===true&&r.active===true&&r.activityId===a.id&&r.closureEvidenceHash===hash(closureSource)&&r.afterMaterialHash===hash(material)&&r.beforeMaterialHash===r.afterMaterialHash&&r.noMaterialChange===true&&r.reason&&r.comparisonEvidenceRef?.kind==='evidence','UNRESOLVED_DEPENDENCY','REOPENING_MATERIAL_CHANGE');
-  N(hash(load('evidence',r.comparisonEvidenceRef.id))===r.comparisonEvidenceHash,'STALE_REVISION','REOPENING_COMPARISON_CHANGED');
+  const comparison=load('evidence',r.comparisonEvidenceRef.id);
+  N(hash(comparison)===r.comparisonEvidenceHash&&hash(comparison.materialBefore)===r.beforeMaterialHash&&hash(comparison.materialAfter)===r.afterMaterialHash,'STALE_REVISION','REOPENING_COMPARISON_CHANGED');
   const final=events.filter(e=>e.type==='CHAMADA_FINALIZADA').at(-1);N(final&&events.filter(e=>Date.parse(e.at)>Date.parse(final.at)).every(e=>e.type==='CHAMADA_REABERTA'),'UNRESOLVED_DEPENDENCY','REOPENING_MATERIAL_EVENT');
   reopeningRecognition={approvalRef:intent.reopeningRecognitionRef,reopenedAt:latest.at,recognizedAt:M.stamp(now),originalEventPreserved:true,materialHash:r.afterMaterialHash};latest=final;
  }
@@ -100,6 +101,7 @@ function f4ImportedActivityReconstructionPlan_(input) {
   const documentedJustification=literal.CODIGO_PRESENCA==='F'&&literal.STATUS_PRESENCA==='JUSTIFICADA'&&literal.STATUS_JUSTIFICATIVA==='DEFERIDA'&&literal.DECISAO_JUSTIFICATIVA==='FALTA_JUSTIFICADA'&&literal.VALOR_DEPOIS_JUSTIFICATIVA==='FALTA_JUSTIFICADA';
   N(originalCode===f.status||documentedJustification&&f.status==='JUSTIFIED','UNRESOLVED_DEPENDENCY','FACT_RESULT_CONFLICT');
   N(typeof f.countsAttendance==='boolean'&&typeof f.countsAbsence==='boolean'&&typeof f.applicableAtDate==='boolean','UNRESOLVED_DEPENDENCY','COUNT_BASIS_REQUIRED');
+  N(effective.countsAbsence||f.countsAbsence===false,'UNRESOLVED_DEPENDENCY','ACTIVITY_ABSENCE_EXCEPTION_CONFLICT');
   N((literal.CONTA_PRESENCA==='SIM')===f.countsAttendance&&(literal.CONTA_FALTA==='SIM')===f.countsAbsence&&['SIM','NAO'].includes(literal.CONTA_PRESENCA)&&['SIM','NAO'].includes(literal.CONTA_FALTA),'UNRESOLVED_DEPENDENCY','COUNT_SOURCE_CONFLICT');
   if(f.status==='NOT_APPLICABLE')N(f.applicableAtDate===false,'UNRESOLVED_DEPENDENCY','NON_APPLICABILITY_CONFLICT');
   else {N(f.applicableAtDate===true&&f.membershipRef?.kind==='membership','UNRESOLVED_DEPENDENCY','HISTORICAL_MEMBERSHIP_REQUIRED');const link=load('membership',f.membershipRef.id);N(link.idPessoa===f.personRef.id&&['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE'].includes(link.type)&&link.startDate<=a.civilDate&&(!link.endDate||link.endDate>=a.civilDate),'UNRESOLVED_DEPENDENCY','HISTORICAL_MEMBERSHIP_MISMATCH');}
@@ -135,6 +137,7 @@ function f4ImportedActivityReconstructionPlan_(input) {
 function f4ImportedNonAttendancePlan_({intent,get,load,now,actorRef,a,source,hash}){
  const M=f4ActivitiesModel_(),N=M.need,variant=intent.variant,cycle=load('cycle',intent.cycleId);
  N(['HISTORICAL_RESCHEDULE','HISTORICAL_NO_CALL'].includes(variant)&&a.recordMode==='HISTORICAL_PARTIAL'&&source.literal?.ID_ATIVIDADE===a.id&&source.literal.CICLO===cycle.id&&cycle.status==='OPEN','INVALID_STATE_TRANSITION');
+ if(cycle.id!=='GEAPA_2026')N(!f4ExecutionEnvironment_().production&&cycle.originRef?.kind==='SYNTHETIC_RECONCILIATION_FIXTURE','AUTHORIZATION_DENIED');
  N(intent.factIds?.length===0&&intent.justificationIds?.length===0&&!get('activityAttendanceCollections/'+a.id),'UNRESOLVED_DEPENDENCY','NO_CALL_REQUIRED');
  N(intent.documentaryAdjustmentRef?.kind==='policy','VALIDATION_ERROR');const decision=load('policy',intent.documentaryAdjustmentRef.id);
  N(decision.usage===variant&&decision.activityId===a.id&&decision.sourceHash===hash(source)&&decision.approved===true&&decision.active===true&&decision.reason&&decision.decisionEvidenceRef?.kind==='evidence'&&hash(load('evidence',decision.decisionEvidenceRef.id))===decision.decisionEvidenceHash,'UNRESOLVED_DEPENDENCY','DOCUMENTARY_DECISION_REQUIRED');
