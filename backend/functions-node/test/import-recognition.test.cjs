@@ -37,3 +37,5 @@ test('original model documentary equivalence preserves source and requires curre
  delete intent.modelEquivalenceRef;a.throws(plan,e=>e.reasonCode==='MODEL_CLASSIFICATION_MISMATCH');intent.modelEquivalenceRef=ref('policy','SYN_EQ');
  type.governance.usageAuthorizations[0].enabled=false;intent.readSet.find(r=>r.path==='activityTypes/'+type.id).hash=H.hash(type);a.throws(plan,e=>e.reasonCode==='ORIGINAL_MODEL_NOT_APPROVED_FOR_CYCLE');
 });
+
+test('canonical normative documents are sealed read-only dependencies, never mutable activity targets',()=>{const d=fixture(),approval=d['presentationPolicyReferences/SYN_IMPORT_APPROVAL'],path='institutionalNormVersions/SYN_NORM';d[path]={id:'SYN_NORM',revision:1,status:'CURRENT'};approval.intent.readSet.push({path,hash:H.hash(d[path])});approval.intentHash=H.hash(approval.intent);const copy=H.plain(d),r=run(harness(d));a.equal(r.response.businessState,'COMMIT_APPLIED');a.deepEqual(d[path],copy[path]);a(!r.writes.some(w=>w.path===path));copy[path].revision=2;const bad=run(harness(copy));a.equal(bad.response.businessState,'REJECTED');a.equal(bad.writes.length,0);});
