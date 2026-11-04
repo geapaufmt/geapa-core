@@ -17,6 +17,14 @@ test('two documented speakers have equal roles, no invented primary and no priva
  assert.equal(v.personRef,null);assert.equal(v.modelContent.principal,undefined);assert.equal(v.modelContent.principals.length,2);assert.equal(d['memberIdentities/SYN_SPEAKER_A'].revision,undefined);
  delete d['memberIdentities/SYN_SPEAKER_B'];assert.throws(()=>setup(d).plan(i));
 });
+test('documented external speakers need no invented person identity and retain legacy references',()=>{
+ const d=fixture();d['activityTypes/SYN_TYPE'].portalModel={requiresPrincipal:true,memberPresentation:false};const before=Object.keys(d).filter(p=>p.startsWith('memberIdentities/'));
+ const speakers=['External Example A','External Example B'].map(displayName=>({kind:'EXTERNAL_DISPLAY',personRef:null,displayName,participationRole:'PALESTRANTE'}));const i=adjustment(d,{principals:speakers}),p=setup(d).plan(i),act=p.writes[0].data;
+ assert.equal(act.personRef,null);assert.equal(act.modelContent.principals.length,2);assert(!act.modelContent.principal);assert.deepEqual(Object.keys(d).filter(p=>p.startsWith('memberIdentities/')),before);
+ const ctx=setup(d).ctx;require('node:vm').runInContext(require('node:fs').readFileSync(require('node:path').resolve(__dirname,'../../../activities/v2/175_act_activity_content.gs'),'utf8'),ctx);assert.equal(ctx.f4ActivityContentDto_(act,true,()=>undefined).nomePessoaPrincipalPublico,'External Example A e External Example B');
+ const single=adjustment(d,{principals:[{...speakers[0],legacyReference:'PROF-SYN'}]}),a=setup(d).plan(single).writes[0].data;assert.equal(a.personRef,null);assert.equal(a.modelContent.principal.legacyReference,'PROF-SYN');assert.equal(a.modelContent.principal.historicalDisplayName,'External Example A');
+ const bad=adjustment(d,{principals:[{...speakers[0],legacyReference:'PES-FAKE'}]});assert.throws(()=>setup(d).plan(bad),/DOCUMENTED_EXTERNAL_NAME/);
+});
 test('assembly exception has no absence effect and does not change the global template or individual results',()=>{
  const d=fixture(21);d['activityJustifications/SYN_J'].state='APPROVED';d['migrationEvidence/EA'].literal.CONTA_FALTA='NAO';d['migrationEvidence/EA'].literal.PERMITE_JUSTIFICATIVA='NAO';
  for(const [p,f]of Object.entries(d))if(p.startsWith('activityAttendance/')){f.countsAbsence=false;d['migrationEvidence/'+f.provenanceHead.id].literal.CONTA_FALTA='NAO';}
