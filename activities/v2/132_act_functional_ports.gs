@@ -36,7 +36,13 @@ function f4ActivitiesFunctionalPorts_(options){
    // Historical links must not make every new operation load an ever-growing
    // chain. An explicitly supplied predecessor remains an input precondition.
    const historical=['predecessorRef','predecessorCoverageRef','initialCoverageRef','predecessorRecognitionRef','predecessorSubmissionRef','lastCalendarChangeRef','changeSummary','proposedBy','historicalPresentationRefs','historicalInvolvedRefs','promotion','continuity','provenanceHead'];
-   for(const [key,v] of Object.entries(value))if(!(fromDocument&&value.kind==='HISTORICAL_PREAGENDA'&&key==='presentationRef')&&!(fromDocument&&historical.includes(key))&&!(key==='sourceManifestRef'&&value.originRef?.kind==='CORE_COMMAND')&&!['actor','actorAuthorityBasis','authorityBasis','decision','originRef','basisRevisionVector','roster','records','sourceHeads'].includes(key))refs(v,out,fromDocument);
+   for(const [key,v] of Object.entries(value)){
+    // These immutable import citations are protected by the recognized root's
+    // revision. They are not operational dependencies with their own revision.
+    if(fromDocument&&key==='documentaryAdjustment'&&value.importRecognition?.schemaVersion==='act-import-recognition-v1')continue;
+    if(fromDocument&&key==='documentarySourceRef'&&value.kind==='EXTERNAL_DISPLAY')continue;
+    if(!(fromDocument&&value.kind==='HISTORICAL_PREAGENDA'&&key==='presentationRef')&&!(fromDocument&&historical.includes(key))&&!(key==='sourceManifestRef'&&value.originRef?.kind==='CORE_COMMAND')&&!['actor','actorAuthorityBasis','authorityBasis','decision','originRef','basisRevisionVector','roster','records','sourceHeads'].includes(key))refs(v,out,fromDocument);
+   }
   }return out;
  }
  function selectors(){
