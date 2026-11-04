@@ -13,7 +13,7 @@ function f4ActivitiesImportRecognitionCommands_(x){
   N(approval.usage==='ACTIVITY_IMPORT_RECOGNITION'&&approval.approved===true&&approval.active===true&&approval.actorPersonIds?.includes(actor.personId),'AUTHORIZATION_DENIED','RECOGNITION_NOT_APPROVED');
   N(M.ms(approval.issuedAt)<=now&&now<M.ms(approval.expiresAt),'AUTHORIZATION_DENIED','RECOGNITION_APPROVAL_EXPIRED');
   N(intent?.operationId===operationId&&intent.activityId===p.activityRef.id&&approval.intentHash===H(intent),'STALE_REVISION','RECOGNITION_INTENT_CHANGED');
-  N(Array.isArray(intent.readSet)&&intent.readSet.length>0&&intent.readSet.length<=180&&intent.readSet.every(r=>(M.validPath(r.path)||/^member(Identities|Links)\/[A-Za-z0-9_-]{1,48}$/.test(r.path))&&r.path.split('/').length===2),'VALIDATION_ERROR');
+  N(Array.isArray(intent.readSet)&&intent.readSet.length>0&&intent.readSet.length<=180&&intent.readSet.every(r=>(M.validPath(r.path)||/^(?:member(?:Identities|Links)|institutionalNorm(?:Versions|Approvals))\/[A-Za-z0-9_-]{1,128}$/.test(r.path))&&r.path.split('/').length===2),'VALIDATION_ERROR');
   prefetch(intent.readSet.map(r=>r.path));
   const a=load(p.activityRef,true),criteria=approval.historicalCriteria;
   N(criteria?.schemaVersion==='import-historical-criteria-v1'&&criteria.historicalApprovalClaimed===false&&criteria.civilStart<=a.civilDate&&a.civilDate<=criteria.civilEnd&&criteria.basis&&criteria.sources?.length>0&&criteria.sources.length<=8,'UNRESOLVED_DEPENDENCY','HISTORICAL_CRITERIA_NOT_PROVEN');
