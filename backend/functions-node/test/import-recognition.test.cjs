@@ -22,6 +22,21 @@ for(const [name,mutate]of Object.entries({revoked:d=>d['presentationPolicyRefere
 test('ordinary authorization remains required independently of sealed import approval',()=>{a.throws(()=>run(harness(fixture()),{allowed:[]}),/AUTHORIZATION_DENIED/);});
 test('stale activity revision is rejected before reconstruction',()=>{a.throws(()=>run(harness(fixture()),{stale:true}),/STALE_REVISION/);});
 module.exports={fixture,payload,op};
+test('business preparation fences recognized roots without traversing name-only speaker citations',()=>{
+ const d=fixture(),h=harness(d);a.equal(run(h).response.businessState,'COMMIT_APPLIED');
+ const activity=d['canonicalActivities/SYN_IMPORT_ACTIVITY'];
+ activity.documentaryAdjustment={sourceRef:ref('evidence','SYN_DOCUMENT_NO_REVISION'),approvalRef:ref('policy','SYN_DOCUMENT_APPROVAL')};
+ activity.principals=[{kind:'EXTERNAL_DISPLAY',personRef:null,displayName:'Synthetic external speaker',documentarySourceRef:ref('evidence','SYN_DOCUMENT_NO_REVISION')}];
+ d['migrationEvidence/SYN_DOCUMENT_NO_REVISION']={id:'SYN_DOCUMENT_NO_REVISION',synthetic:true};
+ d['presentationPolicyReferences/SYN_DOCUMENT_APPROVAL']={id:'SYN_DOCUMENT_APPROVAL',sourceRef:ref('evidence','SYN_DOCUMENT_NO_REVISION')};
+ const s=require('./activity-profile-fixture.cjs').setup('DIRETOR_RECURSOS_HUMANOS',docs=>{
+  Object.assign(docs,d);const p=docs['memberAuthzPolicies/CF_DEV_ACT_POLICY'];p.capabilities.push('ACTIVITY_ATTENDANCE_MANAGE');p.fieldMasks.ACTIVITY_ATTENDANCE_MANAGE=[];p.targets.allowedTargetScopes=['ACTIVITIES'];p.targets.allowedResources=Object.keys(d);delete p.targets.resourceScope;
+ });
+ const prepared=JSON.parse(s.domain.run('x=>f4ActivitiesFunctionalPorts_({config:nodeConfig,identity:{uid:"CF_ADMIN",expiresAt:x.now+60000},settings:{commands:["ATTENDANCE_JUSTIFICATION_DECIDE"],policyIds:["CF_DEV_ACT_POLICY"]},clock:()=>x.now}).prepare(x.input)',{now:Date.now(),input:{operationId:'af'.repeat(16),commandType:'ACT.ATTENDANCE_JUSTIFICATION_DECIDE',payload:{justificationRef:ref('justification','SYN_J'),decision:'APPROVE',reason:'Synthetic preparation after recognition'}}}));
+ a(!prepared.target.expected.some(r=>r.kind==='evidence'||r.id==='SYN_DOCUMENT_APPROVAL'));
+ for(const kind of ['activity','attendance','attendanceCollection','cycle'])a(prepared.target.expected.some(r=>r.kind===kind&&Number.isInteger(r.revision)),kind);
+ a.equal(activity.principals[0].personRef,null);
+});
 for(const variant of ['HISTORICAL_NO_CALL','HISTORICAL_RESCHEDULE'])test('sealed ancillary recognition preserves confirmed review and missing original origin: '+variant,()=>{
  const d=fixture(),approval=d['presentationPolicyReferences/SYN_IMPORT_APPROVAL'];delete d['presentationPolicyReferences/SYN_IMPORT_APPROVAL'];for(const p of Object.keys(d))if(p.startsWith('activityAttendance/')||p.startsWith('activityAttendanceCollections/')||p.startsWith('activityJustifications/'))delete d[p];
  const act=d['canonicalActivities/SYN_IMPORT_ACTIVITY'],source=d['migrationEvidence/EA'];act.historicalPresentationRefs=[];const dec={id:'SYN_ANCILLARY',revision:1,usage:variant,active:true,approved:true,activityId:act.id,sourceHash:null,reason:'Synthetic explicit documentary decision',decisionEvidenceRef:ref('evidence','SYN_ANCILLARY_DECISION'),decisionEvidenceHash:null};d['migrationEvidence/SYN_ANCILLARY_DECISION']={id:'SYN_ANCILLARY_DECISION',synthetic:true};
