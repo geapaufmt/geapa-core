@@ -143,7 +143,7 @@ function f4ImportedNonAttendancePlan_({intent,get,load,now,actorRef,a,source,has
  N(intent.factIds?.length===0&&intent.justificationIds?.length===0&&!get('activityAttendanceCollections/'+a.id),'UNRESOLVED_DEPENDENCY','NO_CALL_REQUIRED');
  N(intent.documentaryAdjustmentRef?.kind==='policy','VALIDATION_ERROR');const decision=load('policy',intent.documentaryAdjustmentRef.id);
  N(decision.usage===variant&&decision.activityId===a.id&&decision.sourceHash===hash(source)&&decision.approved===true&&decision.active===true&&decision.reason&&decision.decisionEvidenceRef?.kind==='evidence'&&hash(load('evidence',decision.decisionEvidenceRef.id))===decision.decisionEvidenceHash,'UNRESOLVED_DEPENDENCY','DOCUMENTARY_DECISION_REQUIRED');
- const recognition={schemaVersion:'act-import-recognition-v1',kind:variant,operationId:intent.operationId,recognizedAt:M.stamp(now),recognizedBy:actorRef,manifestHash:hash(intent),approvalRef:intent.documentaryAdjustmentRef,sourceRef:a.provenanceHead};
+ const recognition={schemaVersion:'act-import-recognition-v1',kind:variant,previousRevision:a.revision,operationId:intent.operationId,recognizedAt:M.stamp(now),recognizedBy:actorRef,manifestHash:hash(intent),approvalRef:intent.documentaryAdjustmentRef,sourceRef:a.provenanceHead};
  const evolve=(d,patch)=>({...d,...patch,revision:d.revision+1,operationId:intent.operationId,updatedAt:M.stamp(now)});let next,writes=[];
  if(variant==='HISTORICAL_NO_CALL'){
   N(a.legacyStatus==='REALIZADA'&&source.literal.STATUS_OPERACIONAL==='REALIZADA'&&!a.status&&!a.realizationRef,'INVALID_STATE_TRANSITION');

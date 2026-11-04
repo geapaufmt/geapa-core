@@ -14,7 +14,8 @@ function f4ActivityReview_(){
   // evidence; it is not an ordinary edit and cannot change the review itself.
   if(cmd==='ACTIVITY_IMPORT_RECOGNIZE'&&old.recordMode==='HISTORICAL_PARTIAL'&&next.importRecognition?.previousRevision===old.revision&&next.importRecognition?.kind==='DOCUMENTARY_RECOGNITION')return;
   const protectedFields=['title','location','format','startsAt','endsAt','civilDate','details','typeRef','typeSnapshot','typeRevision','modelContent','cycleRef','cycleId','academicSemesterId','personRef','guestParticipants','historicalPresentationRefs'];
-  N(protectedFields.every(k=>C.hash(f4Firestore_().encode(old[k]??null))===C.hash(f4Firestore_().encode(next[k]??null))),'INVALID_STATE_TRANSITION','ACTIVITY_REVIEW_LOCKED');
+  const reschedule=cmd==='ACTIVITY_IMPORT_RECOGNIZE'&&old.recordMode==='HISTORICAL_PARTIAL'&&next.recordMode==='HISTORICAL_PARTIAL'&&next.scheduleRecognition?.kind==='HISTORICAL_RESCHEDULE'&&next.scheduleRecognition.previousRevision===old.revision;
+  N(protectedFields.filter(k=>!reschedule||!['startsAt','endsAt','civilDate','academicSemesterId'].includes(k)).every(k=>C.hash(f4Firestore_().encode(old[k]??null))===C.hash(f4Firestore_().encode(next[k]??null))),'INVALID_STATE_TRANSITION','ACTIVITY_REVIEW_LOCKED');
  }
  function dto(a,admin){const v=a.administrativeReview;if(!v)return {};validate(v);return {estadoConferencia:v.state==='PENDING'?'PENDENTE DE CONFERÊNCIA':'CONFERIDA',conferenciaRevision:v.revision,...(admin?{conferenciaResponsavel:v.confirmedBy?.id||null,conferenciaEm:v.confirmedAt?new Date(M.ms(v.confirmedAt)).toISOString():null,podeConferir:v.state==='PENDING',camposConferencia:v.state==='PENDING'?fields:[]}:{} )};}
  function handle(x){const {p,load,revision,event,actor,now,operationId}=x;
