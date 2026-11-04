@@ -152,8 +152,10 @@ function f4ImportedNonAttendancePlan_({intent,get,load,now,actorRef,a,source,has
   const sem=load('academicSemester',decision.academicSemesterId);N(sem.cycleId===cycle.id&&sem.civilStart<=decision.civilDate&&decision.civilDate<=sem.civilEnd&&(cycle.academicSemesterRefs||[]).some(r=>r.id===sem.id),'UNRESOLVED_DEPENDENCY','SEMESTER_ASSOCIATION');
   N(/^\d{2}:\d{2}$/.test(decision.start)&&/^\d{2}:\d{2}$/.test(decision.end),'VALIDATION_ERROR');
   const start=Date.parse(decision.civilDate+'T'+decision.start+':00-04:00'),end=Date.parse(decision.civilDate+'T'+decision.end+':00-04:00');N(Number.isFinite(start)&&end>start&&end-start<=86400000,'VALIDATION_ERROR');
-  N(Array.isArray(intent.calendarIds)&&intent.calendarIds.length>0&&intent.calendarIds.length<=64,'UNRESOLVED_DEPENDENCY','SEALED_CALENDAR_REQUIRED');
-  for(const id of intent.calendarIds){const other=load('activity',id);if(other.id===a.id||other.status==='CANCELLED'||other.legacyStatus==='CANCELADA'||other.civilDate!==decision.civilDate)continue;N(other.startsAt&&other.endsAt,'UNRESOLVED_DEPENDENCY','CALENDAR_TIME_UNKNOWN');N(M.ms(other.endsAt)<=start||M.ms(other.startsAt)>=end,'CONFLICT','CALENDAR_OVERLAP');}
+  N(Array.isArray(intent.calendarIds)&&intent.calendarIds.length>0&&intent.calendarIds.length<=64&&new Set(intent.calendarIds).size===intent.calendarIds.length,'UNRESOLVED_DEPENDENCY','SEALED_CALENDAR_REQUIRED');
+  N(Number.isSafeInteger(intent.calendarFenceRevision)&&intent.calendarFenceRevision>=0&&(get('portalReaderResourceFences/activities')?.revision||0)===intent.calendarFenceRevision,'STALE_REVISION','CALENDAR_CHANGED');
+  N(Array.isArray(intent.calendarSnapshots)&&intent.calendarSnapshots.length===intent.calendarIds.length,'UNRESOLVED_DEPENDENCY','SEALED_CALENDAR_REQUIRED');
+  for(const [index,id] of intent.calendarIds.entries()){const other=get(M.path(M.ref('activity',id))),sealed=intent.calendarSnapshots[index];N(other&&sealed.id===id&&hash(f4ImportedCalendarFields_(other))===sealed.hash,'STALE_REVISION','CALENDAR_CHANGED');if(other.id===a.id||other.status==='CANCELLED'||other.legacyStatus==='CANCELADA'||other.civilDate!==decision.civilDate)continue;N(other.startsAt&&other.endsAt,'UNRESOLVED_DEPENDENCY','CALENDAR_TIME_UNKNOWN');N(M.ms(other.endsAt)<=start||M.ms(other.startsAt)>=end,'CONFLICT','CALENDAR_OVERLAP');}
   const history=[...(a.scheduleRecognition?.priorDates||[]),a.civilDate];
   next=evolve(a,{civilDate:decision.civilDate,startsAt:M.stamp(start),endsAt:M.stamp(end),academicSemesterId:sem.id,scheduleRecognition:{...recognition,priorDates:[...new Set(history)],previousStartsAt:a.startsAt||null,previousEndsAt:a.endsAt||null}});
   N(a.historicalPresentationRefs?.length>0,'UNRESOLVED_DEPENDENCY','PRESENTATION_LINEAGE');
@@ -162,3 +164,4 @@ function f4ImportedNonAttendancePlan_({intent,get,load,now,actorRef,a,source,has
  writes.unshift({path:M.path(M.ref('activity',a.id)),data:next});
  return {schemaVersion:'act-import-reconstruction-plan-v1',operationId:intent.operationId,manifestHash:hash(intent),readSet:intent.readSet,writes,factsPreservedHash:hash([]),preservedJustificationIds:[],historyEvent:variant,requiredFences:['activityAttendanceRegistry/current','presentationCapacityHeads/registry'],requiresEmptyOwnershipAndLeases:true};
 }
+function f4ImportedCalendarFields_(a){const M=f4ActivitiesModel_();return {id:a.id,civilDate:a.civilDate||null,status:a.status||null,legacyStatus:a.legacyStatus||null,startsAt:a.startsAt?M.ms(a.startsAt):null,endsAt:a.endsAt?M.ms(a.endsAt):null};}
