@@ -50,8 +50,9 @@ class ReaderStore extends Store{
 }
 function contract(body){
  if(!body||Object.keys(body).sort().join()!=='action,request'||body.action!=='actRead'||!body.request||Array.isArray(body.request))fail('COMMAND_PAYLOAD_INVALID');
- const q=body.request,keys=q.route==='/atividades/chamada'?['activityId','route']:['params','route'];
+ const q=body.request,keys=q.route==='/atividades/chamada'?['activityId',...(Object.hasOwn(q,'readOnly')?['readOnly']:[]),'route']:['params','route'];
  if(Object.keys(q).sort().join()!==keys.join()||typeof q.route!=='string'||q.route.length>128)fail('COMMAND_PAYLOAD_INVALID');
+ if(q.route==='/atividades/chamada'&&Object.hasOwn(q,'readOnly')&&typeof q.readOnly!=='boolean')fail('COMMAND_PAYLOAD_INVALID');
  return q;
 }
 async function readAct({db,auth,appCheck,token,appCheckToken,origin,body,hooks={},workspacePhase=null}){
