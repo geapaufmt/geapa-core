@@ -1,5 +1,5 @@
 // A canonical promotion changes the parent activity mode, never its imported children.
-function f4ActivityHasHistoricalRelations_(a){return !!a&&(a.recordMode==='HISTORICAL_PARTIAL'||a.recordMode==='NEW_V2'&&Array.isArray(a.historicalPresentationRefs)&&(a.promotion?.schemaVersion==='activity-operational-promotion-v1'&&a.promotion.fromMode==='HISTORICAL_PARTIAL'&&a.promotion.sourceRef?.id===a.provenanceHead?.id||a.importRecognition?.schemaVersion==='act-import-recognition-v1'&&a.importRecognition.previousMode==='HISTORICAL_PARTIAL'&&!!a.provenanceHead)));}
+function f4ActivityHasHistoricalRelations_(a){return !!a&&(a.recordMode==='HISTORICAL_PARTIAL'||a.recordMode==='NEW_V2'&&Array.isArray(a.historicalPresentationRefs)&&(a.promotion?.schemaVersion==='activity-operational-promotion-v1'&&a.promotion.fromMode==='HISTORICAL_PARTIAL'&&a.promotion.sourceRef?.id===a.provenanceHead?.id||a.importRecognition?.schemaVersion==='act-import-recognition-v1'&&a.importRecognition.previousMode==='HISTORICAL_PARTIAL'&&!!a.provenanceHead));}
 // Literal historical details only. Callers must authorize the parent activity.
 // These DTOs never supply current policy, recognition, receipt or write authority.
 function f4ActivityHistoricalDetails_(activity,get){
