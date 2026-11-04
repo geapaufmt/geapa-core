@@ -75,9 +75,9 @@ class FlowStore extends ActivityStore{
    // and the single monotonic cycle epoch. Never add the registry to a scope.
    if(w.path==='presentationCapacityHeads/registry'){
     const old=this.hostRead(w.path);if(s.missing.size)return;
-    const envelope=['revision','updatedAt','operationId','originRef','schemaVersion','recordMode'];
-    if(!['ACT_FLOW_CYCLE_CREATE','ACT_FLOW_CYCLE_OPEN'].includes(this.routeId)||!old||d.id!=='registry'||d.kind!=='DOMAIN_FENCE'||d.cycleRegistryEpoch!==old.cycleRegistryEpoch+1||d.membersEpoch!==old.membersEpoch||d.revision!==old.revision+1||d.operationId!==this.operationId||d.originRef?.kind!=='CORE_COMMAND'||d.originRef.operationId!==this.operationId||d.schemaVersion!=='act-v2-candidate'||d.recordMode!=='NEW_V2')fail('PILOT_WRITE_DENIED');
-    for(const k of new Set([...Object.keys(old),...Object.keys(d)]))if(k!=='cycleRegistryEpoch'&&!envelope.includes(k)&&JSON.stringify(encode(old[k]??null))!==JSON.stringify(encode(d[k]??null)))fail('PILOT_WRITE_DENIED');
+    const epochField=this.routeId==='ACT_FLOW_ACTIVITY_IMPORT_RECOGNIZE'?'activityEpoch':'cycleRegistryEpoch';const envelope=['revision','updatedAt','operationId','originRef','schemaVersion','recordMode'];
+    if(!['ACT_FLOW_ACTIVITY_IMPORT_RECOGNIZE','ACT_FLOW_CYCLE_CREATE','ACT_FLOW_CYCLE_OPEN'].includes(this.routeId)||!old||d.id!=='registry'||d.kind!=='DOMAIN_FENCE'||d[epochField]!==(old[epochField]??(epochField==='activityEpoch'?0:NaN))+1||d.membersEpoch!==old.membersEpoch||d.revision!==old.revision+1||d.operationId!==this.operationId||d.originRef?.kind!=='CORE_COMMAND'||d.originRef.operationId!==this.operationId||d.schemaVersion!=='act-v2-candidate'||d.recordMode!=='NEW_V2')fail('PILOT_WRITE_DENIED');
+    for(const k of new Set([...Object.keys(old),...Object.keys(d)]))if(k!==epochField&&!envelope.includes(k)&&JSON.stringify(encode(old[k]??null))!==JSON.stringify(encode(d[k]??null)))fail('PILOT_WRITE_DENIED');
     continue;
    }
    // Shared invalidation marker is not a fixture entity. The canonical handler
