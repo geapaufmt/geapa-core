@@ -1,9 +1,9 @@
 // A canonical promotion changes the parent activity mode, never its imported children.
-function f4ActivityHasHistoricalRelations_(a){return !!a&&(a.recordMode==='HISTORICAL_PARTIAL'||a.recordMode==='NEW_V2'&&Array.isArray(a.historicalPresentationRefs)&&(a.promotion?.schemaVersion==='activity-operational-promotion-v1'&&a.promotion.fromMode==='HISTORICAL_PARTIAL'&&a.promotion.sourceRef?.id===a.provenanceHead?.id||a.importRecognition?.schemaVersion==='act-import-recognition-v1'&&a.importRecognition.previousMode==='HISTORICAL_PARTIAL'&&!!a.provenanceHead));}
+function f4ActivityHasHistoricalRelations_(a){return !!a&&(['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(a.recordMode)||a.recordMode==='NEW_V2'&&Array.isArray(a.historicalPresentationRefs)&&(a.promotion?.schemaVersion==='activity-operational-promotion-v1'&&a.promotion.fromMode==='HISTORICAL_PARTIAL'&&a.promotion.sourceRef?.id===a.provenanceHead?.id||a.importRecognition?.schemaVersion==='act-import-recognition-v1'&&a.importRecognition.previousMode==='HISTORICAL_PARTIAL'&&!!a.provenanceHead));}
 // Literal historical details only. Callers must authorize the parent activity.
 // These DTOs never supply current policy, recognition, receipt or write authority.
 function f4ActivityHistoricalDetails_(activity,get){
- if(activity.recordMode!=='HISTORICAL_PARTIAL')return {};
+ if(!['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(activity.recordMode))return {};
  const e=get('migrationEvidence/'+activity.provenanceHead.id);
  f4ActivitiesModel_().need(e?.schemaVersion==='act-migration-assertion-v1'&&e.literal?.ID_ATIVIDADE===activity.id,'UNRESOLVED_DEPENDENCY');
  const s={...e.literal},M=f4ActivitiesModel_();if(activity.scheduleRecognition?.kind==='HISTORICAL_RESCHEDULE'){s.HORARIO_INICIO=Utilities.formatDate(new Date(M.ms(activity.startsAt)),'America/Cuiaba','HH:mm');s.HORARIO_FIM=Utilities.formatDate(new Date(M.ms(activity.endsAt)),'America/Cuiaba','HH:mm');}const text=k=>typeof s[k]==='string'?s[k]:'';

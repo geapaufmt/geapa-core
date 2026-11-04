@@ -23,6 +23,11 @@ function f4ActivitiesModel_() {
  const hash=x=>f4Core_().hash(json(x));
  function validate(r,d){need(d&&typeof d==='object');need(JSON.stringify(f4Firestore_().encode(d)).length<=65536,'SCOPE_TOO_LARGE');
   if(d.recordMode==='HISTORICAL_PARTIAL'){need(d.provenanceHead&&d.evidenceScope,'UNRESOLVED_DEPENDENCY');return d;}
+  if(d.recordMode==='HISTORICAL_RECOGNIZED'){
+   const h=d.historicalResolution;
+   need(r.kind==='activity'&&d.provenanceHead&&Array.isArray(d.evidenceScope)&&id(d.id)&&rev(d.revision)&&d.revision>0&&id(d.operationId)&&h?.schemaVersion==='activity-historical-resolution-v1'&&h.state==='FINAL'&&h.previousMode==='HISTORICAL_PARTIAL'&&h.sourceRef?.id===d.provenanceHead.id&&h.approvalRef?.kind==='policy'&&Number.isFinite(ms(h.recognizedAt))&&h.recognizedBy?.kind==='person'&&d.cycleRef?.kind==='cycle'&&d.cycleRef.id===d.cycleId,'UNRESOLVED_DEPENDENCY','HISTORICAL_RESOLUTION_REQUIRED');
+   need(d.status==='CANCELLED'&&h.kind==='HISTORICAL_CANCELLED'&&!d.realizationRef||d.status==='OCCURRED'&&h.kind==='HISTORICAL_NO_CALL'&&d.attendanceRecognition?.state==='NO_CALL'&&d.realizationRef?.kind==='activityRealization','INVALID_STATE_TRANSITION','HISTORICAL_TERMINAL_STATE');return d;
+  }
   if(['evidence','quarantine'].includes(r.kind)){need(d.provenanceHead||d.subjectEvidenceRef||d.sealedManifest);return d;}
   if(d.recordMode==='NEW_V2'){need(id(d.id)&&rev(d.revision)&&d.revision>0&&d.originRef&&d.operationId);}
   if(r.kind==='session'){need([1,2].includes(d.config.capacity)&&Array.isArray(d.slots)&&d.slots.length<=d.config.capacity);need(new Set(d.slots.map(s=>path(s.unitRef))).size===d.slots.length);}

@@ -18,7 +18,7 @@ function f4ActivitiesImportRecognitionCommands_(x){
   if(intent.variant)prefetch(['activityAttendanceCollections/'+p.activityRef.id]);
   if(intent.variant==='HISTORICAL_RESCHEDULE'){N(Array.isArray(intent.calendarIds)&&intent.calendarIds.length<=64&&intent.calendarIds.every(id=>typeof id==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(id)),'VALIDATION_ERROR');prefetch(['portalReaderResourceFences/activities',...intent.calendarIds.map(id=>'canonicalActivities/'+id)]);}
   const a=load(p.activityRef,true),criteria=approval.historicalCriteria;
-  N(criteria?.schemaVersion==='import-historical-criteria-v1'&&criteria.historicalApprovalClaimed===false&&criteria.civilStart<=a.civilDate&&a.civilDate<=criteria.civilEnd&&criteria.basis&&criteria.sources?.length>0&&criteria.sources.length<=8,'UNRESOLVED_DEPENDENCY','HISTORICAL_CRITERIA_NOT_PROVEN');
+  N(criteria?.schemaVersion==='import-historical-criteria-v1'&&criteria.historicalApprovalClaimed===false&&(intent.variant==='HISTORICAL_CANCELLED'&&a.civilDate===null||criteria.civilStart<=a.civilDate&&a.civilDate<=criteria.civilEnd)&&criteria.basis&&criteria.sources?.length>0&&criteria.sources.length<=8,'UNRESOLVED_DEPENDENCY','HISTORICAL_CRITERIA_NOT_PROVEN');
   const policy=get('activityPolicies/'+intent.policyId);
   N(criteria.policyId===policy?.id&&criteria.policyRevision===policy.revision&&criteria.policyCriteriaHash===H(f4ActivityConfigNormativeFields_('attendancePolicy',policy)),'STALE_REVISION','HISTORICAL_POLICY_CHANGED');
   for(const source of criteria.sources){const path=M.path(source.ref);N(source.ref.kind==='evidence'&&intent.readSet.some(r=>r.path===path&&r.hash===source.hash)&&H(get(path))===source.hash,'UNRESOLVED_DEPENDENCY','HISTORICAL_SOURCE_NOT_SEALED');}
