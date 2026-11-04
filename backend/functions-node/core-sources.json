@@ -246,6 +246,7 @@
     "institutional/205_institutional_parameter_evidence.gs",
     "activities/v2/207_act_model_frequency_governance.gs",
     "activities/v2/206_act_import_reconstruction.gs",
-    "activities/v2/208_act_import_recognition.gs"
+    "activities/v2/208_act_import_recognition.gs",
+    "institutional/206_institutional_governance.gs"
   ]
 }

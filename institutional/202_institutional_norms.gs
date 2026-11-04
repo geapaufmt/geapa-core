@@ -53,7 +53,7 @@ function f4InstitutionalNormRead_(options,params){
   const order=['versions','provisions','proposals','faq','explanations','parameters','governance'];rows.sort((a,b)=>order.indexOf(a.relation.group)-order.indexOf(b.relation.group)||(a.relation.group==='versions'?Number(b.relation.links.some(l=>l.current))-Number(a.relation.links.some(l=>l.current)):0)||a.id.localeCompare(b.id));
   // Do not expose relationships/contents from sections without a read policy or fields mask.
   const safeIndex={...idx,relations:undefined};delete safeIndex.relations;
-  return {ok:true,data:{schemaVersion:'institutional-instruments-view-v1',section:params.section,index:safeIndex,instrument:params.instrument,items:params.section==='norms'&&!params.instrument?[]:rows.slice((params.page-1)*40,params.page*40),total:rows.length,page:params.page,pages:Math.max(1,Math.ceil(rows.length/40)),hiddenCount,unavailableSections:unavailable,revision:sections[params.section].revision,validUntil:Math.min(...auths.map(a=>a.validUntil)),publicationEnabled:false}};
+  return {ok:true,data:{schemaVersion:'institutional-instruments-view-v1',section:params.section,index:safeIndex,instrument:params.instrument,items:params.section==='norms'&&!params.instrument?[]:rows.slice((params.page-1)*40,params.page*40),total:rows.length,page:params.page,pages:Math.max(1,Math.ceil(rows.length/40)),hiddenCount,unavailableSections:unavailable,revision:sections[params.section].revision,validUntil:Math.min(...auths.map(a=>a.validUntil)),publicationEnabled:false,...(params.section==='governance'?{governance:f4InstitutionalGovernance_().read(get,{...options,clock:()=>now})}:{})}};
  });
 }
 
