@@ -9,7 +9,10 @@ function f4ActivitiesFrequencyCompat_(options){
  const justStatus=s=>({PREVIOUS:'PREVIA',PENDING:'ENVIADA',CORRECTION_REQUESTED:'AJUSTE_SOLICITADO',APPROVED:'DEFERIDA',EXCUSED:'ABONADA',REJECTED:'INDEFERIDA',CLOSED_WITHOUT_ABSENCE:'ENCERRADA_SEM_FALTA',HISTORICAL_PARTIAL:'HISTORICO_INCOMPLETO'}[s]||'');
  function row(fact,admin=false,selectedJustification){
   const activity=get(M.path(fact.activityRef)),collection=get('activityAttendanceCollections/'+fact.activityRef.id);N(activity&&collection,'UNRESOLVED_DEPENDENCY');
-  const j=selectedJustification||((fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef)&&get(M.path(fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef))),now=clock(),late=!!collection.justificationEndsAt&&now>M.ms(collection.justificationEndsAt),before=!!activity.startsAt&&now<M.ms(activity.startsAt),open=!j||j.state==='CORRECTION_REQUESTED'||j.state==='PREVIOUS'&&before;
+  const j=selectedJustification||((fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef)&&get(M.path(fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef))),now=clock(),late=!!collection.justificationEndsAt&&now>M.ms(collection.justificationEndsAt),before=!!activity.startsAt&&now<M.ms(activity.startsAt);
+  // Submission eligibility follows the pending reference used by the command.
+  // A terminal historical decision remains visible without blocking a new request.
+  const pending=fact.pendingJustificationRef&&get(M.path(fact.pendingJustificationRef)),open=!fact.pendingJustificationRef||!!pending&&(pending.state==='CORRECTION_REQUESTED'||pending.state==='PREVIOUS'&&before);
   const exceptional=late?f4AttendanceExceptionalWindow_(get,collection,fact,activity,now):null;
   const outsideDeadline=late&&!exceptional&&!j?.submittedUnderExceptionalWindow;
   [activity.startsAt,collection.justificationOpensAt,collection.justificationEndsAt,exceptional?.value.newDeadline].forEach(boundary);
