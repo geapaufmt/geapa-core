@@ -44,9 +44,9 @@ function f4ActivitiesFrequencyCompat_(options){
    const after=afterId?new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+'activityJustifications/'+afterId):null;
    const merged=states.flatMap(state=>db.query({collection:'activityJustifications',filters:[{field:'state',op:'EQUAL',value:state}],limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(after?{cursor:[after]}:{})}).map(r=>r.data)).sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0),batch=merged.slice(0,20);
    done=merged.length<20;
-   prefetch(batch.flatMap(j=>[M.path(j.activityRef),M.path(j.attendanceRef),'activityAttendanceCollections/'+j.activityRef.id]));
+   prefetch(batch.flatMap(j=>[M.path(j.activityRef),...(j.attendanceRef?[M.path(j.attendanceRef)]:[]),'activityAttendanceCollections/'+j.activityRef.id]));
    for(const j of batch){
-    afterId=j.id;const a=get(M.path(j.activityRef)),f=get(M.path(j.attendanceRef)),c=get('activityAttendanceCollections/'+j.activityRef.id);
+    afterId=j.id;const a=get(M.path(j.activityRef)),f=(j.attendanceRef?get(M.path(j.attendanceRef)):null),c=get('activityAttendanceCollections/'+j.activityRef.id);
     if(!a)continue;
     const cycle=f4ActivityFrequencyCycle_(a,c||{},f||{},get,semesters);if(cycle.cycleId!==cycleId)continue;
     if(!authorizations.has(a.id)){try{const proof=ports.readAuthority([M.path(j.activityRef)],false);check([proof]);authorizations.set(a.id,true);}catch(e){if(!['AUTHORIZATION_DENIED','ACCESS_REVOKED','M13_AUTHZ_DENIED'].includes(e.code))throw e;authorizations.set(a.id,false);}}
@@ -67,8 +67,8 @@ function f4ActivitiesFrequencyCompat_(options){
    const values=all('activityAttendance',[{field:'ownerPersonRef',op:'EQUAL',value:auth.personId}]);N(values.every(f=>f.ownerPersonRef===auth.personId&&f.personRef.id===auth.personId),'AUTHORIZATION_DENIED');hydrate(values,false);const items=pair(values.map(f=>row(f))),periods=[...new Set(items.map(r=>r.dto.ciclo).filter(Boolean))].sort().reverse();
    data={contrato:'MINHA_FREQUENCIA_DETALHADA_V2',cycleGrouping:'GEAPA_CYCLE_V1',registros:items.filter(r=>r.dto.ciclo).map(r=>r.dto),registrosPendentes:items.filter(r=>!r.dto.ciclo).map(r=>r.dto),ciclos:periods.map(id=>({ciclo:id,cycleId:id,rotuloCiclo:get('presentationCycles/'+id)?.cycleLabel||id,resumo:summary(items.filter(r=>r.dto.ciclo===id).map(r=>r.derived)),registros:items.filter(r=>r.dto.ciclo===id).map(r=>r.dto)})),ultimaAtualizacao:new Date(clock()).toISOString()};
   }else if(admin){
-   const page=pendingPage(params,epoch,check),entries=page.items,facts=entries.map(j=>get(M.path(j.attendanceRef))).filter(Boolean);hydrate(facts,true);
-   const rows=entries.map(j=>{const f=get(M.path(j.attendanceRef)),a=get(M.path(j.activityRef)),c=get('activityAttendanceCollections/'+j.activityRef.id);
+   const page=pendingPage(params,epoch,check),entries=page.items,facts=entries.map(j=>(j.attendanceRef?get(M.path(j.attendanceRef)):null)).filter(Boolean);hydrate(facts,true);
+   const rows=entries.map(j=>{const f=(j.attendanceRef?get(M.path(j.attendanceRef)):null),a=get(M.path(j.activityRef)),c=get('activityAttendanceCollections/'+j.activityRef.id);
     if(f&&c)return row(f,true,j).dto;
     // No synthetic attendance is manufactured for an orphaned imported request.
     return {idJustificativa:j.id,idAtividade:j.activityRef.id,tituloAtividade:a?.title||j.activityRef.id,idPessoa:j.personRef?.id||'',ciclo:page.cycleId,statusJustificativa:justStatus(j.state)||'HISTORICO_INCOMPLETO',enviadaEm:iso(j.submittedAt),fila:queueGroup(j,f,a),impedimentoAnalise:'Referência de frequência ou chamada ausente; requer reconciliação documental.',acoesGestao:{podeDeferir:false,podeAbonar:false,podeIndeferir:false,podeSolicitarAjuste:false}};

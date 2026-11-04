@@ -2,6 +2,7 @@ Object.assign(process.env,{GEAPA_RUNTIME:'EMULATOR',GEAPA_PILOT_MODE:'SHARED_DEV
 const {test}=require('node:test'),a=require('node:assert/strict'),{Firestore}=require('@google-cloud/firestore'),{execute}=require('../src/executor.cjs'),{PROJECT,DEMO,EXECUTOR}=require('../src/environment.cjs'),{setup}=require('./activity-profile-fixture.cjs'),{fixture,payload,op}=require('./import-recognition.test.cjs'),H=require('./fixtures/import-reconstruction.cjs');
 test('import recognition through shared canonical executor, ROLE, receipts and recovery',{skip:process.env.GEAPA_IMPORT_EXECUTOR_TEST!=='1'},async t=>{
  const db=new Firestore({projectId:DEMO}),now=Date.now(),base=setup('PRESIDENTE').docs,docs=fixture(25,'PES-000001');let invalidAuth=false,invalidApp=false;
+ delete docs['presentationCapacityHeads/registry'].activityEpoch;
  const approval=docs['presentationPolicyReferences/SYN_IMPORT_APPROVAL'];approval.issuedAt=now-1000;approval.expiresAt=now+3600000;
  const resources=Object.keys(docs).filter(p=>!p.startsWith('member')&&!p.endsWith('/registry'));
  const policy=base['memberAuthzPolicies/CF_DEV_ACT_POLICY'];policy.capabilities=['ACTIVITY_BOARD_READ','ACTIVITY_MANAGE'];policy.fieldMasks={ACTIVITY_BOARD_READ:[],ACTIVITY_MANAGE:[]};policy.targets.allowedTargetScopes=['ACTIVITIES'];policy.targets.allowedResources=resources;policy.targets.allowedPersons=['PES-000001'];delete policy.targets.resourceScope;
