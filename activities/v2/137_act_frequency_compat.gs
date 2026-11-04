@@ -35,7 +35,11 @@ function f4ActivitiesFrequencyCompat_(options){
   C.exact(params,['cursor','cycleId','queue'].filter(k=>Object.hasOwn(params,k)));
   const cycles=all('presentationCycles');cycles.forEach(c=>cache.set('presentationCycles/'+c.id,c));
   const current=cycles.filter(c=>c.status==='OPEN'),cycleId=params.cycleId||(current.length===1?current[0].id:null),queue=params.queue||'ALL';
-  N(M.id(cycleId)&&cycles.some(c=>c.id===cycleId),'VALIDATION_ERROR','SELECT_CANONICAL_CYCLE');N(['ALL','ANALYSIS','ACTION_REQUIRED','HISTORY'].includes(queue),'VALIDATION_ERROR');
+  N(['ALL','ANALYSIS','ACTION_REQUIRED','HISTORY'].includes(queue),'VALIDATION_ERROR');
+  // Do not choose an institutional cycle arbitrarily. Return the selector before
+  // scanning private requests; the enclosing reader still authorizes/rechecks.
+  if(!cycleId&&!Object.hasOwn(params,'cycleId')&&!params.cursor)return {items:[],cycleId:null,queue,requiresCycleSelection:true,cycles:cycles.map(c=>({id:c.id,label:c.cycleLabel||c.id,status:c.status})),pagination:{pageSize:10,hasMore:false,nextCursor:null}};
+  N(M.id(cycleId)&&cycles.some(c=>c.id===cycleId),'VALIDATION_ERROR','SELECT_CANONICAL_CYCLE');
   const cursor=params.cursor;if(cursor){C.exact(cursor,['afterId','epoch','cycleId','queue']);N(M.id(cursor.afterId)&&cursor.epoch===epoch&&cursor.cycleId===cycleId&&cursor.queue===queue,'STALE_REVISION','JUSTIFICATION_PAGE_CHANGED');}
   semesters=all('academicSemesters');semesters.forEach(s=>cache.set('academicSemesters/'+s.id,s));
   const states=queue==='HISTORY'?['APPROVED','EXCUSED','REJECTED','CLOSED_WITHOUT_ABSENCE']:queue==='ALL'?['PREVIOUS','PENDING','CORRECTION_REQUESTED','HISTORICAL_PARTIAL','APPROVED','EXCUSED','REJECTED','CLOSED_WITHOUT_ABSENCE']:['PREVIOUS','PENDING','CORRECTION_REQUESTED','HISTORICAL_PARTIAL'];
@@ -72,7 +76,7 @@ function f4ActivitiesFrequencyCompat_(options){
     if(f&&c)return row(f,true,j).dto;
     // No synthetic attendance is manufactured for an orphaned imported request.
     return {idJustificativa:j.id,idAtividade:j.activityRef.id,tituloAtividade:a?.title||j.activityRef.id,idPessoa:j.personRef?.id||'',ciclo:page.cycleId,statusJustificativa:justStatus(j.state)||'HISTORICO_INCOMPLETO',enviadaEm:iso(j.submittedAt),fila:queueGroup(j,f,a),impedimentoAnalise:'Referência de frequência ou chamada ausente; requer reconciliação documental.',acoesGestao:{podeDeferir:false,podeAbonar:false,podeIndeferir:false,podeSolicitarAjuste:false}};
-   });data={justificativas:rows,pagination:page.pagination,cycleId:page.cycleId,queue:page.queue,cycles:page.cycles,ultimaAtualizacao:new Date(clock()).toISOString()};}
+   });data={justificativas:rows,pagination:page.pagination,cycleId:page.cycleId,queue:page.queue,cycles:page.cycles,requiresCycleSelection:page.requiresCycleSelection===true,ultimaAtualizacao:new Date(clock()).toISOString()};}
 
   else{N(route==='/v2/justificativas/config','VALIDATION_ERROR');data={motivos:[{valor:'SAUDE',rotulo:'Saúde'},{valor:'COMPROMISSO_ACADEMICO',rotulo:'Compromisso acadêmico'},{valor:'COMPROMISSO_PROFISSIONAL',rotulo:'Compromisso profissional'},{valor:'MOTIVO_PESSOAL_RELEVANTE',rotulo:'Motivo pessoal relevante'},{valor:'FORCA_MAIOR',rotulo:'Força maior'},{valor:'OUTRO',rotulo:'Outro'}]};}
   ports.recheckAuthority(auth);N((db.get('activityAttendanceRegistry/current')?.epoch||0)===epoch,'STALE_REVISION');return {ok:true,data};
