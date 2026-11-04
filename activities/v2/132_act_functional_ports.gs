@@ -74,7 +74,7 @@ function f4ActivitiesFunctionalPorts_(options){
   while(documents.size<expectedRefs.size){
    N(expectedRefs.size<=48,'SCOPE_TOO_LARGE','PREPARATION_DEPENDENCIES');
    const pending=[...expectedRefs].filter(([path])=>!documents.has(path)),values=db.getMany(pending.map(([path])=>path));
-   pending.forEach(([path,ref],index)=>{const d=values[index];documents.set(path,d);if(cmd==='ACTIVITY_IMPORT_RECOGNIZE'){if(snapshot)snapshot.set(path,d);return;}if(snapshot)snapshot.set(path,d);if(originalCreation&&['activityType','attendancePolicy','cycle'].includes(ref.kind)){if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(['ACTIVITY_MODEL_DRAFT_SAVE','ACTIVITY_MODEL_APPROVE','ACTIVITY_MODEL_AVAILABILITY_SET','ACTIVITY_MODEL_USAGE_SET'].includes(cmd)){if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(cmd==='CYCLE_FREQUENCY_PLAN_RECOGNIZE'){if(d&&ref.kind==='policy'&&ref.id===input.payload.recognitionRef?.id){for(const r of [d.normativePolicyRef,...(d.sources||[]).map(x=>x.ref)].filter(Boolean))expectedRefs.set(M.path(r),r);}return;}if(cmd==='ACTIVITY_PROMOTE_OPERATIONAL'){if(ref.kind==='activity'&&d){const r=d.administrativeReview?.cycleRef;N(r,'UNRESOLVED_DEPENDENCY','REVIEW_NOT_INITIALIZED');expectedRefs.set(M.path(r),r);}if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(d&&cmd==='ACTIVITY_ADMIN_REVIEW'&&ref.kind==='activity'){const r=d.administrativeReview?.cycleRef;N(r,'UNRESOLVED_DEPENDENCY','REVIEW_NOT_INITIALIZED');expectedRefs.set(M.path(r),r);}else if(d&&cmd!=='ACTIVITY_ADMIN_REVIEW')refs(d,expectedRefs,true);if(d&&ref.kind==='cycle'&&cmd!=='ACTIVITY_ADMIN_REVIEW'){const r=M.ref('capacity',ref.id);expectedRefs.set(M.path(r),r);}if(d?.activityRef?.kind==='activity'){const r=M.ref('attendanceCollection',d.activityRef.id);expectedRefs.set(M.path(r),r);}});
+   pending.forEach(([path,ref],index)=>{const d=values[index];documents.set(path,d);if(cmd==='ACTIVITY_IMPORT_RECOGNIZE'){if(snapshot)snapshot.set(path,d);return;}if(snapshot)snapshot.set(path,d);if(d){const workflowRefs=f4JustificationWorkflowDependencies_(cmd,ref.kind,d);if(workflowRefs!==null){refs(workflowRefs,expectedRefs);if(d.activityRef?.kind==='activity'){const r=M.ref('attendanceCollection',d.activityRef.id);expectedRefs.set(M.path(r),r);}return;}}if(originalCreation&&['activityType','attendancePolicy','cycle'].includes(ref.kind)){if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(['ACTIVITY_MODEL_DRAFT_SAVE','ACTIVITY_MODEL_APPROVE','ACTIVITY_MODEL_AVAILABILITY_SET','ACTIVITY_MODEL_USAGE_SET'].includes(cmd)){if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(cmd==='CYCLE_FREQUENCY_PLAN_RECOGNIZE'){if(d&&ref.kind==='policy'&&ref.id===input.payload.recognitionRef?.id){for(const r of [d.normativePolicyRef,...(d.sources||[]).map(x=>x.ref)].filter(Boolean))expectedRefs.set(M.path(r),r);}return;}if(cmd==='ACTIVITY_PROMOTE_OPERATIONAL'){if(ref.kind==='activity'&&d){const r=d.administrativeReview?.cycleRef;N(r,'UNRESOLVED_DEPENDENCY','REVIEW_NOT_INITIALIZED');expectedRefs.set(M.path(r),r);}if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(d&&cmd==='ACTIVITY_ADMIN_REVIEW'&&ref.kind==='activity'){const r=d.administrativeReview?.cycleRef;N(r,'UNRESOLVED_DEPENDENCY','REVIEW_NOT_INITIALIZED');expectedRefs.set(M.path(r),r);}else if(d&&cmd!=='ACTIVITY_ADMIN_REVIEW')refs(d,expectedRefs,true);if(d&&ref.kind==='cycle'&&cmd!=='ACTIVITY_ADMIN_REVIEW'){const r=M.ref('capacity',ref.id);expectedRefs.set(M.path(r),r);}if(d?.activityRef?.kind==='activity'){const r=M.ref('attendanceCollection',d.activityRef.id);expectedRefs.set(M.path(r),r);}});
   }
   if(!f4AttendanceScope_(cmd)||input.payload.calendarAssessmentRef||input.payload.sessionRef){const r=M.ref('capacity','registry');expectedRefs.set(M.path(r),r);documents.set(M.path(r),get(M.path(r)));}
   function addExpected(ref){const path=M.path(ref);if(!expectedRefs.has(path)){expectedRefs.set(path,ref);documents.set(path,get(path));}}
@@ -268,4 +268,21 @@ function f4ActivitiesPrefetchCommand_(tx,uid,key){
  const r=key?.operationId&&get('commandRequests/'+key.operationId),p=key?.operationId&&get('commandProvenance/'+key.operationId);
  if(r?.ticketId)batch(['memberAdmissionTickets/'+r.ticketId,'memberAdmissionUses/'+r.ticketId]);
  if(p?.authRequests)batch(p.authRequests.filter(q=>['ROLE','SELF','EXPLICIT'].includes(q.kind)).map(q=>(q.kind==='EXPLICIT'?'memberExplicitGrants/':'memberAuthzPolicies/')+q.sourceId));
+}
+
+// These four workflows consume frozen activity/call criteria and the current
+// cycle root. Fencing those roots preserves CAS without traversing unrelated
+// planning, calendar, model catalogs or sealed migration evidence. Explicit
+// payload references and unknown kinds retain the ordinary dependency walk.
+function f4JustificationWorkflowDependencies_(command,kind,d){
+ if(!['ATTENDANCE_JUSTIFICATION_REQUEST','ATTENDANCE_JUSTIFICATION_DECIDE','ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN','ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE'].includes(command))return null;
+ const selected={
+  activity:['cycleRef'],
+  attendanceCollection:['activityRef','exceptionalWindowRefs'],
+  attendance:['activityRef','personRef','membershipRef','pendingJustificationRef'],
+  justification:['activityRef','attendanceRef','personRef'],
+  exceptionalWindow:['activityRefs','personRefs'],
+  cycle:[]
+ }[kind];
+ return selected?selected.map(key=>d[key]).filter(Boolean):null;
 }
