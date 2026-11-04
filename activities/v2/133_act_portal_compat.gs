@@ -11,8 +11,8 @@ function f4ActivitiesPortalCompat_(options){
  function label(c){return c.state==='CLOSED'?'FINALIZADA':c.draftSavedAt&&(!c.reopenedAt||M.ms(c.draftSavedAt)>=M.ms(c.reopenedAt))?'SALVA':c.state==='REOPENED'?'REABERTA':'RASCUNHO';}
  const labels={FINALIZADA:'Chamada finalizada',SALVA:'Rascunho salvo',REABERTA:'Chamada reaberta',RASCUNHO:'Chamada pendente'};
  function row(fact,c){const identity=person(fact.personRef.id),draft=c.state!=='CLOSED'&&fact.draft&&(!c.reopenedAt||M.ms(c.draftSavedAt)>=M.ms(c.reopenedAt))?fact.draft:null,d=draft||fact,applicable=fact.applicableAtDate!==false;const status=!applicable?'NAO_SE_APLICA':d.status==='PRESENT'?(d.modality==='REMOTA'?'PRESENTE_REMOTO':'PRESENTE_PRESENCIAL'):['ABSENT','JUSTIFIED','EXCUSED'].includes(d.status)?'FALTA':'';return {attendanceId:fact.id,attendanceRevision:fact.revision,canonicalStatus:fact.status,tipoParticipante:fact.participantType||'MEMBRO',...identity,instituicao:fact.institutionLabel||'',statusPresenca:status,codigoPresenca:{PRESENTE_PRESENCIAL:'P',PRESENTE_REMOTO:'R',FALTA:'F',NAO_SE_APLICA:'N/A'}[status]||'',observacoes:d.observations||'',aplicavelNaData:applicable,contaPresenca:fact.countsAttendance!==false,contaFalta:fact.countsAbsence!==false,bloqueado:!applicable,motivoBloqueio:fact.notApplicableReason||''};}
- function readChamada(activityId){return ports.readWithAuthoritySnapshot(check=>readChamadaSnapshot(activityId,check));}
- function readChamadaSnapshot(activityId,check){
+ function readChamada(activityId,readOnly=false){N(typeof readOnly==='boolean','VALIDATION_ERROR');return ports.readWithAuthoritySnapshot(check=>readChamadaSnapshot(activityId,check,readOnly));}
+ function readChamadaSnapshot(activityId,check,readOnly){
   N(M.id(activityId),'VALIDATION_ERROR');
   const auth=ports.readAuthority(['canonicalActivities/'+activityId],false),a=get('canonicalActivities/'+activityId),c=get('activityAttendanceCollections/'+activityId);
   check([auth]);
@@ -20,7 +20,7 @@ function f4ActivitiesPortalCompat_(options){
   const historical=a.recordMode==='HISTORICAL_PARTIAL'||c.recordMode==='HISTORICAL_PARTIAL',ref=M.ref('activity',activityId);
   const access=cmd=>!historical&&ports.commandAccess(cmd,[ref]);
   const manage=access('ATTENDANCE_FINALIZE'),now=clock(),within=now>=M.ms(c.opensAt)&&now<=M.ms(c.closesAt),state=label(c),finalized=state==='FINALIZADA',canWrite=manage&&within&&!finalized;
-  if(historical||!manage){
+  if(readOnly||historical||!manage){
    N(finalized,'AUTHORIZATION_DENIED','ATTENDANCE_READ_REQUIRES_CLOSED');
    return readClosedAttendance(a,c,auth,historical);
   }
