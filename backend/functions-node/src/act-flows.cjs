@@ -131,11 +131,12 @@ class FlowStore extends ActivityStore{
    if(this.routeId==='ACT_FLOW_ACTIVITY_IMPORT_RECOGNIZE'&&['activityHistory','activityAgendaViews'].includes(col)){
     const activityId=col==='activityAgendaViews'?id:v.subjectRef?.kind==='activity'?v.subjectRef.id:null;
     const canonical=s.writes.find(x=>x.path==='canonicalActivities/'+activityId&&x.mode==='set'),activity=canonical&&decode(canonical.data);
-    if(!activityId||w.path!==root||!roots.has('canonicalActivities/'+activityId)||activity?.operationId!==this.operationId||activity.importRecognition?.operationId!==this.operationId)fail('PILOT_RESOURCE_DENIED');
+    const documentary=activity?.recordMode==='HISTORICAL_RECOGNIZED'&&activity.historicalResolution?.schemaVersion==='activity-historical-resolution-v1'&&activity.historicalResolution.state==='FINAL'&&activity.historicalResolution.ordinaryOperationsAllowed===false&&['HISTORICAL_NO_CALL','HISTORICAL_CANCELLED','HISTORICAL_RESCHEDULE'].includes(activity.historicalResolution.kind)&&activity.historicalResolution.operationId===this.operationId;
+    if(!activityId||w.path!==root||!roots.has('canonicalActivities/'+activityId)||activity?.operationId!==this.operationId||!(activity.importRecognition?.operationId===this.operationId||documentary))fail('PILOT_RESOURCE_DENIED');
     if(col==='activityHistory'){
      const prior=this.hostRead(root),approval=v.recognitionRef?.kind==='policy'&&this.hostRead('presentationPolicyReferences/'+v.recognitionRef.id);if(s.missing.size)return;
      const domain=this.boundaryDomain||(this.boundaryDomain=createDomain(()=>{throw Error('UNEXPECTED_IO');})),expectedId=JSON.parse(domain.run('(x)=>f4ActivitiesModel_().hash(x).slice(0,32)',{operationId:this.operationId,kind:'history',parent:''}));
-     if(prior||id!==expectedId||!roots.has('presentationPolicyReferences/'+v.recognitionRef.id)||approval?.intent?.operationId!==this.operationId||approval.intent.activityId!==activityId||approval.intentHash!==v.intentHash||v.operationId!==this.operationId||v.originRef?.kind!=='CORE_COMMAND'||v.originRef.operationId!==this.operationId||!['IMPORTED_ACTIVITY_AND_ATTENDANCE_RECOGNIZED','HISTORICAL_NO_CALL','HISTORICAL_RESCHEDULE','HISTORICAL_CANCELLED'].includes(v.action))fail('PILOT_WRITE_DENIED');
+     if(prior||id!==expectedId||!roots.has('presentationPolicyReferences/'+v.recognitionRef.id)||approval?.intent?.operationId!==this.operationId||approval.intent.activityId!==activityId||approval.intentHash!==v.intentHash||v.operationId!==this.operationId||v.originRef?.kind!=='CORE_COMMAND'||v.originRef.operationId!==this.operationId||!['IMPORTED_ACTIVITY_AND_ATTENDANCE_RECOGNIZED','HISTORICAL_NO_CALL','HISTORICAL_RESCHEDULE','HISTORICAL_CANCELLED'].includes(v.action)||documentary&&(v.action!==activity.historicalResolution.kind||approval.intent.variant!==v.action))fail('PILOT_WRITE_DENIED');
     }
     continue;
    }
