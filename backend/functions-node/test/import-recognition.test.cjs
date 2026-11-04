@@ -34,6 +34,6 @@ test('original model documentary equivalence preserves source and requires curre
  // Use the actual bundle, including canonical original-model usage validation.
  const plan=()=>JSON.parse(h.domain.run('x=>f4ImportedActivityReconstructionPlan_({intent:x.intent,get:p=>x.docs[p],now:x.now,actorRef:{kind:"person",id:"SYN_BOARD"}})',{docs:d,intent,now}));
  a.equal(plan().writes[0].data.typeRef.id,type.id);a.equal(source.literal.SUBTIPO_ATIVIDADE,'APRESENTACAO_MEMBRO');
- delete intent.modelEquivalenceRef;a.throws(plan,/MODEL_CLASSIFICATION_MISMATCH/);intent.modelEquivalenceRef=ref('policy','SYN_EQ');
- type.governance.usageAuthorizations[0].enabled=false;intent.readSet.find(r=>r.path==='activityTypes/'+type.id).hash=H.hash(type);a.throws(plan,/ORIGINAL_MODEL_NOT_APPROVED_FOR_CYCLE/);
+ delete intent.modelEquivalenceRef;a.throws(plan,e=>e.reasonCode==='MODEL_CLASSIFICATION_MISMATCH');intent.modelEquivalenceRef=ref('policy','SYN_EQ');
+ type.governance.usageAuthorizations[0].enabled=false;intent.readSet.find(r=>r.path==='activityTypes/'+type.id).hash=H.hash(type);a.throws(plan,e=>e.reasonCode==='ORIGINAL_MODEL_NOT_APPROVED_FOR_CYCLE');
 });
