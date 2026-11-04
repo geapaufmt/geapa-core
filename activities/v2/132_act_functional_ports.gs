@@ -27,6 +27,10 @@ function f4ActivitiesFunctionalPorts_(options){
   if(value&&typeof value==='object'){
    // Population coverage is a fenced Core proof, not the actor's target set.
    if(fromDocument&&value.usage==='HISTORICAL_PREAGENDA')return out;
+   // A completed import seals immutable documentary evidence. Later business
+   // commands fence the recognized roots, not the original source documents.
+   // Explicit evidence supplied in the new command remains an input.
+   if(fromDocument&&(value.schemaVersion==='act-import-recognition-v1'||value.recognition?.schemaVersion==='act-import-recognition-v1'))return out;
    if(['act-incidence-coverage-v1','act-incidence-candidate-v1','act-quota-queue-v1'].includes(value.schemaVersion)||value.coverageKind==='act-incidence-coverage-v1')return out;
    if(value.kind&&value.id){try{const path=M.path(value);if(M.validPath(path))out.set(path,value);return out}catch{}}
    // Historical links must not make every new operation load an ever-growing
