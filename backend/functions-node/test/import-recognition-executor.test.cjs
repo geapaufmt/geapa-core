@@ -5,6 +5,8 @@ test('import recognition through shared canonical executor, ROLE, receipts and r
  delete docs['presentationCapacityHeads/registry'].activityEpoch;
  const approval=docs['presentationPolicyReferences/SYN_IMPORT_APPROVAL'];approval.issuedAt=now-1000;approval.expiresAt=now+3600000;
  const resources=Object.keys(docs).filter(p=>!p.startsWith('member')&&!p.endsWith('/registry'));
+ resources.push('activityRealizations/rec_'+op);
+ while(resources.length<480)resources.push('canonicalActivities/SYN_SCOPE_PAD_'+resources.length);
  const policy=base['memberAuthzPolicies/CF_DEV_ACT_POLICY'];policy.capabilities=['ACTIVITY_BOARD_READ','ACTIVITY_MANAGE'];policy.fieldMasks={ACTIVITY_BOARD_READ:[],ACTIVITY_MANAGE:[]};policy.targets.allowedTargetScopes=['ACTIVITIES'];policy.targets.allowedResources=resources;policy.targets.allowedPersons=['PES-000001'];delete policy.targets.resourceScope;
  const route='ACT_FLOW_ACTIVITY_IMPORT_RECOGNIZE',scope='SYN_IMPORT_SCOPE',record={...base,...docs,
   'activityExecutorControl/current':{schemaVersion:'activity-executor-control-v1',projectId:PROJECT,enabled:true,revision:1,actorUids:['CF_ADMIN'],policyIds:['CF_DEV_ACT_POLICY'],startsAt:now-1000,expiresAt:now+3600000,browserEnabled:true,appCheck:{mode:'REQUIRED',appIds:['SYN_APP']}},
@@ -27,6 +29,9 @@ test('import recognition through shared canonical executor, ROLE, receipts and r
   await call('execute',q);a.equal((await db.doc('activityAttendance/SYN_F0').get()).data().revision,2);
   a.equal((await db.doc('commandLedger/'+op).get()).data().state,'COMPLETED');a.equal((await db.doc('commandExecutorOwners/'+op).get()).data().executor,EXECUTOR);
   a.equal((await db.doc('activityAttendance/SYN_F0/revisions/1').get()).data().snapshot.recordMode,'HISTORICAL_PARTIAL');
+  a.equal((await db.doc('actFlowExecutorScopes/'+scope).get()).data().resourcePaths.length,480);
+  // The later ordinary decision is a separate fixture scope, without padding.
+  await db.doc('actFlowExecutorScopes/'+scope).update({resourcePaths:resources.filter(p=>!p.includes('/SYN_SCOPE_PAD_'))});
   // Imported evidence has no operational revision; downstream decisions must
   // fence recognized facts without inventing revisions on source documents.
   policy.capabilities.push('ACTIVITY_ATTENDANCE_MANAGE');policy.fieldMasks.ACTIVITY_ATTENDANCE_MANAGE=[];

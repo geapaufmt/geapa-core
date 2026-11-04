@@ -125,6 +125,20 @@ class FlowStore extends ActivityStore{
    }
    if(scope.modelCreateOnly){const prior=this.hostRead(root);if(s.missing.size)return;if(this.routeId!=='ACT_FLOW_ACTIVITY_TYPE_SAVE'||!(col==='activityTypes'&&id==='cfg_'+this.operationId||col==='activityHistory'&&v.action==='ACTIVITY_TYPE_CREATED'&&v.subjectRef?.kind==='activityType'&&v.subjectRef.id==='cfg_'+this.operationId)||prior||v.operationId!==this.operationId||v.originRef?.operationId!==this.operationId||v.originRef?.kind!=='CORE_COMMAND')fail('PILOT_WRITE_DENIED');continue;}
    if(roots.has(root)||roots.has(w.path))continue;
+   // Recognition's audit event and agenda projection are derived from the
+   // sealed activity write, not additional institutional resources. Keep the
+   // finite scope unchanged across a batch; never waive its 480-root bound.
+   if(this.routeId==='ACT_FLOW_ACTIVITY_IMPORT_RECOGNIZE'&&['activityHistory','activityAgendaViews'].includes(col)){
+    const activityId=col==='activityAgendaViews'?id:v.subjectRef?.kind==='activity'?v.subjectRef.id:null;
+    const canonical=s.writes.find(x=>x.path==='canonicalActivities/'+activityId&&x.mode==='set'),activity=canonical&&decode(canonical.data);
+    if(!activityId||w.path!==root||!roots.has('canonicalActivities/'+activityId)||activity?.operationId!==this.operationId||activity.importRecognition?.operationId!==this.operationId)fail('PILOT_RESOURCE_DENIED');
+    if(col==='activityHistory'){
+     const prior=this.hostRead(root),approval=v.recognitionRef?.kind==='policy'&&this.hostRead('presentationPolicyReferences/'+v.recognitionRef.id);if(s.missing.size)return;
+     const domain=this.boundaryDomain||(this.boundaryDomain=createDomain(()=>{throw Error('UNEXPECTED_IO');})),expectedId=JSON.parse(domain.run('(x)=>f4ActivitiesModel_().hash(x).slice(0,32)',{operationId:this.operationId,kind:'history',parent:''}));
+     if(prior||id!==expectedId||!roots.has('presentationPolicyReferences/'+v.recognitionRef.id)||approval?.intent?.operationId!==this.operationId||approval.intent.activityId!==activityId||approval.intentHash!==v.intentHash||v.operationId!==this.operationId||v.originRef?.kind!=='CORE_COMMAND'||v.originRef.operationId!==this.operationId||!['IMPORTED_ACTIVITY_AND_ATTENDANCE_RECOGNIZED','HISTORICAL_NO_CALL','HISTORICAL_RESCHEDULE','HISTORICAL_CANCELLED'].includes(v.action))fail('PILOT_WRITE_DENIED');
+    }
+    continue;
+   }
    if(col==='activityAgendaViews'&&roots.has('canonicalActivities/'+id)){roots.add(root);added.push(root);continue;}
    // New outputs originate only in this canonical operation. Existing unrelated
    // documents can never be adopted into a scope through a command.
