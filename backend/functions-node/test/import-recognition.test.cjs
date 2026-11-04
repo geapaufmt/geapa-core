@@ -1,9 +1,10 @@
 const {test}=require('node:test'),a=require('node:assert/strict'),H=require('./fixtures/import-reconstruction.cjs'),{harness}=require('./model-frequency.test.cjs');
-const now=Date.parse('2026-11-03T18:00Z'),op='78'.repeat(16),ref=H.ref;
+const now=Date.parse('2026-11-03T18:00Z'),op=require('crypto').randomBytes(16).toString('hex'),ref=H.ref;
 function fixture(n=3,actor='SYN_BOARD'){
  const d=H.fixture(n),v=d['canonicalActivities/SYN_IMPORT_ACTIVITY'];
  v.administrativeReview={schemaVersion:'activity-administrative-review-v1',state:'CONFIRMED',cycleRef:ref('cycle','GEAPA_2026'),revision:2,initializedAt:now-1000,initializationRef:'SYN_INIT',confirmedAt:now-1000,confirmedBy:ref('person','SYN_BOARD'),confirmationOperationId:'77'.repeat(16)};
- d['presentationCapacityHeads/registry']={id:'registry',revision:1,kind:'DOMAIN_FENCE',membersEpoch:1,activityEpoch:1,cycleRegistryEpoch:1};
+ d['presentationCapacityHeads/registry']={id:'registry',revision:1,kind:'DOMAIN_FENCE',membersEpoch:1,activityEpoch:1,cycleRegistryEpoch:1,createdAt:now-1000};
+ d['activityAttendanceRegistry/current']={id:'current',revision:1,epoch:1,createdAt:now-1000};
  const intent=H.intentFor(d);intent.operationId=op;
  const planned=H.setup(d).plan(intent,now);
  d['presentationPolicyReferences/SYN_IMPORT_APPROVAL']={id:'SYN_IMPORT_APPROVAL',revision:1,usage:'ACTIVITY_IMPORT_RECOGNITION',approved:true,active:true,actorPersonIds:[actor],issuedAt:now-60000,expiresAt:now+3600000,intent,intentHash:H.hash(intent),factsPreservedHash:planned.factsPreservedHash,historicalCriteria:{schemaVersion:'import-historical-criteria-v1',historicalApprovalClaimed:false,civilStart:'2026-01-01',civilEnd:'2026-12-31',basis:'Synthetic documentary confirmation only',policyId:'SYN_POLICY',policyRevision:1,policyCriteriaHash:H.hash(H.setup(d).ctx.f4ActivityConfigNormativeFields_('attendancePolicy',d['activityPolicies/SYN_POLICY'])),sources:[{ref:ref('evidence','EA'),hash:H.hash(d['migrationEvidence/EA'])}]}};
@@ -21,3 +22,18 @@ for(const [name,mutate]of Object.entries({revoked:d=>d['presentationPolicyRefere
 test('ordinary authorization remains required independently of sealed import approval',()=>{a.throws(()=>run(harness(fixture()),{allowed:[]}),/AUTHORIZATION_DENIED/);});
 test('stale activity revision is rejected before reconstruction',()=>{a.throws(()=>run(harness(fixture()),{stale:true}),/STALE_REVISION/);});
 module.exports={fixture,payload,op};
+test('original model documentary equivalence preserves source and requires current cycle usage',()=>{
+ const F=require('./model-frequency.test.cjs'),d=H.fixture(),h=harness(d),def=F.definition();def.attendancePolicyRef=ref('attendancePolicy','SYN_POLICY');
+ Object.assign(d['presentationCycles/GEAPA_2026'],{recordMode:'NEW_V2'});Object.assign(d['activityPolicies/SYN_POLICY'],{recordMode:'NEW_V2',cycleRef:ref('cycle','GEAPA_2026')});
+ h.ok('ACTIVITY_MODEL_DRAFT_SAVE',{typeRef:ref('activityType','SYN_ORIGINAL'),definition:def,reason:'Synthetic'});
+ const model=d['activityTypes/SYN_ORIGINAL'];h.ok('ACTIVITY_MODEL_APPROVE',{typeRef:ref('activityType',model.id),definitionHash:model.governance.definitionHash,evidence:'SYNTHETIC',reason:'Synthetic'});
+ h.ok('ACTIVITY_MODEL_USAGE_SET',{typeRef:ref('activityType',model.id),cycleRef:ref('cycle','GEAPA_2026'),enabled:true,definitionHash:model.governance.definitionHash,evidence:'SYNTHETIC',reason:'Synthetic'});
+ const type=d['activityTypes/SYN_ORIGINAL'],source=d['migrationEvidence/EA'],criteria=H.setup(d).ctx.f4ActivityConfigNormativeFields_('activityType',type);
+ d['presentationPolicyReferences/SYN_EQ']={id:'SYN_EQ',usage:'IMPORTED_MODEL_EQUIVALENCE',approved:true,active:true,activityId:'SYN_IMPORT_ACTIVITY',cycleId:'GEAPA_2026',typeRef:ref('activityType',type.id),typeRevision:type.revision,sourceHash:H.hash(source),historicalApprovalClaimed:false,evidence:'Synthetic equivalence',reason:'Explicit current recognition',definitionHash:type.governance.definitionHash,sourceClassification:Object.fromEntries(['TIPO_ATIVIDADE','SUBTIPO_ATIVIDADE','CLASSIFICACAO_REUNIAO'].map(k=>[k,source.literal[k]])),criteria};
+ const intent=H.intentFor(d);Object.assign(intent,{typeId:type.id,typeRevision:type.revision,typeCriteria:criteria,modelEquivalenceRef:ref('policy','SYN_EQ')});
+ // Use the actual bundle, including canonical original-model usage validation.
+ const plan=()=>JSON.parse(h.domain.run('x=>f4ImportedActivityReconstructionPlan_({intent:x.intent,get:p=>x.docs[p],now:x.now,actorRef:{kind:"person",id:"SYN_BOARD"}})',{docs:d,intent,now}));
+ a.equal(plan().writes[0].data.typeRef.id,type.id);a.equal(source.literal.SUBTIPO_ATIVIDADE,'APRESENTACAO_MEMBRO');
+ delete intent.modelEquivalenceRef;a.throws(plan,/MODEL_CLASSIFICATION_MISMATCH/);intent.modelEquivalenceRef=ref('policy','SYN_EQ');
+ type.governance.usageAuthorizations[0].enabled=false;intent.readSet.find(r=>r.path==='activityTypes/'+type.id).hash=H.hash(type);a.throws(plan,/ORIGINAL_MODEL_NOT_APPROVED_FOR_CYCLE/);
+});
