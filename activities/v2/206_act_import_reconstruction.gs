@@ -1,4 +1,4 @@
-// Offline, closed-manifest recognition. Not registered as a command or HTTP route.
+// Pure closed-manifest planner. Authority is supplied by the canonical handler below.
 // The caller must lock/compare the complete read set and commit archives, revisions,
 // receipt, history and fences atomically. This function never authorizes an actor.
 function f4ImportedActivityReconstructionPlan_(input) {
@@ -18,7 +18,13 @@ function f4ImportedActivityReconstructionPlan_(input) {
  N(c.state==='CLOSED'&&!c.lastFinalizedAt&&!c.closedAt&&!c.completionRecognition,'INVALID_STATE_TRANSITION','ACTUAL_FINALIZATION_PRESERVED');
  N(type.recordMode==='NEW_V2'&&type.decision&&type.attendancePolicyRef?.id===policy.id&&policy.approved&&type.portalModel,'UNRESOLVED_DEPENDENCY','APPROVED_TEMPLATE_REQUIRED');
  const template=type.originRef?.lineage?.sourceSnapshot;
- N(template&&['TIPO_ATIVIDADE','SUBTIPO_ATIVIDADE','CLASSIFICACAO_REUNIAO'].every(k=>l[k]&&l[k]===template[k]),'UNRESOLVED_DEPENDENCY','MODEL_CLASSIFICATION_MISMATCH');
+ if(intent.modelEquivalenceRef){
+  N(intent.modelEquivalenceRef.kind==='policy','VALIDATION_ERROR');
+  const e=load('policy',intent.modelEquivalenceRef.id);
+  N(e.usage==='IMPORTED_MODEL_EQUIVALENCE'&&e.active===true&&e.approved===true&&e.activityId===a.id&&e.cycleId===cycle.id&&e.typeRef?.id===type.id&&e.typeRevision===type.revision&&e.sourceHash===hash(source)&&e.historicalApprovalClaimed===false&&e.evidence&&e.reason,'UNRESOLVED_DEPENDENCY','MODEL_EQUIVALENCE_NOT_PROVEN');
+  N(eq(e.sourceClassification,Object.fromEntries(['TIPO_ATIVIDADE','SUBTIPO_ATIVIDADE','CLASSIFICACAO_REUNIAO'].map(k=>[k,l[k]])))&&eq(e.criteria,f4ActivityConfigNormativeFields_('activityType',type)),'UNRESOLVED_DEPENDENCY','MODEL_EQUIVALENCE_CRITERIA_CHANGED');
+  if(type.governance?.schemaVersion==='original-activity-model-v1')N(e.definitionHash===type.governance.definitionHash&&f4OriginalModelUsage_(get,type,cycle.id),'UNRESOLVED_DEPENDENCY','ORIGINAL_MODEL_NOT_APPROVED_FOR_CYCLE');
+ }else N(template&&['TIPO_ATIVIDADE','SUBTIPO_ATIVIDADE','CLASSIFICACAO_REUNIAO'].every(k=>l[k]&&l[k]===template[k]),'UNRESOLVED_DEPENDENCY','MODEL_CLASSIFICATION_MISMATCH');
  N(eq(intent.typeCriteria,f4ActivityConfigNormativeFields_('activityType',type))&&intent.policyRevision===policy.revision&&intent.typeRevision===type.revision,'STALE_REVISION','CONFIGURATION_CHANGED');
  N(l.CONTA_PRESENCA==='SIM'&&type.countsAttendance===true&&['SIM','NAO'].includes(l.CONTA_FALTA)&&(l.CONTA_FALTA==='SIM')===type.countsAbsence,'UNRESOLVED_DEPENDENCY','ATTENDANCE_CRITERIA_CONFLICT');
  N(!l.PERMITE_JUSTIFICATIVA||['SIM','NAO'].includes(l.PERMITE_JUSTIFICATIVA)&&(l.PERMITE_JUSTIFICATIVA==='SIM')===type.allowsJustification,'UNRESOLVED_DEPENDENCY','JUSTIFICATION_CRITERIA_CONFLICT');

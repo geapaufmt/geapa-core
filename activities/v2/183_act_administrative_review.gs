@@ -10,6 +10,9 @@ function f4ActivityReview_(){
   const v=validate(old.administrativeReview);
   if(cmd!==command)N(M.hash(f4Firestore_().encode(next.administrativeReview||null))===M.hash(f4Firestore_().encode(v)),'AUTHORIZATION_DENIED','REVIEW_STATE_PROTECTED');
   if(v.state!=='CONFIRMED')return;
+  // The sealed recognition command reconstructs imported fields from immutable
+  // evidence; it is not an ordinary edit and cannot change the review itself.
+  if(cmd==='ACTIVITY_IMPORT_RECOGNIZE'&&old.recordMode==='HISTORICAL_PARTIAL'&&next.importRecognition?.previousRevision===old.revision&&next.importRecognition?.kind==='DOCUMENTARY_RECOGNITION')return;
   const protectedFields=['title','location','format','startsAt','endsAt','civilDate','details','typeRef','typeSnapshot','typeRevision','modelContent','cycleRef','cycleId','academicSemesterId','personRef','guestParticipants','historicalPresentationRefs'];
   N(protectedFields.every(k=>C.hash(f4Firestore_().encode(old[k]??null))===C.hash(f4Firestore_().encode(next[k]??null))),'INVALID_STATE_TRANSITION','ACTIVITY_REVIEW_LOCKED');
  }

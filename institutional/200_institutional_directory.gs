@@ -57,7 +57,7 @@ function f4InstitutionalPolicies_(get,identity,now,ids,cap,path){
 
 // Minimal shell context, not ACT authority. No private directory or ACT facts.
 function f4InstitutionalBootstrapContext_({get,identity,now}){
- const C=f4Core_(),N=C.need,control=get('institutionalDirectoryControl/current');
+ const N=f4MemberAuthzContracts_().need,control=get('institutionalDirectoryControl/current');
  N(control?.schemaVersion==='institutional-directory-control-v1'&&control.enabled===true,'AUTHORIZATION_DENIED');
  const routes={'admin-atividades':false,'admin-justificativas':false,'admin-eixos-tematicos':false,'diretoria-competencias':false,'perfis-permissoes':false,'admin-apresentacoes':false};
  let authority=null,validUntil=Math.min(identity.expiresAt,now+60000);
