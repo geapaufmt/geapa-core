@@ -32,8 +32,10 @@ test('import recognition through shared canonical executor, ROLE, receipts and r
   policy.capabilities.push('ACTIVITY_ATTENDANCE_MANAGE');policy.fieldMasks.ACTIVITY_ATTENDANCE_MANAGE=[];
   await db.doc('memberAuthzPolicies/CF_DEV_ACT_POLICY').set(policy);
   const decisionRoute='ACT_FLOW_ATTENDANCE_JUSTIFICATION_DECIDE';await db.doc('commandExecutorRoutes/'+decisionRoute).set({...record['commandExecutorRoutes/'+route],routeId:decisionRoute,commandType:'ACT.ATTENDANCE_JUSTIFICATION_DECIDE',operationIds:[]});
-  const decision=(await call('flowPrepare',{operationId:'a9'.repeat(16),commandType:'ACT.ATTENDANCE_JUSTIFICATION_DECIDE',payload:{justificationRef:H.ref('justification','SYN_J'),decision:'APPROVE',reason:'Synthetic decision after recognition'}})).request;
+  const decision=(await call('flowPrepare',{operationId:require('crypto').randomBytes(16).toString('hex'),commandType:'ACT.ATTENDANCE_JUSTIFICATION_DECIDE',payload:{justificationRef:H.ref('justification','SYN_J'),decision:'APPROVE',reason:'Synthetic decision after recognition'}})).request;
   a(!decision.target.expected.some(e=>e.kind==='evidence'));
-  const result=await call('execute',decision);a.equal(result.state,'COMPLETED',JSON.stringify(result));a.equal((await db.doc('activityJustifications/SYN_J').get()).data().state,'APPROVED');
+  const result=await call('execute',decision);a.equal(result.result.state,'COMPLETED',JSON.stringify(result));a.equal((await db.doc('activityJustifications/SYN_J').get()).data().state,'APPROVED');
  }finally{await db.terminate();}
 });
+
+
