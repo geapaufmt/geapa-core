@@ -20,7 +20,7 @@ class GovernanceStore extends Store{
 async function editGovernance({db,auth,appCheck,token,appCheckToken,origin,body,hooks={}}){
  const started=performance.now();if(!fence().emulator&&Object.keys(hooks).length)fail('DESTINATION_INVALID');
  if(!body||Object.keys(body).sort().join()!=='action,request'||!['institutionalGovernancePreview','institutionalGovernanceExecute','institutionalGovernanceStatus'].includes(body.action))fail('COMMAND_TYPE_INVALID');
- const identity=await authenticate(auth,token),store=new GovernanceStore(db,identity),domain=createDomain(x=>store.io(x));store.action=body.action;store.operationId=body.request?.operationId;
+ const identity=await authenticate(auth,token),store=new GovernanceStore(db,identity),domain=createDomain(x=>store.io(x));store.specializedReaders=true;store.action=body.action;store.operationId=body.request?.operationId;
  const run=(fn,x)=>JSON.parse(domain.run(fn,x));run('(x)=>{nodeIdentity(x);return null}',identity);
  await store.read(()=>store.guard());await appCheckGate(appCheck,appCheckToken,store.control,origin);
  store.beforeCommit=async()=>{await hooks.beforeCommit?.();await authenticate(auth,token);await appCheckGate(appCheck,appCheckToken,store.control,origin);};
