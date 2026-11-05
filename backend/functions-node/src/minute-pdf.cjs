@@ -33,10 +33,15 @@ function renderMinutePdf(record,{draft=false}={}){
  }
  function paragraph(text,size=10.5){for(const p of String(text||'').replace(/\r\n?/g,'\n').split(/\n\s*\n/).filter(s=>s.trim())){font(size);const lines=doc.splitTextToSize(p.replace(/\n/g,' '),width),height=size*.49;space(Math.min(lines.length,3)*height+3);for(let i=0;i<lines.length;i++){if(i===lines.length-2)space(height*2);else space(height);line(lines[i],i===lines.length-1,size);y+=height;}y+=3.5;}}
  function heading(s){space(22);font(10,true);doc.text(s,left,y);y+=7;}
- header();font(13,true);doc.text('ATA Nº '+m.number,105,y,{align:'center',maxWidth:width});y+=8;
+ header();font(13,true);const identification=doc.splitTextToSize('ATA Nº '+m.number,width);doc.text(identification,105,y,{align:'center'});y+=identification.length*6+2;
  font(10,true);const title=doc.splitTextToSize('REUNIÃO '+m.meetingType.toLocaleUpperCase('pt-BR')+' DA DIRETORIA DO GEAPA',width);doc.text(title,105,y,{align:'center'});y+=title.length*5+7;
  if(draft){font(8);doc.setTextColor(110);doc.text('PRÉVIA - TEXTO AINDA NÃO ARQUIVADO',105,y,{align:'center'});y+=8;}
- if(m.fullText)paragraph(m.fullText);
+ if(m.fullText){const paragraphs=m.fullText.replace(/\r\n?/g,'\n').split(/\n\s*\n/).filter(s=>s.trim());for(let i=0;i<paragraphs.length;i++){
+  // Keep the last narrative paragraph with the ordinary manifestation block;
+  // no page containing only an isolated signature or verification footer.
+  if(i===paragraphs.length-1){font();const tail=58+m.manifestations.filter(x=>['APPROVE_SIGN','ACKNOWLEDGE'].includes(x.action)).length*18+doc.splitTextToSize(paragraphs[i],width).length*5.2;space(Math.min(195,tail));}
+  paragraph(paragraphs[i]);
+ }}
  else {paragraph('Representação dos campos documentais preservados. Esta versão foi arquivada antes do cadastro de texto integral; nenhuma redação narrativa foi acrescentada à versão aprovada.',8.5);paragraph('Pauta registrada: '+m.agenda);paragraph(record.body);paragraph('Decisões e resultados registrados: '+m.decisions);paragraph('Encaminhamentos registrados: '+m.outcomes);}
  const people=m.composition.people;
  heading('Participação registrada');
