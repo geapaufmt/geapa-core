@@ -16,7 +16,8 @@ function renderMinutePdf(record,{draft=false}={}){
  const doc=new jsPDF({unit:'mm',format:'a4',orientation:'portrait',compress:true,putOnlyUsedFonts:true,precision:4});
  doc.addFileToVFS('NotoSerif-Regular.ttf',assets.regular);doc.addFont('NotoSerif-Regular.ttf','NotoSerif','normal');
  doc.addFileToVFS('NotoSerif-Bold.ttf',assets.bold);doc.addFont('NotoSerif-Bold.ttf','NotoSerif','bold');
- doc.setCreationDate(new Date(at));doc.setFileId(hash.slice(0,32));doc.setProperties({title:'Ata '+m.number,subject:'Documento institucional - texto versão '+m.contentRevision,author:'GEAPA',creator:VERSION,keywords:'GEAPA; '+hash});
+ // Explicit UTC prevents the host timezone from changing the immutable PDF hash.
+ doc.setCreationDate('D:'+new Date(at).toISOString().slice(0,19).replace(/[-:T]/g,'')+"-00'00'");doc.setFileId(hash.slice(0,32));doc.setProperties({title:'Ata '+m.number,subject:'Documento institucional - texto v. '+m.contentRevision,author:'GEAPA',creator:VERSION,keywords:'GEAPA; '+hash});
  const left=23,width=164,bottom=256;let y=61;
  const font=(size=10.5,bold=false)=>doc.setFont('NotoSerif',bold?'bold':'normal').setFontSize(size).setTextColor(3,3,2);
  function header(){
