@@ -16,7 +16,11 @@ function f4InstitutionalMinutes_(){
  function scope(auth,boardId){N(auth.actor.derived.currentDirectors.some(f=>f.idDiretoria===boardId),'AUTHORIZATION_DENIED');}
  function accessible(auth,r){return !!r.minutes&&auth.actor.derived.currentDirectors.some(f=>f.idDiretoria===r.minutes.boardId)&&(r.minutes.access==='BOARD'||r.minutes.composition.people.some(p=>p.personId===auth.actor.actor.h.id));}
  function validate(get,o,input,old,auth,c){
-  enabled(c,old?'EDIT':'CREATE');const m=input.minutes;C.exact(m,['number','meetingType','boardId','startTime','endTime','location','modality','agenda','decisions','outcomes','attendance','access','rectifiesId']);
+  enabled(c,old?'EDIT':'CREATE');const m=input.minutes;C.exact(m,['number','meetingType','boardId','startTime','endTime','location','modality','agenda','decisions','outcomes','attendance','access','rectifiesId',...(Object.hasOwn(m,'fullText')?['fullText','documentLayoutVersion','images']:[])]);
+  if(c.minutesNarrativeRequired||Object.hasOwn(m,'fullText')){
+   N(text(m.fullText,40000,30)&&m.documentLayoutVersion==='GEAPA_MINUTE_PDF_1'&&Array.isArray(m.images)&&m.images.length<=2,'COMMAND_PAYLOAD_INVALID');
+   for(const im of m.images){C.exact(im,['mime','base64','sha256','caption']);N(['image/jpeg','image/png'].includes(im.mime)&&text(im.caption,500,3)&&typeof im.base64==='string'&&im.base64.length<=90000&&/^[A-Za-z0-9+/]+={0,2}$/.test(im.base64)&&/^[a-f0-9]{64}$/.test(im.sha256),'COMMAND_PAYLOAD_INVALID');const bytes=Utilities.base64Decode(im.base64);N(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes).map(x=>((x+256)%256).toString(16).padStart(2,'0')).join('')===im.sha256,'COMMAND_PAYLOAD_INVALID');}
+  }
   N(input.meetingDate&&C.civilStart(input.meetingDate)<=o.clock()&&text(m.number,64)&&text(m.meetingType,100)&&text(m.location,300)&&['PRESENTIAL','REMOTE','HYBRID'].includes(m.modality)&&['BOARD','COMPOSITION'].includes(m.access),'COMMAND_PAYLOAD_INVALID');
   N(/^\d{2}:\d{2}$/.test(m.startTime)&&/^\d{2}:\d{2}$/.test(m.endTime)&&m.startTime<'24:00'&&m.endTime<'24:00'&&m.startTime.slice(3)<'60'&&m.endTime.slice(3)<'60'&&m.endTime>m.startTime,'MEETING_TIME_INVALID');
   N(text(m.agenda,8000)&&text(m.decisions,8000)&&text(m.outcomes,8000),'COMMAND_PAYLOAD_INVALID');scope(auth,m.boardId);

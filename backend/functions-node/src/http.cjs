@@ -23,7 +23,8 @@ function handler({runtime,execute,log=console.info,actions=['prepare','execute',
     res.set('Access-Control-Allow-Methods','POST');res.set('Access-Control-Allow-Headers','Authorization, Content-Type, X-Firebase-AppCheck');res.set('Access-Control-Max-Age','300');return res.status(204).send('');
    }
    if(req.method!=='POST')return res.status(405).json({error:{code:'COMMAND_TYPE_INVALID'}});
-   const maximum=req.body?.action==='storageChunk'&&actions.includes('storageChunk')?Math.ceil(4*1024*1024/3)*4+4096:65536;
+   const minuteInput=['institutionalGovernancePreview','institutionalGovernanceExecute'].includes(req.body?.action)&&actions.includes(req.body.action)&&req.body?.request?.input?.minutes;
+   const maximum=req.body?.action==='storageChunk'&&actions.includes('storageChunk')?Math.ceil(4*1024*1024/3)*4+4096:minuteInput?393216:65536;
    if(!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(req.headers['content-type']||'')||req.headers['content-encoding']&&req.headers['content-encoding']!=='identity'||(req.rawBody?.length||0)>maximum||Buffer.byteLength(JSON.stringify(req.body||{}))>maximum)fail('COMMAND_PAYLOAD_INVALID');
    payload(req.body);if(!req.body||Array.isArray(req.body)||!actions.includes(req.body.action)||!req.body.request||Array.isArray(req.body.request))fail('COMMAND_PAYLOAD_INVALID');
    const m=/^Bearer ([^\s]+)$/.exec(req.headers.authorization||'');if(!m)fail('AUTH_BINDING_INVALID');
