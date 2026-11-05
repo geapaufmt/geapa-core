@@ -8,8 +8,8 @@ function f4InstitutionalGovernance_(){
  function control(get,config,identity,now,admit,inspection=false,cap=CAP){
   C.destination(config);const c=get(CONTROL),actual=f4CommandExecutorId_(),executor=inspection&&actual==='CANONICAL_READ_ONLY'?(f4ExecutionEnvironment_().production?'CF_GEN2_PROD_V1':'CF_GEN2_DEV_EDIT_V1'):actual;
   N(c?.schemaVersion==='institutional-governance-control-v1'&&c.projectId===config.projectId&&c.executor===executor&&c.resource===PATH&&c.commandType===TYPE&&c.publicationEnabled===false&&c.formalApprovalEnabled===false&&c.appCheck?.mode==='REQUIRED'&&C.rev(c.revision)&&c.revision>0&&C.rev(c.epoch)&&c.epoch>0,'ACCESS_REVOKED');
-  N(Array.isArray(c.actorUids)&&c.actorUids.length<=16&&c.actorUids.includes(identity.uid),'AUTHORIZATION_DENIED');
-  if(admit)N(c.enabled===true&&f4ServiceAvailability_().live(c,now),'PILOT_DISABLED');
+  f4MemberAuthzContracts_().need(Array.isArray(c.actorUids)&&c.actorUids.length<=16&&c.actorUids.includes(identity.uid),'AUTHORIZATION_DENIED');
+  if(admit)f4MemberAuthzContracts_().need(c.enabled===true&&f4ServiceAvailability_().live(c,now),'PILOT_DISABLED');
   N(c.rateLimit?.windowMs===3600000&&Number.isInteger(c.rateLimit.maxAdmissions)&&c.rateLimit.maxAdmissions>0&&c.rateLimit.maxAdmissions<=20,'ACCESS_REVOKED');
   const auth=f4InstitutionalPolicies_(get,identity,now,c.policyIds,cap,PATH);N(auth.mask.includes(cap===CAP?'draft':'minutes'),'AUTHORIZATION_DENIED');return {c,auth};
  }
