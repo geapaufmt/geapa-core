@@ -8,7 +8,7 @@ function payload(value,depth=0){
   for(const [k,v]of Object.entries(value)){if(['__proto__','constructor','prototype'].includes(k))fail('COMMAND_PAYLOAD_INVALID');payload(v,depth+1);}
  }else if(!['string','number','boolean'].includes(typeof value)&&value!==null||typeof value==='number'&&!Number.isFinite(value))fail('COMMAND_PAYLOAD_INVALID');
 }
-const codes=new Set(['DOMAIN_STATE_INVALID','WORKSPACE_IDENTITY_NOT_CONFIGURED','NOT_FOUND','UNRESOLVED_DEPENDENCY','CONFIG_CAPABILITY_DISABLED','SCOPE_TOO_LARGE','AUTH_BINDING_INVALID','ACCESS_REVOKED','AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','CAPABILITY_REQUIRED','SCOPE_INVALID','REVISION_CONFLICT','STALE_REVISION','OPERATION_CONFLICT','VALIDATION_ERROR','SCHEMA_INVALID','COMMAND_TYPE_INVALID','COMMAND_PAYLOAD_INVALID','RECONCILIATION_REQUIRED','DESTINATION_INVALID','PILOT_DISABLED','PILOT_DRAINING','PILOT_RESOURCE_DENIED','PILOT_FIELD_DENIED','PILOT_WRITE_DENIED','EXECUTOR_FENCE_CONFLICT','PILOT_LIMIT_REACHED','APP_CHECK_REQUIRED','APP_CHECK_INVALID','ORIGIN_DENIED']);
+const codes=new Set(['DOCUMENTARY_EVIDENCE_REQUIRED','DOCUMENTARY_MODALITY_INVALID','DOCUMENTARY_DATE_INVALID','DOCUMENTARY_RELATION_DUPLICATE','NORMATIVE_VERSION_CONFLICT','DOCUMENT_FILE_LIMIT','DOCUMENT_FILE_SCOPE_INVALID','DOCUMENT_FILE_INVALID','DOCUMENT_FILE_DUPLICATE','DOCUMENT_IMAGE_CAPTION_REQUIRED','DOMAIN_STATE_INVALID','WORKSPACE_IDENTITY_NOT_CONFIGURED','NOT_FOUND','UNRESOLVED_DEPENDENCY','CONFIG_CAPABILITY_DISABLED','SCOPE_TOO_LARGE','AUTH_BINDING_INVALID','ACCESS_REVOKED','AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','CAPABILITY_REQUIRED','SCOPE_INVALID','REVISION_CONFLICT','STALE_REVISION','OPERATION_CONFLICT','VALIDATION_ERROR','SCHEMA_INVALID','COMMAND_TYPE_INVALID','COMMAND_PAYLOAD_INVALID','RECONCILIATION_REQUIRED','DESTINATION_INVALID','PILOT_DISABLED','PILOT_DRAINING','PILOT_RESOURCE_DENIED','PILOT_FIELD_DENIED','PILOT_WRITE_DENIED','EXECUTOR_FENCE_CONFLICT','PILOT_LIMIT_REACHED','APP_CHECK_REQUIRED','APP_CHECK_INVALID','ORIGIN_DENIED']);
 function handler({runtime,execute,log=console.info,actions=['prepare','execute','status','recover']}){
  return async(req,res)=>{
   const started=performance.now();let code='OK',internalCode=null,metrics={};
@@ -23,7 +23,9 @@ function handler({runtime,execute,log=console.info,actions=['prepare','execute',
     res.set('Access-Control-Allow-Methods','POST');res.set('Access-Control-Allow-Headers','Authorization, Content-Type, X-Firebase-AppCheck');res.set('Access-Control-Max-Age','300');return res.status(204).send('');
    }
    if(req.method!=='POST')return res.status(405).json({error:{code:'COMMAND_TYPE_INVALID'}});
-   const maximum=req.body?.action==='storageChunk'&&actions.includes('storageChunk')?Math.ceil(4*1024*1024/3)*4+4096:65536;
+   const minuteInput=['institutionalGovernancePreview','institutionalGovernanceExecute'].includes(req.body?.action)&&actions.includes(req.body.action)&&req.body?.request?.input?.minutes;
+   const documentInput=['institutionalGovernancePreview','institutionalGovernanceExecute'].includes(req.body?.action)&&actions.includes(req.body.action)&&Array.isArray(req.body?.request?.input?.attachments);
+   const maximum=documentInput?4194304+524288:req.body?.action==='storageChunk'&&actions.includes('storageChunk')?Math.ceil(4*1024*1024/3)*4+4096:minuteInput?393216:65536;
    if(!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(req.headers['content-type']||'')||req.headers['content-encoding']&&req.headers['content-encoding']!=='identity'||(req.rawBody?.length||0)>maximum||Buffer.byteLength(JSON.stringify(req.body||{}))>maximum)fail('COMMAND_PAYLOAD_INVALID');
    payload(req.body);if(!req.body||Array.isArray(req.body)||!actions.includes(req.body.action)||!req.body.request||Array.isArray(req.body.request))fail('COMMAND_PAYLOAD_INVALID');
    const m=/^Bearer ([^\s]+)$/.exec(req.headers.authorization||'');if(!m)fail('AUTH_BINDING_INVALID');

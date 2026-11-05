@@ -1,0 +1,3 @@
+const {test}=require('node:test'),a=require('assert/strict'),{contract}=require('../src/act-readers.cjs');
+test('normal attendance transport accepts explicit read-only consultation and the legacy management shape',()=>{for(const extra of [{},{readOnly:true},{readOnly:false}]){const q={route:'/atividades/chamada',activityId:'SYN',...extra};a.equal(contract({action:'actRead',request:q}),q);}});
+test('read-only hint cannot smuggle other fields or relax other reader shapes',()=>{for(const q of [{route:'/atividades/chamada',activityId:'SYN',readOnly:'true'},{route:'/atividades/chamada',activityId:'SYN',readOnly:true,admin:true},{route:'/v2/minha-frequencia',params:{},readOnly:true}])a.throws(()=>contract({action:'actRead',request:q}),/COMMAND_PAYLOAD_INVALID/);});

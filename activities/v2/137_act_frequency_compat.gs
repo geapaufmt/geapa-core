@@ -9,7 +9,10 @@ function f4ActivitiesFrequencyCompat_(options){
  const justStatus=s=>({PREVIOUS:'PREVIA',PENDING:'ENVIADA',CORRECTION_REQUESTED:'AJUSTE_SOLICITADO',APPROVED:'DEFERIDA',EXCUSED:'ABONADA',REJECTED:'INDEFERIDA',CLOSED_WITHOUT_ABSENCE:'ENCERRADA_SEM_FALTA',HISTORICAL_PARTIAL:'HISTORICO_INCOMPLETO'}[s]||'');
  function row(fact,admin=false,selectedJustification){
   const activity=get(M.path(fact.activityRef)),collection=get('activityAttendanceCollections/'+fact.activityRef.id);N(activity&&collection,'UNRESOLVED_DEPENDENCY');
-  const j=selectedJustification||((fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef)&&get(M.path(fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef))),now=clock(),late=!!collection.justificationEndsAt&&now>M.ms(collection.justificationEndsAt),before=!!activity.startsAt&&now<M.ms(activity.startsAt),open=!j||j.state==='CORRECTION_REQUESTED'||j.state==='PREVIOUS'&&before;
+  const j=selectedJustification||((fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef)&&get(M.path(fact.pendingJustificationRef||fact.lastJustificationRef||fact.justificationDecisionRef))),now=clock(),late=!!collection.justificationEndsAt&&now>M.ms(collection.justificationEndsAt),before=!!activity.startsAt&&now<M.ms(activity.startsAt);
+  // Submission eligibility follows the pending reference used by the command.
+  // A terminal historical decision remains visible without blocking a new request.
+  const pending=fact.pendingJustificationRef&&get(M.path(fact.pendingJustificationRef)),open=!fact.pendingJustificationRef||!!pending&&(pending.state==='CORRECTION_REQUESTED'||pending.state==='PREVIOUS'&&before);
   const exceptional=late?f4AttendanceExceptionalWindow_(get,collection,fact,activity,now):null;
   const outsideDeadline=late&&!exceptional&&!j?.submittedUnderExceptionalWindow;
   [activity.startsAt,collection.justificationOpensAt,collection.justificationEndsAt,exceptional?.value.newDeadline].forEach(boundary);
@@ -85,8 +88,15 @@ function f4ActivitiesFrequencyCompat_(options){
   if(input.route==='/v2/justificativas/enviar'){
    C.exact(p,['idRegistroPresenca','idAtividade','motivoDeclarado','descricaoJustificativa','possuiDocumentoComprobatorio','linkDocumentoComprobatorio','confirmouCienciaForaPrazo','observacoes',...('documentoComprobatorio'in p?['documentoComprobatorio']:[]),...('proofUploadRef'in p?['proofUploadRef']:[])]);
    N(!p.documentoComprobatorio,'UNRESOLVED_DEPENDENCY','JUSTIFICATION_UPLOAD_PROVIDER_REQUIRED');N(M.id(p.idAtividade)&&['SIM','NAO'].includes(p.possuiDocumentoComprobatorio)&&typeof p.confirmouCienciaForaPrazo==='boolean','VALIDATION_ERROR');
-   const auth=ports.readAuthority([],true),id='a_'+M.hash({activity:p.idAtividade,person:auth.personId}).slice(0,32);N(!p.idRegistroPresenca||p.idRegistroPresenca===id,'AUTHORIZATION_DENIED');
-   const fact=get('activityAttendance/'+id);N(fact?.recordMode!=='HISTORICAL_PARTIAL','UNRESOLVED_DEPENDENCY','HISTORICAL_RECORD_REQUIRES_RECONCILIATION');const prior=fact?.pendingJustificationRef&&get(M.path(fact.pendingJustificationRef));N(p.possuiDocumentoComprobatorio!=='SIM'||p.linkDocumentoComprobatorio||p.proofUploadRef||prior?.personRef?.id===auth.personId&&prior.proofArtifactRef?.kind==='activityArtifact','INCOMPLETE_REQUEST');
+   const auth=ports.readAuthority([],true),derivedId='a_'+M.hash({activity:p.idAtividade,person:auth.personId}).slice(0,32),id=p.idRegistroPresenca||derivedId;N(M.id(id),'VALIDATION_ERROR');
+   const fact=get('activityAttendance/'+id);
+   if(id!==derivedId){
+    // Imported facts retain their IDs. Only an existing, canonically recognized
+    // SELF fact may use that path; absent facts still use the deterministic ID.
+    const activity=get('canonicalActivities/'+p.idAtividade),recognition=fact?.importRecognition;
+    N(fact?.id===id&&fact.recordMode==='NEW_V2'&&fact.personRef?.id===auth.personId&&fact.ownerPersonRef===auth.personId&&fact.activityRef?.kind==='activity'&&fact.activityRef.id===p.idAtividade&&recognition?.schemaVersion==='act-import-recognition-v1'&&/^[a-f0-9]{32}$/.test(recognition.operationId||'')&&activity?.recordMode==='NEW_V2'&&activity.importRecognition?.schemaVersion==='act-import-recognition-v1'&&recognition.operationId===activity.importRecognition.operationId,'AUTHORIZATION_DENIED');
+   }
+   N(fact?.recordMode!=='HISTORICAL_PARTIAL','UNRESOLVED_DEPENDENCY','HISTORICAL_RECORD_REQUIRES_RECONCILIATION');const prior=fact?.pendingJustificationRef&&get(M.path(fact.pendingJustificationRef));N(p.possuiDocumentoComprobatorio!=='SIM'||p.linkDocumentoComprobatorio||p.proofUploadRef||prior?.personRef?.id===auth.personId&&prior.proofArtifactRef?.kind==='activityArtifact','INCOMPLETE_REQUEST');
    N(typeof p.descricaoJustificativa==='string'&&typeof p.observacoes==='string','VALIDATION_ERROR');
    command={commandType:'ACT.ATTENDANCE_JUSTIFICATION_REQUEST',payload:{attendanceRef:M.ref('attendance',id),activityRef:M.ref('activity',p.idAtividade),reason:[p.descricaoJustificativa,p.observacoes].filter(Boolean).join('\n'),reasonCode:p.motivoDeclarado,proofLink:p.linkDocumentoComprobatorio||'',clearProof:p.possuiDocumentoComprobatorio==='NAO'&&!p.proofUploadRef&&!p.linkDocumentoComprobatorio,...(p.proofUploadRef?{proofUploadRef:p.proofUploadRef}:{}),lateAcknowledged:p.confirmouCienciaForaPrazo}};
   }else{
