@@ -7,7 +7,7 @@ function f4InstitutionalDocumentFiles_(){
   let bytes=0;const files=input.attachments.map(f=>{
    N(typeof f.caption==='string'&&f.caption===f.caption.trim()&&f.caption.length<=500,'COMMAND_PAYLOAD_INVALID');
    if(Object.hasOwn(f,'fileId')){C.exact(f,['fileId','caption']);const existing=old?.attachments?.find(x=>x.fileId===f.fileId);N(existing,'DOCUMENT_FILE_SCOPE_INVALID');return {existing,caption:f.caption};}
-   C.exact(f,['name','mime','base64','sha256','origin','caption']);
+   C.exact(f,['name','mime','base64','sha256','origin','caption',...(Object.hasOwn(f,'importEvidence')?['importEvidence']:[])]);if(f.origin!=='LOCAL_UPLOAD'){const i=f.importEvidence;N(i&&i.method==='ASSISTED_LOCAL_COPY'&&i.confirmedOriginal===true&&i.sourceSha256===f.sha256&&i.sourceUrl===f.origin,'DOCUMENT_IMPORT_EVIDENCE_REQUIRED');C.exact(i,['method','confirmedOriginal','sourceSha256','sourceUrl']);}else N(!f.importEvidence,'DOCUMENT_FILE_INVALID');
    N(typeof f.name==='string'&&f.name.length>0&&f.name.length<=180&&!/[\x00-\x1f\\/]/.test(f.name)&&['application/pdf','image/jpeg','image/png','image/webp'].includes(f.mime),'DOCUMENT_FILE_INVALID');
    N(typeof f.base64==='string'&&f.base64.length<=4194304&&/^[A-Za-z0-9+/]+={0,2}$/.test(f.base64)&&/^[a-f0-9]{64}$/.test(f.sha256),'DOCUMENT_FILE_INVALID');
    N(f.origin==='LOCAL_UPLOAD'||/^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/view$/.test(f.origin),'DOCUMENT_FILE_INVALID');

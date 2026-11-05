@@ -8,7 +8,7 @@ function stage(f,documentId,documentVersion,actorPersonId,now){
  if(!valid)fail('DOCUMENT_FILE_INVALID');
  if(f.mime.startsWith('image/')){let p;try{p=new (require('jspdf').jsPDF)().getImageProperties(bytes);}catch{fail('DOCUMENT_FILE_INVALID');}if(!p.width||!p.height||p.width*p.height>12000000)fail('DOCUMENT_FILE_INVALID');}
  const fileId=sha(PROJECT+'|institutional-document|'+documentId+'|'+f.sha256).slice(0,32);
- const descriptor={fileId,documentId,documentVersion,name:f.name,mime:f.mime,size:bytes.length,sha256:f.sha256,origin:f.origin,actorPersonId,addedAt:now,objectName:G.PREFIX+fileId,bucket:G.BUCKET,storage:'PRIVATE_STORAGE'};
+ const descriptor={fileId,documentId,documentVersion,name:f.name,mime:f.mime,size:bytes.length,sha256:f.sha256,origin:f.origin,...(f.importEvidence?{importEvidence:{...f.importEvidence,confirmedBy:actorPersonId,confirmedAt:now,providerVerified:false}}:{}),actorPersonId,addedAt:now,objectName:G.PREFIX+fileId,bucket:G.BUCKET,storage:'PRIVATE_STORAGE'};
  return {bytes,descriptor,plan:plan(descriptor)};
 }
 function plan(d){if(d.bucket!==G.BUCKET||d.objectName!==G.PREFIX+d.fileId)fail('DOCUMENT_FILE_SCOPE_INVALID');return {effectId:d.fileId,objectName:d.objectName,descriptor:{name:d.name,mime:d.mime,size:d.size,sha256:d.sha256}};}
