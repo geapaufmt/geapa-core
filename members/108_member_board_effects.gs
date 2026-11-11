@@ -20,10 +20,10 @@ function f4MemberBoardEffects_(){
  // A semester is a documented canonical period, never a fixed 180 days.
  // Overlapping appointments count each civil day only once in the same period.
  function tenure(get,functions,termUnits){
-  N(termUnits&&typeof termUnits==='object','TENURE_EVIDENCE_REQUIRED');let total=0,afterElection=0;const groups={};
+  N(Array.isArray(termUnits)&&termUnits.every(t=>C.id(t.termId)&&[1,2].includes(t.semesterUnits))&&new Set(termUnits.map(t=>t.termId)).size===termUnits.length,'TENURE_EVIDENCE_REQUIRED');let total=0,afterElection=0;const groups={};
   const elected=functions.filter(f=>['PRESIDENTE','VICE_PRESIDENTE'].includes(get('memberRoleCatalog/'+f.idCargo)?.roleKey));
   const electedEnd=elected.length?Math.max(...elected.map(f=>C.civilStart(C.nextDay(f.endDateReal||f.endDatePlanned)))):null;
-  for(const f of functions){const role=get('memberRoleCatalog/'+f.idCargo);if(role?.group!=='DIRETORIA')continue;const term=get('memberGovernanceTerms/'+f.idTermo),units=termUnits[f.idTermo];N(term&&[1,2].includes(units),'TENURE_EVIDENCE_REQUIRED');
+  for(const f of functions){const role=get('memberRoleCatalog/'+f.idCargo);if(role?.group!=='DIRETORIA')continue;const term=get('memberGovernanceTerms/'+f.idTermo),units=termUnits.find(t=>t.termId===f.idTermo)?.semesterUnits;N(term&&[1,2].includes(units),'TENURE_EVIDENCE_REQUIRED');
    const a=C.civilStart(f.startDate),z=C.civilStart(C.nextDay(f.endDateReal||f.endDatePlanned)),ta=C.civilStart(term.startDate),tz=C.civilStart(C.nextDay(term.endDate));N(a>=ta&&z<=tz,'TENURE_EVIDENCE_REQUIRED');(groups[f.idTermo]||(groups[f.idTermo]={ta,tz,units,spans:[]})).spans.push([a,z]);
   }
   // Different period IDs may not overlap: unresolved historical aliases need evidence.
