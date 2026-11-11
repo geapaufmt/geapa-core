@@ -36,9 +36,9 @@ function f4BoardProcedures_(){
   const authority=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')),loaded=f4MemberAuthz_().load(get,value.personId,authority),d=loaded.M.derive(loaded.d,value.personId,loaded.h.revision,o.clock()),board=get('memberGovernanceBoards/'+boardId);
   N(board&&C.civilStart(board.startDate)<=o.clock()&&o.clock()<C.civilStart(C.nextDay(board.endDate)),'BOARD_NOT_CURRENT');
   const fn=value.functionId?loaded.d['memberFunctions/'+value.functionId]:null;
-  if(value.functionId){N(fn&&fn.idPessoa===value.personId&&fn.idDiretoria===boardId,'RESOURCE_NOT_FOUND');const role=get('memberRoleCatalog/'+fn.idCargo);N(role,'RESOURCE_NOT_FOUND');
-   if(type==='ADVISOR_END')N(role.group==='ASSESSORIA'&&d.currentFunctions.some(f=>f.idVigencia===fn.id),'TARGET_FUNCTION_INVALID');
-   else N(d.currentDirectors.some(f=>f.idVigencia===fn.id),'TARGET_FUNCTION_INVALID');
+  if(value.functionId){N(fn&&fn.idPessoa===value.personId&&fn.idDiretoria===boardId,'RESOURCE_NOT_FOUND');const role=get('memberRoleCatalog/'+fn.idCargo);N(role,'RESOURCE_NOT_FOUND');const occupiedIds=f4MemberOccupations_().members(loaded.M.rows(loaded.d,'memberFunctions'),fn).filter(f4MemberOccupations_().active).map(f=>f.id);
+   if(type==='ADVISOR_END')N(role.group==='ASSESSORIA'&&d.currentFunctions.some(f=>occupiedIds.includes(f.idVigencia)),'TARGET_FUNCTION_INVALID');
+   else N(d.currentDirectors.some(f=>occupiedIds.includes(f.idVigencia)),'TARGET_FUNCTION_INVALID');
    if(type==='DIRECTOR_DISMISSAL'||type.endsWith('EXTENSION'))N(!['PRESIDENTE','VICE_PRESIDENTE'].includes(role.roleKey),'ELECTIVE_ROLE_PROTECTED');
   }
   if(value.linkId){const link=loaded.d['memberLinks/'+value.linkId];N(link&&link.idPessoa===value.personId&&link.type==='MEMBRO_EFETIVO'&&d.state.state==='MEMBRO_EFETIVO'&&!d.state.blocked,'MEMBER_NOT_ELIGIBLE');N(C.civilStart(link.startDate)<=o.clock()&&(!link.endDate||o.clock()<C.civilStart(C.nextDay(link.endDate))),'MEMBER_NOT_ELIGIBLE');}

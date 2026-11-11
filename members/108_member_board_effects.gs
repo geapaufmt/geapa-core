@@ -70,7 +70,7 @@ function f4MemberBoardEffects_(){
   N(board&&board.startDate<=today&&today<=board.endDate,'BOARD_NOT_CURRENT');N(loaded.h.revision===p.targetSnapshot.personRevision&&board.revision===p.targetSnapshot.boardRevision,'REVISION_CONFLICT');
   const state=M.derive(d,t.personId,loaded.h.revision,now);N(!state.state.blocked&&state.state.state==='MEMBRO_EFETIVO','MEMBER_NOT_ELIGIBLE');
   const O=f4MemberOccupations_(),originals=M.rows(d,'memberFunctions'),old=t.functionId?d['memberFunctions/'+t.functionId]:null;let fn,role,roleChange=null,segments=null;
-  if(old){N(old.revision===p.targetSnapshot.functionRevision&&old.endDateReal===null&&state.currentFunctions.some(f=>f.idVigencia===old.id),'REVISION_CONFLICT');role=get('memberRoleCatalog/'+old.idCargo);N(role?.active,'TARGET_FUNCTION_INVALID');
+  if(old){N(old.revision===p.targetSnapshot.functionRevision&&old.endDateReal===null&&state.currentFunctions.some(f=>O.members(originals,old).filter(O.active).some(s=>s.id===f.idVigencia)),'REVISION_CONFLICT');role=get('memberRoleCatalog/'+old.idCargo);N(role?.active,'TARGET_FUNCTION_INVALID');
    if(p.type!=='VOLUNTARY_EXIT')N(!['PRESIDENTE','VICE_PRESIDENTE'].includes(role.roleKey),'ELECTIVE_ROLE_PROTECTED');
    if(p.type==='ADVISOR_END')N(role.group==='ASSESSORIA','TARGET_FUNCTION_INVALID');else N(role.group==='DIRETORIA','TARGET_FUNCTION_INVALID');
    const end=p.type==='DIRECTOR_DISMISSAL'?today:t.endDate;N(end>=today&&end>=old.startDate&&end<=board.endDate,'TERM_OUTSIDE_BOARD');
