@@ -11,6 +11,8 @@ test('minutes lifecycle, exact version and participant security',{skip:process.e
  d['memberRoleCatalog/CARGO-002']={...d['memberRoleCatalog/CARGO-001'],id:'CARGO-002',roleKey:'PRESIDENTE'};
  d['memberFunctions/VIG-002']={...d['memberFunctions/VIG-001'],id:'VIG-002',idPessoa:'PES-000002',idVinculo:'VINC-002',idCargo:'CARGO-002',scopeKey:'PRESIDENCIA'};
  d['memberAggregateHeads/PES-000002'].paths.push('memberFunctions/VIG-002');d['memberAuthBindings/CF_PRES']={...d['memberAuthBindings/CF_ADMIN'],id:'CF_PRES',uid:'CF_PRES',idPessoa:'PES-000002'};d['memberAuthzSubjects/PES-000002']={...d['memberAuthzSubjects/PES-000001'],idPessoa:'PES-000002'};
+ // The second canonical identity needs its own state projection, just like the first.
+ d['memberCurrentStates/PES-000002']={...d['memberCurrentStates/PES-000001'],idPessoa:'PES-000002'};
  d['portalUsers/CF_PRES']=JSON.parse(h.domain.run('(x)=>f4MemberRepository_().bindingView(x.binding,x.person)',{binding:d['memberAuthBindings/CF_PRES'],person:d['memberIdentities/PES-000002']}));
  const caps=['INSTITUTIONAL_GOVERNANCE_DRAFT','INSTITUTIONAL_MINUTES_EDIT','INSTITUTIONAL_MINUTES_MANIFEST','INSTITUTIONAL_MINUTES_ARCHIVE'];
  for(const [id,person,role,scope,cs]of [['M_ADMIN','PES-000001','DIRETOR_ADMINISTRATIVO','ADMINISTRACAO',caps],['M_PRES','PES-000002','PRESIDENTE','PRESIDENCIA',['INSTITUTIONAL_MINUTES_MANIFEST']]])d['memberAuthzPolicies/'+id]={...p,id,capabilities:cs,actorSelector:{kind:'ROLE',roleKey:role,group:'DIRETORIA',actorScope:scope},targets:{...p.targets,allowedPersons:[person],allowedResources:['institutionalGovernanceDrafts/current']},fieldMasks:Object.fromEntries(cs.map(c=>[c,[c==='INSTITUTIONAL_GOVERNANCE_DRAFT'?'draft':'minutes']]))};

@@ -6,7 +6,7 @@ test('projection path prefetch: fresh transactions, parity, recovery and isolati
  const db=new Firestore({projectId:DEMO}),ref=p=>db.doc(ROOT+'/'+p),now=Date.now(),hash=x=>crypto.createHash('sha256').update(x).digest('hex');
  const view='portalReaderViews/CF_ADMIN/items/activities',lease='projectionRecoveryLeases/'+hash('CF_ADMIN|activities'),budget='projectionRecoveryBudgets/'+hash('CF_ADMIN');
  let revoked=false,badApp=false;
- const auth={verifyIdToken:async(token,check)=>{a.equal(check,true);if(revoked)throw Error('revoked');return {uid:'CF_ADMIN',sub:'CF_ADMIN',aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000),exp:Math.floor(now/1000)+3600}}};
+ const auth={verifyIdToken:async(token,check)=>{a.equal(check,true);if(revoked)throw Object.assign(Error('revoked'),{code:'auth/id-token-revoked'});return {uid:'CF_ADMIN',sub:'CF_ADMIN',aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000),exp:Math.floor(now/1000)+3600}}};
  const appCheck={verifyToken:async()=>{if(badApp)throw Error('invalid');return {appId:'SYN_APP'}}};
  const call=(hooks={},action='projectionRecover')=>recoverProjection({db,auth,appCheck,token:'synthetic-emulator-only',appCheckToken:'synthetic',origin:'https://geapa-convergencia-dev.web.app',body:{action,request:{viewId:'activities'}},hooks});
  async function seed(board=false){const docs=agenda(board?'DIRETOR_RECURSOS_HUMANOS':'MEMBRO_EFETIVO').docs,base=docs['canonicalActivities/FUTURE'];for(let i=0;i<60;i++){const id='PERF_'+String(i).padStart(3,'0');docs['canonicalActivities/'+id]={...base,id};}
