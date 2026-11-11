@@ -9,10 +9,11 @@ const {ROOT,fence,fail}=require('./environment.cjs');
 const {routes:bootstrapRoutes}=require('./member-readers.cjs');
 function control(c,uid,route){
  validateControl(c);
- if(['DEV_READERS_OPERATIONAL','PROD_READERS_OPERATIONAL'].includes(c.mode)&&!c.actorUids.includes(uid))fail('PILOT_DISABLED');
+ const temporary=require('./dev-institutional-reader-scope.cjs').admitted(c,uid,route,Date.now(),require('./environment.cjs').PRODUCTION);
+ if(['DEV_READERS_OPERATIONAL','PROD_READERS_OPERATIONAL'].includes(c.mode)&&!c.actorUids.includes(uid)&&!temporary)fail('PILOT_DISABLED');
  if(['DEV_READERS_OPERATIONAL','PROD_READERS_OPERATIONAL'].includes(c.mode)&&['/admin/apresentacoes/cotas','/admin/apresentacoes/incidencia'].includes(route))fail('CONFIG_CAPABILITY_DISABLED');
  const r=c.specializedReaders;
- if(r?.enabled!==true||!Array.isArray(r.actorUids)||!r.actorUids.length||r.actorUids.length>(require('./environment.cjs').PRODUCTION?128:16)||!r.actorUids.includes(uid)||
+ if(r?.enabled!==true||!Array.isArray(r.actorUids)||!r.actorUids.length||r.actorUids.length>(require('./environment.cjs').PRODUCTION?128:16)||!r.actorUids.includes(uid)&&!temporary||
  !Array.isArray(r.routes)||!r.routes.length||r.routes.length>(r.routes.includes('/admin/gestao-institucional')?49:48)||new Set(r.routes).size!==r.routes.length||!r.routes.includes(route))fail('PILOT_DISABLED');
  return c;
 }
