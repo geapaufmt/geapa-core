@@ -169,7 +169,7 @@ function f4BoardProcedures_(){
   return {roles,responsibleFunctions};
  }
  function officeSummary(get,o,fn,functions){
-  let auth;try{const d=get('institutionalDirectoryControl/current');auth=f4InstitutionalPolicies_(get,o.identity,o.clock(),d.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/governance');N(auth.mask.includes('summary')&&auth.mask.includes('fields'),'AUTHORIZATION_DENIED');}
+  let auth;try{const d=get('institutionalDirectoryControl/current');N(d?.enabled===true,'PILOT_DISABLED');auth=f4InstitutionalPolicies_(get,o.identity,o.clock(),d.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/governance');N(auth.mask.includes('summary')&&auth.mask.includes('fields'),'AUTHORIZATION_DENIED');}
   catch(e){if(['PILOT_DISABLED','AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED'].includes(e.code))return null;throw e;}
   const v=f4InstitutionalGovernance_().state(get),rows=v.records.filter(r=>r.kind==='BOARD_PROCEDURE'&&r.procedure.boardId===fn.idDiretoria&&r.procedure.target.personId===fn.idPessoa&&(!r.procedure.target.functionId||r.procedure.target.functionId===fn.idVigencia)&&f4InstitutionalDocumentManagement_().readable(get,o,r,auth));
   const summaries=rows.map(r=>({id:r.id,title:r.title,state:outcome(r.procedure,o.clock()),effect:r.procedure.enactment?.state||'NOT_ENACTED',at:r.procedure.enactment?.at||r.procedure.closedAt||r.procedure.createdAt})).sort((a,b)=>b.at-a.at||a.id.localeCompare(b.id));
