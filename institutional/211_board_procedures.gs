@@ -126,7 +126,8 @@ function f4BoardProcedures_(){
   if((actor===p.proposer||president(auth,p.boardId))&&!['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED'].includes(p.state))possible.push('BP_CANCEL');
   if(['RECORDED','APPROVED'].includes(p.state)&&p.enactment?.state!=='ENACTED'&&c?.boardProcedures?.actions?.includes('BP_ENACT'))possible.push('BP_ENACT');
   const actions=possible.filter(action=>{try{enabled(c,action,p.boardId,p.type);f4InstitutionalGovernance_().control(get,o.config,o.identity,o.clock(),true,true,caps[action]);return true;}catch(e){if(['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED','PILOT_DISABLED'].includes(e.code))return false;throw e;}});
-  return {...r,procedure:{...p,canonicalState:r.procedure.state,enactment:readiness(p)},documentAvailable:['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED','SUSPENDED_COMPOSITION','RECORDED'].includes(r.procedure.state),actions};
+  let enactment=readiness(p);if(actions.includes('BP_ENACT')){try{const effect=f4MemberBoardEffects_().resolve(get,o,r,auth,c);enactment={state:'READY_FOR_ENACTMENT',blocks:[],tenure:effect.summary};}catch(e){actions.splice(actions.indexOf('BP_ENACT'),1);enactment={state:'NOT_ENACTED',blocks:[e.code||'RECONCILIATION_REQUIRED']};}}
+  return {...r,procedure:{...p,canonicalState:r.procedure.state,enactment},documentAvailable:['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED','SUSPENDED_COMPOSITION','RECORDED'].includes(r.procedure.state),actions};
  }
  function candidates(get,o,auth,c){
   if(!c?.boardProcedures?.enabled)return [];
@@ -135,5 +136,11 @@ function f4BoardProcedures_(){
    return {personId:id,name:loaded.d['memberIdentities/'+id].displayName,eligible:d.state.state==='MEMBRO_EFETIVO'&&!d.state.blocked,links:loaded.h.paths.filter(p=>p.startsWith('memberLinks/')).map(p=>loaded.d[p]).filter(l=>l.type==='MEMBRO_EFETIVO'&&C.civilStart(l.startDate)<=o.clock()&&(!l.endDate||o.clock()<C.civilStart(C.nextDay(l.endDate)))).map(l=>({id:l.id,type:l.type})),functions:d.currentFunctions.filter(f=>directors(auth).some(a=>a.idDiretoria===f.idDiretoria)).map(f=>({id:f.idVigencia,roleKey:f.roleKey,boardId:f.idDiretoria,group:f.group}))};
   });
  }
- return {types,caps,composition,target,transition,view,outcome,effective,readiness,content,hash,candidates};
+ function options(get,o,auth,c){
+  if(!c?.boardProcedures?.enabled)return {roles:[],responsibleFunctions:[]};
+  const roles=(c.boardProcedures.roleIds||[]).map(id=>get('memberRoleCatalog/'+id)).filter(r=>r?.active&&r.group==='DIRETORIA'&&!['PRESIDENTE','VICE_PRESIDENTE'].includes(r.roleKey)).map(r=>({id:r.id,label:r.name||r.roleKey}));
+  const responsibleFunctions=c.boardProcedures.boardIds.flatMap(boardId=>composition(get,o,boardId).people.flatMap(person=>person.functions.map(f=>({id:f.id,boardId,personId:person.personId,label:person.name+' · '+f.roleKey}))));
+  return {roles,responsibleFunctions};
+ }
+ return {options,types,caps,composition,target,transition,view,outcome,effective,readiness,content,hash,candidates};
 }
