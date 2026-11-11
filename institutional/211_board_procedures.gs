@@ -93,6 +93,7 @@ function f4BoardProcedures_(){
   N(old?.kind==='BOARD_PROCEDURE'&&old.revision===input.expectedRecordRevision,'REVISION_CONFLICT');const next=copy(old),p=next.procedure;scope(auth,p.boardId);enabled(c,input.action,p.boardId,p.type);
   const base=['action','id','expectedRevision','expectedRecordRevision','reason'];
   C.exact(input,[...base,...(input.action==='BP_VOTE'?['choice','contentHash']:input.action==='BP_CONSENT'?['accepted','contentHash']:input.action==='BP_DEFEND'?['statement','contentHash']:input.action==='BP_CLEARANCE'?['pendingDuties']:[])]);
+  N(p.enactment?.state!=='ENACTED','PROCEDURE_IMMUTABLE');
   if(input.action==='BP_ENACT'){
    const effect=f4MemberBoardEffects_().resolve(get,o,old,auth,c);
    p.enactment={state:'ENACTED',at:now,actorPersonId:actor,operationId:o.operationId,functionId:effect.functionId,evidence:effect.evidence,tenure:effect.summary,responsibleFunctionId:effect.responsibleFunctionId};
@@ -125,7 +126,7 @@ function f4BoardProcedures_(){
   if(p.type==='VOLUNTARY_EXIT'&&p.state==='RECORDED'&&president(auth,p.boardId))possible.push('BP_CLEARANCE');
   if((actor===p.proposer||president(auth,p.boardId))&&!['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED'].includes(p.state))possible.push('BP_CANCEL');
   if(['RECORDED','APPROVED'].includes(p.state)&&p.enactment?.state!=='ENACTED'&&c?.boardProcedures?.actions?.includes('BP_ENACT'))possible.push('BP_ENACT');
-  const actions=possible.filter(action=>{try{enabled(c,action,p.boardId,p.type);f4InstitutionalGovernance_().control(get,o.config,o.identity,o.clock(),true,true,caps[action]);return true;}catch(e){if(['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED','PILOT_DISABLED'].includes(e.code))return false;throw e;}});
+  const actions=possible.filter(action=>{if(p.enactment?.state==='ENACTED')return false;try{enabled(c,action,p.boardId,p.type);f4InstitutionalGovernance_().control(get,o.config,o.identity,o.clock(),true,true,caps[action]);return true;}catch(e){if(['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED','PILOT_DISABLED'].includes(e.code))return false;throw e;}});
   let enactment=readiness(p);if(actions.includes('BP_ENACT')){try{const effect=f4MemberBoardEffects_().resolve(get,o,r,auth,c);enactment={state:'READY_FOR_ENACTMENT',blocks:[],tenure:effect.summary};}catch(e){actions.splice(actions.indexOf('BP_ENACT'),1);enactment={state:'NOT_ENACTED',blocks:[e.code||'RECONCILIATION_REQUIRED']};}}
   return {...r,procedure:{...p,canonicalState:r.procedure.state,enactment},documentAvailable:['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED','SUSPENDED_COMPOSITION','RECORDED'].includes(r.procedure.state),actions};
  }
@@ -150,3 +151,4 @@ function f4BoardProcedures_(){
  }
  return {contextual,options,types,caps,composition,target,transition,view,outcome,effective,readiness,content,hash,candidates};
 }
+
