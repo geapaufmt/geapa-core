@@ -254,6 +254,7 @@
     "institutional/210_institutional_document_management.gs",
     "members/108_member_board_effects.gs",
     "institutional/211_board_procedures.gs",
-    "institutional/212_board_history.gs"
+    "institutional/212_board_history.gs",
+    "members/109_member_occupations.gs"
   ]
 }

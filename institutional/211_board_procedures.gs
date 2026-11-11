@@ -45,7 +45,7 @@ function f4BoardProcedures_(){
   if(value.roleId){const role=get('memberRoleCatalog/'+value.roleId);N(role?.active&&role.group==='DIRETORIA'&&!['PRESIDENTE','VICE_PRESIDENTE'].includes(role.roleKey),'ELECTIVE_ROLE_PROTECTED');}
   if(value.startDate){loaded.M.interval(value.startDate,value.endDate);N(C.civilStart(value.startDate)>=C.civilStart(board.startDate)&&value.endDate<=board.endDate,'TERM_OUTSIDE_BOARD');}
   if(value.endDate){C.civilStart(value.endDate);N(value.endDate<=board.endDate,'TERM_OUTSIDE_BOARD');}
-  if(type.includes('EXTENSION'))N(value.endDate>(fn.endDateReal||fn.endDatePlanned),'EXTENSION_INVALID');
+  if(type.includes('EXTENSION'))N(value.endDate>f4MemberOccupations_().end(f4MemberOccupations_().members(loaded.M.rows(loaded.d,'memberFunctions'),fn).filter(f4MemberOccupations_().active).at(-1)),'EXTENSION_INVALID');
   if(type==='VOLUNTARY_EXIT')N(C.civilStart(value.endDate)>=o.clock()+7*DAY,'NOTICE_PERIOD_REQUIRED');
   if(type==='TEMPORARY_OFFICE')N(text(value.roleName,3,120)&&text(value.purpose,10,2000)&&text(value.duties,10,4000)&&typeof value.advisoryAllowed==='boolean','COMMAND_PAYLOAD_INVALID');
   if(type==='ADVISOR_APPOINTMENT'){N(text(value.purpose,10,2000)&&text(value.duties,10,4000),'COMMAND_PAYLOAD_INVALID');const responsible=get('memberFunctions/'+value.responsibleFunctionId);N(responsible&&composition(get,o,boardId).people.some(p=>p.functions.some(f=>f.id===responsible.id)),'RESPONSIBLE_DIRECTOR_INVALID');}
@@ -171,7 +171,8 @@ function f4BoardProcedures_(){
  function officeSummary(get,o,fn,functions){
   let auth;try{const d=get('institutionalDirectoryControl/current');N(d?.enabled===true,'PILOT_DISABLED');auth=f4InstitutionalPolicies_(get,o.identity,o.clock(),d.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/governance');N(auth.mask.includes('summary')&&auth.mask.includes('fields'),'AUTHORIZATION_DENIED');}
   catch(e){if(['PILOT_DISABLED','AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED'].includes(e.code))return null;throw e;}
-  const v=f4InstitutionalGovernance_().state(get),rows=v.records.filter(r=>r.kind==='BOARD_PROCEDURE'&&r.procedure.boardId===fn.idDiretoria&&r.procedure.target.personId===fn.idPessoa&&(!r.procedure.target.functionId||r.procedure.target.functionId===fn.idVigencia)&&f4InstitutionalDocumentManagement_().readable(get,o,r,auth));
+  const occupation=f4MemberOccupations_().members(functions,functions.find(f=>f.id===fn.idVigencia)),segmentIds=occupation.map(f=>f.id);
+  const v=f4InstitutionalGovernance_().state(get),rows=v.records.filter(r=>r.kind==='BOARD_PROCEDURE'&&r.procedure.boardId===fn.idDiretoria&&r.procedure.target.personId===fn.idPessoa&&(!r.procedure.target.functionId||segmentIds.includes(r.procedure.target.functionId))&&f4InstitutionalDocumentManagement_().readable(get,o,r,auth));
   const summaries=rows.map(r=>({id:r.id,title:r.title,state:outcome(r.procedure,o.clock()),effect:r.procedure.enactment?.state||'NOT_ENACTED',at:r.procedure.enactment?.at||r.procedure.closedAt||r.procedure.createdAt})).sort((a,b)=>b.at-a.at||a.id.localeCompare(b.id));
   let balance={state:'PENDING_EVIDENCE',reason:'Base documental de permanência ainda não validada nesta consulta.'};
   try{const E=f4MemberBoardEffects_(),c=get('institutionalGovernanceControl/current'),p={boardId:fn.idDiretoria,type:'ORDINARY_EXTENSION',rule:'ADMINISTRATIVE'},b=E.evidence(get,c,p,o.clock()).basis;balance=E.balance(get,functions,b.termUnits,new Date(o.clock()-4*3600000).toISOString().slice(0,10));}

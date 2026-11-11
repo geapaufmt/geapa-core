@@ -12,9 +12,10 @@ function f4BoardHistory_(get,o){
  const boards=query('memberGovernanceBoards'),records=boards.map(board=>{
   const head=get('memberBoardHeads/'+board.id);N(head&&Array.isArray(head.paths),'SCHEMA_INVALID');
   const terms=head.paths.filter(p=>p.startsWith('memberGovernanceBoardTerms/')).map(p=>get(p)).map(r=>({associationId:r.id,startDate:r.startDate,endDate:r.endDate,term:get('memberGovernanceTerms/'+r.idTermo)})).map(r=>({associationId:r.associationId,startDate:r.startDate,endDate:r.endDate,id:r.term?.id,name:r.term?.name||r.term?.id}));
-  const functions=query('memberFunctions',[{field:'idDiretoria',op:'EQUAL',value:board.id}]).map(f=>{
+  const rawFunctions=query('memberFunctions',[{field:'idDiretoria',op:'EQUAL',value:board.id}]);f4MemberOccupations_().validate(rawFunctions);
+  const functions=rawFunctions.map(f=>{
    const role=get('memberRoleCatalog/'+f.idCargo),person=get('memberIdentities/'+f.idPessoa);N(role&&person,'SCHEMA_INVALID');
-   return {personId:f.idPessoa,name:person.displayName,functionId:f.id,linkId:f.idVinculo,roleId:f.idCargo,roleName:role.name||f.idCargo,roleKey:role.roleKey,group:role.group,startDate:f.startDate,endDate:f.endDateReal||f.endDatePlanned,revision:f.revision};
+   return {...(f4MemberOccupations_().modern(f)?{occupationId:f.occupationId,cancelled:f.cancelled,termId:f.idTermo}:{}),personId:f.idPessoa,name:person.displayName,functionId:f.id,linkId:f.idVinculo,roleId:f.idCargo,roleName:role.name||f.idCargo,roleKey:role.roleKey,group:role.group,startDate:f.startDate,endDate:f.endDateReal||f.endDatePlanned,revision:f.revision};
   });
   const metadata=get('memberBoardDocumentaryMetadata/'+board.id);
   // Optional enrichment is accepted only as an explicitly verified source-bound

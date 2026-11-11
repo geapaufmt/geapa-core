@@ -16,15 +16,15 @@ function f4MemberTenurePresentation_(d,id,derived,now){
   return f.id.slice(0,-suffix.length);
  }
  const buckets=new Map();
- for(const f of rows('memberFunctions')){
-  const source=lineage(f),key=JSON.stringify([source||f.id,f.idPessoa,f.idVinculo,f.idCargo,f.scopeKey,f.idDiretoria]);
+ for(const f of rows('memberFunctions').filter(f4MemberOccupations_().active)){
+  const source=f4MemberOccupations_().modern(f)?f.occupationId:lineage(f),key=JSON.stringify([source||f.id,f.idPessoa,f.idVinculo,f.idCargo,f.scopeKey,f.idDiretoria]);
   if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(f);
  }
  const tenures=[];
  function emit(group){
   const first=group[0],last=group[group.length-1],role=d['memberRoleCatalog/'+first.idCargo],board=d['memberGovernanceBoards/'+first.idDiretoria],end=last.endDateReal||last.endDatePlanned||null;
   const periodPhase=phase(first.startDate,end),status=group.some(f=>current.has(f.id))?'CURRENT':periodPhase==='CURRENT'?'INACTIVE':periodPhase;
-  tenures.push({id:first.id,idVinculo:first.idVinculo,roleKey:role.roleKey,group:role.group,idDiretoria:first.idDiretoria,boardName:board.name,boardStartDate:board.startDate,boardEndDate:board.endDate,startDate:first.startDate,endDate:end,status,sourceKind:group.length>1?'DOCUMENTED_SOURCE_PARTITION':'INDIVIDUAL_RECORD',segments:group.map(f=>({idVigencia:f.id,idTermo:f.idTermo,startDate:f.startDate,endDate:f.endDateReal||f.endDatePlanned||null,status:phase(f.startDate,f.endDateReal||f.endDatePlanned),revision:f.revision}))});
+  tenures.push({id:first.id,idVinculo:first.idVinculo,roleKey:role.roleKey,group:role.group,idDiretoria:first.idDiretoria,boardName:board.name,boardStartDate:board.startDate,boardEndDate:board.endDate,startDate:first.startDate,endDate:end,status,sourceKind:f4MemberOccupations_().modern(first)?'CANONICAL_OCCUPATION':group.length>1?'DOCUMENTED_SOURCE_PARTITION':'INDIVIDUAL_RECORD',segments:group.map(f=>({idVigencia:f.id,idTermo:f.idTermo,startDate:f.startDate,endDate:f.endDateReal||f.endDatePlanned||null,status:phase(f.startDate,f.endDateReal||f.endDatePlanned),revision:f.revision}))});
  }
  for(const group of buckets.values()){
   group.sort((a,b)=>a.startDate.localeCompare(b.startDate)||a.id.localeCompare(b.id));let run=[];

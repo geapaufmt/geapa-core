@@ -7,6 +7,7 @@ function f4MemberGovernanceCommands_(){
  }
  function resolve(get,r,now){validate(r);const {request:q,proof}=U.authorization(get,r),appoint=r.commandType==='members.governance.appoint',path='memberFunctions/'+r.target.functionId,old=get(path),revision=U.revision(r,path);
   N(q.capability==='MEMBERS_GOVERNANCE_EXECUTE'&&q.target.personId===r.target.personId,'AUTH_BINDING_INVALID');f4MemberAuthz_().recheck(get,q,proof,now);
+  N(!old||old.schemaVersion!=='m1-memberFunctions-v3','CANONICAL_OCCUPATION_PROCEDURE_REQUIRED');
   const body=f4MemberActContent_().act(get,r,now);C.exact(body.facts,['dependencies']);N(Array.isArray(body.facts.dependencies),'M13_ACT_INVALID');
   const data=appoint?{schemaVersion:'m1-memberFunctions-v2',id:r.target.functionId,idPessoa:r.target.personId,revision:1,origin:'M13_COMMAND',...r.payload,endDateReal:null}:{...copy(old),schemaVersion:'m1-memberFunctions-v2',revision:revision+1,endDateReal:r.payload.endDateReal};
   N(appoint?!old&&revision===0:old&&old.idPessoa===r.target.personId&&old.revision===revision,'REVISION_CONFLICT');
