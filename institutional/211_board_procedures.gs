@@ -142,5 +142,11 @@ function f4BoardProcedures_(){
   const responsibleFunctions=c.boardProcedures.boardIds.flatMap(boardId=>composition(get,o,boardId).people.flatMap(person=>person.functions.map(f=>({id:f.id,boardId,personId:person.personId,label:person.name+' · '+f.roleKey}))));
   return {roles,responsibleFunctions};
  }
- return {options,types,caps,composition,target,transition,view,outcome,effective,readiness,content,hash,candidates};
+ function contextual(get,o,fn){
+  let c,auth;try{({c,auth}=f4InstitutionalGovernance_().control(get,o.config,o.identity,o.clock(),true,true,caps.BP_CREATE));}catch(e){if(['PILOT_DISABLED','AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED'].includes(e.code))return [];throw e;}
+  const control=c.boardProcedures;if(!control?.enabled||!control.actions.includes('BP_CREATE')||!control.boardIds.includes(fn.idDiretoria)||!control.targetPersonIds.includes(fn.idPessoa))return [];
+  const elected=['PRESIDENTE','VICE_PRESIDENTE'].includes(fn.roleKey),self=person(auth)===fn.idPessoa,pres=president(auth,fn.idDiretoria);
+  return ['ORDINARY_EXTENSION','EXTRAORDINARY_EXTENSION','VOLUNTARY_EXIT','DIRECTOR_DISMISSAL'].filter(type=>control.types.includes(type)&&(type==='VOLUNTARY_EXIT'?self:pres&&!elected)).map(type=>({type,label:types[type].label,personId:fn.idPessoa,functionId:fn.idVigencia,boardId:fn.idDiretoria}));
+ }
+ return {contextual,options,types,caps,composition,target,transition,view,outcome,effective,readiness,content,hash,candidates};
 }

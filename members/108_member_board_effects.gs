@@ -37,7 +37,9 @@ function f4MemberBoardEffects_(){
   N(c.boardProcedures?.enabled&&c.boardProcedures.actions.includes('BP_ENACT')&&c.boardProcedures.types.includes(p.type)&&c.boardProcedures.boardIds.includes(p.boardId)&&c.boardProcedures.targetPersonIds.includes(p.target.personId),'SCOPE_INVALID');
   const own=auth.actor.derived.currentDirectors.filter(f=>f.idDiretoria===p.boardId),pres=own.some(f=>f.roleKey==='PRESIDENTE');N(own.length,'AUTHORIZATION_DENIED');
   if(p.type==='VOLUNTARY_EXIT')N(actor===p.target.personId||pres,'SELF_REQUIRED');
-  else if(['ADVISOR_APPOINTMENT','ADVISOR_END'].includes(p.type))N(pres||actor===p.proposer,'AUTHORIZATION_DENIED');else N(pres,'PRESIDENT_REQUIRED');
+  else if(p.type==='ADVISOR_APPOINTMENT'){const responsible=get('memberFunctions/'+p.target.responsibleFunctionId);N(pres||responsible?.idPessoa===actor&&own.some(f=>f.idVigencia===responsible.id),'AUTHORIZATION_DENIED');}
+  else if(p.type==='ADVISOR_END'){const source=get('institutionalGovernanceDrafts/current')?.records.find(x=>x.procedure?.type==='ADVISOR_APPOINTMENT'&&x.procedure.enactment?.state==='ENACTED'&&x.procedure.enactment.functionId===p.target.functionId),responsible=source&&get('memberFunctions/'+source.procedure.target.responsibleFunctionId);N(pres||responsible?.idPessoa===actor&&own.some(f=>f.idVigencia===responsible.id),'AUTHORIZATION_DENIED');}
+  else N(pres,'PRESIDENT_REQUIRED');
   N(B.hash(B.content(p))===p.contentHash,'CONTENT_VERSION_CONFLICT');
   if(collective(p)){N(p.state==='APPROVED'&&B.hash(B.composition(get,o,p.boardId))===B.hash(p.electorate),'COMPOSITION_CHANGED');N(B.outcome({...p,state:'OPEN'},now)==='APPROVED','PROCEDURE_NOT_APPROVED');}
   if(p.type.includes('EXTENSION'))N(p.consent?.accepted===true&&p.consent.personId===p.target.personId&&p.consent.contentHash===p.contentHash,'DEFENSE_OR_CONSENT_PENDING');
