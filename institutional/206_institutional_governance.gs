@@ -54,6 +54,11 @@ function f4InstitutionalGovernance_(){
   const hp='institutionalGovernanceHistory/current',history=get(hp)||{schemaVersion:'institutional-governance-history-v1',events:[]};N(Array.isArray(history.events)&&history.events.length<500,'SCOPE_TOO_LARGE');
   const id=r.input.id||'GOV_'+r.operationId;let record=r.input.action?{...p.next,id,revision:(p.old?.revision||0)+1,updatedAt:now,actorPersonId:auth.actor.actor.h.id,operationId:r.operationId}:{id,revision:(p.old?.revision||0)+1,title:r.input.title,meetingDate:r.input.meetingDate,body:r.input.body,documentaryState:r.input.documentaryState,sourceRecordId:r.input.sourceRecordId,sourceHash:p.sourceHash,references:p.references,formalApproval:null,publication:'CLOSED',effectiveFrom:null,createdAt:p.old?.createdAt||now,updatedAt:now,actorPersonId:auth.actor.actor.h.id,operationId:r.operationId};
   if((!r.input.action||r.input.action==='NORM_FILES_SAVE')&&p.attachments.length)record.attachments=f4InstitutionalDocumentFiles_().materialize(p.attachments,o,id,record.revision,auth.actor.actor.h.id);
+  if(record.kind==='BOARD_PROCEDURE'&&c.boardProcedures?.pdfStorage===true&&['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED','SUSPENDED_COMPOSITION','RECORDED'].includes(record.procedure.state)){
+   N(typeof o.renderProcedureDocument==='function','CONFIG_CAPABILITY_DISABLED');
+   const d=o.renderProcedureDocument(record);N(d.renderer==='GEAPA_BOARD_PROCEDURE_PDF_1'&&hex(d.sourceHash)&&hex(d.sha256)&&Number.isSafeInteger(d.size)&&d.size>0&&d.size<=4194304&&d.storage==='PRIVATE_STORAGE','SCHEMA_INVALID');
+   record.procedure.documentHistory=[...(p.old?.procedure.documentHistory||[]),...(p.old?.procedure.document?[{recordRevision:p.old.revision,descriptor:p.old.procedure.document}]:[])];N(record.procedure.documentHistory.length<=20,'SCOPE_TOO_LARGE');record.procedure.document=d;
+  }
   if(record.versions)N(record.versions.length<=20,'SCOPE_TOO_LARGE');
   if(!r.input.action&&p.documentaryEvidence)record.documentaryEvidence=p.documentaryEvidence;
   if(r.input.minutes){record.minutes=M.validate(get,o,r.input,p.old,auth,c);record.versions=[...(p.old?.versions||[]),...(p.old?.minutes?[{contentRevision:p.old.minutes.contentRevision,record:Object.fromEntries(Object.entries(p.old).filter(([k])=>k!=='versions'))}]:[])];N(record.versions.length<=20,'SCOPE_TOO_LARGE');}

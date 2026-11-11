@@ -50,7 +50,7 @@ function f4BoardProcedures_(){
   if(type==='TEMPORARY_OFFICE')N(text(value.roleName,3,120)&&text(value.purpose,10,2000)&&text(value.duties,10,4000)&&typeof value.advisoryAllowed==='boolean','COMMAND_PAYLOAD_INVALID');
   if(type==='ADVISOR_APPOINTMENT'){N(text(value.purpose,10,2000)&&text(value.duties,10,4000),'COMMAND_PAYLOAD_INVALID');const responsible=get('memberFunctions/'+value.responsibleFunctionId);N(responsible&&composition(get,o,boardId).people.some(p=>p.functions.some(f=>f.id===responsible.id)),'RESPONSIBLE_DIRECTOR_INVALID');}
   if(type==='DIRECTOR_DISMISSAL')N(text(value.grounds,20,4000)&&Number.isSafeInteger(value.defenseDeadline)&&value.defenseDeadline>0,'DEFENSE_PERIOD_REQUIRED');
-  if(type==='ADVISOR_END')N(text(value.reason,10,1500)&&value.reason!=='DISCIPLINARY','COMMAND_PAYLOAD_INVALID');
+  if(type==='ADVISOR_END')N(['VOLUNTARY_REQUEST','ASSIGNMENT_COMPLETED','RESPONSIBILITY_ENDED'].includes(value.reason),'COMMAND_PAYLOAD_INVALID');
   return {personId:value.personId,personRevision:loaded.h.revision,functionRevision:fn?.revision||null,boardRevision:board.revision};
  }
  function content(p){return {type:p.type,title:p.title,object:p.object,basis:p.basis,reason:p.reason,boardId:p.boardId,target:p.target,documents:p.documents,contentVersion:p.contentVersion};}
@@ -91,12 +91,15 @@ function f4BoardProcedures_(){
   N(old?.kind==='BOARD_PROCEDURE'&&old.revision===input.expectedRecordRevision,'REVISION_CONFLICT');const next=copy(old),p=next.procedure;scope(auth,p.boardId);enabled(c,input.action,p.boardId,p.type);
   const base=['action','id','expectedRevision','expectedRecordRevision','reason'];
   C.exact(input,[...base,...(input.action==='BP_VOTE'?['choice','contentHash']:input.action==='BP_CONSENT'?['accepted','contentHash']:input.action==='BP_DEFEND'?['statement','contentHash']:input.action==='BP_CLEARANCE'?['pendingDuties']:[])]);
-  if(input.action==='BP_CANCEL'){N(actor===p.proposer||president(auth,p.boardId),'AUTHORIZATION_DENIED');N(!['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED'].includes(p.state),'PROCEDURE_IMMUTABLE');p.state='CANCELLED';p.cancelled={at:now,personId:actor,reason:input.reason};}
+  if(input.action==='BP_CANCEL'){N(actor===p.proposer||president(auth,p.boardId),'AUTHORIZATION_DENIED');N(!['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED'].includes(outcome(p,now)),'PROCEDURE_IMMUTABLE');p.state='CANCELLED';p.cancelled={at:now,personId:actor,reason:input.reason};}
   else if(input.action==='BP_CONSENT'){N(p.state==='CONSENT_PENDING'&&p.target.personId===actor,'SELF_REQUIRED');N(input.contentHash===p.contentHash&&typeof input.accepted==='boolean','CONTENT_VERSION_CONFLICT');p.consent={personId:actor,at:now,accepted:input.accepted,contentHash:p.contentHash,operationId:o.operationId};p.state=input.accepted?(collective(p)?'DRAFT':'RECORDED'):'REJECTED';}
   else if(input.action==='BP_DEFEND'){N(p.state==='DEFENSE_PENDING'&&p.target.personId===actor&&now<p.target.defenseDeadline,'SELF_REQUIRED');N(!p.defense&&input.contentHash===p.contentHash&&text(input.statement,1,8000),'DEFENSE_INVALID');p.defense={personId:actor,at:now,statement:input.statement,contentHash:p.contentHash,operationId:o.operationId};}
-  else if(input.action==='BP_CLEARANCE'){N(p.type==='VOLUNTARY_EXIT'&&president(auth,p.boardId),'PRESIDENT_REQUIRED');N(text(input.pendingDuties,0,4000),'COMMAND_PAYLOAD_INVALID');p.clearance={at:now,personId:actor,pendingDuties:input.pendingDuties,meaning:'DUTIES_RECORD_NOT_RESIGNATION_VETO'};}
+  else if(input.action==='BP_CLEARANCE'){N(p.type==='VOLUNTARY_EXIT'&&president(auth,p.boardId),'PRESIDENT_REQUIRED');N(p.state==='RECORDED'&&text(input.pendingDuties,0,4000),'COMMAND_PAYLOAD_INVALID');p.clearance={at:now,personId:actor,pendingDuties:input.pendingDuties,meaning:'DUTIES_RECORD_NOT_RESIGNATION_VETO'};}
   else if(input.action==='BP_OPEN'){
-   N(president(auth,p.boardId)&&collective(p),'PRESIDENT_REQUIRED');N(p.state==='DRAFT'||p.state==='DEFENSE_PENDING'&&(!!p.defense||now>=p.target.defenseDeadline),'DEFENSE_OR_CONSENT_PENDING');
+   // A date passing is not proof the affected person had a real opportunity
+   // to respond. Until documented delivery is supported, only their actual
+   // authenticated response can complete this stage.
+   N(president(auth,p.boardId)&&collective(p),'PRESIDENT_REQUIRED');N(p.state==='DRAFT'||p.state==='DEFENSE_PENDING'&&!!p.defense,'DEFENSE_OR_CONSENT_PENDING');
    p.targetSnapshot=target(get,o,p.type,p.boardId,p.target);p.electorate=composition(get,o,p.boardId);p.openedAt=now;p.deadline=now+p.days*DAY;p.allowEarlyClose=c.boardProcedures.earlyCloseTypes?.includes(p.type)===true;p.state='OPEN';p.absenceOfDefenseIsAdmission=false;
   }else if(input.action==='BP_VOTE'){
    N(p.state==='OPEN'&&now<p.deadline,'VOTING_CLOSED');N(effective(p,composition(get,o,p.boardId),now)!=='SUSPENDED_COMPOSITION','COMPOSITION_CHANGED');N(p.electorate.people.some(x=>x.personId===actor),'NOT_ELECTOR');N(!p.votes.some(x=>x.personId===actor),'DUPLICATE_MANIFESTATION');N(['YES','NO','ABSTAIN'].includes(input.choice)&&input.contentHash===p.contentHash,'CONTENT_VERSION_CONFLICT');
@@ -109,12 +112,12 @@ function f4BoardProcedures_(){
  function view(get,o,r,auth,c){
   const p=copy(r.procedure),actor=person(auth);scope(auth,p.boardId);
   if(p.state==='OPEN')p.state=effective(p,composition(get,o,p.boardId),o.clock());
-  const possible=[];if(president(auth,p.boardId)&&collective(p)&&(p.state==='DRAFT'||p.state==='DEFENSE_PENDING'&&(p.defense||o.clock()>=p.target.defenseDeadline)))possible.push('BP_OPEN');
+  const possible=[];if(president(auth,p.boardId)&&collective(p)&&(p.state==='DRAFT'||p.state==='DEFENSE_PENDING'&&p.defense))possible.push('BP_OPEN');
   if(p.state==='OPEN'&&p.electorate.people.some(x=>x.personId===actor)&&!p.votes.some(x=>x.personId===actor))possible.push('BP_VOTE');
   if(p.target.personId===actor&&p.state==='CONSENT_PENDING')possible.push('BP_CONSENT');
   if(p.target.personId===actor&&p.state==='DEFENSE_PENDING'&&!p.defense&&o.clock()<p.target.defenseDeadline)possible.push('BP_DEFEND');
   if(r.procedure.state==='OPEN'&&p.state!=='OPEN')possible.push('BP_CLOSE');
-  if(p.type==='VOLUNTARY_EXIT'&&president(auth,p.boardId))possible.push('BP_CLEARANCE');
+  if(p.type==='VOLUNTARY_EXIT'&&p.state==='RECORDED'&&president(auth,p.boardId))possible.push('BP_CLEARANCE');
   if((actor===p.proposer||president(auth,p.boardId))&&!['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED'].includes(p.state))possible.push('BP_CANCEL');
   const actions=possible.filter(action=>{try{enabled(c,action,p.boardId,p.type);f4InstitutionalGovernance_().control(get,o.config,o.identity,o.clock(),true,true,caps[action]);return true;}catch(e){if(['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED','PILOT_DISABLED'].includes(e.code))return false;throw e;}});
   return {...r,procedure:{...p,enactment:readiness(p)},actions};
