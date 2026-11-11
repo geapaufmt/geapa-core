@@ -81,7 +81,7 @@ test('board procedures use the governance transaction, own identities and origin
    q.category='ADDITIONAL_EXCEPTION';await replaceBasis({procedureRequirements:{EXTRAORDINARY_EXTENSION:q}});await a.rejects(action('CF_ADMIN','BP_ENACT'),/ART33_SPECIFIC_EXCEPTION_REQUIRED/);await replaceBasis({exceptionProcedureHashes:[r.procedure.contentHash]});await action('CF_ADMIN','BP_ENACT');a.deepEqual((await read()).records[0].procedure.enactment.documentaryAuthorization,q);
   });
 
-  await t.test('cross-semester consent and effect share one occupation, recover receipt and revoke future segments on exit',async()=>{
+  await t.test('cross-semester consent and effect share one occupation and recover original receipt',async()=>{
    await cleanNewFunctions();const d=await effectSeed();
    const term=d['memberGovernanceTerms/TERM-001'],relation=Object.values(d).find(x=>x.schemaVersion==='m1-memberGovernanceBoardTerms-v1'&&x.idDiretoria==='DIR-001');
    term.endDate='2026-11-18';relation.endDate=term.endDate;
