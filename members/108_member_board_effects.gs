@@ -47,6 +47,11 @@ function f4MemberBoardEffects_(){
   for(const g of gs){const merged=[];for(const span of g.spans.sort((a,b)=>a[0]-b[0])){const last=merged.at(-1);if(last&&span[0]<=last[1])last[1]=Math.max(last[1],span[1]);else merged.push([...span]);}for(const [a,z]of merged){total+=(z-a)/(g.tz-g.ta)*g.units;if(electedEnd!==null)afterElection+=Math.max(0,z-Math.max(a,electedEnd))/(g.tz-g.ta)*g.units;}}
   return {semesterEquivalents:total,postElectedSemesterEquivalents:afterElection,hasElectedHistory:electedEnd!==null,criterion:'UNION_OF_CIVIL_DAYS_OVER_DOCUMENTED_PERIODS'};
  }
+ function balance(get,functions,termUnits,today){
+  const applicable=functions.filter(f=>f.startDate<=today),accrued=tenure(get,applicable.map(f=>({...f,endDateReal:(f.endDateReal||f.endDatePlanned)>today?today:(f.endDateReal||f.endDatePlanned)})),termUnits),committed=tenure(get,functions,termUnits);
+  const remaining=s=>Math.max(0,Math.min(3-s.semesterEquivalents,s.hasElectedHistory?1-s.postElectedSemesterEquivalents:3));
+  return {state:'CALCULATED',asOf:today,accrued,committed,remainingAccrued:remaining(accrued),remainingAfterDocumentedTerms:remaining(committed),notice:'Saldo documental não autoriza prorrogação; fundamento, revisão, período e competência são revalidados.'};
+ }
  function resolve(get,o,r,auth,c){
   const p=r.procedure,now=o.clock(),actor=auth.actor.actor.h.id,B=f4BoardProcedures_();
   N(r.kind==='BOARD_PROCEDURE'&&['RECORDED','APPROVED'].includes(p.state)&&p.enactment?.state!=='ENACTED','PROCEDURE_NOT_APPROVED');
@@ -91,5 +96,5 @@ function f4MemberBoardEffects_(){
   if(old){const id='EVT_'+o.operationId;N(!get('memberEvents/'+id),'OPERATION_CONFLICT');changes.push({path:'memberEvents/'+id,expectedRevision:0,data:{schemaVersion:'m1-memberEvents-v1',id,revision:1,origin:'BOARD_PROCEDURE',idPessoa:t.personId,idVinculo:fn.idVinculo,type:'RETIFICACAO',effect:null,effectiveDate:today,endDate:null,supersedes:null,correctionPath:'memberFunctions/'+fn.id,prior:copy(old)}});}
   return {documentaryAuthorization:collective(p)&&basis.schemaVersion==='member-board-effect-basis-v2'?copy(basis.procedureRequirements[p.type]):null,id:t.personId,expected:loaded.h.revision,changes,now,boardExpected:{},mode:'M13',deadline:auth.validUntil,evidence:{ref,contentHash},summary,functionId:fn.id,responsibleFunctionId:t.responsibleFunctionId||null};
  }
- return {resolve,tenure,evidence,defenseBasis};
+ return {resolve,tenure,balance,evidence,defenseBasis};
 }
