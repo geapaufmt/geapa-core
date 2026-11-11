@@ -93,10 +93,10 @@ function renew(get,x){const {id,expected,now,work}=x;if(work){C.exact(work,['ope
  function planBoardProcedure(tx,o,record){
   const get=p=>tx.get(p).data(),now=o.clock(),{c,auth}=f4InstitutionalGovernance_().control(get,o.config,o.identity,now,true,false,'INSTITUTIONAL_BOARD_ENACT');
   const stored=get('institutionalGovernanceDrafts/current')?.records.find(r=>r.id===record.id);N(stored&&hash(stored)===hash(record),'REVISION_CONFLICT');
-  const x=f4MemberBoardEffects_().resolve(get,o,stored,auth,c),control=authority(tx,x),e=engine(control),evidence=x.evidence,summary=x.summary,functionId=x.functionId,responsibleFunctionId=x.responsibleFunctionId;
-  for(const key of ['evidence','summary','functionId','responsibleFunctionId'])delete x[key];
+  const x=f4MemberBoardEffects_().resolve(get,o,stored,auth,c),control=authority(tx,x),e=engine(control),evidence=x.evidence,summary=x.summary,functionId=x.functionId,responsibleFunctionId=x.responsibleFunctionId,documentaryAuthorization=x.documentaryAuthorization;
+  for(const key of ['evidence','summary','functionId','responsibleFunctionId','documentaryAuthorization'])delete x[key];
   e.validate(x,get);const v=e.mutation(get,x),plan=assemble(tx,x,v,control,Math.min(x.deadline,o.validUntil||x.deadline));
-  return {plan,evidence,summary,functionId,responsibleFunctionId};
+  return {plan,evidence,summary,functionId,responsibleFunctionId,documentaryAuthorization};
  }
  return (f4MemberMutationPlan_.value_={planBoardProcedure,planMutation,planRenew,planTerminal,applyMutationPlan,appendTechnical,assertBudget,limits:Object.freeze(limit)});
 }
