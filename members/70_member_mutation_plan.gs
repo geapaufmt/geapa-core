@@ -88,5 +88,15 @@ function renew(get,x){const {id,expected,now,work}=x;if(work){C.exact(work,['ope
  }
  // D may finalize a known denial atomically, with technical documents only.
  function planTerminal(tx,id,now,deadline){N((F.inspectTransaction(tx).environment==='SYNTHETIC_LOCAL' || f4OperationalDestination_(F.inspectTransaction(tx)))&&C.id(id)&&Number.isSafeInteger(now)&&Number.isSafeInteger(deadline)&&now<deadline,'M13_PLAN_INVALID');const control=authority(tx,{});return assemble(tx,{id,now,mode:'M13',kind:'TERMINAL'}, {pending:{},output:{},result:null},control,deadline)}
- return (f4MemberMutationPlan_.value_={planMutation,planRenew,planTerminal,applyMutationPlan,appendTechnical,assertBudget,limits:Object.freeze(limit)});
+ // Called only by the governance transaction; authorization and exact typed effects
+ // are recomputed here. No caller-supplied arbitrary mutation plan is accepted.
+ function planBoardProcedure(tx,o,record){
+  const get=p=>tx.get(p).data(),now=o.clock(),{c,auth}=f4InstitutionalGovernance_().control(get,o.config,o.identity,now,true,false,'INSTITUTIONAL_BOARD_ENACT');
+  const stored=get('institutionalGovernanceDrafts/current')?.records.find(r=>r.id===record.id);N(stored&&hash(stored)===hash(record),'REVISION_CONFLICT');
+  const x=f4MemberBoardEffects_().resolve(get,o,stored,auth,c),control=authority(tx,x),e=engine(control),evidence=x.evidence,summary=x.summary,functionId=x.functionId,responsibleFunctionId=x.responsibleFunctionId;
+  for(const key of ['evidence','summary','functionId','responsibleFunctionId'])delete x[key];
+  e.validate(x);const v=e.mutation(get,x),plan=assemble(tx,x,v,control,Math.min(x.deadline,o.validUntil||x.deadline));
+  return {plan,evidence,summary,functionId,responsibleFunctionId};
+ }
+ return (f4MemberMutationPlan_.value_={planBoardProcedure,planMutation,planRenew,planTerminal,applyMutationPlan,appendTechnical,assertBudget,limits:Object.freeze(limit)});
 }

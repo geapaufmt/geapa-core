@@ -1,0 +1,76 @@
+// Typed bridge from a sealed institutional procedure to the existing Membros
+// mutation engine. This module never writes, grants access or issues evidence.
+function f4MemberBoardEffects_(){
+ const C=f4Core_(),N=C.need,F=f4Firestore_(),copy=v=>F.decode(F.encode(v)),hash=v=>C.hash(F.encode(v));
+ const collective=p=>['UNANIMITY','ABSOLUTE_MAJORITY'].includes(p.rule);
+ function evidence(get,c,p,now){
+  const ref=c.boardProcedures?.effectEvidenceByType?.[p.type];N(C.id(ref),'M13_ACT_INVALID');
+  const a=f4MemberEvidence_().validate(get('memberEvidenceAttestations/'+ref));
+  N(a.active&&a.kind==='BOARD_DECISION'&&a.holderId===p.boardId&&a.effect==='BOARD_PROCEDURE_BASIS'&&a.targetResourceIds.includes('memberGovernanceBoards/'+p.boardId)&&C.ms(a.verifiedAt)<=now&&now<C.ms(a.expiresAt),'M13_ACT_INVALID');
+  const b=f4MemberActContent_().read(get,a.contentHash);
+  C.exact(b,['schemaVersion','boardId','types','normativeReferences','termUnits','allowedRoleIds','advisorRoleByScope','electronicProcedureEnabled','exceptionProcedureHashes','communicationProcedureHashes','sourceHash']);
+  N(b.schemaVersion==='member-board-effect-basis-v1'&&b.boardId===p.boardId&&Array.isArray(b.types)&&b.types.includes(p.type)&&/^[a-f0-9]{64}$/.test(b.sourceHash),'M13_ACT_INVALID');
+  N(Array.isArray(b.normativeReferences)&&b.normativeReferences.length>0,'M13_ACT_INVALID');
+  for(const ref of b.normativeReferences){C.exact(ref,['path','sha256','approvalHash']);N(/^institutionalNormVersions\/[A-Za-z0-9_-]+$/.test(ref.path),'M13_ACT_INVALID');const norm=get(ref.path),approval=norm&&get('institutionalNormApprovals/'+norm.approvalRef);N(norm?.status==='CURRENT'&&hash(norm)===ref.sha256&&C.civilStart(norm.effectiveFrom)<=now&&approval?.active===true&&approval.normId===norm.id&&approval.immutableVersionRef===norm.immutableVersionRef&&hash(approval)===ref.approvalHash,'M13_ACT_INVALID');}
+  if(collective(p))N(b.electronicProcedureEnabled===true,'ELECTRONIC_PROCEDURE_NORMATIVE_ENABLEMENT_REQUIRED');
+  if(p.type==='EXTRAORDINARY_EXTENSION')N(b.exceptionProcedureHashes.includes(p.contentHash),'ART33_SPECIFIC_EXCEPTION_REQUIRED');
+  if(p.type==='TEMPORARY_OFFICE')N(b.communicationProcedureHashes.includes(p.contentHash),'COMMUNICATION_TO_EFFECTIVE_MEMBERS_REQUIRED');
+  return {basis:b,ref,contentHash:a.contentHash};
+ }
+ // A semester is a documented canonical period, never a fixed 180 days.
+ // Overlapping appointments count each civil day only once in the same period.
+ function tenure(get,functions,termUnits){
+  N(termUnits&&typeof termUnits==='object','TENURE_EVIDENCE_REQUIRED');let total=0,afterElection=0;const groups={};
+  const elected=functions.filter(f=>['PRESIDENTE','VICE_PRESIDENTE'].includes(get('memberRoleCatalog/'+f.idCargo)?.roleKey));
+  const electedEnd=elected.length?Math.max(...elected.map(f=>C.civilStart(C.nextDay(f.endDateReal||f.endDatePlanned)))):null;
+  for(const f of functions){const role=get('memberRoleCatalog/'+f.idCargo);if(role?.group!=='DIRETORIA')continue;const term=get('memberGovernanceTerms/'+f.idTermo),units=termUnits[f.idTermo];N(term&&[1,2].includes(units),'TENURE_EVIDENCE_REQUIRED');
+   const a=C.civilStart(f.startDate),z=C.civilStart(C.nextDay(f.endDateReal||f.endDatePlanned)),ta=C.civilStart(term.startDate),tz=C.civilStart(C.nextDay(term.endDate));N(a>=ta&&z<=tz,'TENURE_EVIDENCE_REQUIRED');(groups[f.idTermo]||(groups[f.idTermo]={ta,tz,units,spans:[]})).spans.push([a,z]);
+  }
+  // Different period IDs may not overlap: unresolved historical aliases need evidence.
+  const gs=Object.values(groups).sort((a,b)=>a.ta-b.ta);for(let i=1;i<gs.length;i++)N(gs[i-1].tz<=gs[i].ta,'TENURE_EVIDENCE_REQUIRED');
+  for(const g of gs){const merged=[];for(const span of g.spans.sort((a,b)=>a[0]-b[0])){const last=merged.at(-1);if(last&&span[0]<=last[1])last[1]=Math.max(last[1],span[1]);else merged.push([...span]);}for(const [a,z]of merged){total+=(z-a)/(g.tz-g.ta)*g.units;if(electedEnd!==null)afterElection+=Math.max(0,z-Math.max(a,electedEnd))/(g.tz-g.ta)*g.units;}}
+  return {semesterEquivalents:total,postElectedSemesterEquivalents:afterElection,hasElectedHistory:electedEnd!==null,criterion:'UNION_OF_CIVIL_DAYS_OVER_DOCUMENTED_PERIODS'};
+ }
+ function resolve(get,o,r,auth,c){
+  const p=r.procedure,now=o.clock(),actor=auth.actor.actor.h.id,B=f4BoardProcedures_();
+  N(r.kind==='BOARD_PROCEDURE'&&['RECORDED','APPROVED'].includes(p.state)&&p.enactment?.state!=='ENACTED','PROCEDURE_NOT_APPROVED');
+  N(c.boardProcedures?.enabled&&c.boardProcedures.actions.includes('BP_ENACT')&&c.boardProcedures.types.includes(p.type)&&c.boardProcedures.boardIds.includes(p.boardId)&&c.boardProcedures.targetPersonIds.includes(p.target.personId),'SCOPE_INVALID');
+  const own=auth.actor.derived.currentDirectors.filter(f=>f.idDiretoria===p.boardId),pres=own.some(f=>f.roleKey==='PRESIDENTE');N(own.length,'AUTHORIZATION_DENIED');
+  if(p.type==='VOLUNTARY_EXIT')N(actor===p.target.personId||pres,'SELF_REQUIRED');
+  else if(['ADVISOR_APPOINTMENT','ADVISOR_END'].includes(p.type))N(pres||actor===p.proposer,'AUTHORIZATION_DENIED');else N(pres,'PRESIDENT_REQUIRED');
+  N(B.hash(B.content(p))===p.contentHash,'CONTENT_VERSION_CONFLICT');
+  if(collective(p)){N(p.state==='APPROVED'&&B.hash(B.composition(get,o,p.boardId))===B.hash(p.electorate),'COMPOSITION_CHANGED');N(B.outcome({...p,state:'OPEN'},now)==='APPROVED','PROCEDURE_NOT_APPROVED');}
+  if(p.type.includes('EXTENSION'))N(p.consent?.accepted===true&&p.consent.personId===p.target.personId&&p.consent.contentHash===p.contentHash,'DEFENSE_OR_CONSENT_PENDING');
+  if(p.type==='DIRECTOR_DISMISSAL')N(p.defense?.personId===p.target.personId&&p.defense.contentHash===p.contentHash,'DEFENSE_OR_CONSENT_PENDING');
+  const {basis,ref,contentHash}=evidence(get,c,p,now),authority=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')),loaded=f4MemberAuthz_().load(get,p.target.personId,authority),M=loaded.M,d=loaded.d,t=p.target,board=get('memberGovernanceBoards/'+p.boardId),today=new Date(now-4*3600000).toISOString().slice(0,10);
+  N(board&&board.startDate<=today&&today<=board.endDate,'BOARD_NOT_CURRENT');N(loaded.h.revision===p.targetSnapshot.personRevision&&board.revision===p.targetSnapshot.boardRevision,'REVISION_CONFLICT');
+  const state=M.derive(d,t.personId,loaded.h.revision,now);N(!state.state.blocked&&state.state.state==='MEMBRO_EFETIVO','MEMBER_NOT_ELIGIBLE');
+  const old=t.functionId?d['memberFunctions/'+t.functionId]:null;let fn,role,roleChange=null;
+  if(old){N(old.revision===p.targetSnapshot.functionRevision&&old.endDateReal===null&&state.currentFunctions.some(f=>f.idVigencia===old.id),'REVISION_CONFLICT');role=get('memberRoleCatalog/'+old.idCargo);N(role?.active,'TARGET_FUNCTION_INVALID');
+   if(p.type!=='VOLUNTARY_EXIT')N(!['PRESIDENTE','VICE_PRESIDENTE'].includes(role.roleKey),'ELECTIVE_ROLE_PROTECTED');
+   if(p.type==='ADVISOR_END')N(role.group==='ASSESSORIA','TARGET_FUNCTION_INVALID');else N(role.group==='DIRETORIA','TARGET_FUNCTION_INVALID');
+   const end=p.type==='DIRECTOR_DISMISSAL'?today:t.endDate;N(end>=today&&end>=old.startDate&&end<=board.endDate,'TERM_OUTSIDE_BOARD');
+   if(p.type.includes('EXTENSION')){N(end>old.endDatePlanned,'EXTENSION_INVALID');fn={...copy(old),revision:old.revision+1,endDatePlanned:end};}
+   else{N(end<=old.endDatePlanned,'TERM_OUTSIDE_BOARD');if(p.type==='VOLUNTARY_EXIT')N(C.civilStart(end)>=p.createdAt+7*86400000,'NOTICE_PERIOD_REQUIRED');fn={...copy(old),revision:old.revision+1,endDateReal:end};}
+  }else{
+   N(t.startDate>=today&&t.endDate<=board.endDate,'TERM_OUTSIDE_BOARD');const link=d['memberLinks/'+t.linkId];N(link?.type==='MEMBRO_EFETIVO'&&link.startDate<=t.startDate&&(!link.endDate||link.endDate>=t.endDate),'MEMBER_NOT_ELIGIBLE');
+   let roleId=t.roleId,scope;
+   if(p.type==='ADVISOR_APPOINTMENT'){const responsible=get('memberFunctions/'+t.responsibleFunctionId);N(responsible&&B.composition(get,o,p.boardId).people.some(x=>x.functions.some(f=>f.id===responsible.id))&&t.endDate<=(responsible.endDateReal||responsible.endDatePlanned),'RESPONSIBLE_DIRECTOR_INVALID');scope=responsible.scopeKey;roleId=basis.advisorRoleByScope[scope];}
+   if(p.type==='TEMPORARY_OFFICE'){N(C.id(basis.advisorRoleByScope.TEMPORARY_SCOPE)&&f4MemberContracts_().scopes.includes(basis.advisorRoleByScope.TEMPORARY_SCOPE),'M13_ACT_INVALID');scope=basis.advisorRoleByScope.TEMPORARY_SCOPE;roleId='CARGO_'+r.id.slice(4);role={schemaVersion:'m1-memberRoleCatalog-v2',id:roleId,revision:1,origin:'BOARD_PROCEDURE',roleKey:'DIRETOR_TEMPORARIO',group:'DIRETORIA',active:true,boardId:p.boardId,scopeKey:scope,procedureId:r.id,name:t.roleName,startDate:t.startDate,endDate:t.endDate,advisoryAllowed:t.advisoryAllowed};N(!get('memberRoleCatalog/'+roleId),'REVISION_CONFLICT');roleChange={path:'memberRoleCatalog/'+roleId,expectedRevision:0,data:role};}
+   else{N(basis.allowedRoleIds.includes(roleId),'SCOPE_INVALID');role=get('memberRoleCatalog/'+roleId);N(role?.active&&!['PRESIDENTE','VICE_PRESIDENTE'].includes(role.roleKey),'ELECTIVE_ROLE_PROTECTED');scope=f4MemberContracts_().roles[role.roleKey]?.[1];N(role.group===(p.type==='ADVISOR_APPOINTMENT'?'ASSESSORIA':'DIRETORIA'),'TARGET_FUNCTION_INVALID');}
+   const bh=get('memberBoardHeads/'+p.boardId),relations=bh.paths.filter(x=>x.startsWith('memberGovernanceBoardTerms/')).map(get).filter(x=>x.startDate<=t.startDate&&x.endDate>=t.endDate);N(relations.length===1,'M1_GOVERNANCE_AMBIGUOUS');
+   const id='VIG_'+r.id.slice(4);N(!get('memberFunctions/'+id),'REVISION_CONFLICT');fn={schemaVersion:'m1-memberFunctions-v2',id,revision:1,origin:'BOARD_PROCEDURE',idPessoa:t.personId,idVinculo:t.linkId,idCargo:roleId,scopeKey:scope,idDiretoria:p.boardId,idTermo:relations[0].idTermo,startDate:t.startDate,endDatePlanned:t.endDate,endDateReal:null};
+  }
+  const all=M.rows(d,'memberFunctions').filter(f=>f.id!==fn.id),nextGet=path=>path==='memberRoleCatalog/'+role.id?role:get(path),bounds=f=>M.interval(f.startDate,f.endDateReal||f.endDatePlanned),overlap=(a,b)=>a.a<b.z&&b.a<a.z;
+  N(!all.some(f=>get('memberRoleCatalog/'+f.idCargo)?.group==='DIRETORIA'&&role.group==='DIRETORIA'&&overlap(bounds(f),bounds(fn))),'FUNCTION_EXCLUSIVITY_CONFLICT');
+  // The authority epoch read/write serializes this bounded inventory with every
+  // canonical Membros function mutation, including concurrent appointments.
+  const db=F.connect(o.config);let cursor;for(let page=0;page<10;page++){const rows=db.query({collection:'memberFunctions',filters:[{field:'idDiretoria',op:'EQUAL',value:p.boardId}],limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(cursor?{cursor:[cursor]}:{})});for(const row of rows){const f=get(row.path);N(f.id===fn.id||f.idCargo!==fn.idCargo||!overlap(bounds(f),bounds(fn)),'FUNCTION_EXCLUSIVITY_CONFLICT');}if(rows.length<20)break;N(page<9,'SCOPE_TOO_LARGE');cursor=new F.DocumentReference('projects/'+o.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+rows.at(-1).path);}
+  const summary=role.group==='DIRETORIA'&&['DIRECTOR_APPOINTMENT','TEMPORARY_OFFICE','ORDINARY_EXTENSION','EXTRAORDINARY_EXTENSION'].includes(p.type)?tenure(nextGet,[...all,fn],basis.termUnits):null;
+  if(summary&&p.type!=='EXTRAORDINARY_EXTENSION')N(summary.semesterEquivalents<=3+1e-10&&(!summary.hasElectedHistory||summary.postElectedSemesterEquivalents<=1+1e-10),'TENURE_LIMIT_EXCEEDED');
+  const changes=[...(roleChange?[roleChange]:[]),{path:'memberFunctions/'+fn.id,expectedRevision:old?.revision||0,data:fn}];
+  if(old){const id='EVT_'+o.operationId;N(!get('memberEvents/'+id),'OPERATION_CONFLICT');changes.push({path:'memberEvents/'+id,expectedRevision:0,data:{schemaVersion:'m1-memberEvents-v1',id,revision:1,origin:'BOARD_PROCEDURE',idPessoa:t.personId,idVinculo:fn.idVinculo,type:'RETIFICACAO',effect:null,effectiveDate:today,endDate:null,supersedes:null,correctionPath:'memberFunctions/'+fn.id,prior:copy(old)}});}
+  return {id:t.personId,expected:loaded.h.revision,changes,now,boardExpected:{},mode:'M13',deadline:auth.validUntil,evidence:{ref,contentHash},summary,functionId:fn.id,responsibleFunctionId:t.responsibleFunctionId||null};
+ }
+ return {resolve,tenure,evidence};
+}
