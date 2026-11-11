@@ -19,7 +19,7 @@ function f4MemberBoardEffects_(){
     const q=b.procedureRequirements?.[p.type];N(q&&['MINUTES_REQUIRED','MEETING_REQUIRED','ADDITIONAL_EXCEPTION'].includes(q.category),'ELECTRONIC_FORMALIZATION_REQUIRED');
     N(q.category!=='MEETING_REQUIRED','MEETING_REQUIRED');
     const d=get('institutionalGovernanceDrafts/current')?.records.find(r=>r.id===q.conventionalMinuteId);
-    N(d?.kind==='MINUTE'&&d.minutes?.state==='ARCHIVED'&&hash(d)===q.conventionalMinuteHash&&q.authorizedTypes?.includes(p.type)&&q.authorizesAsynchronous===true,'ELECTRONIC_FORMALIZATION_REQUIRED');
+    N(d?.minutes?.state==='ARCHIVED'&&d.minutes.archive?.contentHash===d.minutes.submitted?.contentHash&&hash(d)===q.conventionalMinuteHash&&q.authorizedTypes?.includes(p.type)&&q.authorizesAsynchronous===true,'ELECTRONIC_FORMALIZATION_REQUIRED');
    }
   }
   if(p.type==='EXTRAORDINARY_EXTENSION')N(b.exceptionProcedureHashes.includes(p.contentHash),'ART33_SPECIFIC_EXCEPTION_REQUIRED');
