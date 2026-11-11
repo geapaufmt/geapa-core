@@ -9,6 +9,8 @@ function scenario(){
  const activity=docs['canonicalActivities/SYN_IMPORT_ACTIVITY'];
  activity.personRef=ref('person','SYN_OTHER_SPEAKER');
  activity.ownerPersonRef='SYN_OTHER_SPEAKER';
+ activity.presentationRef=ref('presentation','SYN_PRESENTATION');
+ docs['canonicalPresentations/SYN_PRESENTATION']={personRef:ref('person','SYN_OTHER_SPEAKER')};
  const fact=docs['activityAttendance/SYN_F0'];
  fact.personRef=ref('person','SYN_BOARD');fact.ownerPersonRef='SYN_BOARD';
  delete fact.pendingJustificationRef;
