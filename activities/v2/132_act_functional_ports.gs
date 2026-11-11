@@ -178,7 +178,7 @@ function f4ActivitiesFunctionalPorts_(options){
  // Availability only, for SELF UI already restricted by readAuthority and ownership.
  // This does not authorize a command; preparation/admission/commit reauthorize it.
  // Read-only capability probe through the SAME canonical command authorization.
- function commandAccess(command,targetRefs){
+ function commandAccess(command,targetRefs,actorScope='ROLE'){
   if(!commandConfigured(command))return false;
   const contract=f4ActivitiesContracts_()[command],payload={},activity=targetRefs.find(r=>r.kind==='activity'),window=targetRefs.find(r=>r.kind==='exceptionalWindow');
   for(const field of contract.fields.filter(f=>!f.startsWith('?')))payload[field]={};
@@ -189,7 +189,8 @@ function f4ActivitiesFunctionalPorts_(options){
    if(!type)return false;payload.typeRef=type;}}
   if(window)payload.windowRef=window;
   for(const authorization of selectors()){
-   if(authorization.kind==='SELF'||authorization.actorScope==='SELF')continue;
+   const self=authorization.kind==='SELF'||authorization.actorScope==='SELF';
+   if(self!==(actorScope==='SELF'))continue;
    const request={schemaVersion:'geapa-act-command-v13',operationId:'00000000000000000000000000000000',commandType:'ACT.'+command,payload,target:{scope:{targetRefs},expected:[],authorization},evidenceRefs:[],decisionRef:null};
    try{const q=f4ActivitiesPipeline_().authorization(get,request,identity,clock(),identity.expiresAt)[0],proof=f4SharedAuthz_().authorize(get,q,clock()).proof;if(readProofs)readProofs.push({q,proof});return true;}
    catch(e){if(!['AUTH_BINDING_INVALID','ACCESS_REVOKED','AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
