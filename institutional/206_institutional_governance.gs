@@ -56,7 +56,7 @@ function f4InstitutionalGovernance_(){
   if((!r.input.action||r.input.action==='NORM_FILES_SAVE')&&p.attachments.length)record.attachments=f4InstitutionalDocumentFiles_().materialize(p.attachments,o,id,record.revision,auth.actor.actor.h.id);
   if(record.kind==='BOARD_PROCEDURE'&&c.boardProcedures?.pdfStorage===true&&['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED','SUSPENDED_COMPOSITION','RECORDED'].includes(record.procedure.state)){
    N(typeof o.renderProcedureDocument==='function','CONFIG_CAPABILITY_DISABLED');
-   const d=o.renderProcedureDocument(record);N(d.renderer==='GEAPA_BOARD_PROCEDURE_PDF_1'&&hex(d.sourceHash)&&hex(d.sha256)&&Number.isSafeInteger(d.size)&&d.size>0&&d.size<=4194304&&d.storage==='PRIVATE_STORAGE','SCHEMA_INVALID');
+   const d=o.renderProcedureDocument(record);N(['GEAPA_BOARD_PROCEDURE_PDF_1','GEAPA_BOARD_PROCEDURE_PDF_2'].includes(d.renderer)&&hex(d.sourceHash)&&hex(d.sha256)&&Number.isSafeInteger(d.size)&&d.size>0&&d.size<=4194304&&d.storage==='PRIVATE_STORAGE','SCHEMA_INVALID');
    record.procedure.documentHistory=[...(p.old?.procedure.documentHistory||[]),...(p.old?.procedure.document?[{recordRevision:p.old.revision,descriptor:p.old.procedure.document}]:[])];N(record.procedure.documentHistory.length<=20,'SCOPE_TOO_LARGE');record.procedure.document=d;
   }
   if(record.versions)N(record.versions.length<=20,'SCOPE_TOO_LARGE');

@@ -8,14 +8,30 @@ function f4MemberBoardEffects_(){
   const a=f4MemberEvidence_().validate(get('memberEvidenceAttestations/'+ref));
   N(a.active&&a.kind==='BOARD_DECISION'&&a.holderId===p.boardId&&a.effect==='BOARD_PROCEDURE_BASIS'&&a.targetResourceIds.includes('memberGovernanceBoards/'+p.boardId)&&C.ms(a.verifiedAt)<=now&&now<C.ms(a.expiresAt),'M13_ACT_INVALID');
   const b=f4MemberActContent_().read(get,a.contentHash);
-  C.exact(b,['schemaVersion','boardId','types','normativeReferences','termUnits','allowedRoleIds','advisorRoleByScope','electronicProcedureEnabled','exceptionProcedureHashes','communicationProcedureHashes','sourceHash']);
-  N(b.schemaVersion==='member-board-effect-basis-v1'&&b.boardId===p.boardId&&Array.isArray(b.types)&&b.types.includes(p.type)&&/^[a-f0-9]{64}$/.test(b.sourceHash),'M13_ACT_INVALID');
+  const v2=b.schemaVersion==='member-board-effect-basis-v2';
+  C.exact(b,['schemaVersion','boardId','types','normativeReferences','termUnits','allowedRoleIds','advisorRoleByScope','electronicProcedureEnabled','exceptionProcedureHashes','communicationProcedureHashes','sourceHash',...(v2?['procedureRequirements','defenseProcess']:[])]);
+  N(['member-board-effect-basis-v1','member-board-effect-basis-v2'].includes(b.schemaVersion)&&b.boardId===p.boardId&&Array.isArray(b.types)&&b.types.includes(p.type)&&/^[a-f0-9]{64}$/.test(b.sourceHash),'M13_ACT_INVALID');
   N(Array.isArray(b.normativeReferences)&&b.normativeReferences.length>0,'M13_ACT_INVALID');
   for(const ref of b.normativeReferences){C.exact(ref,['path','sha256','approvalHash']);N(/^institutionalNormVersions\/[A-Za-z0-9_-]+$/.test(ref.path),'M13_ACT_INVALID');const norm=get(ref.path),approval=norm&&get('institutionalNormApprovals/'+norm.approvalRef);N(norm?.status==='CURRENT'&&hash(norm)===ref.sha256&&C.civilStart(norm.effectiveFrom)<=now&&approval?.active===true&&approval.normId===norm.id&&approval.immutableVersionRef===norm.immutableVersionRef&&hash(approval)===ref.approvalHash,'M13_ACT_INVALID');}
-  if(collective(p))N(b.electronicProcedureEnabled===true,'ELECTRONIC_PROCEDURE_NORMATIVE_ENABLEMENT_REQUIRED');
+  if(collective(p)){
+   if(!v2)N(b.electronicProcedureEnabled===true,'ELECTRONIC_PROCEDURE_NORMATIVE_ENABLEMENT_REQUIRED');
+   else{
+    const q=b.procedureRequirements?.[p.type];N(q&&['MINUTES_REQUIRED','MEETING_REQUIRED','ADDITIONAL_EXCEPTION'].includes(q.category),'ELECTRONIC_FORMALIZATION_REQUIRED');
+    N(q.category!=='MEETING_REQUIRED','MEETING_REQUIRED');
+    const d=get('institutionalGovernanceDrafts/current')?.records.find(r=>r.id===q.conventionalMinuteId);
+    N(d?.kind==='MINUTE'&&d.minutes?.state==='ARCHIVED'&&hash(d)===q.conventionalMinuteHash&&q.authorizedTypes?.includes(p.type)&&q.authorizesAsynchronous===true,'ELECTRONIC_FORMALIZATION_REQUIRED');
+   }
+  }
   if(p.type==='EXTRAORDINARY_EXTENSION')N(b.exceptionProcedureHashes.includes(p.contentHash),'ART33_SPECIFIC_EXCEPTION_REQUIRED');
   if(p.type==='TEMPORARY_OFFICE')N(b.communicationProcedureHashes.includes(p.contentHash),'COMMUNICATION_TO_EFFECTIVE_MEMBERS_REQUIRED');
   return {basis:b,ref,contentHash:a.contentHash};
+ }
+ function defenseBasis(get,c,p,now){
+  const b=evidence(get,c,p,now).basis;
+  N(b.schemaVersion==='member-board-effect-basis-v2'&&b.defenseProcess?.allowProceedWithoutStatement===true&&b.defenseProcess.minimumDays>=7,'DEFENSE_PROCESS_BASIS_REQUIRED');
+  const n=p.notice;N(f4BoardProcedures_().noticeReady(p,now)&&now>=n.receivedAt+b.defenseProcess.minimumDays*86400000,'DEFENSE_PROCESS_BASIS_REQUIRED');
+  if(!n.acknowledgment)N(n.externalEvidence&&b.defenseProcess.verifiedNoticeOperationIds?.includes(n.externalEvidence.operationId),'NOTICE_EVIDENCE_UNVERIFIED');
+  return true;
  }
  // A semester is a documented canonical period, never a fixed 180 days.
  // Overlapping appointments count each civil day only once in the same period.
@@ -43,7 +59,7 @@ function f4MemberBoardEffects_(){
   N(B.hash(B.content(p))===p.contentHash,'CONTENT_VERSION_CONFLICT');
   if(collective(p)){N(p.state==='APPROVED'&&B.hash(B.composition(get,o,p.boardId))===B.hash(p.electorate),'COMPOSITION_CHANGED');N(B.outcome({...p,state:'OPEN'},now)==='APPROVED','PROCEDURE_NOT_APPROVED');}
   if(p.type.includes('EXTENSION'))N(p.consent?.accepted===true&&p.consent.personId===p.target.personId&&p.consent.contentHash===p.contentHash,'DEFENSE_OR_CONSENT_PENDING');
-  if(p.type==='DIRECTOR_DISMISSAL')N(p.defense?.personId===p.target.personId&&p.defense.contentHash===p.contentHash,'DEFENSE_OR_CONSENT_PENDING');
+  if(p.type==='DIRECTOR_DISMISSAL'){N(B.noticeReady(p,now),'DEFENSE_OR_CONSENT_PENDING');if(!p.defense)defenseBasis(get,c,p,now);}
   const {basis,ref,contentHash}=evidence(get,c,p,now),authority=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')),loaded=f4MemberAuthz_().load(get,p.target.personId,authority),M=loaded.M,d=loaded.d,t=p.target,board=get('memberGovernanceBoards/'+p.boardId),today=new Date(now-4*3600000).toISOString().slice(0,10);
   N(board&&board.startDate<=today&&today<=board.endDate,'BOARD_NOT_CURRENT');N(loaded.h.revision===p.targetSnapshot.personRevision&&board.revision===p.targetSnapshot.boardRevision,'REVISION_CONFLICT');
   const state=M.derive(d,t.personId,loaded.h.revision,now);N(!state.state.blocked&&state.state.state==='MEMBRO_EFETIVO','MEMBER_NOT_ELIGIBLE');
@@ -73,7 +89,7 @@ function f4MemberBoardEffects_(){
   fn.schemaVersion='m1-memberFunctions-v2';
   const changes=[...(roleChange?[roleChange]:[]),{path:'memberFunctions/'+fn.id,expectedRevision:old?.revision||0,data:fn}];
   if(old){const id='EVT_'+o.operationId;N(!get('memberEvents/'+id),'OPERATION_CONFLICT');changes.push({path:'memberEvents/'+id,expectedRevision:0,data:{schemaVersion:'m1-memberEvents-v1',id,revision:1,origin:'BOARD_PROCEDURE',idPessoa:t.personId,idVinculo:fn.idVinculo,type:'RETIFICACAO',effect:null,effectiveDate:today,endDate:null,supersedes:null,correctionPath:'memberFunctions/'+fn.id,prior:copy(old)}});}
-  return {id:t.personId,expected:loaded.h.revision,changes,now,boardExpected:{},mode:'M13',deadline:auth.validUntil,evidence:{ref,contentHash},summary,functionId:fn.id,responsibleFunctionId:t.responsibleFunctionId||null};
+  return {documentaryAuthorization:collective(p)&&basis.schemaVersion==='member-board-effect-basis-v2'?copy(basis.procedureRequirements[p.type]):null,id:t.personId,expected:loaded.h.revision,changes,now,boardExpected:{},mode:'M13',deadline:auth.validUntil,evidence:{ref,contentHash},summary,functionId:fn.id,responsibleFunctionId:t.responsibleFunctionId||null};
  }
- return {resolve,tenure,evidence};
+ return {resolve,tenure,evidence,defenseBasis};
 }
