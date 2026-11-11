@@ -25,6 +25,7 @@ function f4MemberContracts_() {
   const proofFields = ['personRevision','functionRevision','boardId','boardEpoch','termId','termRevision','roleId','roleRevision','startsAt','endsAtExclusive','dto'];
   const controlFields = ['id','revision','mode','epoch','policyEpoch','readAuthzEpoch','activeWriterVersion','approvalRef','updatedAt','nullableFunctionApprovals','selfReadPolicy'];
   const versions = {
+    'm1-memberFunctions-v3':['id','revision','origin','idPessoa','idVinculo','idCargo','scopeKey','idDiretoria','idTermo','startDate','endDatePlanned','endDateReal','occupationId','cancelled'],
     'm1-memberFunctions-v2':['id','revision','origin','idPessoa','idVinculo','idCargo','scopeKey','idDiretoria','idTermo','startDate','endDatePlanned','endDateReal'],
     'safe-member-function-v13':dtoFields,
     'member-function-index-v13':indexFields.concat('authorityEpoch'),
