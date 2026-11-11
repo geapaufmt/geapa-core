@@ -183,7 +183,7 @@ function f4ActivitiesFunctionalPorts_(options){
   const contract=f4ActivitiesContracts_()[command],payload={},activity=targetRefs.find(r=>r.kind==='activity'),window=targetRefs.find(r=>r.kind==='exceptionalWindow');
   for(const field of contract.fields.filter(f=>!f.startsWith('?')))payload[field]={};
   for(const ref of targetRefs){const field=ref.kind+'Ref';if(Object.hasOwn(payload,field))payload[field]=ref;}
-  if(activity){if('activityRef'in payload)payload.activityRef=activity;if('activityRefs'in payload)payload.activityRefs=[activity];if('typeRef'in payload){const type=get(M.path(activity))?.typeRef;
+  if(activity){if('activityRef'in payload||contract.fields.includes('?activityRef'))payload.activityRef=activity;if('activityRefs'in payload)payload.activityRefs=[activity];if('typeRef'in payload){const type=get(M.path(activity))?.typeRef;
    // Imported records can legitimately have no operational model. Do not build
    // an invalid command probe or invent a model just to render their read menu.
    if(!type)return false;payload.typeRef=type;}}
