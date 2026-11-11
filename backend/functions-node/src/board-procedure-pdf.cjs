@@ -28,8 +28,8 @@ function renderBoardProcedurePdf(record){
  if(p.defense)paragraph('Manifestação do interessado, em '+stamp(p.defense.at)+': '+p.defense.statement);
  if(p.clearance)paragraph('Quitação administrativa: '+(p.clearance.pendingDuties||'sem pendências declaradas')+'. Não constitui veto ao desligamento.');
  for(const d of p.documents||[])paragraph('Documento relacionado: '+d.recordId+' · revisão '+d.revision+' · SHA-256 '+d.sha256,false,8);
- paragraph('Autenticação eletrônica interna, sem certificação qualificada ICP-Brasil.',false,8);paragraph('Conteúdo proposto: '+p.contentHash,false,7);paragraph('Verificação da reprodução: '+sourceHash,false,7);
- const pages=doc.getNumberOfPages();for(let i=1;i<=pages;i++){doc.setPage(i);font(7);doc.setDrawColor(130);doc.line(23,271,187,271);assets.footer.forEach((t,j)=>doc.text(t,23,276+j*3.4));doc.text(i+' / '+pages,187,293,{align:'right'});}
+ paragraph('Autenticação eletrônica interna, sem certificação qualificada ICP-Brasil.',false,8);
+ const pages=doc.getNumberOfPages();for(let i=1;i<=pages;i++){doc.setPage(i);font(6.5);doc.text('Verificação: '+sourceHash,23,266);font(7);doc.setDrawColor(130);doc.line(23,271,187,271);assets.footer.forEach((t,j)=>doc.text(t,23,276+j*3.4));doc.text(i+' / '+pages,187,293,{align:'right'});}
  const bytes=Buffer.from(doc.output('arraybuffer'));if(bytes.length>4194304)throw Error('SCOPE_TOO_LARGE');return {bytes,sha256:sha(bytes),size:bytes.length,renderer:VERSION,sourceHash,pages};
 }
 module.exports={renderBoardProcedurePdf,source,VERSION};

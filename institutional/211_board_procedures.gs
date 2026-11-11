@@ -80,6 +80,8 @@ function f4BoardProcedures_(){
    C.exact(input,['action','id','expectedRevision','expectedRecordRevision','reason','proposal']);N(input.id===''&&input.expectedRecordRevision===0,'REVISION_CONFLICT');const p=input.proposal;
    C.exact(p,['type','title','object','basis','boardId','target','documents','days']);N(Object.hasOwn(types,p.type)&&text(p.title,5,240)&&text(p.object,10,4000)&&text(p.basis,5,1500)&&Number.isSafeInteger(p.days)&&p.days>=1&&p.days<=30,'COMMAND_PAYLOAD_INVALID');
    scope(auth,p.boardId);enabled(c,input.action,p.boardId,p.type);N(c.boardProcedures.targetPersonIds?.includes(p.target.personId),'SCOPE_INVALID');if(types[p.type].president)N(president(auth,p.boardId),'PRESIDENT_REQUIRED');
+   const allowedDays=c.boardProcedures.votingDaysByType?.[p.type]||[7];N(Array.isArray(allowedDays)&&allowedDays.length>0&&allowedDays.every(n=>Number.isSafeInteger(n)&&n>=1&&n<=30)&&allowedDays.includes(p.days),'COMMAND_PAYLOAD_INVALID');
+   if(p.type==='ADVISOR_APPOINTMENT')N(president(auth,p.boardId)||get('memberFunctions/'+p.target.responsibleFunctionId)?.idPessoa===actor,'AUTHORIZATION_DENIED');
    if(p.type==='VOLUNTARY_EXIT')N(p.target.personId===actor,'SELF_REQUIRED');
    if(p.type==='DIRECTOR_DISMISSAL')N(p.target.defenseDeadline>=now+7*DAY,'DEFENSE_PERIOD_REQUIRED');
    const targetSnapshot=target(get,o,p.type,p.boardId,p.target);N(Array.isArray(p.documents)&&p.documents.length<=10,'COMMAND_PAYLOAD_INVALID');
