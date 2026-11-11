@@ -46,7 +46,7 @@ function f4BoardCompetencies_(options){
     items.push({personId:id,name:person.displayName,roleKey:fn.roleKey,boardId:fn.idDiretoria,startDate:tenure.startDate,endDate:tenure.endDate,tenure,currentRecordEnd:fn.endDateReal||fn.endDatePlanned||null,sourceRevision:loaded.h.revision,duties:f4BoardDuties_(fn.roleKey),permissions});
    }
   }
-  check([proof]);const result={ok:true,data:{schemaVersion:'board-competencies-v1',asOf:new Date(now).toISOString(),validUntil:Math.min(options.identity.expiresAt,now+60000),items,notice:'Consulta informativa. Cada operação revalida vínculo, função, policy, recurso e precondições. Atribuição institucional não concede acesso técnico automaticamente.'}};return options.accessCatalog?f4MemberAccessCatalog_(result,caller.control,policies,now):result;
+  let history=null;try{history=f4BoardHistory_(get,{config:options.config,identity:options.identity,clock:()=>now});}catch(e){if(!['PILOT_DISABLED','AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED'].includes(e.code))throw e;}check([proof]);const result={ok:true,data:{schemaVersion:'board-competencies-v1',asOf:new Date(now).toISOString(),validUntil:Math.min(options.identity.expiresAt,now+60000),items,history,notice:'Consulta informativa. Cada operação revalida vínculo, função, policy, recurso e precondições. Atribuição institucional não concede acesso técnico automaticamente.'}};return options.accessCatalog?f4MemberAccessCatalog_(result,caller.control,policies,now):result;
  });
 }
 function f4BoardDuties_(role){
