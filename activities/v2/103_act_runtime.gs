@@ -26,6 +26,9 @@ function f4ActivitiesCreate_(options){
  function plan(raw,handle,input){
   f4ActivitiesExecutionGate_(options)();
   const parsed=envelope(input),{cmd,ct,q}=parsed,p=q.payload,now=clock(),principal=options.principals.resolve(handle);
+  // A speaker/responsible person is activity metadata. SELF attendance commands
+  // own attendance/justification, with activity matching enforced by the handler.
+  const attendanceSelf=['ATTENDANCE_JUSTIFICATION_REQUEST','ATTENDANCE_PROOF_UPLOAD_REQUEST'].includes(cmd);
   N(principal&&ct.actors.includes(principal.kind),'AUTHORIZATION_DENIED','ACTOR_TYPE');
 
    const attendanceBatch=['ACTIVITY_IMPORT_RECOGNIZE','ATTENDANCE_SAVE_DRAFT','ATTENDANCE_FINALIZE','ATTENDANCE_ROSTER_APPLY'].includes(cmd);const cache=new Map(),writes=new Map(),before=[],after=[],required=new Set(),effects=[];let actor,authorityBasis,cycleRef;
@@ -40,7 +43,7 @@ function f4ActivitiesCreate_(options){
    const revisionPaths=q.expected.filter(e=>!e.parent&&(M.nested[M.collections[e.kind]]||[]).includes('revisions')).map(e=>M.path({kind:e.kind,id:e.id})+'/revisions/'+((e.revision||0)+1));
    if(revisionPaths.length)raw.getAll(revisionPaths);
    function set(path,data){get(path);writes.set(path,M.clone(data));N(writes.size<=(attendanceBatch?320:200),'SCOPE_TOO_LARGE','WRITE_BUDGET');}
-   function load(r,expected=false,optional=false){const path=M.path(r),v=get(path);N(v?.recordMode!=='HISTORICAL_RECOGNIZED'||cmd==='ACTIVITY_ADMIN_REVIEW'&&r.kind==='activity','INVALID_STATE_TRANSITION','HISTORICAL_FINAL_READ_ONLY');N(v?.recordMode!=='HISTORICAL_PARTIAL'||cmd==='ACTIVITY_IMPORT_RECOGNIZE'&&['activity','attendanceCollection'].includes(r.kind)&&r.id===p.activityRef.id||['PRESENTATION_CONTINUITY_CONNECT','HISTORICAL_PREAGENDA_RECOGNIZE'].includes(cmd)&&r.kind==='presentation'&&r.id===p.presentationRef.id||['ACTIVITY_ADMIN_REVIEW','ACTIVITY_PROMOTE_OPERATIONAL'].includes(cmd)&&r.kind==='activity'&&r.id===p.activityRef.id&&v.administrativeReview,'UNRESOLVED_DEPENDENCY','HISTORICAL_RECORD_REQUIRES_RECONCILIATION');if(expected&&actor?.kind==='PORTAL_AUTHENTICATED_MEMBER'&&v){
+   function load(r,expected=false,optional=false){const path=M.path(r),v=get(path);N(v?.recordMode!=='HISTORICAL_RECOGNIZED'||cmd==='ACTIVITY_ADMIN_REVIEW'&&r.kind==='activity','INVALID_STATE_TRANSITION','HISTORICAL_FINAL_READ_ONLY');N(v?.recordMode!=='HISTORICAL_PARTIAL'||cmd==='ACTIVITY_IMPORT_RECOGNIZE'&&['activity','attendanceCollection'].includes(r.kind)&&r.id===p.activityRef.id||['PRESENTATION_CONTINUITY_CONNECT','HISTORICAL_PREAGENDA_RECOGNIZE'].includes(cmd)&&r.kind==='presentation'&&r.id===p.presentationRef.id||['ACTIVITY_ADMIN_REVIEW','ACTIVITY_PROMOTE_OPERATIONAL'].includes(cmd)&&r.kind==='activity'&&r.id===p.activityRef.id&&v.administrativeReview,'UNRESOLVED_DEPENDENCY','HISTORICAL_RECORD_REQUIRES_RECONCILIATION');if(expected&&actor?.kind==='PORTAL_AUTHENTICATED_MEMBER'&&v&&!(attendanceSelf&&r.kind==='activity')){
     let owner=v.personRef?.id||v.ownerPersonRef;
     if(!owner&&v.presentationRef)owner=get(M.path(v.presentationRef))?.personRef?.id;
     if(!owner&&v.unitRef)owner=get(M.path(v.unitRef))?.personRef?.id;
@@ -66,7 +69,7 @@ function f4ActivitiesCreate_(options){
    }
    // Resolve targets from typed selectors and server links. Client scope never grants access.
    const targetRefs=[];function collect(v){if(v&&typeof v==='object'){if(v.kind&&v.id&&M.collections[M.aliases[v.kind]||v.kind]||v&&v.kind==='config'){targetRefs.push(v);return;}for(const x of Object.values(v))collect(x);}}collect(p);
-   let targetPersonIds=new Set();for(const r of targetRefs){const d=load(r,false,true);if(d?.cycleRef?.kind&&d?.cycleRef?.id){if(cycleRef)N(M.path(cycleRef)===M.path(d.cycleRef),'VALIDATION_ERROR','CROSS_CYCLE');cycleRef=d.cycleRef;}if(d?.personRef)targetPersonIds.add(d.personRef.id||d.personRef);}
+   let targetPersonIds=new Set();for(const r of targetRefs){const d=load(r,false,true);if(d?.cycleRef?.kind&&d?.cycleRef?.id){if(cycleRef)N(M.path(cycleRef)===M.path(d.cycleRef),'VALIDATION_ERROR','CROSS_CYCLE');cycleRef=d.cycleRef;}if(d?.personRef&&!(attendanceSelf&&r.kind==='activity'))targetPersonIds.add(d.personRef.id||d.personRef);}
    if(p.cycleRef)cycleRef=p.cycleRef;
    if(human){
     const own=principal.kind==='PORTAL_AUTHENTICATED_MEMBER';

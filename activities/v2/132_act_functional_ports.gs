@@ -74,7 +74,7 @@ function f4ActivitiesFunctionalPorts_(options){
   while(documents.size<expectedRefs.size){
    N(expectedRefs.size<=48,'SCOPE_TOO_LARGE','PREPARATION_DEPENDENCIES');
    const pending=[...expectedRefs].filter(([path])=>!documents.has(path)),values=db.getMany(pending.map(([path])=>path));
-   pending.forEach(([path,ref],index)=>{const d=values[index];documents.set(path,d);if(cmd==='ACTIVITY_IMPORT_RECOGNIZE'){if(snapshot)snapshot.set(path,d);return;}if(snapshot)snapshot.set(path,d);if(d){const workflowRefs=f4JustificationWorkflowDependencies_(cmd,ref.kind,d);if(workflowRefs!==null){refs(workflowRefs,expectedRefs);if(d.activityRef?.kind==='activity'){const r=M.ref('attendanceCollection',d.activityRef.id);expectedRefs.set(M.path(r),r);}return;}}if(originalCreation&&['activityType','attendancePolicy','cycle'].includes(ref.kind)){if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(['ACTIVITY_MODEL_DRAFT_SAVE','ACTIVITY_MODEL_APPROVE','ACTIVITY_MODEL_AVAILABILITY_SET','ACTIVITY_MODEL_USAGE_SET'].includes(cmd)){if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(cmd==='CYCLE_FREQUENCY_PLAN_RECOGNIZE'){if(d&&ref.kind==='policy'&&ref.id===input.payload.recognitionRef?.id){for(const r of [d.normativePolicyRef,...(d.sources||[]).map(x=>x.ref)].filter(Boolean))expectedRefs.set(M.path(r),r);}return;}if(cmd==='ACTIVITY_PROMOTE_OPERATIONAL'){if(ref.kind==='activity'&&d){const r=d.administrativeReview?.cycleRef;N(r,'UNRESOLVED_DEPENDENCY','REVIEW_NOT_INITIALIZED');expectedRefs.set(M.path(r),r);}if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(d&&cmd==='ACTIVITY_ADMIN_REVIEW'&&ref.kind==='activity'){const r=d.administrativeReview?.cycleRef;N(r,'UNRESOLVED_DEPENDENCY','REVIEW_NOT_INITIALIZED');expectedRefs.set(M.path(r),r);}else if(d&&cmd!=='ACTIVITY_ADMIN_REVIEW')refs(d,expectedRefs,true);if(d&&ref.kind==='cycle'&&cmd!=='ACTIVITY_ADMIN_REVIEW'){const r=M.ref('capacity',ref.id);expectedRefs.set(M.path(r),r);}if(d?.activityRef?.kind==='activity'){const r=M.ref('attendanceCollection',d.activityRef.id);expectedRefs.set(M.path(r),r);}});
+   pending.forEach(([path,ref],index)=>{const d=values[index];documents.set(path,d);if(cmd==='ACTIVITY_IMPORT_RECOGNIZE'){if(snapshot)snapshot.set(path,d);return;}if(snapshot)snapshot.set(path,d);if(d){const themeRefs=f4ThemeSubmissionDependencies_(cmd,ref.kind,d);if(themeRefs!==null){refs(themeRefs,expectedRefs);return;}const workflowRefs=f4JustificationWorkflowDependencies_(cmd,ref.kind,d);if(workflowRefs!==null){refs(workflowRefs,expectedRefs);if(d.activityRef?.kind==='activity'){const r=M.ref('attendanceCollection',d.activityRef.id);expectedRefs.set(M.path(r),r);}return;}}if(originalCreation&&['activityType','attendancePolicy','cycle'].includes(ref.kind)){if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(['ACTIVITY_MODEL_DRAFT_SAVE','ACTIVITY_MODEL_APPROVE','ACTIVITY_MODEL_AVAILABILITY_SET','ACTIVITY_MODEL_USAGE_SET'].includes(cmd)){if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(cmd==='CYCLE_FREQUENCY_PLAN_RECOGNIZE'){if(d&&ref.kind==='policy'&&ref.id===input.payload.recognitionRef?.id){for(const r of [d.normativePolicyRef,...(d.sources||[]).map(x=>x.ref)].filter(Boolean))expectedRefs.set(M.path(r),r);}return;}if(cmd==='ACTIVITY_PROMOTE_OPERATIONAL'){if(ref.kind==='activity'&&d){const r=d.administrativeReview?.cycleRef;N(r,'UNRESOLVED_DEPENDENCY','REVIEW_NOT_INITIALIZED');expectedRefs.set(M.path(r),r);}if(ref.kind==='activityType'&&d?.attendancePolicyRef)expectedRefs.set(M.path(d.attendancePolicyRef),d.attendancePolicyRef);return;}if(d&&cmd==='ACTIVITY_ADMIN_REVIEW'&&ref.kind==='activity'){const r=d.administrativeReview?.cycleRef;N(r,'UNRESOLVED_DEPENDENCY','REVIEW_NOT_INITIALIZED');expectedRefs.set(M.path(r),r);}else if(d&&cmd!=='ACTIVITY_ADMIN_REVIEW')refs(d,expectedRefs,true);if(d&&ref.kind==='cycle'&&cmd!=='ACTIVITY_ADMIN_REVIEW'){const r=M.ref('capacity',ref.id);expectedRefs.set(M.path(r),r);}if(d?.activityRef?.kind==='activity'){const r=M.ref('attendanceCollection',d.activityRef.id);expectedRefs.set(M.path(r),r);}});
   }
   if(!f4AttendanceScope_(cmd)||input.payload.calendarAssessmentRef||input.payload.sessionRef){const r=M.ref('capacity','registry');expectedRefs.set(M.path(r),r);documents.set(M.path(r),get(M.path(r)));}
   function addExpected(ref){const path=M.path(ref);if(!expectedRefs.has(path)){expectedRefs.set(path,ref);documents.set(path,get(path));}}
@@ -178,18 +178,19 @@ function f4ActivitiesFunctionalPorts_(options){
  // Availability only, for SELF UI already restricted by readAuthority and ownership.
  // This does not authorize a command; preparation/admission/commit reauthorize it.
  // Read-only capability probe through the SAME canonical command authorization.
- function commandAccess(command,targetRefs){
+ function commandAccess(command,targetRefs,actorScope='ROLE'){
   if(!commandConfigured(command))return false;
   const contract=f4ActivitiesContracts_()[command],payload={},activity=targetRefs.find(r=>r.kind==='activity'),window=targetRefs.find(r=>r.kind==='exceptionalWindow');
   for(const field of contract.fields.filter(f=>!f.startsWith('?')))payload[field]={};
   for(const ref of targetRefs){const field=ref.kind+'Ref';if(Object.hasOwn(payload,field))payload[field]=ref;}
-  if(activity){if('activityRef'in payload)payload.activityRef=activity;if('activityRefs'in payload)payload.activityRefs=[activity];if('typeRef'in payload){const type=get(M.path(activity))?.typeRef;
+  if(activity){if('activityRef'in payload||contract.fields.includes('?activityRef'))payload.activityRef=activity;if('activityRefs'in payload)payload.activityRefs=[activity];if('typeRef'in payload){const type=get(M.path(activity))?.typeRef;
    // Imported records can legitimately have no operational model. Do not build
    // an invalid command probe or invent a model just to render their read menu.
    if(!type)return false;payload.typeRef=type;}}
   if(window)payload.windowRef=window;
   for(const authorization of selectors()){
-   if(authorization.kind==='SELF'||authorization.actorScope==='SELF')continue;
+   const self=authorization.kind==='SELF'||authorization.actorScope==='SELF';
+   if(self!==(actorScope==='SELF'))continue;
    const request={schemaVersion:'geapa-act-command-v13',operationId:'00000000000000000000000000000000',commandType:'ACT.'+command,payload,target:{scope:{targetRefs},expected:[],authorization},evidenceRefs:[],decisionRef:null};
    try{const q=f4ActivitiesPipeline_().authorization(get,request,identity,clock(),identity.expiresAt)[0],proof=f4SharedAuthz_().authorize(get,q,clock()).proof;if(readProofs)readProofs.push({q,proof});return true;}
    catch(e){if(!['AUTH_BINDING_INVALID','ACCESS_REVOKED','AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
@@ -285,4 +286,17 @@ function f4JustificationWorkflowDependencies_(command,kind,d){
   cycle:[]
  }[kind];
  return selected?selected.map(key=>d[key]).filter(Boolean):null;
+}
+
+// A title submission fences its live workflow, not every linked participant,
+// historic capacity assessment, material policy or frequency-planning evidence.
+// The normal handler still reads/validates authority, deadlines and revisions.
+function f4ThemeSubmissionDependencies_(command,kind,d){
+ if(!['THEME_SUBMIT','THEME_COMPLEMENT'].includes(command))return null;
+ const M=f4ActivitiesModel_();
+ if(kind==='cycle')return [d.currentConfigRef,d.scheduledConfigRef,M.ref('capacity',d.id)].filter(r=>r?.kind&&r.kind!=='NONE');
+ if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.clockPolicyRef,d.parameters?.preAgendaPolicyRef].filter(Boolean);
+ if(kind==='thematic')return [d.unitRef,d.cycleRef,d.principalAxisRef,d.secondaryAxisRef,d.candidate?.principalAxisRef,d.candidate?.secondaryAxisRef,d.analysisClock?.policyRef,d.correctionCaseRef].filter(Boolean);
+ const fields={unit:['personRef','cycleRef','obligationRef','preAgendaBasisRef','assignmentRef','thematicRequestRef','quotaOccupancyRef'],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef','activityRef'],activity:['cycleRef'],flow:['cycleRef','personRef','unitRef','activityRef','policyRef','requestRef'],capacity:[],policy:[],obligation:[]}[kind];
+ return fields?fields.map(k=>d[k]).filter(Boolean):null;
 }

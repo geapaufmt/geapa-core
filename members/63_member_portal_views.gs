@@ -7,7 +7,7 @@ function f4MemberPortalViews_(){const M=f4MemberModel_(true),C=f4Core_();
  out['memberFunctionProofs/'+id+'/items/'+f.idVigencia]={schemaVersion:'member-function-proof-v12',personRevision:rev,functionRevision:source.revision,boardId:f.idDiretoria,boardEpoch:dep.boards[f.idDiretoria].revision,termId:f.idTermo,termRevision:term.revision,roleId:f.idCargo,roleRevision:role.revision,startsAt:M.stamp(now),endsAtExclusive:M.stamp(end),dto};out['memberCurrentFunctions/'+id+'/items/'+f.idVigencia]=dto;if(f.group==='DIRETORIA')out['memberCurrentDirectors/'+id+'/items/'+f.idVigencia]=dto;}
  return out;}
  function project(d,id,rev,now,dep,derived){
-   M.need(!M.rows(d,'memberFunctions').some(f=>f.schemaVersion==='m1-memberFunctions-v2'),'M13_EXPLICIT_VIEW_REQUIRED');
+   M.need(!M.rows(d,'memberFunctions').some(f=>['m1-memberFunctions-v2','m1-memberFunctions-v3'].includes(f.schemaVersion)),'M13_EXPLICIT_VIEW_REQUIRED');
    return build(d,id,rev,now,dep,derived);
  }
  // Pure successor; computes its own derivation and never calls repository/policyPath/grantPath.

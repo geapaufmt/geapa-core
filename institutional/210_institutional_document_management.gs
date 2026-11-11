@@ -39,6 +39,7 @@ function f4InstitutionalDocumentManagement_(){
  function readable(get,o,r,auth){
   if(r.minutes&&!f4InstitutionalMinutes_().accessible(auth,r))return false;
   if(!r.kind)return true;
+  if(r.kind==='BOARD_PROCEDURE')return auth.actor.derived.currentDirectors.some(f=>f.idDiretoria===r.procedure.boardId);
   const ref=r.normativeFiles?.norm||r.review?.norm;if(!ref)return false;
   try{const a=f4InstitutionalPolicies_(get,o.identity,o.clock(),get('institutionalDirectoryControl/current').policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/norms');if(!a.mask.includes('fields')||!a.mask.includes('canonical'))return false;
    if(!get('institutionalDirectory/norms')?.records.some(n=>n.visibility==='BOARD'&&n.canonical?.path==='institutionalNormVersions/'+ref.id))return false;

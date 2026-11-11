@@ -3,7 +3,7 @@ const fs=require('node:fs'),p=require('node:path'),crypto=require('node:crypto')
 const root=p.resolve(__dirname,'..'),manifest=JSON.parse(fs.readFileSync(p.join(root,'release-manifest.json'),'utf8'));
 const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
 for(const row of manifest.files){
- if(!/^(src\/[a-z-]+\.(cjs|js)|src\/minute-letterhead\.json|src\/minute-font-license\.txt|generated\/(domain\.gs|workspace-drive\.gs|source-manifest\.json)|scripts\/verify-release\.cjs|package(-lock)?\.json|\.gcloudignore)$/.test(row.path)||row.path.includes('..'))throw Error('RELEASE_PATH_INVALID');
+ if(!/^(src\/[a-z-]+\.(cjs|js)|src\/board-procedure-pdf-v1\.cjs|src\/minute-letterhead\.json|src\/minute-font-license\.txt|generated\/(domain\.gs|workspace-drive\.gs|source-manifest\.json)|scripts\/verify-release\.cjs|package(-lock)?\.json|\.gcloudignore)$/.test(row.path)||row.path.includes('..'))throw Error('RELEASE_PATH_INVALID');
  const file=p.join(root,row.path);if(fs.lstatSync(file).isSymbolicLink()||sha(fs.readFileSync(file))!==row.sha256)throw Error('RELEASE_HASH_MISMATCH: '+row.path);
 }
 const actual=fs.readdirSync(root,{recursive:true}).map(x=>x.replaceAll('\\','/')).filter(x=>!x.startsWith('node_modules/')&&x!=='node_modules'&&fs.lstatSync(p.join(root,x)).isFile()).sort();

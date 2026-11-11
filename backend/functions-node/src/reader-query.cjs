@@ -4,7 +4,7 @@ const {PROJECT,ROOT,fail}=require('./environment.cjs');
 // Only plans emitted by the Core reader producers. Never exposed in HTTP.
 const material=['presentationMaterialSubmissions','presentationMaterialReviews','presentationMaterialReceipts','presentationCorrectionOpportunities','presentationMaterialRegularizations'];
 const shapes={
- memberFunctions:[['idDiretoria']],commandExecutorRoutes:[[]],canonicalPresentations:[['personRef.ref.id']],canonicalActivities:[[],['cycleRef']],memberAggregateHeads:[[]],activityTypes:[[]],activityPolicies:[[]],activityAttachmentPolicies:[[]],
+ memberGovernanceBoards:[[]],memberFunctions:[['idDiretoria']],commandExecutorRoutes:[[]],canonicalPresentations:[['personRef.ref.id']],canonicalActivities:[[],['cycleRef']],memberAggregateHeads:[[]],activityTypes:[[]],activityPolicies:[[]],activityAttachmentPolicies:[[]],
  academicSemesters:[[]],activityExceptionalJustificationWindows:[[]],presentationCycles:[[]],
  presentationPolicyReferences:[[],['cycleRef'],['cycleRef','usage']],
  presentationSessions:[['cycleRef']],presentationObligations:[['cycleRef']],

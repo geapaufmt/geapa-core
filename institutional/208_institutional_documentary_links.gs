@@ -31,12 +31,14 @@ function f4InstitutionalDocumentaryLinks_(){
  function input(d){if(!d)return null;return Object.fromEntries(['modality','documentDate','documentDatePrecision','documentAuthors','sourceDescription','sourceSha256'].map(k=>[k,d[k]]).concat([['relations',d.relations.map(r=>Object.fromEntries(['normVersionId','expectedNormRevision','expectedNormHash','relation','evidence'].map(k=>[k,r[k]])))]]));}
  function page(records,q){
   if(!q)return {records};
-  C.exact(q,['query','meetingType','boardId','state','from','to','normVersionId','page']);
+  C.exact(q,['query','meetingType','boardId','state','from','to','normVersionId','page',...['procedureType','proposer','documentId'].filter(k=>Object.hasOwn(q,k))]);
+  for(const k of ['procedureType','proposer','documentId'])if(Object.hasOwn(q,k))N(typeof q[k]==='string'&&q[k].length<=100,'COMMAND_PAYLOAD_INVALID');
   for(const k of ['query','meetingType','boardId','state','normVersionId'])N(typeof q[k]==='string'&&q[k].length<=100,'COMMAND_PAYLOAD_INVALID');
   for(const k of ['from','to'])N(q[k]===''||/^\d{4}-\d{2}-\d{2}$/.test(q[k])&&Number.isFinite(Date.parse(q[k]+'T12:00:00Z')),'COMMAND_PAYLOAD_INVALID');
   N((!q.from||!q.to||q.from<=q.to)&&Number.isInteger(q.page)&&q.page>=1&&q.page<=100,'COMMAND_PAYLOAD_INVALID');
   const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  const rows=records.filter(r=>(!q.query||norm([r.title,r.body,r.minutes?.number,r.minutes?.agenda].join(' ')).includes(norm(q.query)))&&(!q.meetingType||norm(r.minutes?.meetingType||'').includes(norm(q.meetingType)))&&(!q.boardId||r.minutes?.boardId===q.boardId)&&(!q.state||(r.minutes?.state||r.documentaryState)===q.state)&&(!q.from||r.meetingDate&&r.meetingDate>=q.from)&&(!q.to||r.meetingDate&&r.meetingDate<=q.to)&&(!q.normVersionId||r.documentaryEvidence?.relations.some(l=>l.normVersionId===q.normVersionId))).sort((a,b)=>(b.meetingDate||'').localeCompare(a.meetingDate||'')||a.id.localeCompare(b.id));
+  const date=r=>r.meetingDate||(Number.isSafeInteger(r.procedure?.createdAt)?new Date(r.procedure.createdAt-4*3600000).toISOString().slice(0,10):'');
+  const rows=records.filter(r=>(!q.query||norm([r.title,r.body,r.minutes?.number,r.minutes?.agenda,r.procedure?.object].join(' ')).includes(norm(q.query)))&&(!q.meetingType||norm(r.minutes?.meetingType||'').includes(norm(q.meetingType)))&&(!q.boardId||(r.minutes?.boardId||r.procedure?.boardId)===q.boardId)&&(!q.state||(r.minutes?.state||r.procedure?.state||r.documentaryState)===q.state)&&(!q.from||date(r)&&date(r)>=q.from)&&(!q.to||date(r)&&date(r)<=q.to)&&(!q.normVersionId||r.documentaryEvidence?.relations.some(l=>l.normVersionId===q.normVersionId))&&(!q.procedureType||r.procedure?.type===q.procedureType)&&(!q.proposer||r.procedure?.proposer===q.proposer)&&(!q.documentId||r.procedure?.documents.some(d=>d.recordId===q.documentId)||r.references?.some(d=>d.targetId===q.documentId))).sort((a,b)=>date(b).localeCompare(date(a))||a.id.localeCompare(b.id));
   return {records:rows.slice((q.page-1)*10,q.page*10),pagination:{page:q.page,pages:Math.max(1,Math.ceil(rows.length/10)),total:rows.length,pageSize:10},filters:q};
  }
  return {normalize,input,hash,modalities,purposes,page};
