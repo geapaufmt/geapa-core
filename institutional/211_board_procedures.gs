@@ -158,6 +158,7 @@ function f4BoardProcedures_(){
  function candidates(get,o,auth,c){
   if(!c?.boardProcedures?.enabled)return [];
   const ids=c.boardProcedures.targetPersonIds;N(Array.isArray(ids)&&ids.length<=50&&ids.every(C.id)&&new Set(ids).size===ids.length,'SCHEMA_INVALID');
+  f4GovernancePrefetchPeople_(get,o.config,ids);
   return ids.map(id=>{const authority=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')),loaded=f4MemberAuthz_().load(get,id,authority),d=loaded.M.derive(loaded.d,id,loaded.h.revision,o.clock());
    return {personId:id,name:loaded.d['memberIdentities/'+id].displayName,eligible:d.state.state==='MEMBRO_EFETIVO'&&!d.state.blocked,links:loaded.h.paths.filter(p=>p.startsWith('memberLinks/')).map(p=>loaded.d[p]).filter(l=>l.type==='MEMBRO_EFETIVO'&&C.civilStart(l.startDate)<=o.clock()&&(!l.endDate||o.clock()<C.civilStart(C.nextDay(l.endDate)))).map(l=>({id:l.id,type:l.type})),functions:d.currentFunctions.filter(f=>directors(auth).some(a=>a.idDiretoria===f.idDiretoria)).map(f=>({id:f.idVigencia,roleKey:f.roleKey,boardId:f.idDiretoria,group:f.group}))};
   });
@@ -186,5 +187,53 @@ function f4BoardProcedures_(){
   return ['ORDINARY_EXTENSION','EXTRAORDINARY_EXTENSION','VOLUNTARY_EXIT','DIRECTOR_DISMISSAL'].filter(type=>control.types.includes(type)&&(type==='VOLUNTARY_EXIT'?self:pres&&!elected)).map(type=>({type,label:types[type].label,personId:fn.idPessoa,functionId:fn.idVigencia,boardId:fn.idDiretoria}));
  }
  return {officeSummary,noticeReady,contextual,options,types,caps,composition,target,transition,view,outcome,effective,readiness,content,hash,candidates};
+}
+
+// Bounded discovery of the SAME aggregates consumed below by the canonical
+// loaders. Call only after the reader has authorized and bounded the person set.
+// This is not a projection, authorization decision or second member model.
+function f4GovernancePrefetchPeople_(get,config,ids){
+ const C=f4Core_(),N=C.need,F=f4Firestore_(),db=F.connect(config),H=f4MemberRepository_().planningHelpers();
+ N(Array.isArray(ids)&&ids.length<=100&&ids.every(C.id),'SCOPE_TOO_LARGE');
+ const many=paths=>{const unique=[...new Set(paths)];for(let i=0;i<unique.length;i+=180)db.getMany(unique.slice(i,i+180));};
+ many(ids.map(id=>'memberAggregateHeads/'+id));
+ const heads=ids.map(id=>H.head(get('memberAggregateHeads/'+id),id,'PERSON'));
+ const paths=heads.flatMap(h=>h.paths);
+ N(paths.every(p=>/^member(Identities|Identifiers|PrivateProfiles|Links|Events|Functions)\/[A-Za-z0-9_-]{1,48}$/.test(p)),'M11_HEAD_INVALID');
+ many(paths);
+ const functions=paths.filter(p=>p.startsWith('memberFunctions/')).map(get).filter(Boolean);
+ N(functions.every(f=>C.id(f.idDiretoria)&&C.id(f.idCargo)&&C.id(f.idTermo)),'M11_HEAD_INVALID');
+ const boards=[...new Set(functions.map(f=>f.idDiretoria))];many(boards.map(id=>'memberBoardHeads/'+id));
+ const boardPaths=boards.flatMap(id=>{const h=H.head(get('memberBoardHeads/'+id),id,'BOARD');N(h.paths.every(p=>p==='memberGovernanceBoards/'+id||/^memberGovernanceBoardTerms\/[A-Za-z0-9_-]{1,48}$/.test(p)),'M11_HEAD_INVALID');return h.paths;});
+ many([...boardPaths,...functions.flatMap(f=>['memberGovernanceTerms/'+f.idTermo,'memberRoleCatalog/'+f.idCargo])]);
+ const relations=boardPaths.filter(p=>p.startsWith('memberGovernanceBoardTerms/')).map(get).filter(Boolean);
+ N(relations.every(r=>C.id(r.idTermo)),'M11_HEAD_INVALID');many(relations.map(r=>'memberGovernanceTerms/'+r.idTermo));
+ // All schema, ownership, history and eligibility checks still run in load/derive.
+}
+
+// Safe discovery only. The command remains authoritative for the selected target,
+// documentary requirements, personal manifestations and final canonical effect.
+function f4BoardActionCatalog_(get,o,caller){
+ const B=f4BoardProcedures_(),now=o.clock(),directors=caller.derived.currentDirectors;
+ const result={schemaVersion:'board-action-catalog-v1',validUntil:Math.min(o.identity.expiresAt,now+60000),items:[]};
+ if(!directors.length)return result;
+ const c=get('institutionalGovernanceControl/current'),p=c?.boardProcedures;
+ const known=['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED','PILOT_DISABLED'];
+ let permission=null,denial=null,consult=false;
+ try{permission=f4InstitutionalGovernance_().control(get,o.config,o.identity,now,true,true,B.caps.BP_CREATE);result.validUntil=Math.min(result.validUntil,permission.auth.validUntil);}catch(e){if(!known.includes(e.code))throw e;denial=e.code;}
+ try{const directory=get('institutionalDirectoryControl/current');f4Core_().need(directory?.enabled===true,'PILOT_DISABLED');const auth=f4InstitutionalPolicies_(get,o.identity,now,directory.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/governance');consult=auth.mask.includes('summary')&&auth.mask.includes('fields');result.validUntil=Math.min(result.validUntil,auth.validUntil);}catch(e){if(!known.includes(e.code))throw e;}
+ for(const [id,t]of Object.entries(B.types)){
+  const pres=directors.find(f=>f.roleKey==='PRESIDENTE'),own=directors.find(f=>p?.boardIds?.includes(f.idDiretoria)),fn=t.president?pres:own;
+  let reasonCode=null,reason='';
+  if(t.president&&!pres){reasonCode='PRESIDENT_REQUIRED';reason='Exclusivo da Presidência.';}
+  else if(denial){reasonCode=denial;reason=denial==='PILOT_DISABLED'?'Operação temporariamente indisponível neste ambiente.':denial==='ACCESS_REVOKED'?'A autorização precisa ser revalidada.':'Seu acesso não habilita a abertura deste procedimento.';}
+  else if(!consult){reasonCode='GOVERNANCE_READ_REQUIRED';reason='Seu acesso não habilita a consulta necessária para abrir este procedimento.';}
+  else if(!fn||!p?.enabled||!p.actions?.includes('BP_CREATE')||!p.types?.includes(id)||!p.boardIds?.includes(fn.idDiretoria)){reasonCode='PROCEDURE_UNAVAILABLE';reason='Procedimento indisponível neste escopo institucional.';}
+  else if(id==='VOLUNTARY_EXIT'&&!p.targetPersonIds?.includes(caller.actor.h.id)){reasonCode='SELF_SCOPE_REQUIRED';reason='Disponível apenas ao próprio interessado, dentro do escopo autorizado.';}
+  const enabled=!reasonCode;
+  result.items.push({id,label:t.label,enabled,reasonCode,reason,stage:'PROPOSAL',condition:id==='VOLUNTARY_EXIT'?'Solicitação pessoal; quitação e efetivação são etapas posteriores.':id.startsWith('ADVISOR_')?'A relação com o diretor responsável será conferida pelo Core.':'Abre uma proposta; requisitos documentais e efetivação são conferidos separadamente.',...(enabled?{context:{type:id,boardId:fn.idDiretoria,...(id==='VOLUNTARY_EXIT'?{personId:caller.actor.h.id,functionId:fn.idVigencia}:{})}}:{})});
+ }
+ result.items.push({id:'CONSULT_PROCEDURES',label:'Consultar procedimentos e deliberações',enabled:consult,reasonCode:consult?null:'AUTHORIZATION_DENIED',reason:consult?'':'Seu acesso não habilita esta consulta.',stage:'READ',condition:''});
+ return result;
 }
 

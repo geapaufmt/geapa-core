@@ -10,6 +10,7 @@ function f4InstitutionalMinutes_(){
   const db=F.connect(config),rows=[];let cursor;
   for(let page=0;page<5;page++){const part=db.query({collection:'memberFunctions',filters:[{field:'idDiretoria',op:'EQUAL',value:boardId}],limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(cursor?{cursor:[cursor]}:{})});rows.push(...part.map(r=>r.data));if(part.length<20)break;N(page<4,'SCOPE_TOO_LARGE');cursor=new F.DocumentReference('projects/'+config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+part.at(-1).path);}
   const authority=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')),repo=f4MemberRepository_(authority),people=[];
+  f4GovernancePrefetchPeople_(get,config,[...new Set(rows.map(f=>f.idPessoa))]);
   for(const id of [...new Set(rows.map(f=>f.idPessoa))].sort()){const loaded=repo.load(get,id),d=f4MemberModel_(true,authority).derive(loaded.docs,id,loaded.reg.revision,at),person=loaded.docs['memberIdentities/'+id];if(person.technicalAccount)continue;const functions=d.currentDirectors.filter(f=>f.idDiretoria===boardId);if(functions.length)people.push({personId:id,name:person.displayName,personRevision:loaded.reg.revision,functions:functions.map(f=>({id:f.idVigencia,roleKey:f.roleKey,scopeKey:f.scopeKey,revision:f.revision}))});}
   N(people.length>0&&people.length<=20,'BOARD_COMPOSITION_UNAVAILABLE');return {boardId,boardName:board.name,boardRevision:board.revision,date,people};
  }
