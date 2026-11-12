@@ -52,6 +52,12 @@ class Store {
    this.metrics.discoveryRounds++;s.missing.clear();s.pendingQueries.clear();s.touched.clear();s.writes=[];let value,error;
    const evalStart=performance.now();
    try{this.guard();value=fn();if(value&&typeof value.then==='function')fail('ASYNC_DOMAIN_CALLBACK');}catch(e){error=e;}
+   if(this.discoveryDiagnostics){
+    const row={round:round+1,newDocuments:[...s.missing].filter(p=>!s.cache.has(p)).length,newQueries:s.pendingQueries.size,cachedDocuments:s.cache.size,cachedQueries:s.queries.size};
+    this.discoveryTrace ||= [];this.discoveryTrace.push(row);
+    // Keep the beginning and the tail; never paths, IDs, values or raw errors.
+    if(this.discoveryTrace.length>16)this.discoveryTrace.splice(8,1);
+   }
    if(this.specializedReaders)this.metrics.domainEvaluationMs=(this.metrics.domainEvaluationMs||0)+performance.now()-evalStart;
    // No outcome (including a caught denial) can commit using an unknown read.
    // For list maintenance, resolve the cached view/fence/auth reads before
@@ -90,7 +96,7 @@ class Store {
     if(s.missing.size)continue;
     for(const w of s.writes){const ref=this.ref(w.path);if(!s.cache.has(w.path))fail('PRECONDITION_REQUIRED');if(w.mode==='delete')native.delete(ref);else if(w.mode==='update')native.update(ref,decode(w.data));else native.set(ref,decode(w.data));}this.metrics.writes+=s.writes.length;await this.beforeCommit?.();
    }return value;
-  }fail('READ_DISCOVERY_LIMIT');}finally{this.active=null;}
+  }fail('READ_DISCOVERY_LIMIT');}catch(e){if(this.discoveryDiagnostics)e.readDiscovery={rounds:this.metrics.discoveryRounds,trace:this.discoveryTrace||[]};throw e;}finally{this.active=null;}
  }
  async read(fn){return this.evaluate(fn,null);}
  async transaction(fn){this.metrics.transactions++;const started=performance.now();try{return await this.db.runTransaction(async native=>{this.metrics.transactionAttempts++;return this.evaluate(fn,native);},{maxAttempts:5});}finally{this.metrics.transactionWallMs=(this.metrics.transactionWallMs||0)+performance.now()-started;}}

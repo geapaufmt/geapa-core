@@ -18,7 +18,7 @@ function control(c,uid,route){
  return c;
 }
 class ReaderStore extends Store{
- constructor(db,identity,request,pinned){super(db,identity);this.request=request;this.pinned=pinned;this.specializedReaders=true;this.queryConcurrency=4;}
+ constructor(db,identity,request,pinned){super(db,identity);this.request=request;this.pinned=pinned;this.specializedReaders=true;this.queryConcurrency=4;this.discoveryDiagnostics=request.route==='/admin/gestao-institucional'&&request.params?.section==='governance';}
  guard(){
   fence();const c=control(this.hostRead(CONTROL),this.identity.uid,this.request.route);
   if(this.pinned&&JSON.stringify(c)!==JSON.stringify(this.pinned))fail('ACCESS_REVOKED');
@@ -89,6 +89,6 @@ async function readAct({db,auth,appCheck,token,appCheckToken,origin,body,hooks={
   return result;
  });
  if(Buffer.byteLength(JSON.stringify(result))>(workspacePhase?36*1024*1024:700000))fail('SCOPE_TOO_LARGE');
- return {route:request.route,result,metrics:{...store.metrics,...timing,controlReads:probe.metrics.reads,controlSdkCalls:probe.metrics.sdkCalls,totalMs:Math.round(performance.now()-started)}};
+ return {route:request.route,result,...(store.discoveryDiagnostics?{readDiscovery:{rounds:store.metrics.discoveryRounds,trace:store.discoveryTrace||[]}}:{}),metrics:{...store.metrics,...timing,controlReads:probe.metrics.reads,controlSdkCalls:probe.metrics.sdkCalls,totalMs:Math.round(performance.now()-started)}};
 }
 module.exports={readAct,ReaderStore,contract,control,bootstrapRoutes};
