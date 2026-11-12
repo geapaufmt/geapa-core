@@ -188,3 +188,28 @@ function f4BoardProcedures_(){
  return {officeSummary,noticeReady,contextual,options,types,caps,composition,target,transition,view,outcome,effective,readiness,content,hash,candidates};
 }
 
+// Safe discovery only. The command remains authoritative for the selected target,
+// documentary requirements, personal manifestations and final canonical effect.
+function f4BoardActionCatalog_(get,o,caller){
+ const B=f4BoardProcedures_(),now=o.clock(),directors=caller.derived.currentDirectors;
+ const result={schemaVersion:'board-action-catalog-v1',validUntil:Math.min(o.identity.expiresAt,now+60000),items:[]};
+ if(!directors.length)return result;
+ const c=get('institutionalGovernanceControl/current'),p=c?.boardProcedures;
+ const known=['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED','PILOT_DISABLED'];
+ let permission=null,denial=null,consult=false;
+ try{permission=f4InstitutionalGovernance_().control(get,o.config,o.identity,now,true,true,B.caps.BP_CREATE);result.validUntil=Math.min(result.validUntil,permission.auth.validUntil);}catch(e){if(!known.includes(e.code))throw e;denial=e.code;}
+ try{const directory=get('institutionalDirectoryControl/current');f4Core_().need(directory?.enabled===true,'PILOT_DISABLED');const auth=f4InstitutionalPolicies_(get,o.identity,now,directory.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/governance');consult=auth.mask.includes('summary')&&auth.mask.includes('fields');result.validUntil=Math.min(result.validUntil,auth.validUntil);}catch(e){if(!known.includes(e.code))throw e;}
+ for(const [id,t]of Object.entries(B.types)){
+  const pres=directors.find(f=>f.roleKey==='PRESIDENTE'),own=directors.find(f=>p?.boardIds?.includes(f.idDiretoria)),fn=t.president?pres:own;
+  let reasonCode=null,reason='';
+  if(t.president&&!pres){reasonCode='PRESIDENT_REQUIRED';reason='Exclusivo da Presidência.';}
+  else if(denial){reasonCode=denial;reason=denial==='PILOT_DISABLED'?'Operação temporariamente indisponível neste ambiente.':denial==='ACCESS_REVOKED'?'A autorização precisa ser revalidada.':'Seu acesso não habilita a abertura deste procedimento.';}
+  else if(!fn||!p?.enabled||!p.actions?.includes('BP_CREATE')||!p.types?.includes(id)||!p.boardIds?.includes(fn.idDiretoria)){reasonCode='PROCEDURE_UNAVAILABLE';reason='Procedimento indisponível neste escopo institucional.';}
+  else if(id==='VOLUNTARY_EXIT'&&!p.targetPersonIds?.includes(caller.actor.h.id)){reasonCode='SELF_SCOPE_REQUIRED';reason='Disponível apenas ao próprio interessado, dentro do escopo autorizado.';}
+  const enabled=!reasonCode;
+  result.items.push({id,label:t.label,enabled,reasonCode,reason,stage:'PROPOSAL',condition:id==='VOLUNTARY_EXIT'?'Solicitação pessoal; quitação e efetivação são etapas posteriores.':id.startsWith('ADVISOR_')?'A relação com o diretor responsável será conferida pelo Core.':'Abre uma proposta; requisitos documentais e efetivação são conferidos separadamente.',...(enabled?{context:{type:id,boardId:fn.idDiretoria,...(id==='VOLUNTARY_EXIT'?{personId:caller.actor.h.id,functionId:fn.idVigencia}:{})}}:{})});
+ }
+ result.items.push({id:'CONSULT_PROCEDURES',label:'Consultar procedimentos e deliberações',enabled:consult,reasonCode:consult?null:'AUTHORIZATION_DENIED',reason:consult?'':'Seu acesso não habilita esta consulta.',stage:'READ',condition:''});
+ return result;
+}
+
