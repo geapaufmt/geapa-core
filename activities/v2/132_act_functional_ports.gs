@@ -88,7 +88,7 @@ function f4ActivitiesFunctionalPorts_(options){
   for(const [path,d] of documents){if(!d)continue;
    if(path===M.path(input.payload.unitRef||M.ref('unit','NONE'))&&cmd==='THEME_SUBMIT')addExpected(d.thematicRequestRef||M.ref('thematic',M.hash({unit:d.id,cycle:d.cycleRef.id}).slice(0,32)));
    if(cmd==='DYNAMIC_DECIDE'&&path.startsWith('presentationUnitHeads/')&&d.cycleRef)addExpected(d.dynamicOccupancyRef||M.ref('dynamic',M.hash({unit:d.id,cycle:d.cycleRef.id}).slice(0,32)));
-   if(d.cycleRef?.kind&&d.cycleRef?.id){const cycle=documents.get(M.path(d.cycleRef)),cfg=cycle?.currentConfigRef&&documents.get(M.path(cycle.currentConfigRef));if(cfg?.parameters.quota)for(const axis of [d.principalAxisRef,d.candidate?.principalAxisRef,path.startsWith('presentationQuotaOccupancies/')?d.axisRef:null,cmd==='THEME_SUBMIT'&&path.startsWith('presentationUnitHeads/')?input.payload.principalAxisRef:null].filter(Boolean))addExpected(M.ref('bucket',M.hash({cycle:d.cycleRef.id,axis:axis.id}).slice(0,32)));}
+   if(d.cycleRef?.kind&&d.cycleRef?.id){const cycle=documents.get(M.path(d.cycleRef)),cfg=cycle?.currentConfigRef&&documents.get(M.path(cycle.currentConfigRef));if(cfg?.parameters.quota)for(const axis of [d.principalAxisRef,d.candidate?.principalAxisRef,path.startsWith('presentationQuotaOccupancies/')?d.axisRef:null,cmd==='THEME_SUBMIT'&&path.startsWith('presentationUnitHeads/')?input.payload.principalAxisRef:null,cmd==='THEME_VALIDATE'&&path.startsWith('presentationThematicRequests/')?input.payload.reviewedContent?.principalAxisRef:null].filter(Boolean))addExpected(M.ref('bucket',M.hash({cycle:d.cycleRef.id,axis:axis.id}).slice(0,32)));}
   }
   const expected=[...expectedRefs].map(([path,ref])=>({...ref,...(documents.get(path)?{revision:documents.get(path).revision}:{exists:false})}));
   const direct=[...selected.values()],primary=direct.filter(r=>!['policy','artifact','config','assessment','receipt','review','realization','reconciliation'].includes(r.kind)),targetRefs=(primary.length?primary:direct).filter(r=>cmd!=='ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN'||r.kind!=='person');N(targetRefs.length>0&&targetRefs.length<=32,'SCOPE_TOO_LARGE');
@@ -292,11 +292,17 @@ function f4JustificationWorkflowDependencies_(command,kind,d){
 // historic capacity assessment, material policy or frequency-planning evidence.
 // The normal handler still reads/validates authority, deadlines and revisions.
 function f4ThemeSubmissionDependencies_(command,kind,d){
- if(!['THEME_SUBMIT','THEME_COMPLEMENT'].includes(command))return null;
+ if(!['THEME_SUBMIT','THEME_COMPLEMENT','THEME_VALIDATE'].includes(command))return null;
+ const review=command==='THEME_VALIDATE';
  const M=f4ActivitiesModel_();
  if(kind==='cycle')return [d.currentConfigRef,d.scheduledConfigRef,M.ref('capacity',d.id)].filter(r=>r?.kind&&r.kind!=='NONE');
- if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.clockPolicyRef,d.parameters?.preAgendaPolicyRef].filter(Boolean);
+ if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.clockPolicyRef,d.parameters?.preAgendaPolicyRef,...(review?[d.parameters?.ordinaryMaterialRequirementRef]:[])].filter(Boolean);
  if(kind==='thematic')return [d.unitRef,d.cycleRef,d.principalAxisRef,d.secondaryAxisRef,d.candidate?.principalAxisRef,d.candidate?.secondaryAxisRef,d.analysisClock?.policyRef,d.correctionCaseRef].filter(Boolean);
- const fields={unit:['personRef','cycleRef','obligationRef','preAgendaBasisRef','assignmentRef','thematicRequestRef','quotaOccupancyRef'],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef','activityRef'],activity:['cycleRef'],flow:['cycleRef','personRef','unitRef','activityRef','policyRef','requestRef'],capacity:[],policy:[],obligation:[]}[kind];
+ // Review can materialize a presentation and move quota between axes. Fence
+ // those operational roots, never historical validations, other session slots
+ // or the cycle's assessments. Immutable policy bodies remain validated by the
+ // handler (including manifest digest and basis revisions).
+ if(review&&kind==='policy')return [d.uploadPolicyRef,...(d.basisRevisionVector||[]).map(v=>v.ref)].filter(Boolean);
+ const fields={unit:['personRef','cycleRef','obligationRef','preAgendaBasisRef','assignmentRef','thematicRequestRef','quotaOccupancyRef',...(review?['presentationRef']:[])],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef','activityRef'],activity:['cycleRef'],flow:['cycleRef','personRef','unitRef','activityRef','policyRef','requestRef'],capacity:[],policy:[],obligation:[],...(review?{presentation:[],quota:['unitRef','cycleRef','axisRef'],bucket:['queueManifestRef','priorityResolutionRef']}: {})}[kind];
  return fields?fields.map(k=>d[k]).filter(Boolean):null;
 }

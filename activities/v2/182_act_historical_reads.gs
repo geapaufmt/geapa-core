@@ -40,14 +40,38 @@ function f4ActivityHistoricalRelations_(activity,get,artifacts){
   const evidence=get(M.path(pr.provenanceHead));N(evidence?.schemaVersion==='act-migration-assertion-v1'&&evidence.literal?.ID_APRESENTACAO===pr.id,'UNRESOLVED_DEPENDENCY');
   const literal=evidence.literal,personId=pr.personRef?.resolution==='RESOLVED'?pr.personRef.ref.id:null,person=personId&&get('memberIdentities/'+personId);
   const files=artifacts.filter(v=>v.recordMode==='HISTORICAL_PARTIAL'&&v.activityRef?.resolution==='RESOLVED'&&v.activityRef.ref.id===activity.id&&v.presentationRef?.resolution==='RESOLVED'&&v.presentationRef.ref.id===pr.id);
-  const links={};for(const file of files){const e=get(M.path(file.provenanceHead));N(e?.schemaVersion==='act-migration-assertion-v1','UNRESOLVED_DEPENDENCY');const kind=e.literal.TIPO_ARQUIVO_ATIVIDADE,link=safeLink(file.link);if(link&&!links[kind])links[kind]=link;}
+  const links={},documentos=[];for(const file of files){const e=get(M.path(file.provenanceHead));N(e?.schemaVersion==='act-migration-assertion-v1','UNRESOLVED_DEPENDENCY');const kind=e.literal.TIPO_ARQUIVO_ATIVIDADE,link=safeLink(file.link);if(link&&!links[kind])links[kind]=link;
+   if(!['SLIDE_APRESENTACAO','FOTO_REUNIAO'].includes(kind))continue;
+   const control=get('actHistoricalFileControl/current'),binding=file.id&&get('actHistoricalFileBindings/'+file.id),registered=control?.files?.some(f=>f.artifactId===file.id),copy=binding&&get('actHistoricalFileCopies/'+binding.copyId);
+   // Metadata is only a routing hint. The protected downloader rechecks the
+   // complete binding, original provenance, generation, descriptor and authority.
+   const privateFile=!!(control?.enabled&&registered&&binding?.state==='ACTIVE'&&binding.manifestDigest===control.manifestDigest&&binding.artifactRevision===file.revision&&binding.activityId===activity.id&&binding.presentationId===pr.id&&binding.kind===kind&&copy?.state==='VERIFIED');
+   const delivery=privateFile?'PRIVATE_STORAGE':registered||binding?'UNAVAILABLE':link?'LEGACY_DRIVE':'UNAVAILABLE';
+   documentos.push({idApresentacao:pr.id,idArquivo:file.id||'',kind,name:file.name||'',delivery,...(delivery==='LEGACY_DRIVE'?{href:link}:{})});
+  }
   const material=links.SLIDE_APRESENTACAO||'',photo=links.FOTO_REUNIAO||'';
   // Documentary states describe the historical record, not a new canonical
   // approval. A file reference must never replace an explicit receipt state.
   const text=k=>typeof literal[k]==='string'?literal[k].trim():'';
   const title=pr.title||text('TITULO_APRESENTACAO');
-  return {...f4ActivityAcademicMetadata_(activity,get),idApresentacao:pr.id,idAtividade:activity.id,recordMode:'HISTORICAL_PARTIAL',somenteConsulta:true,dataAtividade:activity.civilDate||'',tema:title,tituloApresentacao:title,idPessoaPrincipal:personId||'',nomeApresentador:person?.displayName||'',eixoTematicoPrincipal:text('EIXO_TEMATICO_PRINCIPAL'),eixoTematicoSecundario:text('EIXO_TEMATICO_SECUNDARIO'),statusApresentacao:pr.legacyStatus||'NAO_INFORMADO',statusTituloEixo:text('STATUS_TITULO_EIXO')||'NAO_RECONSTRUIDO',statusMaterial:text('STATUS_ENVIO_MATERIAL')||(material?'REFERENCIA_HISTORICA':'NAO_RECONSTRUIDO'),statusFotoReuniao:text('STATUS_ENVIO_FOTO_REUNIAO')||(photo?'REFERENCIA_HISTORICA':'NAO_RECONSTRUIDO'),linkMaterial:material,linkFotoReuniao:photo,acoesMembro:{podeEditarTituloEixo:false,podeEnviarMaterial:false,podeReenviarMaterial:false,podeAbrirMaterial:!!material,podeEnviarFotoReuniao:false,podeReenviarFotoReuniao:false,podeAbrirFotoReuniao:!!photo,podeAbrirPastaAtividade:false},acoesGestao:{},canonicalRealizationAvailable:false,canonicalMaterialFile:false,canonicalFinalizationAvailable:false};
+  return {...f4ActivityAcademicMetadata_(activity,get),idApresentacao:pr.id,idAtividade:activity.id,recordMode:'HISTORICAL_PARTIAL',somenteConsulta:true,dataAtividade:activity.civilDate||'',tema:title,tituloApresentacao:title,idPessoaPrincipal:personId||'',nomeApresentador:person?.displayName||'',eixoTematicoPrincipal:text('EIXO_TEMATICO_PRINCIPAL'),eixoTematicoSecundario:text('EIXO_TEMATICO_SECUNDARIO'),statusApresentacao:pr.legacyStatus||'NAO_INFORMADO',statusTituloEixo:text('STATUS_TITULO_EIXO')||'NAO_RECONSTRUIDO',statusMaterial:text('STATUS_ENVIO_MATERIAL')||(material?'REFERENCIA_HISTORICA':'NAO_RECONSTRUIDO'),statusFotoReuniao:text('STATUS_ENVIO_FOTO_REUNIAO')||(photo?'REFERENCIA_HISTORICA':'NAO_RECONSTRUIDO'),linkMaterial:material,linkFotoReuniao:photo,documentos,acoesMembro:{podeEditarTituloEixo:false,podeEnviarMaterial:false,podeReenviarMaterial:false,podeAbrirMaterial:!!material,podeEnviarFotoReuniao:false,podeReenviarFotoReuniao:false,podeAbrirFotoReuniao:!!photo,podeAbrirPastaAtividade:false},acoesGestao:{},canonicalRealizationAvailable:false,canonicalMaterialFile:false,canonicalFinalizationAvailable:false};
  });
  const involved=(activity.historicalInvolvedRefs||[]).map(r=>{const e=get(M.path(r));N(e?.literal?.ID_ATIVIDADE===activity.id,'UNRESOLVED_DEPENDENCY');const x=e.literal,id=e.subjectRefs?.[0]?.id||'',person=id&&get('memberIdentities/'+id);return {idPessoa:id,nome:x.NOME_PUBLICO||person?.displayName||'',papel:x.PAPEL_NA_ATIVIDADE||''};});
  return {apresentacoes:rows,envolvidos:involved.length?involved:rows.filter(v=>v.idPessoaPrincipal).map(v=>({idPessoa:v.idPessoaPrincipal,nome:v.nomeApresentador,papel:'APRESENTADOR'})),pendencias:[]};
+}
+
+// Authenticated activity consultation receives only documentary display fields.
+// Administrative notes, editing actions and command bases stay in board DTOs.
+function f4ActivityDocumentaryRows_(rows){
+ const safe=s=>typeof s==='string'&&/^https:\/\/(drive\.google\.com|docs\.google\.com)\//.test(s)?s:'';
+ return rows.map(row=>{
+  const out=Object.fromEntries(['idApresentacao','idAtividade','tituloApresentacao','tema','nomeApresentador','eixoTematicoPrincipal','eixoTematicoSecundario','statusApresentacao','statusTituloEixo','statusMaterial','statusFotoReuniao','recordMode'].filter(k=>row[k]!==undefined).map(k=>[k,row[k]]));
+  const docs=(row.documentos||[]).map(d=>({...d}));
+  if(row.recordMode!=='HISTORICAL_PARTIAL')for(const [kind,flag,link,allowed] of [['SLIDE_APRESENTACAO','canonicalMaterialFile','linkMaterialPublico','podeAbrirMaterial'],['FOTO_REUNIAO','canonicalPhotoFile','linkFotoReuniao','podeAbrirFotoReuniao']]){
+   if(row.acoesMembro?.[allowed]!==true)continue;
+   if(row[flag])docs.push({idApresentacao:row.idApresentacao,kind,delivery:'CANONICAL'});
+   else if(safe(row[link]))docs.push({idApresentacao:row.idApresentacao,kind,delivery:'LEGACY_DRIVE',href:safe(row[link])});
+  }
+  out.documentos=docs;return out;
+ });
 }
