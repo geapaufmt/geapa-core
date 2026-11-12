@@ -292,11 +292,17 @@ function f4JustificationWorkflowDependencies_(command,kind,d){
 // historic capacity assessment, material policy or frequency-planning evidence.
 // The normal handler still reads/validates authority, deadlines and revisions.
 function f4ThemeSubmissionDependencies_(command,kind,d){
- if(!['THEME_SUBMIT','THEME_COMPLEMENT'].includes(command))return null;
+ if(!['THEME_SUBMIT','THEME_COMPLEMENT','THEME_VALIDATE'].includes(command))return null;
+ const review=command==='THEME_VALIDATE';
  const M=f4ActivitiesModel_();
  if(kind==='cycle')return [d.currentConfigRef,d.scheduledConfigRef,M.ref('capacity',d.id)].filter(r=>r?.kind&&r.kind!=='NONE');
- if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.clockPolicyRef,d.parameters?.preAgendaPolicyRef].filter(Boolean);
+ if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.clockPolicyRef,d.parameters?.preAgendaPolicyRef,...(review?[d.parameters?.ordinaryMaterialRequirementRef]:[])].filter(Boolean);
  if(kind==='thematic')return [d.unitRef,d.cycleRef,d.principalAxisRef,d.secondaryAxisRef,d.candidate?.principalAxisRef,d.candidate?.secondaryAxisRef,d.analysisClock?.policyRef,d.correctionCaseRef].filter(Boolean);
- const fields={unit:['personRef','cycleRef','obligationRef','preAgendaBasisRef','assignmentRef','thematicRequestRef','quotaOccupancyRef'],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef','activityRef'],activity:['cycleRef'],flow:['cycleRef','personRef','unitRef','activityRef','policyRef','requestRef'],capacity:[],policy:[],obligation:[]}[kind];
+ // Review can materialize a presentation and move quota between axes. Fence
+ // those operational roots, never historical validations, other session slots
+ // or the cycle's assessments. Immutable policy bodies remain validated by the
+ // handler (including manifest digest and basis revisions).
+ if(review&&kind==='policy')return [d.uploadPolicyRef,...(d.basisRevisionVector||[]).map(v=>v.ref)].filter(Boolean);
+ const fields={unit:['personRef','cycleRef','obligationRef','preAgendaBasisRef','assignmentRef','thematicRequestRef','quotaOccupancyRef',...(review?['presentationRef']:[])],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef','activityRef'],activity:['cycleRef'],flow:['cycleRef','personRef','unitRef','activityRef','policyRef','requestRef'],capacity:[],policy:[],obligation:[],...(review?{presentation:[],quota:['unitRef','cycleRef','axisRef'],bucket:['queueManifestRef','priorityResolutionRef']}: {})}[kind];
  return fields?fields.map(k=>d[k]).filter(Boolean):null;
 }
