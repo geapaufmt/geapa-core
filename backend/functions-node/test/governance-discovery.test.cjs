@@ -30,7 +30,7 @@ test('absent canonical facts still fail closed after bounded prefetch',async()=>
  const h=setup();delete h.docs['memberLinks/SYN_LINK_3'];await a.rejects(h.read());a(h.store.metrics.discoveryRounds<20);a.equal(h.store.metrics.writes,0);
 });
 test('invalid aggregate path is rejected before fetching a foreign collection',async()=>{
- const h=setup();h.docs['memberAggregateHeads/'+h.ids[2]].paths.push('privateSecrets/SENTINEL');await a.rejects(h.read(),e=>e.code==='M11_HEAD_INVALID');a(!h.requests.flat().includes('privateSecrets/SENTINEL'));a.equal(h.store.metrics.writes,0);
+ const h=setup();h.docs['memberAggregateHeads/'+h.ids[2]].paths.push('privateSecrets/SENTINEL');await a.rejects(h.read(),e=>e.code==='DOMAIN_STATE_INVALID');a(!h.requests.flat().includes('privateSecrets/SENTINEL'));a.equal(h.store.metrics.writes,0);
 });
 test('governance HTTP diagnostic correlates response and log without payload or identity',async()=>{
  const {handler,ORIGIN}=require('../src/http.cjs');const trace=Array.from({length:120},(_,i)=>({round:i+1,newDocuments:1,newQueries:0,cachedDocuments:i,cachedQueries:0,path:'PRIVATE_SENTINEL'}));const e=Object.assign(Error('RAW_PRIVATE_SENTINEL'),{code:'READ_DISCOVERY_LIMIT',readDiscovery:{rounds:120,trace,uid:'PRIVATE_SENTINEL'}});
@@ -40,4 +40,5 @@ test('governance HTTP diagnostic correlates response and log without payload or 
  a.equal(res.statusCode,503);const log=JSON.parse(logs[0]);a.equal(log.route,'/admin/gestao-institucional');a.equal(log.correlationId,res.headers['X-GEAPA-Correlation-ID']);a.equal(log.correlationId,res.body.error.correlationId);a.equal(log.readDiscovery.trace.length,16);a(!JSON.stringify(logs).includes('PRIVATE_SENTINEL'));a(!JSON.stringify(res.body).includes('newDocuments'));
 });
 module.exports={setup};
+
 
