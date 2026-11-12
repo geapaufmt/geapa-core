@@ -109,7 +109,7 @@ function f4ActivitiesPresentationCompat_(options){
    for(const pr of presentations){
     if(pr?.continuity?.schemaVersion==='presentation-continuity-v1'){
      const u=doc(pr.unitRef);N(u?.presentationRef?.id===pr.id,'UNRESOLVED_DEPENDENCY');
-     try{const proof=authorize(u,true);hydrate([u],true);proofs.push(proof);const dto=row(u,true);dto.canonicalPresentationId=pr.id;const at=result.apresentacoes.findIndex(v=>v.idApresentacao===pr.id);N(at>=0,'UNRESOLVED_DEPENDENCY');result.apresentacoes[at]=dto;}catch(e){if(!['AUTHORIZATION_DENIED','AUTH_BINDING_INVALID','ACCESS_REVOKED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
+     try{const proof=authorize(u,true);hydrate([u],true);proofs.push(proof);const dto=row(u,true);dto.canonicalPresentationId=pr.id;const at=result.apresentacoes.findIndex(v=>v.idApresentacao===pr.id);N(at>=0,'UNRESOLVED_DEPENDENCY');dto.documentos=result.apresentacoes[at].documentos||[];result.apresentacoes[at]=dto;}catch(e){if(!['AUTHORIZATION_DENIED','AUTH_BINDING_INVALID','ACCESS_REVOKED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
     }else if(activity.promotion){const readiness=f4PresentationContinuity_().inspect(activity,pr,get,clock());result.pendencias.push({idApresentacao:pr.id,tipo:'CONTINUIDADE',status:readiness.state,motivos:readiness.blockers});}
    }
    consistent();check(proofs);return result;
