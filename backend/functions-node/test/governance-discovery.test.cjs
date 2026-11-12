@@ -40,5 +40,3 @@ test('governance HTTP diagnostic correlates response and log without payload or 
  a.equal(res.statusCode,503);const log=JSON.parse(logs[0]);a.equal(log.route,'/admin/gestao-institucional');a.equal(log.correlationId,res.headers['X-GEAPA-Correlation-ID']);a.equal(log.correlationId,res.body.error.correlationId);a.equal(log.readDiscovery.trace.length,16);a(!JSON.stringify(logs).includes('PRIVATE_SENTINEL'));a(!JSON.stringify(res.body).includes('newDocuments'));
 });
 module.exports={setup};
-
-
