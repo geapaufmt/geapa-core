@@ -204,6 +204,7 @@ function f4BoardActionCatalog_(get,o,caller){
   let reasonCode=null,reason='';
   if(t.president&&!pres){reasonCode='PRESIDENT_REQUIRED';reason='Exclusivo da Presidência.';}
   else if(denial){reasonCode=denial;reason=denial==='PILOT_DISABLED'?'Operação temporariamente indisponível neste ambiente.':denial==='ACCESS_REVOKED'?'A autorização precisa ser revalidada.':'Seu acesso não habilita a abertura deste procedimento.';}
+  else if(!consult){reasonCode='GOVERNANCE_READ_REQUIRED';reason='Seu acesso não habilita a consulta necessária para abrir este procedimento.';}
   else if(!fn||!p?.enabled||!p.actions?.includes('BP_CREATE')||!p.types?.includes(id)||!p.boardIds?.includes(fn.idDiretoria)){reasonCode='PROCEDURE_UNAVAILABLE';reason='Procedimento indisponível neste escopo institucional.';}
   else if(id==='VOLUNTARY_EXIT'&&!p.targetPersonIds?.includes(caller.actor.h.id)){reasonCode='SELF_SCOPE_REQUIRED';reason='Disponível apenas ao próprio interessado, dentro do escopo autorizado.';}
   const enabled=!reasonCode;
