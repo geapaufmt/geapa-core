@@ -1,6 +1,7 @@
 // Cycle configuration is still presentationCycles/*/configRevisions. Evidence
 // annotates the existing parameter values; it is not another configuration store.
 function f4CycleParameterDocumentHash_(v){return f4Core_().hash(f4Firestore_().encode(v));}
+function f4CycleMeetingDefaults_(get,ref){const M=f4ActivitiesModel_(),c=get(M.path(ref)),cfg=c?.currentConfigRef?.kind==='config'&&get(M.path(c.currentConfigRef)),P=f4CycleParameters_(),p=cfg?.approved?cfg.parameters:{};return {id:ref.id,label:c?.cycleLabel||ref.id,meetingStartTime:P.entry(p,'meetingStartTime').value||null,meetingEndTime:P.entry(p,'meetingEndTime').value||null,configRevision:cfg?.id||null};}
 function f4CycleParameterCatalog_(){
  const field=(key,label,section,type,extra={})=>({key,label,section,type,...extra});
  return [
@@ -87,7 +88,7 @@ function f4CycleParameters_(){
   const evidence=parameters.parameterEvidence;C.exact(evidence,['schemaVersion','items']);C.exact(evidence.items,catalog.map(f=>f.key));
   const governance=approved?normative(policy,cycle,get):policy?.parameterGovernance;
   for(const f of catalog){
-   const e=evidence.items[f.key];C.exact(e,['status','basis',...('documentedFrom'in e?['documentedFrom']:[]),...('documentedUntil'in e?['documentedUntil']:[])]);
+   const e=evidence.items[f.key];N(e&&typeof e==='object','VALIDATION_ERROR','PARAMETER_EVIDENCE');C.exact(e,['status','basis',...('documentedFrom'in e?['documentedFrom']:[]),...('documentedUntil'in e?['documentedUntil']:[])]);
    N(statuses.includes(e.status)&&typeof e.basis==='string'&&e.basis.length<=2000,'VALIDATION_ERROR','PARAMETER_EVIDENCE');
    if(e.documentedFrom)M.civil(e.documentedFrom);if(e.documentedUntil)M.civil(e.documentedUntil);
    if(e.documentedFrom&&e.documentedUntil)N(M.gap(e.documentedFrom,e.documentedUntil)>=0,'VALIDATION_ERROR','EVIDENCE_INTERVAL');
@@ -105,6 +106,7 @@ function f4CycleParameters_(){
    N(Object.hasOwn(rule,'fixed')||rule.editable===true,'HUMAN_DECISION_REQUIRED','PARAMETER_NOT_DELEGATED_'+f.key);
   }
   if(parameters.calendarMode==='MEMBER_SELF_SCHEDULE')N(parameters.selfSchedulingWindow,'HUMAN_DECISION_REQUIRED','SELF_SCHEDULING_WINDOW_REQUIRED');
+  if(parameters.meetingStartTime&&parameters.meetingEndTime)N(parameters.meetingStartTime<parameters.meetingEndTime,'VALIDATION_ERROR','MEETING_TIME_INTERVAL');
   if(parameters.shared===false&&parameters.maxMemberPresentationsPerSession!==undefined)N(parameters.maxMemberPresentationsPerSession===1,'VALIDATION_ERROR','SHARED_OFF');
   if(parameters.dynamic===true)N(Number.isSafeInteger(parameters.dynamicLimit)&&parameters.dynamicLimit>0,'VALIDATION_ERROR','DYNAMIC_LIMIT_REQUIRED');
   if(parameters.jointRequestsEnabled===true)N(parameters.shared===true&&Number.isSafeInteger(parameters.jointAcceptanceHours),'VALIDATION_ERROR','JOINT_PARAMETERS_REQUIRED');
@@ -139,7 +141,7 @@ function f4CycleParameterCommands_(x){
    N(approval?.usage==='CYCLE_PARAMETER_RECOGNITION'&&approval.approved===true&&approval.active===true&&approval.cycleRef?.id===c.id&&approval.expectedCycleRevision===c.revision&&M.ms(approval.issuedAt)<=now&&now<M.ms(approval.expiresAt),'HUMAN_DECISION_REQUIRED','PARAMETER_RECOGNITION_REQUIRED');
    N(approval.parametersHash===M.hash(p.parameters)&&approval.currentConfigurationHash===f4CycleParameterDocumentHash_(prior)&&approval.preservesAcquiredRights===true&&approval.documentaryEvidence,'STALE_REVISION','RECOGNITION_CONTENT_CHANGED');
    N(Array.isArray(approval.sources)&&approval.sources.length>0&&approval.sources.length<=8,'HUMAN_DECISION_REQUIRED','RECOGNITION_SOURCE_REQUIRED');
-   for(const source of approval.sources)N(f4CycleParameterDocumentHash_(load(source.ref,true))===source.hash,'STALE_REVISION','RECOGNITION_SOURCE_CHANGED');
+   for(const source of approval.sources){const d=load(source.ref,true);N(f4CycleParameterDocumentHash_(d)===source.hash,'STALE_REVISION','RECOGNITION_SOURCE_CHANGED');N(!['DRAFT','MINUTA','PROPOSED'].includes(d.status)&&d.isDraft!==true,'HUMAN_DECISION_REQUIRED','DRAFT_IS_NOT_HISTORICAL_EVIDENCE');}
    P.validate(p.parameters,c,load(c.policyVersionRef),x.get,false);
    for(const e of Object.values(p.parameters.parameterEvidence.items))N(e.status==='UNESTABLISHED'||e.basis.trim(),'HUMAN_DECISION_REQUIRED','PARAMETER_DOCUMENTARY_BASIS');
    const r=M.ref('config',M.hash({operationId:x.operationId,kind:'historicalConfig'}).slice(0,32),c.id);

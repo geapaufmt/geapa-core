@@ -10,7 +10,7 @@ function planning(nature='ANNUAL'){return {periodId:'SYN_2026',nature,civilStart
 const commands={ACTIVITY_MODEL_USAGE_SET:"ACTIVITY_MODEL_USAGE_MANAGE",CYCLE_FREQUENCY_PLAN_RECOGNIZE:'CYCLE_FREQUENCY_PLAN_MANAGE',ACTIVITY_MODEL_DRAFT_SAVE:'ACTIVITY_MODEL_AUTHOR',ACTIVITY_MODEL_APPROVE:'ACTIVITY_MODEL_APPROVE',ACTIVITY_MODEL_AVAILABILITY_SET:'ACTIVITY_MODEL_APPROVE',CYCLE_FREQUENCY_PLAN_SAVE:'CYCLE_FREQUENCY_PLAN_MANAGE',CYCLE_FREQUENCY_PLAN_APPROVE:'CYCLE_FREQUENCY_PLAN_MANAGE',ACTIVITY_SAVE:'ACTIVITY_MANAGE'};
 function harness(docs=fixture()){
  const domain=createDomain(()=>{throw Error('NO_NETWORK');});let sequence=0;
- function run(command,payload,options={}){const op=(++sequence).toString(16).padStart(32,'0');const input={docs:Object.entries(docs).map(([path,data])=>({path,data:encode(data)})),command,payload,operationId:options.op||op,now,allowed:options.allowed||[commands[command]],kind:options.kind||'BOARD_ACTOR',stale:options.stale===true,dependencyRefs:options.dependencyRefs||[]};
+ function run(command,payload,options={}){const op=(++sequence).toString(16).padStart(32,'0');const input={docs:Object.entries(docs).map(([path,data])=>({path,data:encode(data)})),command,payload,operationId:options.op||op,now:options.now??now,allowed:options.allowed||[commands[command]],kind:options.kind||'BOARD_ACTOR',stale:options.stale===true,dependencyRefs:options.dependencyRefs||[]};
  const value=decode(JSON.parse(domain.run(`input=>{
  const docs=Object.fromEntries(input.docs.map(v=>[v.path,codec.decode(v.data)])),M=f4ActivitiesModel_(),N=M.need;
  const raw={get:p=>({data:()=>docs[p]}),getAll:ps=>ps.map(p=>({data:()=>docs[p]}))};
