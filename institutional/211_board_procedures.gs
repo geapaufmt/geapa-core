@@ -63,7 +63,42 @@ function f4BoardProcedures_(){
   N(Array.isArray(refs)&&refs.length>0&&refs.length<=10,'DOCUMENT_FILE_SCOPE_INVALID');
   for(const ref of refs){C.exact(ref,['recordId','revision','sha256']);const r=v.records.find(r=>r.id===ref.recordId);N(r&&r.revision===ref.revision&&r.attachments?.some(f=>f.sha256===ref.sha256)&&f4InstitutionalDocumentManagement_().readable(get,o,r,auth),'DOCUMENT_FILE_SCOPE_INVALID');}
  }
- function content(p){return {type:p.type,title:p.title,object:p.object,basis:p.basis,reason:p.reason,boardId:p.boardId,target:p.target,documents:p.documents,contentVersion:p.contentVersion,...(Object.hasOwn(p,'exception')?{exception:p.exception}:{})};}
+ function content(p){return {type:p.type,title:p.title,object:p.object,basis:p.basis,reason:p.reason,boardId:p.boardId,target:p.target,documents:p.documents,contentVersion:p.contentVersion,...(Object.hasOwn(p,'exception')?{exception:p.exception}:{}),...(Object.hasOwn(p,'workflow')?{workflow:p.workflow}:{})};}
+ // New proposals seal the opening instruction. Existing proposals never acquire
+ // this behavior merely because the reader or deployment changed.
+ function votingDeadline(get,o,p){
+  const authority=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')),loaded=f4MemberAuthz_().load(get,p.target.personId,authority),fn=loaded.d['memberFunctions/'+p.target.functionId];
+  N(fn&&fn.idPessoa===p.target.personId,'TARGET_FUNCTION_INVALID');
+  const O=f4MemberOccupations_(),segments=O.members(loaded.M.rows(loaded.d,'memberFunctions'),fn).filter(O.active),end=segments.length&&O.end(segments.at(-1));
+  N(end&&Number.isSafeInteger(p.days)&&o.clock()+p.days*DAY<C.civilStart(C.nextDay(end)),'DECISION_AFTER_FUNCTION_END');
+  return o.clock()+p.days*DAY;
+ }
+ function simplified(get,o,input,c){
+  C.exact(input,['flowVersion','type','target','individualGrounds','days','documents']);N(input.flowVersion===2&&input.type==='EXTRAORDINARY_EXTENSION','COMMAND_PAYLOAD_INVALID');
+  const fn=get('memberFunctions/'+input.target?.functionId);N(fn&&fn.idPessoa===input.target.personId,'TARGET_FUNCTION_INVALID');
+  target(get,o,input.type,fn.idDiretoria,input.target);
+  const p={type:input.type,boardId:fn.idDiretoria,rule:types[input.type].rule},b=f4MemberBoardEffects_().basis(get,c,p,o.clock());
+  N(b.basis.schemaVersion==='member-board-effect-basis-v3'&&b.basis.individualException?.mode==='EXPRESS_SEALED_DELIBERATION','ART33_SPECIFIC_EXCEPTION_REQUIRED');
+  const q=b.basis.procedureRequirements[p.type],minute=get('institutionalGovernanceDrafts/current').records.find(r=>r.id===q.conventionalMinuteId),identity=get('memberIdentities/'+fn.idPessoa),role=get('memberRoleCatalog/'+fn.idCargo);
+  N(text(identity?.displayName,1,180)&&role,'RESOURCE_NOT_FOUND');
+  const exception={kind:'INDIVIDUAL_TENURE_EXCEPTION',articles:['ART_33_PAR_5','ART_47'],individualGrounds:input.individualGrounds};f4BoardExtraordinary_().declaration(exception);
+  const value={type:p.type,boardId:p.boardId,title:'Prorrogação extraordinária · '+identity.displayName,object:'Prorrogar o exercício de '+identity.displayName+' no cargo '+(role.name||role.roleKey)+' até '+input.target.endDate+'.',basis:'Arts. 33, §5º, e 47 do Regimento; '+(minute.minutes.number||minute.title)+'. Exceção individual fundamentada.',target:copy(input.target),documents:copy(input.documents),days:input.days,exception,workflow:{version:2,opening:'ON_CONSENT',days:input.days,basisRef:b.ref,basisHash:b.contentHash,minuteId:minute.id,minuteHash:q.conventionalMinuteHash}};
+  votingDeadline(get,o,value);return value;
+ }
+ function originalProposal(get,o,p){
+  N(p.workflow?.version===2&&p.workflow.opening==='ON_CONSENT'&&p.workflow.days===p.days&&C.op(p.creationOperationId),'RECONCILIATION_REQUIRED');
+  const id=p.creationOperationId,a=get('institutionalGovernanceAudit/'+id),q=get('institutionalGovernanceReceipts/'+id),owner=get('commandExecutorOwners/'+id);
+  N(a?.action==='BP_CREATE'&&a.actorPersonId===p.proposer&&a.after?.procedure?.contentHash===p.contentHash&&hash(content(a.after.procedure))===p.contentHash&&q?.state==='COMPLETED'&&q.projectId===o.config.projectId&&q.executor===f4CommandExecutorId_()&&q.operationId===id&&q.ownerUid===a.ownerUid&&q.digest===a.digest&&owner?.ownerUid===q.ownerUid&&owner.executor===q.executor&&owner.digest===q.digest,'RECONCILIATION_REQUIRED');
+  return {audit:a,receipt:q};
+ }
+ function openOnConsent(get,o,p,c){
+  const prior=originalProposal(get,o,p),g=f4InstitutionalGovernance_().control(get,o.config,{uid:prior.receipt.ownerUid},o.clock(),true,false,caps.BP_OPEN);
+  N(person(g.auth)===p.proposer&&president(g.auth,p.boardId),'PRESIDENT_REQUIRED');enabled(c,'BP_OPEN',p.boardId,p.type);
+  N(c.boardProcedures.targetPersonIds?.includes(p.target.personId)&&(c.boardProcedures.votingDaysByType?.[p.type]||[7]).includes(p.days),'SCOPE_INVALID');
+  const b=f4MemberBoardEffects_().basis(get,c,p,o.clock()),w=p.workflow,q=b.basis.procedureRequirements?.[p.type];
+  N(b.ref===w.basisRef&&b.contentHash===w.basisHash&&q?.conventionalMinuteId===w.minuteId&&q.conventionalMinuteHash===w.minuteHash,'CONTENT_VERSION_CONFLICT');
+  p.targetSnapshot=target(get,o,p.type,p.boardId,p.target);p.deadline=votingDeadline(get,o,p);p.electorate=composition(get,o,p.boardId);p.openedAt=o.clock();p.openingOperationId=o.operationId;p.openingMode='CONSENT_AUTOMATIC';p.allowEarlyClose=c.boardProcedures.earlyCloseTypes?.includes(p.type)===true;p.state='OPEN';p.absenceOfDefenseIsAdmission=false;
+ }
  function outcome(p,now){
   if(p.state!=='OPEN')return p.state;
   const n=p.electorate.people.length,yes=p.votes.filter(v=>v.choice==='YES').length,no=p.votes.filter(v=>v.choice==='NO').length,abstain=p.votes.filter(v=>v.choice==='ABSTAIN').length;
@@ -83,12 +118,16 @@ function f4BoardProcedures_(){
   blocks.push('CANONICAL_EFFECT_PREVIEW_REQUIRED');
   return {state:'NOT_ENACTED',blocks};
  }
+ function reason(input){
+  if(['BP_VOTE','BP_CONSENT'].includes(input.action)&&input.reason==='')return input.action==='BP_VOTE'?'Manifestação individual autenticada sobre o conteúdo confirmado.':input.accepted?'Aceite pessoal autenticado da proposta confirmada.':'Recusa pessoal autenticada da proposta confirmada.';
+  return input.reason;
+ }
  function transition(get,o,input,v,auth,c){
-  N(caps[input.action]&&v.revision===input.expectedRevision&&text(input.reason,10,1500),'REVISION_CONFLICT');
+  N(caps[input.action]&&v.revision===input.expectedRevision&&text(reason(input),10,1500),'REVISION_CONFLICT');
   const old=input.id?v.records.find(r=>r.id===input.id):null,now=o.clock(),actor=person(auth);
   if(input.action==='BP_CREATE'){
-   C.exact(input,['action','id','expectedRevision','expectedRecordRevision','reason','proposal']);N(input.id===''&&input.expectedRecordRevision===0,'REVISION_CONFLICT');const p=input.proposal;
-   C.exact(p,['type','title','object','basis','boardId','target','documents','days',...(Object.hasOwn(p,'exception')?['exception']:[])]);N(Object.hasOwn(types,p.type)&&text(p.title,5,240)&&text(p.object,10,4000)&&text(p.basis,5,1500)&&Number.isSafeInteger(p.days)&&p.days>=1&&p.days<=30,'COMMAND_PAYLOAD_INVALID');
+   C.exact(input,['action','id','expectedRevision','expectedRecordRevision','reason','proposal']);N(input.id===''&&input.expectedRecordRevision===0,'REVISION_CONFLICT');const compact=input.proposal?.flowVersion===2,p=compact?simplified(get,o,input.proposal,c):input.proposal;
+   C.exact(p,['type','title','object','basis','boardId','target','documents','days',...(Object.hasOwn(p,'exception')?['exception']:[]),...(compact?['workflow']:[])]);N(Object.hasOwn(types,p.type)&&text(p.title,5,240)&&text(p.object,10,4000)&&text(p.basis,5,1500)&&Number.isSafeInteger(p.days)&&p.days>=1&&p.days<=30,'COMMAND_PAYLOAD_INVALID');
    if(Object.hasOwn(p,'exception')){N(p.type==='EXTRAORDINARY_EXTENSION','COMMAND_PAYLOAD_INVALID');f4BoardExtraordinary_().declaration(p.exception);}
    scope(auth,p.boardId);enabled(c,input.action,p.boardId,p.type);N(c.boardProcedures.targetPersonIds?.includes(p.target.personId),'SCOPE_INVALID');if(types[p.type].president)N(president(auth,p.boardId),'PRESIDENT_REQUIRED');
    const allowedDays=c.boardProcedures.votingDaysByType?.[p.type]||[7];N(Array.isArray(allowedDays)&&allowedDays.length>0&&allowedDays.every(n=>Number.isSafeInteger(n)&&n>=1&&n<=30)&&allowedDays.includes(p.days),'COMMAND_PAYLOAD_INVALID');
@@ -99,6 +138,7 @@ function f4BoardProcedures_(){
    for(const ref of p.documents){C.exact(ref,['recordId','revision','sha256']);const r=v.records.find(r=>r.id===ref.recordId);N(r&&r.revision===ref.revision&&r.attachments?.some(f=>f.sha256===ref.sha256)&&f4InstitutionalDocumentManagement_().readable(get,o,r,auth),'DOCUMENT_FILE_SCOPE_INVALID');}
    const state=p.type==='DIRECTOR_DISMISSAL'?'DEFENSE_PENDING':['ORDINARY_EXTENSION','EXTRAORDINARY_EXTENSION'].includes(p.type)?'CONSENT_PENDING':collective({type:p.type})?'DRAFT':'RECORDED';
    const procedure={...copy(p),schemaVersion:'board-procedure-v1',reason:input.reason,proposer:actor,createdAt:now,state,contentVersion:1,targetSnapshot,electorate:null,rule:types[p.type].rule,openedAt:null,deadline:null,closedAt:null,votes:[],consent:null,defense:null,clearance:null,allowEarlyClose:false,enactment:{state:'NOT_ENACTED'}};
+   if(compact)procedure.creationOperationId=o.operationId||null;
    procedure.contentHash=hash(content(procedure));
    if(p.type==='DIRECTOR_DISMISSAL')procedure.notice={availableAt:now,recipientPersonId:p.target.personId,contentHash:procedure.contentHash,access:null,acknowledgment:null,externalEvidence:null,receivedAt:null,defenseUntil:p.target.defenseDeadline};
    return {old:null,next:{kind:'BOARD_PROCEDURE',title:p.title,meetingDate:null,body:p.object,documentaryState:state,publication:'CLOSED',formalApproval:null,effectiveFrom:null,sourceRecordId:null,references:[],createdAt:now,procedure}};
@@ -111,7 +151,7 @@ function f4BoardProcedures_(){
    const effect=f4MemberBoardEffects_().resolve(get,o,old,auth,c);
    p.enactment={documentaryAuthorization:effect.documentaryAuthorization,state:'ENACTED',at:now,actorPersonId:actor,operationId:o.operationId,functionId:effect.functionId,evidence:effect.evidence,tenure:effect.summary,responsibleFunctionId:effect.responsibleFunctionId};
   }else if(input.action==='BP_CANCEL'){N(actor===p.proposer||president(auth,p.boardId),'AUTHORIZATION_DENIED');N(!['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED'].includes(outcome(p,now)),'PROCEDURE_IMMUTABLE');p.state='CANCELLED';p.cancelled={at:now,personId:actor,reason:input.reason};}
-  else if(input.action==='BP_CONSENT'){N(p.state==='CONSENT_PENDING'&&p.target.personId===actor,'SELF_REQUIRED');N(input.contentHash===p.contentHash&&typeof input.accepted==='boolean','CONTENT_VERSION_CONFLICT');p.consent={personId:actor,at:now,accepted:input.accepted,contentHash:p.contentHash,operationId:o.operationId};p.state=input.accepted?(collective(p)?'DRAFT':'RECORDED'):'REJECTED';}
+  else if(input.action==='BP_CONSENT'){N(p.state==='CONSENT_PENDING'&&p.target.personId===actor,'SELF_REQUIRED');N(input.contentHash===p.contentHash&&typeof input.accepted==='boolean','CONTENT_VERSION_CONFLICT');p.consent={personId:actor,at:now,accepted:input.accepted,contentHash:p.contentHash,operationId:o.operationId};p.state=input.accepted?(collective(p)?'DRAFT':'RECORDED'):'REJECTED';if(input.accepted&&p.workflow)openOnConsent(get,o,p,c);}
   else if(['BP_ACCESS','BP_ACK','BP_NOTICE'].includes(input.action)){
    N(p.type==='DIRECTOR_DISMISSAL'&&p.state==='DEFENSE_PENDING','PROCEDURE_STATE_INVALID');N(input.contentHash===p.contentHash,'CONTENT_VERSION_CONFLICT');
    p.notice=p.notice||{availableAt:p.createdAt,recipientPersonId:p.target.personId,contentHash:p.contentHash,access:null,acknowledgment:null,externalEvidence:null,receivedAt:null,defenseUntil:p.target.defenseDeadline};
@@ -193,7 +233,7 @@ function f4BoardProcedures_(){
   const elected=['PRESIDENTE','VICE_PRESIDENTE'].includes(fn.roleKey),self=person(auth)===fn.idPessoa,pres=president(auth,fn.idDiretoria);
   return ['ORDINARY_EXTENSION','EXTRAORDINARY_EXTENSION','VOLUNTARY_EXIT','DIRECTOR_DISMISSAL'].filter(type=>control.types.includes(type)&&(type==='VOLUNTARY_EXIT'?self:pres&&!elected)).map(type=>({type,label:types[type].label,personId:fn.idPessoa,functionId:fn.idVigencia,boardId:fn.idDiretoria}));
  }
- return {officeSummary,noticeReady,contextual,options,types,caps,composition,target,transition,view,outcome,effective,readiness,content,hash,candidates};
+ return {officeSummary,noticeReady,contextual,options,types,caps,composition,target,transition,view,outcome,effective,readiness,content,hash,candidates,votingDeadline,simplified,originalProposal,reason};
 }
 
 // Bounded discovery of the SAME aggregates consumed below by the canonical

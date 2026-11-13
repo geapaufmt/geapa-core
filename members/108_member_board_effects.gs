@@ -3,7 +3,7 @@
 function f4MemberBoardEffects_(){
  const C=f4Core_(),N=C.need,F=f4Firestore_(),copy=v=>F.decode(F.encode(v)),hash=v=>C.hash(F.encode(v));
  const collective=p=>['UNANIMITY','ABSOLUTE_MAJORITY'].includes(p.rule);
- function evidence(get,c,p,now){
+ function basis(get,c,p,now){
   const ref=c.boardProcedures?.effectEvidenceByType?.[p.type];N(C.id(ref),'M13_ACT_INVALID');
   const a=f4MemberEvidence_().validate(get('memberEvidenceAttestations/'+ref));
   N(a.active&&a.kind==='BOARD_DECISION'&&a.holderId===p.boardId&&a.effect==='BOARD_PROCEDURE_BASIS'&&a.targetResourceIds.includes('memberGovernanceBoards/'+p.boardId)&&C.ms(a.verifiedAt)<=now&&now<C.ms(a.expiresAt),'M13_ACT_INVALID');
@@ -22,9 +22,13 @@ function f4MemberBoardEffects_(){
     N(d?.minutes?.state==='ARCHIVED'&&d.minutes.archive?.contentHash===d.minutes.submitted?.contentHash&&hash(d)===q.conventionalMinuteHash&&q.authorizedTypes?.includes(p.type)&&q.authorizesAsynchronous===true,'ELECTRONIC_FORMALIZATION_REQUIRED');
    }
   }
-  if(p.type==='EXTRAORDINARY_EXTENSION'){if(v3)f4BoardExtraordinary_().evidence(get,b,p,now);else N(b.exceptionProcedureHashes.includes(p.contentHash),'ART33_SPECIFIC_EXCEPTION_REQUIRED');}
-  if(p.type==='TEMPORARY_OFFICE')N(b.communicationProcedureHashes.includes(p.contentHash),'COMMUNICATION_TO_EFFECTIVE_MEMBERS_REQUIRED');
   return {basis:b,ref,contentHash:a.contentHash};
+ }
+ function evidence(get,c,p,now){
+  const result=basis(get,c,p,now),b=result.basis;
+  if(p.type==='EXTRAORDINARY_EXTENSION'){if(b.schemaVersion==='member-board-effect-basis-v3')f4BoardExtraordinary_().evidence(get,b,p,now);else N(b.exceptionProcedureHashes.includes(p.contentHash),'ART33_SPECIFIC_EXCEPTION_REQUIRED');}
+  if(p.type==='TEMPORARY_OFFICE')N(b.communicationProcedureHashes.includes(p.contentHash),'COMMUNICATION_TO_EFFECTIVE_MEMBERS_REQUIRED');
+  return result;
  }
  function defenseBasis(get,c,p,now){
   const b=evidence(get,c,p,now).basis;
@@ -101,5 +105,5 @@ function f4MemberBoardEffects_(){
   if(automatic)N(basis.schemaVersion==='member-board-effect-basis-v3','M13_ACT_INVALID');
   return {documentaryAuthorization:collective(p)&&['member-board-effect-basis-v2','member-board-effect-basis-v3'].includes(basis.schemaVersion)?copy(basis.procedureRequirements[p.type]):null,id:t.personId,expected:loaded.h.revision,changes,now,boardExpected:{},mode:'M13',deadline:automatic?automatic.validUntil:auth.validUntil,evidence:{ref,contentHash},summary,functionId:fn.id,responsibleFunctionId:t.responsibleFunctionId||null};
  }
- return {resolve,tenure,balance,evidence,defenseBasis};
+ return {resolve,tenure,balance,basis,evidence,defenseBasis};
 }
