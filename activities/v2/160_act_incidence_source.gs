@@ -6,7 +6,7 @@ function f4ActivitiesIncidenceSource_(options){
  function scan(cycleRef){
   const now=clock(),cycle=db.get(M.path(cycleRef)),registry=db.get('presentationCapacityHeads/registry'),head=db.get('presentationCapacityHeads/'+cycleRef.id),activityRegistry=db.get('activityAttendanceRegistry/current');
   N(cycle&&registry&&head&&activityRegistry,'UNRESOLVED_DEPENDENCY');
-  const config=f4CycleEffectiveConfiguration_(cycle.currentConfigRef&&db.get(M.path(cycle.currentConfigRef))),policy=db.get(M.path(cycle.policyVersionRef));
+  const config=f4CycleEffectiveConfiguration_(cycle.currentConfigRef&&db.get(M.path(cycle.currentConfigRef)),path=>db.get(path)),policy=db.get(M.path(cycle.policyVersionRef));
   N(config?.approved&&policy?.approved&&policy.incidenceRule==='ORDINARY_FIRST_EFFECTIVATION','CONFIG_CAPABILITY_DISABLED','INCIDENCE_RULE_REQUIRED');
   const required=!f4CycleParameters_().isManaged(config.parameters)||f4CycleParameters_().value(config.parameters,'annualPresentationRequired')===true;const leadRule=f4CycleParameters_().entry(config.parameters,'newDateMinimumDays');
   const sessions=all('presentationSessions',[{field:'cycleRef',op:'EQUAL',value:cycleRef}]).map(r=>r.data);N(sessions.length<=32,'SCOPE_TOO_LARGE');
