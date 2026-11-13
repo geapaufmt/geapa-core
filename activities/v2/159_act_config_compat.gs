@@ -43,13 +43,13 @@ function f4ActivitiesConfigCompat_(options) {
    if('planningMode'in p.values){parameters.planningMode=p.values.planningMode;if(p.values.preAgendaPolicyId){N(M.id(p.values.preAgendaPolicyId),'VALIDATION_ERROR');parameters.preAgendaPolicyRef=M.ref('policy',p.values.preAgendaPolicyId);}else delete parameters.preAgendaPolicyRef;}f4ActivitiesPreagenda_().parameters(parameters,z.cycleRef,path=>db.get(path),clock());
    N(['BOARD_INITIAL','MEMBER_SELF_SCHEDULE'].includes(parameters.calendarMode),'VALIDATION_ERROR');
    for(const key of ['shared','quota','early','dynamic'])N(typeof parameters[key]==='boolean','VALIDATION_ERROR');
-   for(const [key,min]of [['dynamicLimit',0],['newDateMinimumDays',30],['thematicMinimumDays',20],['titleMinimumDays',10]])N(Number.isSafeInteger(parameters[key])&&parameters[key]>=min,'VALIDATION_ERROR');
+   for(const [key,min]of [['dynamicLimit',0],['newDateMinimumDays',0],['thematicMinimumDays',0],['titleMinimumDays',0]])N(Number.isSafeInteger(parameters[key])&&parameters[key]>=min,'VALIDATION_ERROR');
    if(p.values.selfSchedulingOpensAt||p.values.selfSchedulingEndsAt)parameters.selfSchedulingWindow={opensAt:p.values.selfSchedulingOpensAt,endsAtExclusive:p.values.selfSchedulingEndsAt};
    else delete parameters.selfSchedulingWindow;
    if('reorganizationOpensAt'in p.values){if(p.values.reorganizationOpensAt||p.values.reorganizationEndsAt){N(Number.isSafeInteger(p.values.reorganizationOpensAt)&&Number.isSafeInteger(p.values.reorganizationEndsAt)&&p.values.reorganizationOpensAt<p.values.reorganizationEndsAt,'VALIDATION_ERROR');parameters.reorganizationWindow={opensAt:p.values.reorganizationOpensAt,endsAtExclusive:p.values.reorganizationEndsAt};}else delete parameters.reorganizationWindow;}
    N(parameters.calendarMode!=='MEMBER_SELF_SCHEDULE'||f4ActivitiesSelfSchedulingWindow_(parameters,clock()).configured,'CONFIG_CAPABILITY_DISABLED','SELF_SCHEDULING_WINDOW_REQUIRED');
    if('operationalChecklist'in p.values){N(z.cycle.status==='DRAFT','HUMAN_DECISION_REQUIRED','CHECKLIST_DRAFT_REQUIRED');C.exact(p.values.operationalChecklist,['items']);parameters.operationalChecklist={approved:true,items:p.values.operationalChecklist.items};f4ActivitiesOperationalChecklist_(parameters);}
-   const changed=f4ActivitiesConfigChangedKeys_(before,parameters);
+   const changed=f4ActivitiesConfigChangedKeys_(before,parameters);N(!f4CycleParameters_().isManaged(before)&&changed.every(k=>['selfSchedulingWindow','reorganizationWindow','operationalChecklist','planningMode','preAgendaPolicyRef'].includes(k)),'HUMAN_DECISION_REQUIRED','USE_CYCLE_PARAMETER_DRAFT');
    const operational=changed.every(key=>['selfSchedulingWindow','reorganizationWindow'].includes(key)||z.policy.parameterClasses?.[key]==='OPERATIONAL'),parameterClasses=operational?'OPERATIONAL':'STRUCTURAL';
    f4ActivitiesConfigurationChange_(before,parameters,parameterClasses,z.cycle,z.policy,clock());
    N(z.cycle.status!=='OPEN'||parameterClasses==='OPERATIONAL','HUMAN_DECISION_REQUIRED','STRUCTURAL_FREEZE');
@@ -61,7 +61,7 @@ function f4ActivitiesConfigCompat_(options) {
    const before=z.current?.parameters||{},after=z.pending.parameters,changed=f4ActivitiesConfigurationChange_(before,after,z.pending.parameterClasses,z.cycle,z.policy,clock());
    // Extending a granted window preserves its existing rights. An initial
    // configuration is safe only while there are no assignments or obligations.
-   const extension=changed.every(k=>['selfSchedulingWindow','reorganizationWindow'].includes(k));
+   const extension=changed.every(k=>['parameterEvidence','selfSchedulingWindow','reorganizationWindow'].includes(k));
    if(!extension){N(z.cycle.status==='DRAFT','HUMAN_DECISION_REQUIRED','CONFIG_IMPACT_ASSESSMENT_REQUIRED');for(const collection of ['calendarAssignments','presentationObligations'])N(db.query({collection,filters:[{field:'cycleRef',op:'EQUAL',value:z.cycleRef}],order:[{field:'__name__',direction:'ASCENDING'}],limit:1}).length===0,'HUMAN_DECISION_REQUIRED','CONFIG_EXISTING_RIGHTS');}
    const registry=db.get('presentationCapacityHeads/registry'),head=db.get('presentationCapacityHeads/'+z.cycle.id);N(registry&&head,'UNRESOLVED_DEPENDENCY');
    const basis=[{ref:z.cycleRef,revision:z.cycle.revision},{ref:z.cycle.scheduledConfigRef,revision:z.pending.revision},{ref:M.ref('capacity','registry'),revision:registry.revision},{ref:M.ref('capacity',z.cycle.id),revision:head.revision},...(z.current?[{ref:z.cycle.currentConfigRef,revision:z.current.revision}]:[])];

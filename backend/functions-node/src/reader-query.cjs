@@ -15,9 +15,10 @@ const shapes={
 for(const c of material)shapes[c]=[['presentationRef']];
 function readerQuery(db,p,decode){
  const members=require('./member-query.cjs').memberQuery(db,p,decode);if(members)return members;
- if(!p||Object.keys(p).some(k=>!['collection','filters','limit','order','cursor'].includes(k))||!shapes[p.collection]||
- !Number.isInteger(p.limit)||p.limit<1||p.limit>(['canonicalActivities','presentationArtifacts'].includes(p.collection)?100:20)||!Array.isArray(p.filters)||
- !shapes[p.collection].some(shape=>JSON.stringify(shape)===JSON.stringify(p.filters.map(f=>f.field))))fail('QUERY_NOT_IN_PILOT');
+ const configHistory=/^presentationCycles\/[A-Za-z0-9_-]{1,48}\/configRevisions$/.test(p?.collection||''),allowed=configHistory?[[]]:shapes[p?.collection];
+ if(!p||Object.keys(p).some(k=>!['collection','filters','limit','order','cursor'].includes(k))||!allowed||
+ !Number.isInteger(p.limit)||p.limit<1||p.limit>(configHistory?21:['canonicalActivities','presentationArtifacts'].includes(p.collection)?100:20)||!Array.isArray(p.filters)||
+ !allowed.some(shape=>JSON.stringify(shape)===JSON.stringify(p.filters.map(f=>f.field))))fail('QUERY_NOT_IN_PILOT');
  const calendar=p.collection==='calendarAssignments',order=calendar?[{field:'createdAt',direction:'DESCENDING'},{field:'__name__',direction:'ASCENDING'}]:[{field:'__name__',direction:'ASCENDING'}];
  if(JSON.stringify(p.order)!==JSON.stringify(order))fail('QUERY_NOT_IN_PILOT');
  let q=db.collection((ROOT?ROOT+'/':'')+p.collection);

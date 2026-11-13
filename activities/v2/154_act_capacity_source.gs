@@ -10,13 +10,13 @@ function f4ActivitiesCapacitySource_(options){
  const M=f4ActivitiesModel_(),N=M.need,F=f4Firestore_(),db=options.db,clock=options.clock||Date.now;
  function snapshot(cycleRef,configRef,change){
   N(change&&Object.keys(change).every(k=>['unitRef','sessionRef','sessionConfig','sessionDate','moves'].includes(k)),'VALIDATION_ERROR','CAPACITY_CHANGE_SCOPE');
-  const start=clock(),registry=db.get('presentationCapacityHeads/registry'),head=db.get('presentationCapacityHeads/'+cycleRef.id),cycle=db.get(M.path(cycleRef)),cfg=db.get(M.path(configRef)),activityRegistry=db.get('activityAttendanceRegistry/current');
+  const start=clock(),registry=db.get('presentationCapacityHeads/registry'),head=db.get('presentationCapacityHeads/'+cycleRef.id),cycle=db.get(M.path(cycleRef)),cfg=f4CycleEffectiveConfiguration_(db.get(M.path(configRef))),activityRegistry=db.get('activityAttendanceRegistry/current');
   N(registry&&head&&cycle&&activityRegistry&&cfg?.approved&&M.path(cycle.currentConfigRef)===M.path(configRef),'UNRESOLVED_DEPENDENCY','CAPACITY_CONFIGURATION');
   if(f4ActivitiesPreagenda_().mode(cfg.parameters))return f4ActivitiesPreagendaCapacity_({...options,clock}).snapshot(cycleRef,configRef,change);
   const coverageRef=head.incidenceCoverageRef,coverage=coverageRef&&db.get(M.path(coverageRef));
   N(coverageRef?.kind==='assessment'&&(coverage?.schemaVersion==='act-incidence-coverage-v1'||coverage?.coverageKind==='act-incidence-coverage-v1')&&coverage.state==='SEALED'&&coverage.complete===true&&coverage.cycleRef?.id===cycleRef.id&&coverage.configRef&&M.path(coverage.configRef)===M.path(configRef)&&coverage.membersEpoch===registry.membersEpoch&&coverage.cycleRegistryEpoch===registry.cycleRegistryEpoch&&Array.isArray(coverage.items)&&coverage.items.length<=180&&coverage.digest===f4ActivitiesCapacityDigest_(coverage.items),'UNRESOLVED_DEPENDENCY','INCIDENCE_COVERAGE_REQUIRED');
   N(coverage.approved===true&&coverage.decisionBasis?.reason&&coverage.validUntil&&M.ms(coverage.validUntil)>start,'HUMAN_DECISION_REQUIRED','INCIDENCE_COVERAGE_UNAPPROVED');
-  const lead=cfg.parameters.newDateMinimumDays??30;N(Number.isSafeInteger(lead)&&lead>=30,'CONFIG_CAPABILITY_DISABLED','CALENDAR_ADVANCE');
+  const availableDate=date=>f4CycleParameters_().dateAvailable(cfg.parameters,'newDateMinimumDays',M.day(start),date);
   const seen=new Map();function get(path){if(!seen.has(path))seen.set(path,db.get(path));return seen.get(path)}
   function all(collection,filters=[]){let cursor,rows=[];for(let page=0;page<10;page++){const part=db.query({collection,filters,limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(cursor?{cursor:[cursor]}:{})});rows.push(...part);if(part.length<20){N(rows.length<=180,'SCOPE_TOO_LARGE','CAPACITY_SOURCE_BOUND');return rows;}cursor=new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+part[part.length-1].path);}N(false,'SCOPE_TOO_LARGE','CAPACITY_SOURCE_BOUND');}
   const dateChange=change.sessionDate;if(dateChange){f4Core_().exact(change,['sessionDate']);f4Core_().exact(dateChange,['sessionRef','activityRef','startsAt','endsAt','civilDate']);N(dateChange.sessionRef?.kind==='session'&&dateChange.activityRef?.kind==='activity'&&Number.isSafeInteger(dateChange.startsAt)&&Number.isSafeInteger(dateChange.endsAt)&&dateChange.endsAt>dateChange.startsAt&&M.day(dateChange.startsAt)===dateChange.civilDate,'VALIDATION_ERROR','SESSION_DATE_CHANGE');}
@@ -34,7 +34,7 @@ function f4ActivitiesCapacitySource_(options){
    N(s.activityRef?.kind==='activity'&&activity&&activity.civilDate===s.civilDate,'UNRESOLVED_DEPENDENCY','SESSION_ACTIVITY_REQUIRED');
    // A cancelled/occurred activity cannot supply a future place. Explicit
    // session destinations still protect reservations and exclusivity.
-   const usable=activity.status==='SCHEDULED'&&M.gap(M.day(start),s.civilDate)>=lead&&M.gap(cycle.civilStart,s.civilDate)>=0&&M.gap(s.civilDate,cycle.civilEnd)>=0;
+   const usable=activity.status==='SCHEDULED'&&availableDate(s.civilDate)&&M.gap(cycle.civilStart,s.civilDate)>=0&&M.gap(s.civilDate,cycle.civilEnd)>=0;
    eligibleSessions.set(s.id,{s,activity,usable});
    for(const slot of s.slots){const assignment=get(M.path(slot.assignmentRef)),unit=get(M.path(slot.unitRef));N(assignment&&unit&&['ACTIVE','CONFIRMED'].includes(assignment.status)&&assignment.sessionRef.id===s.id&&assignment.unitRef.id===unit.id&&unit.assignmentRef?.id===assignment.id&&unit.cycleRef.id===cycleRef.id,'UNRESOLVED_DEPENDENCY','ASSIGNMENT_SLOT_DRIFT');}
   }
