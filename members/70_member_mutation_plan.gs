@@ -98,5 +98,11 @@ function renew(get,x){const {id,expected,now,work}=x;if(work){C.exact(work,['ope
   e.validate(x,get);const v=e.mutation(get,x),plan=assemble(tx,x,v,control,Math.min(x.deadline,o.validUntil||x.deadline));
   return {plan,evidence,summary,functionId,responsibleFunctionId,documentaryAuthorization};
  }
- return (f4MemberMutationPlan_.value_={planBoardProcedure,planMutation,planRenew,planTerminal,applyMutationPlan,appendTechnical,assertBudget,limits:Object.freeze(limit)});
+ function planBoardAutomatic(tx,o,record){
+  const get=p=>tx.get(p).data(),proof=f4BoardAutomation_().authority(get,o,record),stored=get('institutionalGovernanceDrafts/current')?.records.find(r=>r.id===record.id);N(stored&&hash(stored)===hash(record),'REVISION_CONFLICT');
+  const x=f4MemberBoardEffects_().resolve(get,{...o,automatic:true},stored,null,proof.governance),control=authority(tx,x),e=engine(control),metadata={};
+  for(const key of ['evidence','summary','functionId','responsibleFunctionId','documentaryAuthorization']){metadata[key]=x[key];delete x[key];}
+  e.validate(x,get);const v=e.mutation(get,x),plan=assemble(tx,x,v,control,Math.min(x.deadline,o.validUntil));return {plan,...metadata};
+ }
+ return (f4MemberMutationPlan_.value_={planBoardAutomatic,planBoardProcedure,planMutation,planRenew,planTerminal,applyMutationPlan,appendTechnical,assertBudget,limits:Object.freeze(limit)});
 }

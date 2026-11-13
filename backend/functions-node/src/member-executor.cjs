@@ -29,7 +29,7 @@ class MemberStore extends Store{
    if(w.path==='portalAccessStatus/'+person+'/state/current'||col==='memberFunctionProofs'&&id===person)continue;
    if(w.path==='presentationMemberViews/'+person){if(!old||d.state!=='INVALIDATED'||d.viewEpoch!==old.viewEpoch+1)fail('PILOT_WRITE_DENIED');continue;}
    if(personCollections.includes(col)){const owner=d.idPessoa||d.personId||(id===person?person:null),prior=old&&(old.idPessoa||old.personId||(id===person?person:null));if(owner!==person||old&&prior!==person)fail('PILOT_RESOURCE_DENIED');continue;}
-   if(['memberAuthBindings','portalUsers','portalAccessStatus'].includes(col)){if(d.idPessoa!==person||old&&old.idPessoa!==person||!this.control.actorUids.includes(id))fail('PILOT_RESOURCE_DENIED');continue;}
+   if(['memberAuthBindings','portalUsers','portalAccessStatus'].includes(col)){if(d.idPessoa!==person||old&&old.idPessoa!==person||!(this.bindingUid===id||this.control.actorUids.includes(id)))fail('PILOT_RESOURCE_DENIED');continue;}
    if(col==='jobOutbox'&&id===op&&d.kind==='MEMBERS_NOTIFICATION'&&d.mode==='DRY_RUN'&&d.projectId===PROJECT&&d.environment===profile.environment&&d.personId===person)continue;
    if(w.path==='portalReaderControl/current'){if(!old||d.generation!==old.generation+1)fail('PILOT_WRITE_DENIED');for(const k of Object.keys(old))if(k!=='generation'&&JSON.stringify(encode(old[k]))!==JSON.stringify(encode(d[k])))fail('PILOT_WRITE_DENIED');continue;}
    if(w.path==='portalReaderResourceFences/members_operations'){if(d.revision!==(old?.revision||0)+1)fail('PILOT_WRITE_DENIED');continue;}
@@ -38,18 +38,20 @@ class MemberStore extends Store{
   }
  }
 }
-async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,hooks={}}){
+async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,hooks={},bindingAdmin=null}){
+ const acceptedTypes=bindingAdmin?[...types,'members.binding.associate']:types;
  const started=performance.now(),env=fence();if(!env.emulator&&Object.keys(hooks).length)fail('DESTINATION_INVALID');
  if(!body||Object.keys(body).sort().join()!=='action,request'||!['memberPrepare','memberExecute','memberStatus','memberRecover','memberEnrollmentOpen','memberEnrollmentRead','memberEnrollmentPrepare'].includes(body.action))fail('COMMAND_TYPE_INVALID');
  const identity=await authenticate(auth,token),store=new MemberStore(db,identity),domain=createDomain(x=>store.io(x));
  const run=(fn,v)=>{const r=domain.run(fn,v);return r===undefined?undefined:JSON.parse(r);};run('(x)=>nodeIdentity(x)',identity);
- await store.read(()=>store.guard());await appCheckGate(appCheck,appCheckToken,store.control,origin);store.beforeCommit=()=>authenticate(auth,token);
- if(store.control.commandTypes!==undefined&&(!Array.isArray(store.control.commandTypes)||!store.control.commandTypes.length||!store.control.commandTypes.every(t=>types.includes(t))))fail('PILOT_DISABLED');
+ await store.read(()=>store.guard());await appCheckGate(appCheck,appCheckToken,store.control,origin);store.beforeCommit=async()=>{await authenticate(auth,token);if(bindingAdmin)await bindingAdmin.recheck();};
+ if(store.control.commandTypes!==undefined&&(!Array.isArray(store.control.commandTypes)||!store.control.commandTypes.length||!store.control.commandTypes.every(t=>[...types,'members.binding.associate'].includes(t))))fail('PILOT_DISABLED');
  const commandEnabled=t=>!store.control.commandTypes||store.control.commandTypes.includes(t);
  if(body.action.startsWith('memberEnrollment')&&!commandEnabled('members.onboarding.complete'))fail('PILOT_DISABLED');
  if(body.action==='memberPrepare'&&store.control.portalRoutes&&!store.control.portalRoutes.includes(body.request?.route))fail('PILOT_RESOURCE_DENIED');
  const checked=fn=>()=>{store.guard();return fn();};
- const select=r=>{if(!types.includes(r?.commandType)||!/^[a-f0-9]{32}$/.test(r.operationId))fail('COMMAND_TYPE_INVALID');store.operationId=r.operationId;store.personId=r.target?.personId;store.prepared=r;
+ store.bindingUid=bindingAdmin?.uid;
+ const select=r=>{if(!acceptedTypes.includes(r?.commandType)||!/^[a-f0-9]{32}$/.test(r.operationId))fail('COMMAND_TYPE_INVALID');store.operationId=r.operationId;store.personId=r.target?.personId;store.prepared=r;
   if(store.preparation&&!commandEnabled(r.commandType))fail('PILOT_RESOURCE_DENIED');
   store.routeId=run('(r)=>{const f=f4MemberExecutor_(),o=nodeRead("commandExecutorOwners/"+r.operationId),id=o?.routeId||f.select(nodeRead,r,nodeConfig);f4Core_().need(id,"PILOT_RESOURCE_DENIED");const v=f.route(nodeRead,nodeConfig,id);f.fields(nodeRead,r,v);return id;}',r);
   if(store.preparation)run('(id)=>{const v=f4MemberExecutor_().route(nodeRead,nodeConfig,id);f4Core_().need(v.state==="ACTIVE"&&f4ExecutorWindow_().live(v,Date.now())&&v.actorUids.includes(nodeActor.uid),"ACCESS_REVOKED");}',store.routeId);
@@ -73,13 +75,14 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
   key=await store.read(checked(()=>run('(r)=>{const C=f4Core_(),K=f4MemberCommandCatalog_();C.exact(r,["schemaVersion","operationId","commandType","target","payload","evidenceRefs","decisionRef"]);const p=nodeRead("devProtectedInputs/"+r.operationId);C.need(p?.ownerUid===nodeActor.uid,"ACCESS_REVOKED");return {operationId:r.operationId,commandType:r.commandType,digest:K.digest(nodeConfig.projectId,{...r,ownerUid:nodeActor.uid,expectedRevisions:p.expectedRevisions})};}',body.request)));
   const exists=await store.read(()=>!!store.hostRead('commandRequests/'+key.operationId));
   if(!exists){
-   const ticket=await store.transaction(checked(()=>run('(r)=>pipeline.admission.issueBrowser(nodeTx,pipeline.admission.authenticate("verified"),r)',body.request)));
+   if(bindingAdmin&&!commandEnabled('members.binding.associate'))fail('PILOT_RESOURCE_DENIED');
+   const ticket=await store.transaction(checked(()=>run(bindingAdmin?'(r)=>{const a=nodeActor,m=f4MemberProtectedInputs_(),revisions=m.revisions(nodeRead,r,a);return pipeline.admission.issue(nodeTx,pipeline.admission.authenticate("verified"),{...r,ownerUid:a.uid,expectedRevisions:revisions});}':'(r)=>pipeline.admission.issueBrowser(nodeTx,pipeline.admission.authenticate("verified"),r)',body.request)));
    await store.transaction(checked(()=>run('(t)=>{const C=f4Core_(),T=f4Firestore_().Timestamp,r={...t.requestEnvelope,ticketId:t.ticketId,receivedAt:T.fromMillis(Date.now()),state:"RECEIVED"},old=nodeRead("commandRequests/"+r.operationId),used=nodeRead("memberAdmissionUses/"+r.ticketId);f4ExecutorOwnership_().recover(nodeRead,{operationId:r.operationId,commandType:r.commandType,digest:r.digest},nodeActor.uid,nodeConfig,Date.now());if(old){C.need(old.ownerUid===r.ownerUid&&old.digest===r.digest,"OPERATION_CONFLICT");return;}C.need(!used,"OPERATION_CONFLICT");nodeTx.set("commandRequests/"+r.operationId,r);nodeTx.set("memberAdmissionUses/"+r.ticketId,{schemaVersion:"member-admission-use-v13",ticketId:r.ticketId,operationId:r.operationId,ownerUid:r.ownerUid,reservedAt:r.receivedAt});}',ticket)));
   }
  }else key=body.request;
- if(!key||Object.keys(key).sort().join()!=='commandType,digest,operationId'||!types.includes(key.commandType)||!/^[a-f0-9]{32}$/.test(key.operationId)||!/^[a-f0-9]{64}$/.test(key.digest))fail('COMMAND_PAYLOAD_INVALID');
+ if(!key||Object.keys(key).sort().join()!=='commandType,digest,operationId'||!acceptedTypes.includes(key.commandType)||!/^[a-f0-9]{32}$/.test(key.operationId)||!/^[a-f0-9]{64}$/.test(key.digest))fail('COMMAND_PAYLOAD_INVALID');
  const guarded=fn=>checked(()=>{const r=store.hostRead('commandRequests/'+key.operationId);if(!r)fail('NOT_FOUND');select(r);return fn();});
- await authenticate(auth,token);store.beforeCommit=()=>authenticate(auth,token);
+ await authenticate(auth,token);store.beforeCommit=async()=>{await authenticate(auth,token);if(bindingAdmin)await bindingAdmin.recheck();};
  if(body.action==='memberStatus')result=await store.transaction(guarded(()=>run('(k)=>pipeline.recovery.readStatus(nodeTx,pipeline.recovery.authenticate("verified"),k)',key)));
  else{const claim=await store.transaction(guarded(()=>run('(k)=>pipeline.recovery.claim(nodeTx,pipeline.recovery.authenticate("verified"),k,f4CommandExecutorId_())',key)));
   if(claim.state!=='CLAIMED')result=claim;else{await hooks.afterClaim?.(key);try{result=await store.transaction(guarded(()=>run('(x)=>pipeline.recovery.finalize(nodeTx,pipeline.recovery.authenticate("verified"),x.key,x.handle)',{key,handle:claim.handle})));}catch(e){await store.transaction(guarded(()=>run('(x)=>pipeline.recovery.release(nodeTx,pipeline.recovery.authenticate("verified"),x.key,x.handle)',{key,handle:claim.handle}))).catch(()=>{});throw e;}await hooks.afterCommit?.(key);}}
