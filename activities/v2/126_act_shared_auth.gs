@@ -8,6 +8,7 @@ function f4ActivitiesAuthzDomain_(){
  // necessary, never sufficient: the shared authorizer still checks the policy,
  // binding, membership, current function, term, scope and all source fences.
  const operationalRoles={
+  ACTIVITY_ATTENDANCE_EXCEPTION_AUTHORIZE:['DIRETOR_ADMINISTRATIVO'],
   ACTIVITY_MODEL_USAGE_MANAGE:['PRESIDENTE','VICE_PRESIDENTE','DIRETOR_ADMINISTRATIVO'],
   ACTIVITY_MODEL_AUTHOR:['PRESIDENTE','VICE_PRESIDENTE','DIRETOR_ADMINISTRATIVO'],
   ACTIVITY_MODEL_APPROVE:['PRESIDENTE','VICE_PRESIDENTE','DIRETOR_ADMINISTRATIVO'],

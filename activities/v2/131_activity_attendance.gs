@@ -17,6 +17,19 @@ function f4ActivityJustificationWindow_(policy,start,end){
   endsAt:policy.justificationAfterHours===undefined?civil(M.day(end))+(policy.justificationAfterDays+1)*86400000-1:end+policy.justificationAfterHours*3600000};
 }
 
+// An extraordinary call is a revisioned decision on the existing collection.
+// It never changes the ordinary attendance or justification dates.
+function f4ExtraordinaryAttendanceEligibility_(a,c,now){
+ const M=f4ActivitiesModel_();
+ const reason=!a||!c||[a,c].some(d=>['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(d.recordMode))?'Atividade sem base operacional.':!a.typeSnapshot?.countsAttendance||['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status)?'Atividade não elegível.':!['DRAFT','OPEN','REOPENED'].includes(c.state)||c.lastFinalizedAt?'A chamada já foi finalizada.':!Number.isFinite(M.ms(c.closesAt))||now<=M.ms(c.closesAt)?'A janela original ainda não encerrou.':'';
+ return {eligible:!reason,reason};
+}
+function f4ExtraordinaryAttendanceActive_(a,c,now){
+ const e=c?.extraordinaryAttendance;
+ return e?.schemaVersion==='extraordinary-attendance-v1'&&e.status==='ACTIVE'&&e.authorizedBy?.kind==='person'&&Number.isFinite(f4ActivitiesModel_().ms(e.authorizedAt))&&f4ExtraordinaryAttendanceEligibility_(a,c,now).eligible;
+}
+function f4AttendanceOperationalWindow_(a,c,now){const M=f4ActivitiesModel_();return now>=M.ms(c.opensAt)&&now<=M.ms(c.closesAt)||f4ExtraordinaryAttendanceActive_(a,c,now);}
+
 function f4AttendanceCommands_(x) {
  const {M,N,p,load,save,revision,event,now,actor}=x;
  const factRef=(activity,person)=>M.ref('attendance','a_'+M.hash({activity:activity.id,person:person.id}).slice(0,32));
@@ -49,12 +62,31 @@ function f4AttendanceCommands_(x) {
   x.prefetch(pending.map(M.path));
   x.prefetch(pending.map(r=>M.path(r)+'/revisions/'+(load(r).revision+1)));
  }
+ function extraordinaryRoster(activity,c){
+  if(!f4ExtraordinaryAttendanceActive_(activity,c,now))return;
+  N(c.rosterSourceRef?.kind==='attendanceRoster','UNRESOLVED_DEPENDENCY','COMPLETE_DOCUMENTED_ROSTER_REQUIRED');
+  const source=load(c.rosterSourceRef),members=load(M.ref('capacity','registry'));
+  N(source.state==='SEALED'&&source.complete===true&&source.activityRef?.id===activity.id&&source.activityRevision===activity.revision&&source.membersEpoch===members.membersEpoch&&Array.isArray(source.sourceHeads)&&source.sourceHeads.length>0&&Object.keys(source.records||{}).length>0&&Object.keys(source.records).every(id=>c.roster?.[id]),'UNRESOLVED_DEPENDENCY','COMPLETE_DOCUMENTED_ROSTER_REQUIRED');
+ }
+ function consumed(c){return c.extraordinaryAttendance?.status==='ACTIVE'?{extraordinaryAttendance:{...c.extraordinaryAttendance,status:'CONSUMED',endedAt:M.stamp(now),endedBy:actor.personRef,endOperationId:x.operationId}}:{};}
+ function extraordinary(revoke){
+  const a=load(p.activityRef,true),c=collection(p.activityRef),proof=x.authorityBasis.functionBasis;
+  N(actor.kind==='BOARD_ACTOR'&&proof?.kind==='ROLE'&&proof.roleId==='DIRETOR_ADMINISTRATIVO'&&proof.capability==='ACTIVITY_ATTENDANCE_EXCEPTION_AUTHORIZE','AUTHORIZATION_DENIED','EXTRAORDINARY_ATTENDANCE_AUTHORITY_REQUIRED');
+  N(c.revision===p.collectionRevision,'STALE_REVISION','ATTENDANCE_CHANGED');
+  N(!c.lastFinalizedAt&&['DRAFT','OPEN','REOPENED'].includes(c.state),'INVALID_STATE_TRANSITION','CHAMADA_FINALIZADA');
+  let value;
+  if(revoke){N(p.confirmed===true,'HUMAN_DECISION_REQUIRED');N(c.extraordinaryAttendance?.status==='ACTIVE','INVALID_STATE_TRANSITION');value={...c.extraordinaryAttendance,status:'REVOKED',endedAt:M.stamp(now),endedBy:actor.personRef,endOperationId:x.operationId};}
+  else{const eligibility=f4ExtraordinaryAttendanceEligibility_(a,c,now);N(eligibility.eligible,'INVALID_STATE_TRANSITION',eligibility.reason);N(c.extraordinaryAttendance?.status!=='ACTIVE','CONFLICT','EXTRAORDINARY_ATTENDANCE_ALREADY_ACTIVE');value={schemaVersion:'extraordinary-attendance-v1',status:'ACTIVE',reason:text(p.reason),authorizedAt:M.stamp(now),authorizedBy:actor.personRef,authorityBasis:x.authorityBasis,operationId:x.operationId,activityRevision:a.revision};}
+  revision(collectionRef(p.activityRef),{...c,extraordinaryAttendance:value});fence();history(revoke?'EXTRAORDINARY_ATTENDANCE_REVOKED':'EXTRAORDINARY_ATTENDANCE_AUTHORIZED',p.activityRef,null,revoke?'Autorização extraordinária revogada':value.reason);
+  return {status:value.status,collectionRevision:c.revision+1};
+ }
  function sheet(finalize){
   const activity=load(p.activityRef,true),c=collection(p.activityRef);
   N(c.revision===p.collectionRevision,'STALE_REVISION','ATTENDANCE_CHANGED');
   N(actor.kind==='BOARD_ACTOR'&&activity.status!=='CANCELLED','AUTHORIZATION_DENIED');
   N(['DRAFT','OPEN','REOPENED'].includes(c.state),'INVALID_STATE_TRANSITION','CHAMADA_FINALIZADA');
-  N(now>=M.ms(c.opensAt)&&now<=M.ms(c.closesAt),'DEADLINE_VIOLATION','CHAMADA_FORA_DA_JANELA');
+  N(f4AttendanceOperationalWindow_(activity,c,now),'DEADLINE_VIOLATION','CHAMADA_FORA_DA_JANELA');
+  extraordinaryRoster(activity,c);
   N(c.roster&&Object.keys(c.roster).length===c.rosterCount&&c.rosterCount>0&&c.rosterCount<=50,'UNRESOLVED_DEPENDENCY','ATTENDANCE_ROSTER');
   const membersFence=load(M.ref('capacity','registry'));N(c.rosterMembersEpoch===membersFence.membersEpoch,'STALE_REVISION','ATTENDANCE_MEMBERS_CHANGED');
   N(c.rosterActivityRevision===activity.revision,'STALE_REVISION','ATTENDANCE_ACTIVITY_CHANGED');
@@ -84,7 +116,7 @@ function f4AttendanceCommands_(x) {
    if(status==='PRESENT')summary.totalPresentes++;else if(['ABSENT','JUSTIFIED','EXCUSED'].includes(status))summary.totalFaltas++;else if(status==='NOT_APPLICABLE')summary.totalNaoSeAplica++;
    if(finalize){const hr=M.ref('history',M.hash({operationId:x.operationId,person:fact.personRef.id,action:'ATTENDANCE_FINALIZED'}).slice(0,32));save(hr,{action:'ATTENDANCE_FINALIZED',subjectRef:r,ownerPersonRef:fact.personRef.id,visibility:'OWNER',summary:status,occurredAt:M.stamp(now)});}
   }
-  revision(collectionRef(p.activityRef),{...c,state:finalize?'CLOSED':c.state==='REOPENED'?'REOPENED':'OPEN',draftSavedAt:M.stamp(now),draftSavedBy:actor.personRef,...(finalize?{unrecordedCount:0,lastFinalizedAt:M.stamp(now),lastFinalizedBy:actor.personRef,officialSummary:summary}:{})});
+  revision(collectionRef(p.activityRef),{...c,...(finalize?consumed(c):{}),state:finalize?'CLOSED':c.state==='REOPENED'?'REOPENED':'OPEN',draftSavedAt:M.stamp(now),draftSavedBy:actor.personRef,...(finalize?{unrecordedCount:0,lastFinalizedAt:M.stamp(now),lastFinalizedBy:actor.personRef,officialSummary:summary}:{})});
   if(finalize)fence();history(finalize?'ATTENDANCE_FINALIZED':'ATTENDANCE_DRAFT_SAVED',p.activityRef,null,finalize?'Chamada finalizada':'Rascunho salvo');
   return {...summary,collectionRevision:c.revision+1,statusChamada:finalize?'FINALIZADA':'SALVA',chamadaFinalizada:finalize,rascunhoSalvo:!finalize};
  }
@@ -132,7 +164,8 @@ function f4AttendanceCommands_(x) {
    N(status!=='ABSENT'||fact.countsAbsence!==false&&activity.typeSnapshot.countsAbsence!==false,'VALIDATION_ERROR','ACTIVITY_DOES_NOT_COUNT_ABSENCE');
   N(activity.status!=='CANCELLED','INVALID_STATE_TRANSITION');
   N(correction?c.state==='CLOSED':c.state==='OPEN','INVALID_STATE_TRANSITION','COLLECTION_STATE');
-  N(correction||justificationDecision||now>=M.ms(c.opensAt)&&now<=M.ms(c.closesAt),'DEADLINE_VIOLATION','COLLECTION_WINDOW');
+  N(correction||justificationDecision||f4AttendanceOperationalWindow_(activity,c,now),'DEADLINE_VIOLATION','COLLECTION_WINDOW');
+  if(!correction&&!justificationDecision)extraordinaryRoster(activity,c);
   N(!['JUSTIFIED','EXCUSED'].includes(status)||activity.typeSnapshot.allowsJustification,'CONFIG_CAPABILITY_DISABLED');
   text(reason);
   if(fact.pendingJustificationRef){const j=load(fact.pendingJustificationRef);if(['PREVIOUS','PENDING','CORRECTION_REQUESTED'].includes(j.state)){const absent=['ABSENT','JUSTIFIED','EXCUSED'].includes(status);N(j.basisAttendanceRevision===fact.revision,'STALE_REVISION','JUSTIFICATION_BASIS_CHANGED');revision(fact.pendingJustificationRef,{...j,basisAttendanceRevision:fact.revision+1,...(!absent?{state:'CLOSED_WITHOUT_ABSENCE',closedAt:M.stamp(now)}:{})});if(!absent)fact.pendingJustificationRef='';}}
@@ -220,6 +253,8 @@ function f4AttendanceCommands_(x) {
    revision(p.activityRef,{...activity,status:p.occurred?'OCCURRED':'NOT_OCCURRED',realizationRef:ref});fence();history('ACTIVITY_RECOGNIZED',p.activityRef,null,p.occurred?'Ocorreu':'Não ocorreu');return {realizationRef:ref};
   },
   FREQUENCY_PERIOD_SAVE(){N(false,'CONFIG_CAPABILITY_DISABLED','LEGACY_PERIOD_READ_ONLY');},
+  ATTENDANCE_EXTRAORDINARY_AUTHORIZE(){return extraordinary(false);},
+  ATTENDANCE_EXTRAORDINARY_REVOKE(){return extraordinary(true);},
   ATTENDANCE_CONFIGURE(){
    const activity=load(p.activityRef,true),policy=load(p.attendancePolicyRef,true),ref=collectionRef(p.activityRef),old=load(ref,true,true),frequencyBasis=f4ActivityFrequencyPolicy_(policy),cycle=f4AttendanceCycleFields_(activity,{});
    N(activity.typeSnapshot.countsAttendance,'CONFIG_CAPABILITY_DISABLED');N(!old||old.state==='DRAFT'&&old.rosterCount===0&&!old.preRosterFactCount,'INVALID_STATE_TRANSITION');
@@ -254,8 +289,8 @@ function f4AttendanceCommands_(x) {
   ATTENDANCE_SAVE_DRAFT(){return sheet(false);},
   ATTENDANCE_FINALIZE(){return sheet(true);},
   ATTENDANCE_REOPEN(){const c=collection(p.activityRef);N(actor.kind==='BOARD_ACTOR'&&c.revision===p.collectionRevision,'STALE_REVISION');N(c.state==='CLOSED','INVALID_STATE_TRANSITION');revision(collectionRef(p.activityRef),{...c,state:'REOPENED',reopenedAt:M.stamp(now),reopenedBy:actor.personRef});history('ATTENDANCE_REOPENED',p.activityRef,null,'Chamada reaberta');return {collectionRevision:c.revision+1,statusChamada:'REABERTA',chamadaFinalizada:false};},
-  ATTENDANCE_OPEN(){const c=collection(p.activityRef),activity=load(p.activityRef,true);N(c.state==='DRAFT'&&c.rosterCount>0&&activity.status!=='CANCELLED','INVALID_STATE_TRANSITION');N(now<=M.ms(c.closesAt),'DEADLINE_VIOLATION');revision(collectionRef(p.activityRef),{...c,state:'OPEN'});return {state:'OPEN'};},
-  ATTENDANCE_CLOSE(){const c=collection(p.activityRef);N(c.state==='OPEN'&&c.unrecordedCount===0,'INCOMPLETE_REQUEST','UNRECORDED_ATTENDANCE');revision(collectionRef(p.activityRef),{...c,state:'CLOSED',closedAt:M.stamp(now),closingDecision:decision(p.decision)});fence();history('ATTENDANCE_CLOSED',p.activityRef,null,'Coleta encerrada');return {state:'CLOSED'};},
+  ATTENDANCE_OPEN(){const c=collection(p.activityRef),activity=load(p.activityRef,true);N(c.state==='DRAFT'&&c.rosterCount>0&&activity.status!=='CANCELLED','INVALID_STATE_TRANSITION');N(f4AttendanceOperationalWindow_(activity,c,now),'DEADLINE_VIOLATION');revision(collectionRef(p.activityRef),{...c,state:'OPEN'});return {state:'OPEN'};},
+  ATTENDANCE_CLOSE(){const c=collection(p.activityRef);extraordinaryRoster(load(p.activityRef,true),c);N(c.state==='OPEN'&&c.unrecordedCount===0,'INCOMPLETE_REQUEST','UNRECORDED_ATTENDANCE');revision(collectionRef(p.activityRef),{...c,...consumed(c),state:'CLOSED',closedAt:M.stamp(now),closingDecision:decision(p.decision)});fence();history('ATTENDANCE_CLOSED',p.activityRef,null,'Coleta encerrada');return {state:'CLOSED'};},
   ATTENDANCE_RECORD(){return setAttendance(p.attendanceRef,p.status,p.reason);},
   ATTENDANCE_CORRECT(){return setAttendance(p.attendanceRef,p.status,p.reason,true);},
   ATTENDANCE_PROOF_UPLOAD_REQUEST(){return f4AttendanceProof_(x).begin(justificationContext());},

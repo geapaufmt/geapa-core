@@ -30,7 +30,7 @@ function nodeFlowPrepare({input,portal}){
  if(route==='/atividades/chamada/preparar'){f4Core_().exact(input,['operationId','route','payload']);f4Core_().exact(input.payload,['activityRef']);let rosterRef;try{rosterRef=f4ActivitiesAttendanceRoster_(options).prepare(input.payload.activityRef);}catch(e){e.preparationStage='ROSTER_DISCOVERY';throw e;}try{return ports.prepare({operationId:input.operationId,commandType:'ACT.ATTENDANCE_ROSTER_APPLY',payload:{activityRef:input.payload.activityRef,rosterRef}});}catch(e){e.preparationStage='COMMAND_PREPARATION';throw e;}}
  if(route==='/atividades/chamada/salvar'){const {route,...request}=input;return f4ActivitiesPortalCompat_(options).prepareChamada(request);}
  if(['/v2/justificativas/enviar','/v2/justificativas/analisar'].includes(route))return f4ActivitiesFrequencyCompat_(options).prepare(input);
- if(['/admin/justificativas/janelas/abrir','/admin/justificativas/janelas/encerrar'].includes(route))return f4ActivitiesGovernanceCompat_(options).prepare(input);
+ if(['/atividades/chamada/extraordinaria/autorizar','/atividades/chamada/extraordinaria/revogar','/admin/justificativas/janelas/abrir','/admin/justificativas/janelas/encerrar'].includes(route))return f4ActivitiesGovernanceCompat_(options).prepare(input);
  if(route==='/v2/apresentacoes/finalizacao')return f4ActivitiesFinalizationCompat_(options).prepare(input);
  if(route==='/v2/apresentacoes/realizacao')return f4ActivitiesRealizationCompat_(options).prepare(input);
  if(route==='/v2/apresentacoes/compatibilidade')return f4ActivitiesCompatibilityCompat_(options).prepare(input);
@@ -46,6 +46,7 @@ function nodeFlowPortalType(input,optional=false){
  const p=input.payload||{},r=input.route,table={
  '/admin/atividades/conferencia':'ACTIVITY_ADMIN_REVIEW',
  '/admin/atividades/salvar':'ACTIVITY_SAVE','/admin/atividades/publicar':'ACTIVITY_PUBLICATION_SET','/admin/atividades/ocultar':'ACTIVITY_PUBLICATION_SET','/admin/atividades/cancelar':'ACTIVITY_PUBLICATION_SET','/admin/atividades/reabrir':'ACTIVITY_PUBLICATION_SET','/admin/atividades/realizacao':'ACTIVITY_REALIZE',
+ '/atividades/chamada/extraordinaria/autorizar':'ATTENDANCE_EXTRAORDINARY_AUTHORIZE','/atividades/chamada/extraordinaria/revogar':'ATTENDANCE_EXTRAORDINARY_REVOKE',
  '/atividades/chamada/preparar':'ATTENDANCE_ROSTER_APPLY',
  '/atividades/chamada/salvar':{SALVAR:'ATTENDANCE_SAVE_DRAFT',FINALIZAR:'ATTENDANCE_FINALIZE',REABRIR:'ATTENDANCE_REOPEN',REGISTRAR:'ATTENDANCE_RECORD',CORRIGIR:'ATTENDANCE_CORRECT'}[p.operacao],
  '/v2/justificativas/enviar':'ATTENDANCE_JUSTIFICATION_REQUEST','/v2/justificativas/analisar':'ATTENDANCE_JUSTIFICATION_DECIDE',

@@ -12,13 +12,16 @@ function f4ActivitiesGovernanceCompat_(options){
   }else{
    N(route==='/admin/justificativas/janelas','VALIDATION_ERROR');const activities=all('canonicalActivities').filter(a=>a.recordMode!=='HISTORICAL_PARTIAL'&&a.typeSnapshot?.allowsJustification&&a.typeSnapshot.countsAbsence===true&&!['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status));
    const collections=db.getMany(activities.map(a=>'activityAttendanceCollections/'+a.id));
-   data={activities:activities.filter((a,i)=>collections[i]?.lastFinalizedAt).map(a=>({id:a.id,label:a.title,civilDate:a.civilDate})),windows:all('activityExceptionalJustificationWindows').map(w=>({id:w.id,revision:w.revision,status:w.status==='OPEN'&&M.ms(w.newDeadline)<=clock()?'EXPIRED':w.status,deadline:M.ms(w.newDeadline),activityIds:w.activityRefs.map(r=>r.id),reasonCode:w.reasonCode,reason:w.reason})),canOpen:ports.commandAvailable('ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN'),canClose:ports.commandAvailable('ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE')};
+   data={activities:activities.filter((a,i)=>collections[i]?.lastFinalizedAt).map(a=>({id:a.id,label:a.title,civilDate:a.civilDate})),windows:all('activityExceptionalJustificationWindows').map(w=>({id:w.id,revision:w.revision,status:w.status==='OPEN'&&M.ms(w.newDeadline)<=clock()?'EXPIRED':w.status,deadline:M.ms(w.newDeadline),activityIds:w.activityRefs.map(r=>r.id),reasonCode:w.reasonCode,reason:w.reason,...f4ExceptionalWindowAttribution_(p=>db.get(p),w)})),canOpen:ports.commandAvailable('ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN'),canClose:ports.commandAvailable('ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE')};
   }
   ports.recheckAuthority(auth);return {ok:true,data};
  }
  function prepare(input){
   C.exact(input,['operationId','route','payload']);const p=input.payload;let commandType,payload,expected;
-  if(input.route==='/admin/ciclos-semestres/semestre'){
+  if(['/atividades/chamada/extraordinaria/autorizar','/atividades/chamada/extraordinaria/revogar'].includes(input.route)){
+   const revoke=input.route.endsWith('/revogar');C.exact(p,['activityId','collectionRevision',...(revoke?['confirmed']:['reason'])]);
+   commandType=revoke?'ATTENDANCE_EXTRAORDINARY_REVOKE':'ATTENDANCE_EXTRAORDINARY_AUTHORIZE';expected={ref:M.ref('attendanceCollection',p.activityId),revision:p.collectionRevision};payload={activityRef:M.ref('activity',p.activityId),collectionRevision:p.collectionRevision,...(revoke?{confirmed:p.confirmed}:{reason:p.reason})};
+  }else if(input.route==='/admin/ciclos-semestres/semestre'){
    C.exact(p,['id','revision','label','civilStart','civilEnd','status','reason']);const semesterRef=M.ref('academicSemester',p.id||'sem_'+input.operationId);expected={ref:semesterRef,revision:p.revision};
    commandType='ACTIVITY_SEMESTER_SAVE';payload={semesterRef,label:p.label,civilStart:p.civilStart,civilEnd:p.civilEnd,status:p.status,reason:p.reason};
   }else if(input.route==='/admin/ciclos-semestres/ciclo'){
