@@ -10,7 +10,7 @@ function f4ActivitiesCapacitySource_(options){
  const M=f4ActivitiesModel_(),N=M.need,F=f4Firestore_(),db=options.db,clock=options.clock||Date.now;
  function snapshot(cycleRef,configRef,change){
   N(change&&Object.keys(change).every(k=>['unitRef','sessionRef','sessionConfig','sessionDate','moves'].includes(k)),'VALIDATION_ERROR','CAPACITY_CHANGE_SCOPE');
-  const start=clock(),registry=db.get('presentationCapacityHeads/registry'),head=db.get('presentationCapacityHeads/'+cycleRef.id),cycle=db.get(M.path(cycleRef)),cfg=f4CycleEffectiveConfiguration_(db.get(M.path(configRef))),activityRegistry=db.get('activityAttendanceRegistry/current');
+  const start=clock(),registry=db.get('presentationCapacityHeads/registry'),head=db.get('presentationCapacityHeads/'+cycleRef.id),cycle=db.get(M.path(cycleRef)),cfg=f4CycleEffectiveConfiguration_(db.get(M.path(configRef)),path=>db.get(path)),activityRegistry=db.get('activityAttendanceRegistry/current');
   N(registry&&head&&cycle&&activityRegistry&&cfg?.approved&&M.path(cycle.currentConfigRef)===M.path(configRef),'UNRESOLVED_DEPENDENCY','CAPACITY_CONFIGURATION');
   if(f4ActivitiesPreagenda_().mode(cfg.parameters))return f4ActivitiesPreagendaCapacity_({...options,clock}).snapshot(cycleRef,configRef,change);
   const coverageRef=head.incidenceCoverageRef,coverage=coverageRef&&db.get(M.path(coverageRef));
