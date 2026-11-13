@@ -92,6 +92,7 @@ function f4BoardProcedures_(){
   return {audit:a,receipt:q};
  }
  function openOnConsent(get,o,p,c){
+  const openingTime=o.clock();o={...o,clock:()=>openingTime};
   const prior=originalProposal(get,o,p);N(c.actorUids.includes(prior.receipt.ownerUid),'AUTHORIZATION_DENIED');
   const actor=f4MemberAuthz_().identify(get,prior.receipt.ownerUid,o.clock()),auth=f4InstitutionalRolePolicies_(get,actor,o.clock(),c.policyIds,caps.BP_OPEN,'institutionalGovernanceDrafts/current');
   N(auth.mask.includes('procedures')&&person(auth)===p.proposer&&president(auth,p.boardId),'PRESIDENT_REQUIRED');enabled(c,'BP_OPEN',p.boardId,p.type);
