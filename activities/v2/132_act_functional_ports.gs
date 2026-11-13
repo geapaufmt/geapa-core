@@ -45,8 +45,8 @@ function f4ActivitiesFunctionalPorts_(options){
    }
   }return out;
  }
- function selectors(){
-  if(f4DevAdmin_().profile(get,identity.uid,clock()))return [null,'SELF'].map(actorScope=>({kind:'DEV_ADMIN',sourceId:identity.uid,functionId:null,actorScope}));
+ function selectors(roleRequired=false){
+  if(!roleRequired&&f4DevAdmin_().profile(get,identity.uid,clock()))return [null,'SELF'].map(actorScope=>({kind:'DEV_ADMIN',sourceId:identity.uid,functionId:null,actorScope}));
   const a=f4MemberAuthz_().identify(get,identity.uid,clock(),s=>s.state==='SUSPENSO'),result=[];
   for(const sourceId of settings.policyIds){const source=get('memberAuthzPolicies/'+sourceId);if(!source?.active)continue;
    if(source.proofKind==='SELF')result.push({kind:'SELF',sourceId,functionId:null,actorScope:null});
@@ -96,7 +96,7 @@ function f4ActivitiesFunctionalPorts_(options){
   const expected=[...expectedRefs].map(([path,ref])=>({...ref,...(documents.get(path)?{revision:documents.get(path).revision}:{exists:false})}));
   const direct=[...selected.values()],primary=direct.filter(r=>!['policy','artifact','config','assessment','receipt','review','realization','reconciliation'].includes(r.kind)),targetRefs=(primary.length?primary:direct).filter(r=>cmd!=='ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN'||r.kind!=='person');N(targetRefs.length>0&&targetRefs.length<=32,'SCOPE_TOO_LARGE');
   let last;
-  for(const authorization of selectors()){
+  for(const authorization of selectors(cmd.startsWith('ATTENDANCE_EXTRAORDINARY_'))){
    const self=authorization.kind==='SELF'||authorization.kind==='DEV_ADMIN'&&authorization.actorScope==='SELF';
    if(cmd==='DYNAMIC_CANCEL'&&input.payload.cause!=='WITHDRAWAL'&&self)continue;
    if(!contract.actors.includes(self?'PORTAL_AUTHENTICATED_MEMBER':'BOARD_ACTOR'))continue;
@@ -191,7 +191,7 @@ function f4ActivitiesFunctionalPorts_(options){
    // an invalid command probe or invent a model just to render their read menu.
    if(!type)return false;payload.typeRef=type;}}
   if(window)payload.windowRef=window;
-  for(const authorization of selectors()){
+  for(const authorization of selectors(command.startsWith('ATTENDANCE_EXTRAORDINARY_'))){
    const self=authorization.kind==='SELF'||authorization.actorScope==='SELF';
    if(self!==(actorScope==='SELF'))continue;
    const request={schemaVersion:'geapa-act-command-v13',operationId:'00000000000000000000000000000000',commandType:'ACT.'+command,payload,target:{scope:{targetRefs},expected:[],authorization},evidenceRefs:[],decisionRef:null};
