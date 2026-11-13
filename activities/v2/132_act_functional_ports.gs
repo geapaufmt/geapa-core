@@ -70,6 +70,9 @@ function f4ActivitiesFunctionalPorts_(options){
   if(cmd==='INCIDENCE_EVALUATE'){const r=M.ref('obligation',M.hash({person:input.payload.personRef.id,cycle:input.payload.cycleRef.id,kind:'ORDINARY',version:1}).slice(0,32));expectedRefs.set(M.path(r),r);}
   if(cmd==='PUBLICATION_APPROVE')for(const pr of input.payload.presentationRefs){const r=M.ref('publication',pr.id);expectedRefs.set(M.path(r),r);}
   if(cmd==='CORRECTION_OPPORTUNITY_OPEN'){const r=M.ref('opportunity',M.hash({operationId:input.operationId,kind:'opportunity'}).slice(0,32));expectedRefs.set(M.path(r),r);}
+  // Batch attendance fences its explicit roots and collection. The sealed roster
+  // plus membersEpoch covers population; sheet rows retain their own revisions.
+  // Neither population references nor historical activity graphs are new targets.
   const documents=new Map();
   while(documents.size<expectedRefs.size){
    N(expectedRefs.size<=48,'SCOPE_TOO_LARGE','PREPARATION_DEPENDENCIES');
