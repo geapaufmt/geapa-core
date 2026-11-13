@@ -5,7 +5,7 @@ function f4ActivitiesAttendanceRoster_(options){
  function prepare(activityRef){
   const activityPath=M.path(activityRef),collectionPath='activityAttendanceCollections/'+activityRef.id,auth=options.ports.readAuthority([activityPath,collectionPath],false),activity=db.get(activityPath),collection=db.get(collectionPath),registry=db.get('presentationCapacityHeads/registry');
   N(activity&&collection&&registry,'UNRESOLVED_DEPENDENCY','ATTENDANCE_CONFIGURATION_REQUIRED');N(['DRAFT','OPEN','REOPENED'].includes(collection.state),'INVALID_STATE_TRANSITION');
-  const sourceHeads=[],records={},at=M.ms(activity.startsAt),memberModel=f4MemberModel_(true);let cursor,complete=false;
+  const sourceHeads=[],records={},at=M.ms(activity.startsAt),authorityControl=db.get('memberAuthorityControl/MEMBERS'),memberModel=f4MemberModel_(true,authorityControl||undefined),correctionRoles=new Map();let cursor,complete=false;
   // Bounded pages preserve completeness; reaching a technical bound never truncates a roster.
   for(let page=0;page<10;page++){
    const rows=db.query({collection:'memberAggregateHeads',filters:[],limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(cursor?{cursor:[cursor]}:{})});
@@ -16,6 +16,10 @@ function f4ActivitiesAttendanceRoster_(options){
     const paths=head.paths.filter(p=>/^member(Identities|Links|Events)\//.test(p));N(paths.includes('memberIdentities/'+head.id)&&paths.length<=180,'UNRESOLVED_DEPENDENCY','MEMBERS_SOURCES');
     const values=paths.map(p=>pageSources.get(p)),docs=Object.fromEntries(paths.map((p,i)=>[p,values[i]]));N(values.every(v=>v&&v.idPessoa===head.id),'UNRESOLVED_DEPENDENCY','MEMBERS_SOURCE_MISSING');
     const person=docs['memberIdentities/'+head.id];if(person.technicalAccount)continue;
+    // Historical function corrections retain canonical v2/v3 snapshots. Their
+    // role contract is necessary to validate the event, not to grant attendance rights.
+    const rolePaths=[...new Set(values.filter(v=>v.type==='RETIFICACAO'&&v.correctionPath?.startsWith('memberFunctions/')&&['m1-memberFunctions-v2','m1-memberFunctions-v3'].includes(v.prior?.schemaVersion)).map(v=>'memberRoleCatalog/'+v.prior.idCargo))];
+    for(const rp of rolePaths){if(!correctionRoles.has(rp))correctionRoles.set(rp,db.get(rp));const role=correctionRoles.get(rp);N(role,'UNRESOLVED_DEPENDENCY','MEMBERS_CORRECTION_ROLE');docs[rp]=role;}
     const derived=memberModel.derive(docs,head.id,head.revision,at).state;
     if(!['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','SUSPENSO'].includes(derived.state))continue;
     if(activity.typeSnapshot.participantTypes&&!activity.typeSnapshot.participantTypes.includes(derived.state==='MEMBRO_INGRESSANTE'?'INGRESSANTE':'MEMBRO'))continue;
@@ -39,6 +43,8 @@ function f4ActivitiesAttendanceRoster_(options){
   N(Object.keys(records).length>0&&Object.keys(records).length<=50,'SCOPE_TOO_LARGE','ATTENDANCE_ROSTER_LIMIT');
   const id=M.hash({activityRef,activityRevision:activity.revision,membersEpoch:registry.membersEpoch,...(sourceHeads.length<=64?{sourceHeads}:{sourceHeadsDigest:f4ActivitiesCapacityDigest_(sourceHeads)})}).slice(0,32),ref=M.ref('attendanceRoster',id),path=M.path(ref);
   return db.transaction(tx=>{const get=p=>tx.get(p).data();f4SharedAuthz_().recheck(get,auth.q,auth.proof,clock());N(get(activityPath)?.revision===activity.revision&&get(collectionPath)?.revision===collection.revision&&get('presentationCapacityHeads/registry')?.membersEpoch===registry.membersEpoch,'STALE_REVISION','ROSTER_SOURCE_CHANGED');
+   N(C.hash(F.encode(get('memberAuthorityControl/MEMBERS')||null))===C.hash(F.encode(authorityControl||null)),'STALE_REVISION','MEMBERS_AUTHORITY_CHANGED');
+   const rolePaths=[...correctionRoles.keys()],roles=rolePaths.length?tx.getAll(rolePaths):[];rolePaths.forEach((p,i)=>N(C.hash(F.encode(roles[i].data()||null))===C.hash(F.encode(correctionRoles.get(p))),'STALE_REVISION','MEMBERS_CORRECTION_ROLE_CHANGED'));
    const heads=tx.getAll(sourceHeads.map(h=>h.path));sourceHeads.forEach((h,i)=>N(heads[i].data()?.revision===h.revision,'STALE_REVISION','MEMBERS_CHANGED'));
    const old=get(path),document={id,revision:1,schemaVersion:'act-attendance-roster-v1',state:'SEALED',complete:true,activityRef,activityRevision:activity.revision,membersEpoch:registry.membersEpoch,sourceHeads,records,recordedAt:M.stamp(clock())};
    if(old)N(M.hash(old.records)===M.hash(records),'CONFLICT','ROSTER_DIGEST');else tx.set(path,document);return ref;

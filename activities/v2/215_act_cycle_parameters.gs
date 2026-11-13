@@ -49,6 +49,18 @@ function f4CycleParameters_(){
  function value(p,key){const e=entry(p,key);N(e.status==='DEFINED'&&Object.hasOwn(e,'value'),'CONFIG_CAPABILITY_DISABLED','PARAMETER_NOT_ESTABLISHED_'+key);return e.value;}
  function days(p,key){const v=value(p,key);N(Number.isSafeInteger(v)&&v>=0,'CONFIG_CAPABILITY_DISABLED','INVALID_CYCLE_DEADLINE');return v;}
  function deadline(p,key){const e=entry(p,key);if(isManaged(p)&&e.status==='NOT_APPLICABLE')return {applicable:false};return {applicable:true,days:days(p,key)};}
+ // Read models may display an unknown rule. Only the affected action is closed;
+ // neither zero nor another cycle's rule is a substitute for missing evidence.
+ function dateAvailable(p,key,from,to){const e=entry(p,key),gap=M.gap(from,to);return gap>=0&&(isManaged(p)&&e.status==='NOT_APPLICABLE'||e.status==='DEFINED'&&Number.isSafeInteger(e.value)&&e.value>=0&&gap>=e.value);}
+ function modality(p,mode){if(!isManaged(p))return true;const e=entry(p,'enabledModalities');return e.status==='DEFINED'&&Array.isArray(e.value)&&e.value.includes(mode);}
+ function axes(p,primary,secondary,get){
+  const managed=isManaged(p),required=managed?value(p,'principalAxisRequired'):true;
+  N(primary&&(primary.kind==='policy'||managed&&required===false&&primary.kind==='NONE'),'CONFIG_CAPABILITY_DISABLED','PRINCIPAL_AXIS_REQUIRED');
+  if(secondary&&secondary.kind!=='NONE'&&managed)N(value(p,'secondaryAxisEnabled')===true,'CONFIG_CAPABILITY_DISABLED','SECONDARY_AXIS_DISABLED');
+  for(const r of [primary,secondary].filter(r=>r&&r.kind!=='NONE')){N(r.kind==='policy'&&p.axisRefs?.some(a=>M.path(a)===M.path(r)),'CONFIG_CAPABILITY_DISABLED','AXIS_NOT_CONFIGURED');const d=get(M.path(r));N(d?.approved&&d.active,'CONFIG_CAPABILITY_DISABLED','AXIS_INACTIVE');}
+  N(!secondary||secondary.kind==='NONE'||primary.id!==secondary.id,'VALIDATION_ERROR','AXIS_DUPLICATE');
+ }
+ function reconsideration(p,now){if(!isManaged(p))return {};const e=entry(p,'reconsiderationHours');return e.status==='DEFINED'?{reconsiderationDueAt:M.stamp(now+days(p,'reconsiderationHours')*3600000)}:{};}
  function validateValue(f,v,cycle,get){
   if(f.type==='boolean')N(typeof v==='boolean','VALIDATION_ERROR',f.key);
   else if(f.type==='integer')N(Number.isSafeInteger(v)&&v>=f.min&&v<=f.max,'VALIDATION_ERROR',f.key);
@@ -102,7 +114,7 @@ function f4CycleParameters_(){
   return parameters;
  }
  function opening(p){if(!isManaged(p))return;for(const key of ['calendarMode','shared','maxMemberPresentationsPerSession','annualPresentationRequired','enabledModalities','dynamic','early','quota'])value(p,key);}
- return {catalog,schema,statuses,isManaged,entry,value,days,deadline,validate,normative,opening};
+ return {catalog,schema,statuses,isManaged,entry,value,days,deadline,dateAvailable,modality,axes,reconsideration,validate,normative,opening};
 }
 function f4CycleParameterCommands_(x){
  const {M,N,p,load,save,revision,now,actor}=x,P=f4CycleParameters_();
