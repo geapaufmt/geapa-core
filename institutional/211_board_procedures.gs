@@ -92,8 +92,9 @@ function f4BoardProcedures_(){
   return {audit:a,receipt:q};
  }
  function openOnConsent(get,o,p,c){
-  const prior=originalProposal(get,o,p),g=f4InstitutionalGovernance_().control(get,o.config,{uid:prior.receipt.ownerUid},o.clock(),true,false,caps.BP_OPEN);
-  N(person(g.auth)===p.proposer&&president(g.auth,p.boardId),'PRESIDENT_REQUIRED');enabled(c,'BP_OPEN',p.boardId,p.type);
+  const prior=originalProposal(get,o,p);N(c.actorUids.includes(prior.receipt.ownerUid),'AUTHORIZATION_DENIED');
+  const actor=f4MemberAuthz_().identify(get,prior.receipt.ownerUid,o.clock()),auth=f4InstitutionalRolePolicies_(get,actor,o.clock(),c.policyIds,caps.BP_OPEN,'institutionalGovernanceDrafts/current');
+  N(auth.mask.includes('procedures')&&person(auth)===p.proposer&&president(auth,p.boardId),'PRESIDENT_REQUIRED');enabled(c,'BP_OPEN',p.boardId,p.type);
   N(c.boardProcedures.targetPersonIds?.includes(p.target.personId)&&(c.boardProcedures.votingDaysByType?.[p.type]||[7]).includes(p.days),'SCOPE_INVALID');
   const b=f4MemberBoardEffects_().basis(get,c,p,o.clock()),w=p.workflow,q=b.basis.procedureRequirements?.[p.type];
   N(b.ref===w.basisRef&&b.contentHash===w.basisHash&&q?.conventionalMinuteId===w.minuteId&&q.conventionalMinuteHash===w.minuteHash,'CONTENT_VERSION_CONFLICT');
@@ -200,7 +201,9 @@ function f4BoardProcedures_(){
    const inspection=f4BoardExtraordinary_().inspect(r.procedure,get('memberFunctions/'+p.target.functionId),o.clock(),get);
    enactment={state:'AUTOMATIC_VALIDATION_PENDING',blocks:inspection.blocks};
   }
-  return {...r,procedure:{...p,canonicalState:r.procedure.state,enactment},documentAvailable:['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED','SUSPENDED_COMPOSITION','RECORDED'].includes(r.procedure.state),actions};
+  const fn=p.target.functionId&&get('memberFunctions/'+p.target.functionId),role=fn&&get('memberRoleCatalog/'+fn.idCargo),people=p.electorate?.people||[],required=people.length?(p.rule==='UNANIMITY'?people.length:Math.floor(people.length/2)+1):null;
+  const presentation={typeLabel:types[p.type].label,personName:get('memberIdentities/'+p.target.personId)?.displayName||p.target.personId,roleName:role?.name||role?.roleKey||p.target.roleName||null,boardName:get('memberGovernanceBoards/'+p.boardId)?.name||p.boardId,currentEnd:fn?(fn.endDateReal||fn.endDatePlanned):null,proposedEnd:p.target.endDate||null,votesRecorded:p.votes.length,requiredVotes:required,remainingVotes:people.length-p.votes.length,nextActor:p.state==='CONSENT_PENDING'?'Interessado':p.state==='OPEN'?'Diretoria vigente':p.state==='DEFENSE_PENDING'?'Interessado':enactment.state==='AUTOMATIC_VALIDATION_PENDING'?'Validação automática':null,myAction:actions.some(a=>['BP_CONSENT','BP_VOTE','BP_DEFEND','BP_ACK','BP_CLEARANCE','BP_ENACT','BP_OPEN'].includes(a))};
+  return {...r,procedure:{...p,canonicalState:r.procedure.state,enactment},presentation,documentAvailable:['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED','SUSPENDED_COMPOSITION','RECORDED'].includes(r.procedure.state),actions};
  }
  function candidates(get,o,auth,c){
   if(!c?.boardProcedures?.enabled)return [];

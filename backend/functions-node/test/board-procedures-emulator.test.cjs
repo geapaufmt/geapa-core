@@ -1,8 +1,9 @@
 'use strict';
-Object.assign(process.env,{GEAPA_RUNTIME:'EMULATOR',GEAPA_PILOT_MODE:'SHARED_DEV',GCLOUD_PROJECT:'demo-geapa-functions-local',FUNCTIONS_EMULATOR:'true',FIRESTORE_EMULATOR_HOST:'127.0.0.1:8187',FIREBASE_AUTH_EMULATOR_HOST:'127.0.0.1:9197'});
+Object.assign(process.env,{GEAPA_RUNTIME:'EMULATOR',GEAPA_PILOT_MODE:'SHARED_DEV',GCLOUD_PROJECT:'demo-geapa-functions-local',FUNCTIONS_EMULATOR:'true',FIRESTORE_EMULATOR_HOST:process.env.FIRESTORE_EMULATOR_HOST||'127.0.0.1:8187',FIREBASE_AUTH_EMULATOR_HOST:process.env.FIREBASE_AUTH_EMULATOR_HOST||'127.0.0.1:9197'});
 const {test}=require('node:test'),a=require('node:assert/strict'),{Firestore}=require('@google-cloud/firestore'),{editGovernance}=require('../src/institutional-governance.cjs'),{PROJECT,DEMO,EXECUTOR,ROOT}=require('../src/environment.cjs'),{fixture}=require('./institutional-fixture.cjs'),crypto=require('node:crypto');
 test('board procedures use the governance transaction, own identities and original receipts',{skip:process.env.GEAPA_INSTITUTIONAL_EMULATOR_TEST!=='1'},async t=>{
- const db=new Firestore({projectId:DEMO}),ref=p=>db.doc((ROOT?ROOT+'/':'')+p),now=Date.now();let revoked=false,badApp=false;
+ const databaseId=process.env.GEAPA_TEST_DATABASE||'(default)';a(databaseId==='(default)'||/^test-[a-z0-9-]+$/.test(databaseId));
+ const db=new Firestore({projectId:DEMO,databaseId}),ref=p=>db.doc((ROOT?ROOT+'/':'')+p),now=Date.now();let revoked=false,badApp=false;
  const auth={verifyIdToken:async(uid,check)=>{a.equal(check,true);if(revoked)throw Object.assign(Error('revoked'),{code:'auth/id-token-revoked'});return {uid,sub:uid,aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000)}}},appCheck={verifyToken:async()=>{if(badApp)throw Error('bad');return {appId:'SYN_APP'}}};
  const call=(uid,phase,request,hooks={})=>editGovernance({db,auth,appCheck,token:uid,appCheckToken:'synthetic',origin:'https://geapa-convergencia-dev.web.app',body:{action:'institutionalGovernance'+phase,request},hooks});
  const prepare=async(uid,input)=>(await call(uid,'Preview',{operationId:crypto.randomBytes(16).toString('hex'),input})).result.request;
