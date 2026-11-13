@@ -73,7 +73,7 @@ async function runRecord({db,id,hooks={}}){
 }
 async function runDue({db}){
  const store=new BoardAutomationStore(db,{uid:ACTOR}),domain=createDomain(raw=>store.io(raw));
- const ids=await store.read(()=>JSON.parse(domain.run('()=>{const A=f4BoardAutomation_(),get=p=>nodeTx.get(p).data(),o={config:nodeConfig,clock:Date.now},c=A.control(get,o),v=f4InstitutionalGovernance_().state(get);return v.records.filter(r=>r.kind==="BOARD_PROCEDURE"&&r.procedure.type==="EXTRAORDINARY_EXTENSION"&&c.boardIds.includes(r.procedure.boardId)&&r.procedure.exception&&(r.procedure.enactment?.state!=="ENACTED"&&["OPEN","APPROVED"].includes(r.procedure.state)||["SETTLE","ENACT"].some(phase=>get("boardAutomaticDocumentOutbox/"+A.key(r,phase))?.state==="PENDING"))).map(r=>r.id);}',{})));
+ const ids=await store.read(()=>JSON.parse(domain.run('()=>{const A=f4BoardAutomation_(),get=p=>nodeTx.get(p).data(),o={config:nodeConfig,clock:Date.now},c=A.control(get,o),v=f4InstitutionalGovernance_().state(get);return v.records.filter(r=>r.kind==="BOARD_PROCEDURE"&&r.procedure.type==="EXTRAORDINARY_EXTENSION"&&c.boardIds.includes(r.procedure.boardId)&&f4BoardExtraordinary_().candidate(c,r)&&(r.procedure.enactment?.state!=="ENACTED"&&["OPEN","APPROVED"].includes(r.procedure.state)||["SETTLE","ENACT"].some(phase=>get("boardAutomaticDocumentOutbox/"+A.key(r,phase))?.state==="PENDING"))).map(r=>r.id);}',{})));
  if(ids.length>20)fail('SCOPE_TOO_LARGE');const results=[];
  for(const id of ids){try{await runRecord({db,id});results.push({state:'CHECKED'});}catch(e){results.push({state:'BLOCKED',code:/^[A-Z0-9_]{3,80}$/.test(e.code||'')?e.code:'INTERNAL_ERROR'});}}
  return results;
