@@ -1,6 +1,17 @@
 // Cycle configuration is still presentationCycles/*/configRevisions. Evidence
 // annotates the existing parameter values; it is not another configuration store.
 function f4CycleParameterDocumentHash_(v){return f4Core_().hash(f4Firestore_().encode(v));}
+// A catalog-only approval cannot certify deadlines copied into its technical
+// payload. Interpret the documented approval scope without rewriting the record.
+// Recognition or a new, governed approval remains the only way to establish them.
+function f4CycleEffectiveConfiguration_(cfg){
+ if(!cfg||cfg.approvalScope!=='OPERATIONAL_AXIS_CATALOG_AND_CLOSED_FEATURES')return cfg;
+ const parameters={...cfg.parameters},items={...parameters.parameterEvidence?.items};
+ for(const key of ['newDateMinimumDays','thematicMinimumDays','titleMinimumDays','dynamicRequestLeadDays']){
+  items[key]={status:'UNESTABLISHED',basis:'A aprovação deste registro abrange o catálogo de eixos e funcionalidades fechadas, não comprova este prazo.'+(Object.hasOwn(parameters,key)?' Valor técnico anteriormente registrado: '+parameters[key]+'.':'')};delete parameters[key];
+ }
+ parameters.parameterEvidence={schemaVersion:'limited-legacy-approval-view',items};return {...cfg,parameters};
+}
 function f4CycleMeetingDefaults_(get,ref){const M=f4ActivitiesModel_(),c=get(M.path(ref)),cfg=c?.currentConfigRef?.kind==='config'&&get(M.path(c.currentConfigRef)),P=f4CycleParameters_(),p=cfg?.approved?cfg.parameters:{};return {id:ref.id,label:c?.cycleLabel||ref.id,meetingStartTime:P.entry(p,'meetingStartTime').value||null,meetingEndTime:P.entry(p,'meetingEndTime').value||null,configRevision:cfg?.id||null};}
 function f4CycleParameterCatalog_(){
  const field=(key,label,section,type,extra={})=>({key,label,section,type,...extra});
@@ -176,10 +187,10 @@ function f4CycleParametersCompat_(options){
   const part=db.query({collection:'presentationPolicyReferences',filters:[],order:[{field:'__name__',direction:'ASCENDING'}],limit:40,...(cursor?{cursor:[cursor]}:{})});rows.push(...part.map(r=>r.data));if(part.length<40)return rows;
   cursor=new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+part[part.length-1].path);
  }N(false,'SCOPE_TOO_LARGE','PARAMETER_POLICY_CATALOG_BOUND');}
- function summary(d){return d?{id:d.id,revision:d.revision,state:d.state||(d.approved?'APPROVED':'DRAFT'),effectiveFrom:M.ms(d.effectiveFrom),recordedAt:M.ms(d.recognizedAt||d.createdAt),reason:d.reason||d.approvalDecision?.basis?.reason||'',normativeReference:d.normativeReference||'',predecessorId:d.predecessorRef?.id||'',definitionHash:d.definitionHash||'',parameters:d.parameters}:null;}
+ function summary(d){return d?{id:d.id,revision:d.revision,state:d.state||(d.approved?'APPROVED':'DRAFT'),effectiveFrom:M.ms(d.effectiveFrom),recordedAt:M.ms(d.recognizedAt||d.createdAt),reason:d.reason||d.approvalDecision?.basis?.reason||'',normativeReference:d.normativeReference||'',predecessorId:d.predecessorRef?.id||'',definitionHash:d.definitionHash||'',parameters:f4CycleEffectiveConfiguration_(d).parameters}:null;}
  function read(input){
   C.exact(input,['cycleId',...('cursor'in input?['cursor']:[])]);if(input.cursor)N(M.id(input.cursor),'VALIDATION_ERROR');const z=context(input.cycleId),config=z.draft||z.pending||z.current;
-  const parameters=config?.parameters||{},references=refOptions(),scoped=references.filter(r=>r.approved&&r.active&&(!r.cycleRef||r.cycleRef.id===z.cycle.id));
+  const parameters=f4CycleEffectiveConfiguration_(config)?.parameters||{},references=refOptions(),scoped=references.filter(r=>r.approved&&r.active&&(!r.cycleRef||r.cycleRef.id===z.cycle.id));
   const prefix='presentationCycles/'+z.cycle.id+'/configRevisions',cursor=input.cursor?new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+prefix+'/'+input.cursor):null;
   const page=db.query({collection:prefix,filters:[],order:[{field:'__name__',direction:'ASCENDING'}],limit:21,...(cursor?{cursor:[cursor]}:{})});
   const fields=P.catalog.map(f=>({...f,...P.entry(parameters,f.key),revision:config?.id||'',effectiveFrom:config?M.ms(config.effectiveFrom):null,origin:config?.state==='HISTORICAL_RECOGNITION'?'DOCUMENTARY_RECOGNITION':P.isManaged(parameters)?'CYCLE_CONFIGURATION':'LEGACY_CONFIGURATION',rule:z.policy?.parameterGovernance?.rules?.[f.key]||null,options:f.usage?scoped.filter(r=>r.usage===f.usage).map(r=>({id:r.id,label:r.label||r.name||r.code||r.id,revision:r.revision})):[]}));
