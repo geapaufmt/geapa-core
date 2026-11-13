@@ -155,9 +155,9 @@ function f4BoardProcedures_(){
   const actions=possible.filter(action=>{if(p.enactment?.state==='ENACTED')return false;try{enabled(c,action,p.boardId,p.type);if(action==='BP_OPEN'&&p.type==='DIRECTOR_DISMISSAL'&&!p.defense)f4MemberBoardEffects_().defenseBasis(get,c,p,o.clock());f4InstitutionalGovernance_().control(get,o.config,o.identity,o.clock(),true,true,caps[action]);return true;}catch(e){if(['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED','ACCESS_REVOKED','PILOT_DISABLED','DEFENSE_PROCESS_BASIS_REQUIRED','NOTICE_EVIDENCE_UNVERIFIED','M13_ACT_INVALID','ELECTRONIC_PROCEDURE_NORMATIVE_ENABLEMENT_REQUIRED','ELECTRONIC_FORMALIZATION_REQUIRED','MEETING_REQUIRED'].includes(e.code))return false;throw e;}});
   let enactment=readiness(p);if(actions.includes('BP_ENACT')){try{const effect=f4MemberBoardEffects_().resolve(get,o,r,auth,c);enactment={state:'READY_FOR_ENACTMENT',blocks:[],tenure:effect.summary};}catch(e){actions.splice(actions.indexOf('BP_ENACT'),1);enactment={state:'NOT_ENACTED',blocks:[e.code||'RECONCILIATION_REQUIRED']};}}
   const auto=get('institutionalBoardAutomationControl/current');
-  if(p.type==='EXTRAORDINARY_EXTENSION'&&p.exception&&p.enactment?.state!=='ENACTED'&&auto?.enabled===true&&auto.projectId===o.config.projectId&&auto.startsAt<=o.clock()&&o.clock()<auto.expiresAt&&auto.boardIds?.includes(p.boardId)){
+  if(p.type==='EXTRAORDINARY_EXTENSION'&&f4BoardExtraordinary_().candidate(auto,r)&&p.enactment?.state!=='ENACTED'&&auto?.enabled===true&&auto.projectId===o.config.projectId&&auto.startsAt<=o.clock()&&o.clock()<auto.expiresAt&&auto.boardIds?.includes(p.boardId)){
    for(const a of ['BP_ENACT','BP_CLOSE']){const i=actions.indexOf(a);if(i>=0)actions.splice(i,1);}
-   const inspection=f4BoardExtraordinary_().inspect(r.procedure,get('memberFunctions/'+p.target.functionId),o.clock());
+   const inspection=f4BoardExtraordinary_().inspect(r.procedure,get('memberFunctions/'+p.target.functionId),o.clock(),get);
    enactment={state:'AUTOMATIC_VALIDATION_PENDING',blocks:inspection.blocks};
   }
   return {...r,procedure:{...p,canonicalState:r.procedure.state,enactment},documentAvailable:['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED','SUSPENDED_COMPOSITION','RECORDED'].includes(r.procedure.state),actions};

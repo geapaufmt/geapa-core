@@ -101,6 +101,31 @@ test('board procedures use the governance transaction, own identities and origin
    await ref('institutionalBoardAutomationControl/current').update({enabled:false});await a.rejects(phase({db,id:r.id,phase:'ENACT'}),/ACCESS_REVOKED/);
   });
 
+  await t.test('recognized legacy vote keeps original manifestations and corrected deadline through automatic recovery',async()=>{
+   await cleanNewFunctions();await effectSeed();
+   await ref('institutionalGovernanceControl/current').update({'boardProcedures.earlyCloseTypes':[]});
+   await proposal('EXTRAORDINARY_EXTENSION',{personId:'PES-000002',functionId:'VIG-002',endDate:'2026-12-20'});
+   let r=(await read()).records[0];await action('CF_OTHER','BP_CONSENT',{accepted:true,contentHash:r.procedure.contentHash});await action('CF_ADMIN','BP_OPEN');
+   await action('CF_ADMIN','BP_VOTE',{choice:'YES',contentHash:r.procedure.contentHash});await action('CF_OTHER','BP_VOTE',{choice:'YES',contentHash:r.procedure.contentHash});
+   const hash=x=>JSON.parse(fixture('PRESIDENTE').domain.run('(x)=>f4Core_().hash(f4Firestore_().encode(x))',x)),v=await read();r=v.records[0];
+   const original=structuredClone(r),when=Date.now(),deadline=when+3000,op=crypto.randomBytes(16).toString('hex'),manifest='f'.repeat(64);
+   const minute={id:'GOV_'+'9'.repeat(32),revision:1,title:'Ata sintética previamente arquivada',minutes:{state:'ARCHIVED',submitted:{contentHash:'b'.repeat(64)},archive:{contentHash:'b'.repeat(64),at:r.procedure.openedAt-1000}}},mh=hash(minute);
+   r=structuredClone(r);r.procedure.deadline=deadline;r.revision++;r.updatedAt=when;
+   const receipt={schemaVersion:'institutional-governance-administrative-receipt-v1',executor:'AUTHORIZED_BOUNDED_MAINTENANCE',projectId:PROJECT,state:'COMPLETED',recordId:r.id,operationId:op,manifestSha256:manifest,authorization:'USER_EXPLICIT_DEADLINE_ONLY_NO_ADDITIONAL_VOTES',beforeDeadline:original.procedure.deadline,afterDeadline:deadline,at:when,formalApproval:false,enactment:false,owner:'synthetic-operator@example.invalid'},audit={...receipt,before:original,after:r},owner={manifestSha256:manifest,owner:receipt.owner,projectId:PROJECT},journal={phase:'COMMITTED',operationId:op,manifestSha256:manifest};
+   const recognition={schemaVersion:'board-legacy-exception-recognition-v1',projectId:PROJECT,executor:EXECUTOR,recordId:r.id,contentHash:r.procedure.contentHash,meaning:'EXISTING_INDIVIDUAL_EXTRAORDINARY_PURPOSE',authority:'EXPLICIT_INSTITUTIONAL_RECOGNITION',recognizedAt:when,expiresAt:when+3600000,targetHash:hash(r.procedure.target),consentHash:hash(r.procedure.consent),electorateHash:hash(r.procedure.electorate),originalGroundsHash:hash({basis:r.procedure.basis,reason:r.procedure.reason}),sourceMinute:{id:minute.id,revision:1,contentHash:minute.minutes.archive.contentHash,sha256:mh},deadlineCorrection:{operationId:op,manifestSha256:manifest,beforeDeadline:original.procedure.deadline,afterDeadline:deadline,receiptHash:hash(receipt),auditHash:hash(audit),ownerHash:hash(owner),journalHash:hash(journal)}};
+   const batch=db.batch();batch.set(ref('institutionalGovernanceDrafts/current'),{...v,revision:v.revision+1,records:[r,minute]});
+   for(const [c,x]of [['institutionalGovernanceReceipts',receipt],['institutionalGovernanceAudit',audit],['institutionalGovernanceJournal',journal],['commandExecutorOwners',owner]])batch.set(ref(c+'/'+op),x);
+   batch.set(ref('institutionalBoardRecognitions/SYN_LEGACY'),recognition);batch.set(ref('institutionalBoardAutomationControl/current'),{schemaVersion:'board-automation-control-v1',projectId:PROJECT,executor:EXECUTOR,enabled:true,revision:1,epoch:1,startsAt:now-1000,expiresAt:when+3600000,boardIds:['DIR-001'],policyContinuity:[],legacyRecognitions:[{recordId:r.id,contentHash:r.procedure.contentHash,recognitionId:'SYN_LEGACY',sha256:hash(recognition)}]});await batch.commit();
+   await replaceBasis({schemaVersion:'member-board-effect-basis-v3',procedureRequirements:{EXTRAORDINARY_EXTENSION:{category:'ADDITIONAL_EXCEPTION',conventionalMinuteId:minute.id,conventionalMinuteHash:mh,authorizedTypes:['EXTRAORDINARY_EXTENSION'],authorizesAsynchronous:true}},defenseProcess:{allowProceedWithoutStatement:false,minimumDays:7,verifiedNoticeOperationIds:[]},individualException:{mode:'EXPRESS_SEALED_DELIBERATION',articles:['ART_33_PAR_5','ART_47'],approvalRule:'ABSOLUTE_MAJORITY',automaticEffect:true,interpretationSourceHash:mh}});
+   const worker=require('../src/board-automation.cjs');const pending=await worker.phase({db,id:r.id,phase:'SETTLE'});a.equal(pending.result.state,'WAITING');a.equal(pending.metrics.writes,0);a.equal((await read()).records[0].procedure.state,'OPEN');
+   await new Promise(resolve=>setTimeout(resolve,Math.max(0,deadline-Date.now()+20)));
+   await a.rejects(worker.phase({db,id:r.id,phase:'SETTLE',hooks:{afterCommit:()=>{throw Error('LOST_SETTLEMENT_RESPONSE');}}}),/LOST_SETTLEMENT_RESPONSE/);
+   a.equal((await read()).records[0].procedure.state,'APPROVED');
+   const completed=await worker.runRecord({db,id:r.id});a.equal(completed.settled.metrics.writes,0);a.equal(completed.enacted.result.enactment,'ENACTED');
+   const after=(await read()).records[0];a.deepEqual(after.procedure.votes,original.procedure.votes);a.deepEqual(after.procedure.consent,original.procedure.consent);a.equal(after.procedure.contentHash,original.procedure.contentHash);a.equal(after.procedure.deadline,deadline);a.equal(after.procedure.exception,undefined);
+   const result=(await ref('boardAutomaticReceipts/'+after.procedure.enactment.operationId).get()).data();a.equal(result.documentaryRecognition.id,'SYN_LEGACY');a.equal(result.documentaryRecognition.deadlineCorrection.operationId,op);a.equal((await worker.runRecord({db,id:r.id})).enacted.metrics.writes,0);a.equal((await ref('memberFunctions/VIG-002').get()).data().endDatePlanned,'2026-12-20');
+  });
+
   await t.test('cross-semester consent and effect share one occupation and recover original receipt',async()=>{
    await cleanNewFunctions();const d=await effectSeed();
    const term=d['memberGovernanceTerms/TERM-001'],relation=Object.values(d).find(x=>x.schemaVersion==='m1-memberGovernanceBoardTerms-v1'&&x.idDiretoria==='DIR-001');
