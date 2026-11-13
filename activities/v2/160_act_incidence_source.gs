@@ -8,7 +8,7 @@ function f4ActivitiesIncidenceSource_(options){
   N(cycle&&registry&&head&&activityRegistry,'UNRESOLVED_DEPENDENCY');
   const config=cycle.currentConfigRef&&db.get(M.path(cycle.currentConfigRef)),policy=db.get(M.path(cycle.policyVersionRef));
   N(config?.approved&&policy?.approved&&policy.incidenceRule==='ORDINARY_FIRST_EFFECTIVATION','CONFIG_CAPABILITY_DISABLED','INCIDENCE_RULE_REQUIRED');
-  const lead=config.parameters.newDateMinimumDays??30;N(Number.isSafeInteger(lead)&&lead>=30,'CONFIG_CAPABILITY_DISABLED');
+  const lead=f4CycleParameters_().days(config.parameters,'newDateMinimumDays');if(f4CycleParameters_().isManaged(config.parameters))N(f4CycleParameters_().value(config.parameters,'annualPresentationRequired')===true,'CONFIG_CAPABILITY_DISABLED','ANNUAL_PRESENTATION_NOT_REQUIRED');
   const sessions=all('presentationSessions',[{field:'cycleRef',op:'EQUAL',value:cycleRef}]).map(r=>r.data);N(sessions.length<=32,'SCOPE_TOO_LARGE');
   const activities=new Map();for(const s of sessions){const a=s.activityRef&&db.get(M.path(s.activityRef));N(a&&a.civilDate===s.civilDate,'UNRESOLVED_DEPENDENCY','SESSION_ACTIVITY_REQUIRED');activities.set(s.id,a);}
   const obligations=all('presentationObligations',[{field:'cycleRef',op:'EQUAL',value:cycleRef}]).map(r=>r.data),byPerson=new Map();
