@@ -61,7 +61,7 @@ function f4ActivitiesConfigCompat_(options) {
    const before=z.current?.parameters||{},after=z.pending.parameters,changed=f4ActivitiesConfigurationChange_(before,after,z.pending.parameterClasses,z.cycle,z.policy,clock());
    // Extending a granted window preserves its existing rights. An initial
    // configuration is safe only while there are no assignments or obligations.
-   const extension=changed.every(k=>['selfSchedulingWindow','reorganizationWindow'].includes(k));
+   const extension=changed.every(k=>['parameterEvidence','selfSchedulingWindow','reorganizationWindow'].includes(k));
    if(!extension){N(z.cycle.status==='DRAFT','HUMAN_DECISION_REQUIRED','CONFIG_IMPACT_ASSESSMENT_REQUIRED');for(const collection of ['calendarAssignments','presentationObligations'])N(db.query({collection,filters:[{field:'cycleRef',op:'EQUAL',value:z.cycleRef}],order:[{field:'__name__',direction:'ASCENDING'}],limit:1}).length===0,'HUMAN_DECISION_REQUIRED','CONFIG_EXISTING_RIGHTS');}
    const registry=db.get('presentationCapacityHeads/registry'),head=db.get('presentationCapacityHeads/'+z.cycle.id);N(registry&&head,'UNRESOLVED_DEPENDENCY');
    const basis=[{ref:z.cycleRef,revision:z.cycle.revision},{ref:z.cycle.scheduledConfigRef,revision:z.pending.revision},{ref:M.ref('capacity','registry'),revision:registry.revision},{ref:M.ref('capacity',z.cycle.id),revision:head.revision},...(z.current?[{ref:z.cycle.currentConfigRef,revision:z.current.revision}]:[])];

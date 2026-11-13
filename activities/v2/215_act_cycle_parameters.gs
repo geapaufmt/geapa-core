@@ -193,3 +193,14 @@ function f4CycleParametersCompat_(options){
  }
  return {read,prepare};
 }
+// Preparing a revision needs its selected values and documentary sources, not
+// the cycle's entire activity, frequency, or configuration predecessor graph.
+function f4CycleParameterDependencies_(command,ref,d){
+ if(!['CONFIG_DRAFT_SAVE','CONFIG_HISTORICAL_RECOGNIZE','CONFIG_RECORD','CONFIG_ACTIVATE'].includes(command))return null;
+ const M=f4ActivitiesModel_(),out=[],add=r=>{if(r?.kind&&r.kind!=='NONE')out.push(r);};
+ if(ref.kind==='cycle'){for(const r of [d.policyVersionRef,d.currentConfigRef,d.scheduledConfigRef,d.draftConfigRef])add(r);add(M.ref('capacity',ref.id));}
+ if(ref.kind==='config'){add(d.policyVersionRef);for(const f of f4CycleParameterCatalog_()){const v=d.parameters?.[f.key];if(f.type==='policy')add(v);if(f.type==='policies')for(const r of v||[])add(r);}}
+ if(ref.kind==='policy'){for(const s of d.parameterGovernance?.sources||[])add(s.ref);if(d.usage==='CYCLE_PARAMETER_RECOGNITION')for(const s of d.sources||[])add(s.ref);}
+ if(ref.kind==='assessment')for(const b of d.basisRevisionVector||[])add(b.ref);
+ return out;
+}
