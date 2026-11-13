@@ -17,6 +17,11 @@ test('cycle parameters through shared executor, canonical ROLE, CAS and receipts
   docs['presentationCycles/SYN_CYCLE'].presentationRefs=Array.from({length:60},(_,i)=>ref('presentation','UNRELATED_'+i));
   for(const command of commands)docs['commandExecutorRoutes/ACT_FLOW_'+command]={schemaVersion:'geapa-act-flow-route-v1',projectId:PROJECT,routeId:'ACT_FLOW_'+command,commandType:'ACT.'+command,scopeId:'SYN_CYCLE_PARAMS',syntheticOnly:true,executor:EXECUTOR,state:'ACTIVE',epoch:1,revision:1,actorUids:['CF_ADMIN'],operationIds:[],maxOperations:30,availabilityMode:'TIMEBOXED',startsAt:now-1000,expiresAt:now+3600000};
   const batch=db.batch();for(const [p,v]of Object.entries(docs))batch.set(doc(p),v);await batch.commit();
+  await t.test('parameter reader uses the deployed query adapter for catalog and history',async()=>{
+   await doc('projectionRecoveryControl/current').set({schemaVersion:'activity-projection-recovery-v1',projectId:PROJECT,namespace:'',enabled:true,revision:1,startsAt:now-1000,expiresAt:now+3600000,policyIds:['CF_DEV_ACT_POLICY'],readModelCommands:commands,browserEnabled:true,appCheck:{mode:'REQUIRED',appIds:['SYN_APP']},specializedReaders:{enabled:true,actorUids:['CF_ADMIN'],routes:['/admin/ciclos-semestres/parametros']}});
+   const out=await require('../src/act-readers.cjs').readAct({db,auth,appCheck,token:'synthetic-emulator-only',appCheckToken:'synthetic-emulator-only',origin:'https://geapa-convergencia-dev.web.app',body:{action:'actRead',request:{route:'/admin/ciclos-semestres/parametros',params:{cycleId:'SYN_CYCLE'}}}});
+   a.equal(out.result.data.cycle.id,'SYN_CYCLE');a(out.result.data.fields.length>30);a(Array.isArray(out.result.data.history));
+  });
   h.set('titleMinimumDays',3);h.set('thematicMinimumDays',9);
   const draftPayload=async()=>({action:'DRAFT',cycleId:'SYN_CYCLE',cycleRevision:(await cycle()).revision,parameters:h.parameters,effectiveFrom:Date.now()+15000,reason:'Synthetic governed draft'});
   await t.test('revoked Auth and invalid App Check cannot prepare',async()=>{invalidAuth=true;await a.rejects(prepare(await draftPayload()));invalidAuth=false;invalidApp=true;await a.rejects(prepare(await draftPayload()));invalidApp=false;});

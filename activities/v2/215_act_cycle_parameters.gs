@@ -183,8 +183,8 @@ function f4CycleParametersCompat_(options){
   return {cycleRef,cycle,auth,policy:get(cycle.policyVersionRef),current:get(cycle.currentConfigRef),pending:get(cycle.scheduledConfigRef),draft:get(cycle.draftConfigRef)};
  }
  function recheck(z){ports.recheckAuthority(z.auth);N(db.get(M.path(z.cycleRef))?.revision===z.cycle.revision,'STALE_REVISION','DISPLAYED_CYCLE_CHANGED');}
- function refOptions(){let cursor,rows=[];for(let page=0;page<6;page++){
-  const part=db.query({collection:'presentationPolicyReferences',filters:[],order:[{field:'__name__',direction:'ASCENDING'}],limit:40,...(cursor?{cursor:[cursor]}:{})});rows.push(...part.map(r=>r.data));if(part.length<40)return rows;
+ function refOptions(){let cursor,rows=[];for(let page=0;page<12;page++){
+  const part=db.query({collection:'presentationPolicyReferences',filters:[],order:[{field:'__name__',direction:'ASCENDING'}],limit:20,...(cursor?{cursor:[cursor]}:{})});rows.push(...part.map(r=>r.data));if(part.length<20)return rows;
   cursor=new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+part[part.length-1].path);
  }N(false,'SCOPE_TOO_LARGE','PARAMETER_POLICY_CATALOG_BOUND');}
  function summary(d){return d?{id:d.id,revision:d.revision,state:d.state||(d.approved?'APPROVED':'DRAFT'),effectiveFrom:M.ms(d.effectiveFrom),recordedAt:M.ms(d.recognizedAt||d.createdAt),reason:d.reason||d.approvalDecision?.basis?.reason||'',normativeReference:d.normativeReference||'',predecessorId:d.predecessorRef?.id||'',definitionHash:d.definitionHash||'',parameters:f4CycleEffectiveConfiguration_(d).parameters}:null;}
