@@ -11,6 +11,9 @@ test('cycle parameters through shared executor, canonical ROLE, CAS and receipts
  const apply=async(q,hooks)=>{const r=await call('execute',q,hooks);a(['COMPLETED','RECOVERED'].includes(r.result?.state),JSON.stringify(r));return r;};
  try{
   a.equal(db.projectId,DEMO);a.equal(process.env.FIRESTORE_EMULATOR_HOST,'127.0.0.1:8187');
+  // Reset this synthetic actor's admission fixture so repeated local runs do not
+  // accumulate the hourly quota. The production admission policy is unchanged.
+  await doc('memberAdmissionCounters/ACT_'+h.evaluate('u=>f4Core_().hash(u).slice(0,32)','CF_ADMIN')).delete();
   await db.recursiveDelete(doc('presentationCycles/SYN_CYCLE'));
   const base=authFixture('PRESIDENTE').docs,policy=base['memberAuthzPolicies/CF_DEV_ACT_POLICY'];policy.capabilities=['PRESENTATION_BOARD_READ','PRESENTATION_PLAN_MANAGE'];policy.fieldMasks=Object.fromEntries(policy.capabilities.map(c=>[c,[]]));policy.targets.allowedTargetScopes=['PRESC_SYN_CYCLE'];policy.targets.allowedResources=resources;policy.targets.allowedPersons=['PES-000001'];delete policy.targets.resourceScope;
   const docs={...base,...h.docs,'activityExecutorControl/current':{schemaVersion:'activity-executor-control-v1',projectId:PROJECT,enabled:true,revision:1,actorUids:['CF_ADMIN'],policyIds:['CF_DEV_ACT_POLICY'],startsAt:now-1000,expiresAt:now+3600000,browserEnabled:true,appCheck:{mode:'REQUIRED',appIds:['SYN_APP']}},'actFlowExecutorScopes/SYN_CYCLE_PARAMS':{id:'SYN_CYCLE_PARAMS',projectId:PROJECT,synthetic:true,revision:1,resourcePaths:resources}};
