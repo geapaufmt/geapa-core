@@ -8,9 +8,9 @@ function f4MemberBoardEffects_(){
   const a=f4MemberEvidence_().validate(get('memberEvidenceAttestations/'+ref));
   N(a.active&&a.kind==='BOARD_DECISION'&&a.holderId===p.boardId&&a.effect==='BOARD_PROCEDURE_BASIS'&&a.targetResourceIds.includes('memberGovernanceBoards/'+p.boardId)&&C.ms(a.verifiedAt)<=now&&now<C.ms(a.expiresAt),'M13_ACT_INVALID');
   const b=f4MemberActContent_().read(get,a.contentHash);
-  const v2=b.schemaVersion==='member-board-effect-basis-v2';
-  C.exact(b,['schemaVersion','boardId','types','normativeReferences','termUnits','allowedRoleIds','advisorRoleByScope','electronicProcedureEnabled','exceptionProcedureHashes','communicationProcedureHashes','sourceHash',...(v2?['procedureRequirements','defenseProcess']:[])]);
-  N(['member-board-effect-basis-v1','member-board-effect-basis-v2'].includes(b.schemaVersion)&&b.boardId===p.boardId&&Array.isArray(b.types)&&b.types.includes(p.type)&&/^[a-f0-9]{64}$/.test(b.sourceHash),'M13_ACT_INVALID');
+  const v3=b.schemaVersion==='member-board-effect-basis-v3',v2=v3||b.schemaVersion==='member-board-effect-basis-v2';
+  C.exact(b,['schemaVersion','boardId','types','normativeReferences','termUnits','allowedRoleIds','advisorRoleByScope','electronicProcedureEnabled','exceptionProcedureHashes','communicationProcedureHashes','sourceHash',...(v2?['procedureRequirements','defenseProcess']:[]),...(v3?['individualException']:[])]);
+  N(['member-board-effect-basis-v1','member-board-effect-basis-v2','member-board-effect-basis-v3'].includes(b.schemaVersion)&&b.boardId===p.boardId&&Array.isArray(b.types)&&b.types.includes(p.type)&&/^[a-f0-9]{64}$/.test(b.sourceHash),'M13_ACT_INVALID');
   N(Array.isArray(b.normativeReferences)&&b.normativeReferences.length>0,'M13_ACT_INVALID');
   for(const ref of b.normativeReferences){C.exact(ref,['path','sha256','approvalHash']);N(/^institutionalNormVersions\/[A-Za-z0-9_-]+$/.test(ref.path),'M13_ACT_INVALID');const norm=get(ref.path),approval=norm&&get('institutionalNormApprovals/'+norm.approvalRef);N(norm?.status==='CURRENT'&&hash(norm)===ref.sha256&&C.civilStart(norm.effectiveFrom)<=now&&approval?.active===true&&approval.normId===norm.id&&approval.immutableVersionRef===norm.immutableVersionRef&&hash(approval)===ref.approvalHash,'M13_ACT_INVALID');}
   if(collective(p)){
@@ -22,7 +22,7 @@ function f4MemberBoardEffects_(){
     N(d?.minutes?.state==='ARCHIVED'&&d.minutes.archive?.contentHash===d.minutes.submitted?.contentHash&&hash(d)===q.conventionalMinuteHash&&q.authorizedTypes?.includes(p.type)&&q.authorizesAsynchronous===true,'ELECTRONIC_FORMALIZATION_REQUIRED');
    }
   }
-  if(p.type==='EXTRAORDINARY_EXTENSION')N(b.exceptionProcedureHashes.includes(p.contentHash),'ART33_SPECIFIC_EXCEPTION_REQUIRED');
+  if(p.type==='EXTRAORDINARY_EXTENSION'){if(v3)f4BoardExtraordinary_().evidence(get,b,p,now);else N(b.exceptionProcedureHashes.includes(p.contentHash),'ART33_SPECIFIC_EXCEPTION_REQUIRED');}
   if(p.type==='TEMPORARY_OFFICE')N(b.communicationProcedureHashes.includes(p.contentHash),'COMMUNICATION_TO_EFFECTIVE_MEMBERS_REQUIRED');
   return {basis:b,ref,contentHash:a.contentHash};
  }
@@ -54,11 +54,12 @@ function f4MemberBoardEffects_(){
   return {state:'CALCULATED',asOf:today,accrued,committed,remainingAccrued:remaining(accrued),remainingAfterDocumentedTerms:remaining(committed),notice:'Saldo documental não autoriza prorrogação; fundamento, revisão, período e competência são revalidados.'};
  }
  function resolve(get,o,r,auth,c){
-  const p=r.procedure,now=o.clock(),actor=auth.actor.actor.h.id,B=f4BoardProcedures_();
+  const p=r.procedure,now=o.clock(),automatic=o.automatic===true?f4BoardAutomation_().authority(get,o,r):null,actor=automatic?automatic.actor:auth.actor.actor.h.id,B=f4BoardProcedures_();
   N(r.kind==='BOARD_PROCEDURE'&&['RECORDED','APPROVED'].includes(p.state)&&p.enactment?.state!=='ENACTED','PROCEDURE_NOT_APPROVED');
   N(c.boardProcedures?.enabled&&c.boardProcedures.actions.includes('BP_ENACT')&&c.boardProcedures.types.includes(p.type)&&c.boardProcedures.boardIds.includes(p.boardId)&&c.boardProcedures.targetPersonIds.includes(p.target.personId),'SCOPE_INVALID');
-  const own=auth.actor.derived.currentDirectors.filter(f=>f.idDiretoria===p.boardId),pres=own.some(f=>f.roleKey==='PRESIDENTE');N(own.length,'AUTHORIZATION_DENIED');
-  if(p.type==='VOLUNTARY_EXIT')N(actor===p.target.personId||pres,'SELF_REQUIRED');
+  const own=automatic?[]:auth.actor.derived.currentDirectors.filter(f=>f.idDiretoria===p.boardId),pres=own.some(f=>f.roleKey==='PRESIDENTE');N(automatic||own.length,'AUTHORIZATION_DENIED');
+  if(automatic)N(p.type==='EXTRAORDINARY_EXTENSION','AUTHORIZATION_DENIED');
+  else if(p.type==='VOLUNTARY_EXIT')N(actor===p.target.personId||pres,'SELF_REQUIRED');
   else if(p.type==='ADVISOR_APPOINTMENT'){const responsible=get('memberFunctions/'+p.target.responsibleFunctionId);N(pres||responsible?.idPessoa===actor&&own.some(f=>f.idVigencia===responsible.id),'AUTHORIZATION_DENIED');}
   else if(p.type==='ADVISOR_END'){const source=get('institutionalGovernanceDrafts/current')?.records.find(x=>x.procedure?.type==='ADVISOR_APPOINTMENT'&&x.procedure.enactment?.state==='ENACTED'&&x.procedure.enactment.functionId===p.target.functionId),responsible=source&&get('memberFunctions/'+source.procedure.target.responsibleFunctionId);N(pres||responsible?.idPessoa===actor&&own.some(f=>f.idVigencia===responsible.id),'AUTHORIZATION_DENIED');}
   else N(pres,'PRESIDENT_REQUIRED');
@@ -97,7 +98,8 @@ function f4MemberBoardEffects_(){
   for(const segment of segments)if(!O.modern(segment))segment.schemaVersion='m1-memberFunctions-v2';
   const changes=[...(roleChange?[roleChange]:[]),...segments.map(f=>({path:'memberFunctions/'+f.id,expectedRevision:originals.find(x=>x.id===f.id)?.revision||0,data:f}))];
   for(const changed of segments){const old=originals.find(f=>f.id===changed.id);if(!old)continue;const fn=changed,id='EVT_'+(old.id===t.functionId?o.operationId:C.hash({operationId:o.operationId,functionId:old.id}).slice(0,32));N(!get('memberEvents/'+id),'OPERATION_CONFLICT');changes.push({path:'memberEvents/'+id,expectedRevision:0,data:{schemaVersion:'m1-memberEvents-v1',id,revision:1,origin:'BOARD_PROCEDURE',idPessoa:t.personId,idVinculo:fn.idVinculo,type:'RETIFICACAO',effect:null,effectiveDate:today,endDate:null,supersedes:null,correctionPath:'memberFunctions/'+fn.id,prior:copy(old)}});}
-  return {documentaryAuthorization:collective(p)&&basis.schemaVersion==='member-board-effect-basis-v2'?copy(basis.procedureRequirements[p.type]):null,id:t.personId,expected:loaded.h.revision,changes,now,boardExpected:{},mode:'M13',deadline:auth.validUntil,evidence:{ref,contentHash},summary,functionId:fn.id,responsibleFunctionId:t.responsibleFunctionId||null};
+  if(automatic)N(basis.schemaVersion==='member-board-effect-basis-v3','M13_ACT_INVALID');
+  return {documentaryAuthorization:collective(p)&&['member-board-effect-basis-v2','member-board-effect-basis-v3'].includes(basis.schemaVersion)?copy(basis.procedureRequirements[p.type]):null,id:t.personId,expected:loaded.h.revision,changes,now,boardExpected:{},mode:'M13',deadline:automatic?automatic.validUntil:auth.validUntil,evidence:{ref,contentHash},summary,functionId:fn.id,responsibleFunctionId:t.responsibleFunctionId||null};
  }
  return {resolve,tenure,balance,evidence,defenseBasis};
 }

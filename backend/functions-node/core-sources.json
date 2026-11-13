@@ -255,6 +255,9 @@
     "members/108_member_board_effects.gs",
     "institutional/211_board_procedures.gs",
     "institutional/212_board_history.gs",
-    "members/109_member_occupations.gs"
+    "members/109_member_occupations.gs",
+    "members/113_member_binding_admin.gs",
+    "institutional/213_board_extraordinary.gs",
+    "institutional/214_board_automation.gs"
   ]
 }

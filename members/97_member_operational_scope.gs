@@ -4,6 +4,13 @@
 function f4MemberOperationalScope_(get,q,limits,actorPerson,command,now){
  const K=f4MemberAuthzContracts_(),N=K.need;K.targets(limits);
  const scopes=limits.commandScopes||[],t=q.target;
+ if(scopes.includes('ACCOUNT_BINDING')&&q.capability==='MEMBERS_BINDING_MANAGE'){
+  N(q.kind==='EXPLICIT'&&!limits.ownPerson&&limits.allowedPersons.includes(t.personId)&&limits.allowedTargetScopes.includes('ADMINISTRACAO')&&t.scopeKey==='ADMINISTRACAO'&&t.purpose==='ACCOUNT_BINDING'&&t.fieldMask.length===0);
+  if(t.resources.length===1&&t.resources[0]==='memberIdentities/'+t.personId)return true;
+  const v=get('memberBindingVerifications/'+t.caseId);N(v?.schemaVersion==='member-binding-verification-v1'&&v.ownerUid===q.uid&&v.personId===t.personId);
+  N(K.digest([...t.resources].sort())===K.digest(['memberAuthBindings/'+v.account.uid,'portalUsers/'+v.account.uid,'portalAccessStatus/'+v.account.uid].sort()));return true;
+ }
+
  if(scopes.includes('OWN_MEMBER_RESOURCES')&&q.kind==='SELF'&&['MEMBERS_SELF_READ','MEMBERS_SELF_UPDATE'].includes(q.capability)){
   N(limits.ownPerson&&t.personId===actorPerson&&t.scopeKey===null&&t.boardId===null&&t.roleKey===null);
   if(q.capability==='MEMBERS_SELF_UPDATE')N(t.resources.length===1&&t.resources[0]==='memberPrivateProfiles/'+actorPerson||t.fieldMask.length===0&&t.resources.length===2&&t.resources.includes('memberProfileCorrectionIndexes/'+actorPerson)&&t.resources.some(p=>/^memberProfileCorrections\/[a-f0-9]{32}$/.test(p)));

@@ -2,12 +2,13 @@
 // Documentary reproduction only. Never substitutes normative enablement or
 // executes a membership mutation. Kept separate from immutable archived minutes.
 const {jsPDF}=require('jspdf'),crypto=require('node:crypto'),assets=require('./minute-letterhead.json');
-const VERSION='GEAPA_BOARD_PROCEDURE_PDF_2',sha=b=>crypto.createHash('sha256').update(b).digest('hex');
+const VERSION='GEAPA_BOARD_PROCEDURE_PDF_3',sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const states={APPROVED:'aprovada',REJECTED:'rejeitada',INSUFFICIENT_MANIFESTATIONS:'não aprovada por insuficiência de manifestações',CANCELLED:'cancelada',SUSPENDED_COMPOSITION:'suspensa por mudança da composição',RECORDED:'registrada'};
 const stamp=n=>Number.isSafeInteger(n)?new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Cuiaba',dateStyle:'long',timeStyle:'short',hour12:false}).format(new Date(n))+' (Cuiabá)':'não registrado';
 function source(record){const p=record?.procedure;if(record?.kind!=='BOARD_PROCEDURE'||!states[p?.state]||!Number.isSafeInteger(record.revision)||!Number.isSafeInteger(record.updatedAt))throw Error('PROCEDURE_DOCUMENT_NOT_FINAL');const {document,documentHistory,...content}=p;return {id:record.id,revision:record.revision,title:record.title,updatedAt:record.updatedAt,procedure:content};}
 function renderBoardProcedurePdf(record,version=VERSION){
  if(version==='GEAPA_BOARD_PROCEDURE_PDF_1')return require('./board-procedure-pdf-v1.cjs').renderBoardProcedurePdf(record);
+ if(version==='GEAPA_BOARD_PROCEDURE_PDF_2')return require('./board-procedure-pdf-v2.cjs').renderBoardProcedurePdf(record);
  if(version!==VERSION)throw Error('DOCUMENT_RENDERER_UNSUPPORTED');
  const s=source(record),p=s.procedure,collective=['UNANIMITY','ABSOLUTE_MAJORITY'].includes(p.rule),sourceHash=sha(Buffer.from(JSON.stringify(s))),at=record.updatedAt;
  const doc=new jsPDF({unit:'mm',format:'a4',compress:true,putOnlyUsedFonts:true,precision:4});
@@ -24,6 +25,7 @@ function renderBoardProcedurePdf(record,version=VERSION){
  if(collective){paragraph(p.enactment?.documentaryAuthorization?'Procedimento assíncrono respaldado pelo registro institucional '+p.enactment.documentaryAuthorization.conventionalMinuteId+'. Não afirma reunião presencial ou simultânea.':'Reprodução documental de procedimento eletrônico. A equivalência a ata formal depende de fundamento institucional comprovado; este registro não a presume.',true,9);paragraph('No período compreendido entre '+stamp(p.openedAt)+' e '+stamp(p.closedAt)+', foi registrada no Portal GEAPA a apreciação assíncrona da proposta abaixo pela composição identificada. Este documento não afirma a realização de reunião simultânea.');}
  else paragraph('Este termo reproduz o registro administrativo individual realizado no Portal GEAPA em '+stamp(p.createdAt)+'. Não constitui ata de reunião.');
  paragraph('Gestão: '+p.boardId+'. Proponente: '+p.proposer+'.');paragraph('Objeto: '+p.object);paragraph('Justificativa: '+p.reason);paragraph('Fundamentação declarada: '+p.basis);
+ if(p.exception)paragraph('Exceção individual aos arts. 33, §5º, e 47: '+p.exception.individualGrounds);
  paragraph('Operação estruturada',true);for(const [key,value]of Object.entries(p.target))paragraph(key+': '+String(value),false,9);
  paragraph('Resultado registrado: '+states[p.state]+'.',true);if(p.enactment?.state==='ENACTED'){
  paragraph('Efeito confirmado no cadastro canônico em '+stamp(p.enactment.at)+'.',true);

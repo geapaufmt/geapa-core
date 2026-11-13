@@ -3,6 +3,10 @@
 const {fail,ROOT}=require('./environment.cjs');
 const collections=['memberAggregateHeads','memberEnrollments','memberProfileCorrections','memberVoluntaryRequests','presentationUnitHeads'];
 function memberQuery(db,p,decode){
+ if(p?.collection==='memberAuthBindings'){
+  if(Object.keys(p).sort().join()!=='collection,filters,limit,order'||p.limit!==2||JSON.stringify(p.order)!==JSON.stringify([{field:'__name__',direction:'ASCENDING'}])||p.filters?.length!==1||p.filters[0].field!=='idPessoa'||p.filters[0].op!=='EQUAL'||!(/^[A-Za-z0-9_-]{1,48}$/).test(decode(p.filters[0].value)))fail('QUERY_NOT_IN_PILOT');
+  return db.collection((ROOT?ROOT+'/':'')+'memberAuthBindings').where('idPessoa','==',decode(p.filters[0].value)).orderBy(require('firebase-admin/firestore').FieldPath.documentId(),'asc').limit(2);
+ }
  if(!collections.includes(p?.collection))return null;
  const voluntary=p.collection==='memberVoluntaryRequests',order=voluntary?[{field:'createdAt',direction:'DESCENDING'},{field:'id',direction:'ASCENDING'}]:[{field:'id',direction:'ASCENDING'}];
  if(JSON.stringify(p.order)!==JSON.stringify(order))return null;
