@@ -67,6 +67,9 @@ function f4BoardProcedures_(){
  // New proposals seal the opening instruction. Existing proposals never acquire
  // this behavior merely because the reader or deployment changed.
  function occupationEnd(get,personId,functionId){
+  // An authorized historical document may retain a former function reference.
+  // Do not present that detached reference as current institutional tenure.
+  const head=get('memberAggregateHeads/'+personId);if(!head?.paths?.includes('memberFunctions/'+functionId))return null;
   const authority=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')),loaded=f4MemberAuthz_().load(get,personId,authority),fn=loaded.d['memberFunctions/'+functionId];
   N(fn&&fn.idPessoa===personId,'TARGET_FUNCTION_INVALID');const O=f4MemberOccupations_(),segments=O.members(loaded.M.rows(loaded.d,'memberFunctions'),fn).filter(O.active);return segments.length?O.end(segments.at(-1)):O.end(fn);
  }
@@ -207,7 +210,7 @@ function f4BoardProcedures_(){
    enactment={state:'AUTOMATIC_VALIDATION_PENDING',blocks:inspection.blocks};
   }
   const fn=p.target.functionId&&get('memberFunctions/'+p.target.functionId),role=fn&&get('memberRoleCatalog/'+fn.idCargo),people=p.electorate?.people||[],required=people.length?(p.rule==='UNANIMITY'?people.length:Math.floor(people.length/2)+1):null;
-  const presentation={typeLabel:types[p.type].label,personName:get('memberIdentities/'+p.target.personId)?.displayName||p.target.personId,roleName:role?.name||role?.roleKey||p.target.roleName||null,boardName:get('memberGovernanceBoards/'+p.boardId)?.name||p.boardId,currentEnd:fn?occupationEnd(get,p.target.personId,p.target.functionId):null,proposedEnd:p.target.endDate||null,votesRecorded:p.votes.length,requiredVotes:required,remainingVotes:people.length-p.votes.length,nextActor:p.state==='CONSENT_PENDING'?'Interessado':p.state==='OPEN'?'Diretoria vigente':p.state==='DEFENSE_PENDING'?'Interessado':enactment.state==='AUTOMATIC_VALIDATION_PENDING'?'Validação automática':null,myAction:actions.some(a=>['BP_CONSENT','BP_VOTE','BP_DEFEND','BP_ACK','BP_CLEARANCE','BP_ENACT','BP_OPEN'].includes(a))};
+  const presentation={typeLabel:types[p.type].label,personName:get('memberIdentities/'+p.target.personId)?.displayName||p.target.personId,roleName:role?.name||role?.roleKey||p.target.roleName||null,boardName:get('memberGovernanceBoards/'+p.boardId)?.name||p.boardId,currentEnd:fn?occupationEnd(get,p.target.personId,p.target.functionId):null,currentEndStatus:fn&&get('memberAggregateHeads/'+p.target.personId)?.paths?.includes('memberFunctions/'+p.target.functionId)?'CANONICAL':'HISTORICAL_REFERENCE_ONLY',proposedEnd:p.target.endDate||null,votesRecorded:p.votes.length,requiredVotes:required,remainingVotes:people.length-p.votes.length,nextActor:p.state==='CONSENT_PENDING'?'Interessado':p.state==='OPEN'?'Diretoria vigente':p.state==='DEFENSE_PENDING'?'Interessado':enactment.state==='AUTOMATIC_VALIDATION_PENDING'?'Validação automática':null,myAction:actions.some(a=>['BP_CONSENT','BP_VOTE','BP_DEFEND','BP_ACK','BP_CLEARANCE','BP_ENACT','BP_OPEN'].includes(a))};
   return {...r,procedure:{...p,canonicalState:r.procedure.state,enactment},presentation,documentAvailable:['APPROVED','REJECTED','INSUFFICIENT_MANIFESTATIONS','CANCELLED','SUSPENDED_COMPOSITION','RECORDED'].includes(r.procedure.state),actions};
  }
  function candidates(get,o,auth,c){
