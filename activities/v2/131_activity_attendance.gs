@@ -71,7 +71,7 @@ function f4AttendanceCommands_(x) {
  function consumed(c){return c.extraordinaryAttendance?.status==='ACTIVE'?{extraordinaryAttendance:{...c.extraordinaryAttendance,status:'CONSUMED',endedAt:M.stamp(now),endedBy:actor.personRef,endOperationId:x.operationId}}:{};}
  function extraordinary(revoke){
   const a=load(p.activityRef,true),c=collection(p.activityRef),proof=x.authorityBasis.functionBasis;
-  N(actor.kind==='BOARD_ACTOR'&&proof?.kind==='ROLE'&&proof.roleId==='DIRETOR_ADMINISTRATIVO'&&proof.capability==='ACTIVITY_ATTENDANCE_EXCEPTION_AUTHORIZE','AUTHORIZATION_DENIED','EXTRAORDINARY_ATTENDANCE_AUTHORITY_REQUIRED');
+  N(actor.kind==='BOARD_ACTOR'&&proof?.kind==='ROLE'&&x.get('memberRoleCatalog/'+proof.roleId)?.roleKey==='DIRETOR_ADMINISTRATIVO'&&proof.capability==='ACTIVITY_ATTENDANCE_EXCEPTION_AUTHORIZE','AUTHORIZATION_DENIED','EXTRAORDINARY_ATTENDANCE_AUTHORITY_REQUIRED');
   N(c.revision===p.collectionRevision,'STALE_REVISION','ATTENDANCE_CHANGED');
   N(!c.lastFinalizedAt&&['DRAFT','OPEN','REOPENED'].includes(c.state),'INVALID_STATE_TRANSITION','CHAMADA_FINALIZADA');
   let value;
