@@ -16,7 +16,7 @@ function f4ActivitiesQuotaCommands_(x){
   THEME_WAIT_ADMIT(){
    reason();const t=load(p.requestRef,true),u=load(t.unitRef,true),c=load(u.cycleRef,true),cfg=x.config(),policy=c.thematicQuotaConfigRef&&load(c.thematicQuotaConfigRef);
    N(cfg.parameters.quota&&policy?.state==='APPROVED'&&policy.waitAdmissionMode==='MANUAL_NEW_ANALYSIS','CONFIG_CAPABILITY_DISABLED','WAIT_ADMISSION_POLICY_REQUIRED');
-   N(t.workflowState==='WAITING'&&t.candidate&&t.candidate.materiality!=='UNDECIDED','HUMAN_DECISION_REQUIRED','WAITING_MATERIALITY');D.eligible(u);if(u.assignmentRef)D.date(load(load(u.assignmentRef).sessionRef),cfg.parameters.thematicMinimumDays??20,20);
+   N(t.workflowState==='WAITING'&&t.candidate&&t.candidate.materiality!=='UNDECIDED','HUMAN_DECISION_REQUIRED','WAITING_MATERIALITY');D.eligible(u);if(u.assignmentRef)D.date(load(load(u.assignmentRef).sessionRef),undefined,undefined,'THEME');
    N(cfg.parameters.clockPolicyRef,'CONFIG_CAPABILITY_DISABLED','ANALYSIS_CLOCK_REQUIRED');const clockPolicy=load(cfg.parameters.clockPolicyRef);
    const target={...t,principalAxisRef:t.candidate.principalAxisRef};
    // A pending change keeps its original occupancy until the final approval.

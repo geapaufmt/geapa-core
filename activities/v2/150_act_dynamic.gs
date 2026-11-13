@@ -1,18 +1,18 @@
 // Dynamic requests keep their submission date. Approval does not reset D-30.
 function f4ActivitiesDynamic_(x){
  const {M,N,p,load,save,revision,event,config,capacity,now}=x,D=f4ActivitiesDomain_(x);
- const lead=cfg=>{const days=cfg.parameters.dynamicRequestLeadDays??30;N(Number.isSafeInteger(days)&&days>=30,'CONFIG_CAPABILITY_DISABLED','DYNAMIC_REQUEST_DEADLINE');return days;};
+ const lead=cfg=>f4CycleParameters_().deadline(cfg.parameters,'dynamicRequestLeadDays');
  function reason(value){N(typeof value==='string'&&value.trim()&&value.length<=2000,'HUMAN_DECISION_REQUIRED','DYNAMIC_REASON');}
  function currentAssignment(u,sr){N(u.assignmentRef,'UNRESOLVED_DEPENDENCY');const a=load(u.assignmentRef,true);N(['ACTIVE','CONFIRMED'].includes(a.status)&&a.unitRef.id===u.id&&a.sessionRef.id===sr.id,'STALE_REVISION','DYNAMIC_ASSIGNMENT_CHANGED');return a;}
  return {
   DYNAMIC_SUBMIT(){
-   const cfg=config();N(cfg.parameters.dynamic,'CONFIG_CAPABILITY_DISABLED');const u=x.own(p.unitRef);N(u.assignmentRef,'UNRESOLVED_DEPENDENCY');const a=load(u.assignmentRef,true),s=load(a.sessionRef,true);currentAssignment(u,a.sessionRef);
+   const cfg=config();N(cfg.parameters.dynamic&&f4CycleParameters_().modality(cfg.parameters,'MEMBER_DYNAMIC'),'CONFIG_CAPABILITY_DISABLED');const u=x.own(p.unitRef);N(u.assignmentRef,'UNRESOLVED_DEPENDENCY');const a=load(u.assignmentRef,true),s=load(a.sessionRef,true);currentAssignment(u,a.sessionRef);
    N(!u.presentationRef||!load(u.presentationRef,true).realizationRef,'INVALID_STATE_TRANSITION','DYNAMIC_AFTER_REALIZATION');
    N(Array.isArray(p.elements)&&p.elements.length===9&&p.elements.every(e=>typeof e==='string'&&e.trim()&&e.length<=2000),'INCOMPLETE_REQUEST');
    let prior;if(u.currentDynamicProposalRef){prior=load(u.currentDynamicProposalRef,true);N(prior.state!=='OPEN'&&p.predecessorRef&&D.exactRef(p.predecessorRef,u.currentDynamicProposalRef),'INVALID_STATE_TRANSITION','DYNAMIC_PROPOSAL_PENDING');}else N(!p.predecessorRef,'STALE_REVISION','DYNAMIC_PREDECESSOR');
    const continued=prior?.requestedCivilDate===s.civilDate&&prior.sessionRef.id===s.id;
-   if(!continued)D.date(s,lead(cfg));else N(prior.submittedAt&&Number.isSafeInteger(prior.requestLeadDays)&&prior.requestLeadDays>=30&&M.gap(M.day(M.ms(prior.requestSubmittedAt||prior.submittedAt)),s.civilDate)>=prior.requestLeadDays&&M.gap(M.day(now),s.civilDate)>=0,'UNRESOLVED_DEPENDENCY','DYNAMIC_SUBMISSION_PROOF');
-   const r=event('flow',{kind:'DYNAMIC_PROPOSAL',state:'OPEN',cycleRef:x.cycleRef,personRef:u.personRef,unitRef:p.unitRef,sessionRef:a.sessionRef,elements:p.elements.map(e=>e.trim()),predecessorRef:p.predecessorRef||{kind:'NONE'},submittedAt:M.stamp(now),requestSubmittedAt:continued?prior.requestSubmittedAt||prior.submittedAt:M.stamp(now),requestedCivilDate:s.civilDate,requestLeadDays:continued?prior.requestLeadDays:lead(cfg),requestConfigRef:continued?prior.requestConfigRef||load(x.cycleRef).currentConfigRef:load(x.cycleRef).currentConfigRef});
+   const requestRule=continued?null:lead(cfg);if(!continued){if(requestRule.applicable)D.date(s,requestRule.days);else N(M.gap(M.day(now),s.civilDate)>=0,'DEADLINE_VIOLATION');}else N(prior.submittedAt&&(prior.requestDeadlineApplicable===false||Number.isSafeInteger(prior.requestLeadDays)&&prior.requestLeadDays>=0&&M.gap(M.day(M.ms(prior.requestSubmittedAt||prior.submittedAt)),s.civilDate)>=prior.requestLeadDays)&&M.gap(M.day(now),s.civilDate)>=0,'UNRESOLVED_DEPENDENCY','DYNAMIC_SUBMISSION_PROOF');
+   const r=event('flow',{kind:'DYNAMIC_PROPOSAL',state:'OPEN',cycleRef:x.cycleRef,personRef:u.personRef,unitRef:p.unitRef,sessionRef:a.sessionRef,elements:p.elements.map(e=>e.trim()),predecessorRef:p.predecessorRef||{kind:'NONE'},submittedAt:M.stamp(now),requestSubmittedAt:continued?prior.requestSubmittedAt||prior.submittedAt:M.stamp(now),requestedCivilDate:s.civilDate,requestDeadlineApplicable:continued?prior.requestDeadlineApplicable!==false:requestRule.applicable,requestLeadDays:continued?prior.requestLeadDays??null:requestRule.applicable?requestRule.days:null,requestConfigRef:continued?prior.requestConfigRef||load(x.cycleRef).currentConfigRef:load(x.cycleRef).currentConfigRef});
    save(p.unitRef,{...u,currentDynamicProposalRef:r});return {proposalRef:r};
   },
   DYNAMIC_DECIDE(){
@@ -22,10 +22,10 @@ function f4ActivitiesDynamic_(x){
    let requirementRef,occupancyRef,occupancy,capacityHead;
    if(p.decision==='APPROVE'){
     capacityHead=capacity();const s=load(f.sessionRef,true),assignment=currentAssignment(u,f.sessionRef);
-    N(Number.isSafeInteger(f.requestLeadDays)&&f.requestLeadDays>=30&&f.submittedAt&&f.requestedCivilDate&&M.gap(M.day(M.ms(f.requestSubmittedAt||f.submittedAt)),f.requestedCivilDate)>=f.requestLeadDays,'UNRESOLVED_DEPENDENCY','DYNAMIC_SUBMISSION_PROOF');
+    N(f.submittedAt&&f.requestedCivilDate&&(f.requestDeadlineApplicable===false||Number.isSafeInteger(f.requestLeadDays)&&f.requestLeadDays>=0&&M.gap(M.day(M.ms(f.requestSubmittedAt||f.submittedAt)),f.requestedCivilDate)>=f.requestLeadDays),'UNRESOLVED_DEPENDENCY','DYNAMIC_SUBMISSION_PROOF');
     // A new date is a new calendar decision. The original date remains timely
     // even if the director reviews it with fewer than thirty days remaining.
-    if(s.civilDate!==f.requestedCivilDate)D.date(s,Math.max(30,lead(cfg)));
+    if(s.civilDate!==f.requestedCivilDate){D.date(s);const rule=lead(cfg);if(rule.applicable)D.date(s,rule.days);}
     N(M.gap(M.day(now),s.civilDate)>=0,'INVALID_STATE_TRANSITION','DYNAMIC_DATE_PASSED');
     const assessment=x.manifest(p.assessmentRef),registry=load(M.ref('capacity','registry'),true);
     N(assessment.feasible===true&&assessment.cycleRef?.id===x.cycleRef.id&&assessment.membersEpoch===registry.membersEpoch&&assessment.cycleRegistryEpoch===registry.cycleRegistryEpoch&&assessment.basisEpoch===capacityHead.capacityEpoch&&assessment.validUntil&&M.ms(assessment.validUntil)>now,'STALE_REVISION','DYNAMIC_CAPACITY_ASSESSMENT');
@@ -47,7 +47,7 @@ function f4ActivitiesDynamic_(x){
     save(f.unitRef,{...u,dynamicOccupancyRef:occupancyRef});revision(u.presentationRef,{...pr,materialRequirementRef:requirementRef,dynamicOccupancyRef:occupancyRef});
     revision(f.sessionRef,{...s,config:{...s.config,destination:'DYNAMIC_EXCLUSIVE'},configRevision:s.configRevision+1});save(M.ref('capacity',x.cycleRef.id),{...capacityHead,dynamicActiveCount:capacityHead.dynamicActiveCount+increment,capacityEpoch:capacityHead.capacityEpoch+1});
    }
-   const d=event('dynamicDecision',{cycleRef:x.cycleRef,personRef:u.personRef,unitRef:f.unitRef,proposalRef:p.proposalRef,elements:f.elements,decision:p.decision,reason:p.reason,capacityAssessmentRef:p.assessmentRef,...(requirementRef?{requirementRef,requirementManifestRef:p.requirementManifestRef}:{})});
+   const d=event('dynamicDecision',{cycleRef:x.cycleRef,personRef:u.personRef,unitRef:f.unitRef,proposalRef:p.proposalRef,elements:f.elements,...f4CycleParameters_().reconsideration(cfg.parameters,now),decisionConfigRef:load(x.cycleRef).currentConfigRef,decision:p.decision,reason:p.reason,capacityAssessmentRef:p.assessmentRef,...(requirementRef?{requirementRef,requirementManifestRef:p.requirementManifestRef}:{})});
    if(occupancyRef)revision(occupancyRef,{...occupancy,approvalDecisionRef:d});revision(p.proposalRef,{...f,state:p.decision==='REQUEST_CORRECTION'?'CORRECTION_REQUESTED':'DECIDED',decisionRef:d});return {decisionRef:d};
   },
   DYNAMIC_CANCEL(){
