@@ -26,6 +26,14 @@ test('unknown or disabled secondary-axis setting cannot enable a secondary axis'
 test('meeting defaults use the requested cycle revision and never another cycle',()=>{const h=business();h.set('meetingStartTime','18:00');h.set('meetingEndTime','20:00');const out=h.evaluate('d=>{const M=f4ActivitiesModel_(),get=p=>d[p];return [f4CycleMeetingDefaults_(get,M.ref("cycle","SYN_CYCLE")),f4CycleMeetingDefaults_(get,M.ref("cycle","SYN_OTHER"))];}',h.docs);a.equal(out[0].meetingStartTime,'18:00');a.equal(out[0].configRevision,'SYN_ACTIVE');a.equal(out[1].meetingStartTime,null);});
 test('reconsideration deadline is pinned when deciding, with no universal default',()=>{const h=business();a.deepEqual(h.evaluate('i=>f4CycleParameters_().reconsideration(i.p,i.now)',{p:h.parameters,now}),{});h.set('reconsiderationHours',36);a.equal(h.evaluate('i=>f4ActivitiesModel_().ms(f4CycleParameters_().reconsideration(i.p,i.now).reconsiderationDueAt)',{p:h.parameters,now}),now+36*3600000);});
 module.exports={business};
+test('calendar decisions retain documentary criteria from their own approved revision',()=>{
+ const h=business();h.set('administrativeAllocationCriteria','Synthetic allocation criteria');
+ const u=ref('unit','SYN_UNIT'),s=ref('session','SYN_SESSION'),r=h.ok('CALENDAR_RESERVE',{unitRef:u,sessionRef:s,mode:'BOARD_INITIAL',assessmentRef:proof(h,'SYN_GUIDANCE',{unitRef:u,sessionRef:s})});
+ const assignment=h.docs['calendarAssignments/'+r.response.result.assignmentRef.id],basis=assignment.cycleDecisionGuidance;
+ a.equal(basis.configId,'SYN_ACTIVE');a.equal(basis.fields.find(f=>f.key==='administrativeAllocationCriteria').value,'Synthetic allocation criteria');
+ a.equal(basis.fields.find(f=>f.key==='exclusiveSessionCriteria').status,'UNESTABLISHED');
+ h.set('administrativeAllocationCriteria','Later synthetic criteria');a.equal(basis.fields[0].value,'Synthetic allocation criteria');
+});
 test('approved window extension activates without changing acquired assignments; shortening is rejected',()=>{
  const h=business();h.set('selfSchedulingWindow',{opensAt:now-60000,endsAtExclusive:now+3600000});h.docs['presentationCycles/SYN_CYCLE/configRevisions/SYN_ACTIVE'].parameters=JSON.parse(JSON.stringify(h.parameters));h.put('assignment','SYN_ACQUIRED',{cycleRef:h.cycleRef,unitRef:ref('unit','SYN_UNIT'),sessionRef:ref('session','SYN_SESSION'),status:'CONFIRMED'});const assignment=JSON.stringify(h.docs['calendarAssignments/SYN_ACQUIRED']);
  h.set('selfSchedulingWindow',{opensAt:now-60000,endsAtExclusive:now+7200000});h.draft();let c=h.docs['presentationCycles/SYN_CYCLE'],draftRef=c.draftConfigRef,draft=h.docs['presentationCycles/SYN_CYCLE/configRevisions/'+draftRef.id];h.ok('CONFIG_RECORD',{cycleRef:h.cycleRef,parameters:draft.parameters,parameterClasses:'OPERATIONAL',effectiveFrom:now+60000,predecessorRef:h.configRef,approvalBasis:{reasonCode:'SYN',reason:'Synthetic window extension'},draftRef,itemManifestRef:draftRef});

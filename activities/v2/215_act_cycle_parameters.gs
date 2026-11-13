@@ -13,6 +13,12 @@ function f4CycleEffectiveConfiguration_(cfg){
  parameters.parameterEvidence={schemaVersion:'limited-legacy-approval-view',items};return {...cfg,parameters};
 }
 function f4CycleMeetingDefaults_(get,ref){const M=f4ActivitiesModel_(),c=get(M.path(ref)),cfg=c?.currentConfigRef?.kind==='config'&&get(M.path(c.currentConfigRef)),P=f4CycleParameters_(),p=cfg?.approved?cfg.parameters:{};return {id:ref.id,label:c?.cycleLabel||ref.id,meetingStartTime:P.entry(p,'meetingStartTime').value||null,meetingEndTime:P.entry(p,'meetingEndTime').value||null,configRevision:cfg?.id||null};}
+// Documentary criteria guide a reasoned decision; text is never executable policy.
+// Pin the approved revision in new decisions without rewriting existing rights.
+function f4CycleDecisionGuidance_(configuration,keys){
+ const cfg=f4CycleEffectiveConfiguration_(configuration);if(!cfg?.approved)return null;
+ const P=f4CycleParameters_();return {configId:cfg.id||'',configRevision:cfg.revision,cycleId:cfg.cycleRef?.id||'',normativeReference:cfg.normativeReference||'',fields:P.catalog.filter(f=>keys.includes(f.key)).map(f=>({key:f.key,label:f.label,...P.entry(cfg.parameters,f.key)}))};
+}
 function f4CycleParameterCatalog_(){
  const field=(key,label,section,type,extra={})=>({key,label,section,type,...extra});
  return [
