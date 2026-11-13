@@ -29,6 +29,13 @@ const db={projectId:DEMO,collection(){return {where(){return this},orderBy(){ret
 const simple={collection:'activityJustifications',filters:[{field:'state',op:'EQUAL',value:encode('PENDING')}],limit:11,order:[{field:'__name__',direction:'ASCENDING'}]};
 const decode=require('../src/firestore.cjs').decode;
 
+test('cycle configuration history permits one bounded child collection and isolated cursors',()=>{
+ const plan={collection:'presentationCycles/SYN_CYCLE/configRevisions',filters:[],limit:21,order:[{field:'__name__',direction:'ASCENDING'}]};
+ a(readerQuery(db,plan,decode));
+ for(const patch of [{limit:22},{collection:'presentationCycles/SYN_CYCLE/private'},{collection:'presentationCycles/../configRevisions'},{filters:[{field:'cycleRef',op:'EQUAL',value:encode({kind:'cycle',id:'OTHER'})}]}])a.throws(()=>readerQuery(db,{...plan,...patch},decode),/QUERY_NOT_IN_PILOT/);
+ a.throws(()=>readerQuery(db,{...plan,cursor:[{referenceValue:'projects/'+PROJECT+'/databases/(default)/documents/'+(ROOT?ROOT+'/':'')+'presentationCycles/OTHER/configRevisions/x'}]},decode),/DESTINATION_INVALID/);
+});
+
 test('board transparency queries reject unbounded, cross-board and cross-project plans',()=>{
  const plan={collection:'memberFunctions',filters:[{field:'idDiretoria',op:'EQUAL',value:encode('DIR-2026')}],limit:20,order:[{field:'__name__',direction:'ASCENDING'}]};
  a(readerQuery(db,plan,decode));a(readerQuery(db,{...plan,collection:'commandExecutorRoutes',filters:[]},decode));
