@@ -77,17 +77,8 @@ function f4ActivitiesModelFrequencyCommands_(x){
   },
   ACTIVITY_MODEL_AVAILABILITY_SET(){const record=decision(),d=model();N(d.governance.state==='APPROVED'&&['ACTIVE','INACTIVE'].includes(p.status),'INVALID_STATE_TRANSITION');revision(p.typeRef,{...d,status:p.status,availabilityDecision:record});history(p.typeRef,'ACTIVITY_MODEL_AVAILABILITY_CHANGED');fence();return {typeRef:p.typeRef,status:p.status};},
   ACTIVITY_MODEL_USAGE_SET(){
-   const record=decision(),d=model(),c=load(p.cycleRef,true);
-   N(p.cycleRef.kind==='cycle'&&c.recordMode==='NEW_V2'&&c.status==='OPEN','INVALID_STATE_TRANSITION','MODEL_USAGE_REQUIRES_OPEN_CYCLE');
-   N(typeof p.enabled==='boolean'&&d.governance.state==='APPROVED','INVALID_STATE_TRANSITION');
-   N(p.definitionHash===d.governance.definitionHash,'STALE_REVISION','MODEL_DEFINITION_CHANGED');
-   N(typeof p.evidence==='string'&&p.evidence.trim()&&p.evidence.length<=800,'HUMAN_DECISION_REQUIRED','MODEL_USAGE_EVIDENCE_REQUIRED');
-   const grants=d.governance.usageAuthorizations||[],old=grants.find(v=>v.cycleRef.id===c.id);
-   N(old||grants.length<8,'SCOPE_TOO_LARGE');
-   const grant={cycleRef:p.cycleRef,enabled:p.enabled,definitionHash:p.definitionHash,attendancePolicyRevision:d.governance.attendancePolicyRevision,decision:{...record,evidence:p.evidence.trim()}},next={...d,governance:{...d.governance,usageAuthorizations:[...grants.filter(v=>v.cycleRef.id!==c.id),grant]}};
-   if(d.attendancePolicyRef)load(d.attendancePolicyRef,true);
-   N(!p.enabled||f4OriginalModelUsage_(x.get,next,c.id),'CONFIG_CAPABILITY_DISABLED','MODEL_USAGE_INCOMPATIBLE');
-   revision(p.typeRef,next);history(p.typeRef,p.enabled?'ACTIVITY_MODEL_USAGE_AUTHORIZED':'ACTIVITY_MODEL_USAGE_REVOKED');fence();return {typeRef:p.typeRef,cycleRef:p.cycleRef,enabled:p.enabled};
+   // Keep the contract for receipt replay, but stop creating or revoking grants.
+   N(false,'INVALID_STATE_TRANSITION','MODEL_CYCLE_AUTHORIZATION_RETIRED');
   },
   CYCLE_FREQUENCY_PLAN_SAVE(){
    const record=decision(),c=cycle(),policy=load(p.plan.policyRef,true),plan=f4CycleFrequencyPlanning_().validate(p.plan,c,policy),periods=c.frequencyPlanning?.periods||[],old=periods.find(v=>v.periodId===plan.periodId);

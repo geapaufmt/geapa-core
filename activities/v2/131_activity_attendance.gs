@@ -187,7 +187,7 @@ function f4AttendanceCommands_(x) {
    }
    const details=p.details?f4ActivityPortalDetails_(p.details):old?.details||{},appliedModel=old&&old.typeRef.id===p.typeRef.id?old.typeSnapshot.portalModel:type.portalModel,modelContent=p.modelContent===undefined&&old?.modelContent?old.modelContent:appliedModel?f4ActivityContent_(appliedModel,p.modelContent||old?.modelContent,x.get,start,x.memberPresentationCreation===true):null;
    const criteria=old&&old.typeRef.id===p.typeRef.id?old.typeSnapshot:type;
-   if(criteria.allowedFormats){N(criteria.allowedFormats.includes(details.formato||old?.format),'VALIDATION_ERROR','MODEL_FORMAT_NOT_ALLOWED');N(!type.attendancePolicyRef||(cyclePolicy?.policy||attendancePolicy)?.cycleRef?.id===cycleContext.cycleId,'CONFLICT','MODEL_ATTENDANCE_POLICY_CYCLE');}
+   if(criteria.allowedFormats){N(criteria.allowedFormats.includes(details.formato||old?.format),'VALIDATION_ERROR','MODEL_FORMAT_NOT_ALLOWED');if(!old||old.cycleId!==cycleContext.cycleId)N(!type.attendancePolicyRef||(cyclePolicy?.policy||attendancePolicy)?.cycleRef?.id===cycleContext.cycleId,'CONFLICT','MODEL_ATTENDANCE_POLICY_CYCLE');}
    const guestParticipants=p.guestParticipants===undefined?old?.guestParticipants||[]:p.guestParticipants;
    N(Array.isArray(guestParticipants)&&guestParticipants.length<=25,'SCOPE_TOO_LARGE','GUEST_ROSTER_LIMIT');
    N(!c||['DRAFT','OPEN','REOPENED'].includes(c.state)||M.hash(guestParticipants)===M.hash(old?.guestParticipants||[]),'INVALID_STATE_TRANSITION','FINALIZED_GUEST_ROSTER');
