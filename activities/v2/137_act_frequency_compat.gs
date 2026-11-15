@@ -31,6 +31,40 @@ function f4ActivitiesFrequencyCompat_(options){
   const net=value.counts.ABSENT+rows.filter(r=>r.countable&&(r.officialCountBasis||r).countsAbsence!==false&&(r.officialCountBasis||r).applicableAtDate!==false&&(r.status==='JUSTIFIED'&&r.frequencyBasis?.justifiedMode==='COUNT_ABSENT'||r.status==='EXCUSED'&&r.frequencyBasis?.excusedMode==='COUNT_ABSENT')).length;
   return {totalRegistros:rows.length,totalAtividades:['PRESENT','ABSENT','JUSTIFIED','EXCUSED'].reduce((n,k)=>n+value.counts[k],0),totalPresencas:value.counts.PRESENT,totalFaltas:value.counts.ABSENT,totalJustificadas:value.counts.JUSTIFIED,totalAbonadas:value.counts.EXCUSED,totalNaoAplicaveis:value.counts.NOT_APPLICABLE,totalPendentes:value.pending,faltasLiquidas:complete?net:null,percentualFrequencia:value.percentage===null?null:Math.round(value.percentage*100)/100,baseCompleta:complete,mensagemPortal:complete?'':'Totais dos fatos disponíveis. A base histórica ou os pesos não permitem apurar faltas líquidas e percentual completo com segurança.'};
  }
+ // Administrative cycle view reuses the same factual rows, pairing and count
+ // basis as SELF. It never derives membership sanctions from attendance.
+ function central(params,check){
+  C.exact(params,['cycleId',...('personId'in params?['personId']:[])]);
+  N(M.id(params.cycleId)&&(!params.personId||M.id(params.personId)),'VALIDATION_ERROR','SELECT_CANONICAL_CYCLE');
+  const cycle=get('presentationCycles/'+params.cycleId);N(cycle,'NOT_FOUND');
+  const proof=ports.readAuthority(['presentationCycles/'+cycle.id],false);check([proof]);
+  const cycles=all('presentationCycles');semesters=all('academicSemesters');
+  semesters.forEach(s=>cache.set('academicSemesters/'+s.id,s));
+  const activities=all('canonicalActivities'),authorized=[],missing=[];
+  for(const a of activities){
+   cache.set('canonicalActivities/'+a.id,a);
+   const collection=get('activityAttendanceCollections/'+a.id);
+   const resolved=f4ActivityFrequencyCycle_(a,collection||{},{},get,semesters);
+   if(resolved.cycleId!==cycle.id)continue;
+   const access=ports.readAuthority(['canonicalActivities/'+a.id],false);check([access]);
+   if(!['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status)&&a.typeSnapshot?.countsAttendance&&a.civilDate<=Utilities.formatDate(new Date(clock()),'America/Cuiaba','yyyy-MM-dd')&&!collection?.lastFinalizedAt)missing.push(a.id);
+   authorized.push(a);
+  }
+  const facts=authorized.flatMap(a=>all('activityAttendance',[{field:'activityRef.id',op:'EQUAL',value:a.id}]));
+  N(facts.every(f=>f.personRef?.id&&f.ownerPersonRef===f.personRef.id),'UNRESOLVED_DEPENDENCY','ATTENDANCE_OWNER_CONFLICT');
+  hydrate(facts,true);
+  // Resolve and filter BEFORE pairing: another cycle cannot consume a pair.
+  const rows=pair(facts.map(f=>row(f)).filter(r=>r.derived.cycleId===cycle.id));
+  const periods=(cycle.frequencyPlanning?.periods||[]).filter(p=>p.state==='APPROVED');
+  const members=[...new Set(rows.map(r=>r.derived.personRef.id))].sort().filter(id=>!params.personId||id===params.personId).map(id=>{
+   const own=rows.filter(r=>r.derived.personRef.id===id),s=summary(own.map(r=>r.derived)),head=get('memberAggregateHeads/'+id),profile=get('memberPortalProfiles/'+id),identity=get('memberIdentities/'+id);
+   const integrity=!s.baseCompleta||missing.length||!periods.length||own.some(r=>r.derived.recordMode==='HISTORICAL_PARTIAL')?'INCOMPLETE':cycle.status!=='CLOSED'||s.totalPendentes||own.some(r=>r.derived.pendingJustificationRef)?'PROVISIONAL':'DEFINITIVE';
+   const plans=periods.map(p=>{const scoped=own.filter(r=>r.dto.dataAtividade>=p.civilStart&&r.dto.dataAtividade<=p.civilEnd),count=summary(scoped.map(r=>r.derived));return {periodId:p.periodId,civilStart:p.civilStart,civilEnd:p.civilEnd,plannedActivities:p.attendanceActivitiesCount,absenceLimit:p.absenceLimit,minimumAttendanceBasisPoints:p.rules?.minimumAttendanceBasisPoints??null,absenceNorm:p.rules?.absenceNorm||'',attendanceNorm:p.rules?.attendanceNorm||'',netAbsences:count.faltasLiquidas,atLimit:typeof p.absenceLimit==='number'&&p.absenceLimit>0&&count.faltasLiquidas!==null?count.faltasLiquidas>=p.absenceLimit:null,decisionRequired:true};});
+   return {personId:id,label:profile&&head&&profile.sourceRevision===head.revision?profile.displayLabel:identity?.displayName||id,summary:s,integrity,periods:plans,records:own.map(r=>({activityId:r.dto.idAtividade,title:r.dto.tituloAtividade,civilDate:r.dto.dataAtividade,status:r.dto.statusPresenca,label:r.dto.statusPresencaRotulo,cycleId:cycle.id,pending:!!r.derived.pendingJustificationRef}))};
+  });
+  ports.recheckAuthority(proof);
+  return {schemaVersion:'attendance-rh-cycle-v1',cycle:{id:cycle.id,label:cycle.cycleLabel||cycle.id,status:cycle.status,revision:cycle.revision},cycles:cycles.map(c=>({id:c.id,label:c.cycleLabel||c.id,status:c.status})),members,missingAttendanceActivityIds:missing,coverage:'RECORDED_PARTICIPANTS',populationComplete:false,integrity:'INCOMPLETE',notice:'A lista contém participantes com fatos registrados. Pessoas sem fatos e chamadas pendentes precisam de conferência; ausência de registro não equivale a falta.',automaticDismissal:false};
+ }
  // Filter by canonical cycle before pagination, never by submission date.
  // Cursor binds the selected cycle, queue and attendance epoch.
  function queueGroup(j,f,a){return ['APPROVED','EXCUSED','REJECTED','CLOSED_WITHOUT_ABSENCE'].includes(j.state)?'HISTORY':f4JustificationDecisionReadiness_(j,f,a).eligible?'ANALYSIS':'ACTION_REQUIRED';}
@@ -67,10 +101,11 @@ function f4ActivitiesFrequencyCompat_(options){
  }
  function read(route,params={}){return ports.readWithAuthoritySnapshot(check=>readSnapshot(route,params,check));}
  function readSnapshot(route,params={},check){
-  if(route!=='/v2/justificativas/pendencias')C.exact(params,[]);
+  if(!['/v2/justificativas/pendencias','/admin/frequencia-rh'].includes(route))C.exact(params,[]);
   cache.clear();temporalValidUntil=Infinity;
-  const admin=route==='/v2/justificativas/pendencias',auth=ports.readAuthority(admin?['activityAttendanceRegistry/current']:[],!admin),epoch=get('activityAttendanceRegistry/current')?.epoch||0;let data;check([auth]);
-  if(route==='/v2/minha-frequencia'){
+  const admin=['/v2/justificativas/pendencias','/admin/frequencia-rh'].includes(route),auth=ports.readAuthority(admin?['activityAttendanceRegistry/current']:[],!admin),epoch=get('activityAttendanceRegistry/current')?.epoch||0;let data;check([auth]);
+  if(route==='/admin/frequencia-rh'){data=central(params,check);}
+  else if(route==='/v2/minha-frequencia'){
    const values=all('activityAttendance',[{field:'ownerPersonRef',op:'EQUAL',value:auth.personId}]);N(values.every(f=>f.ownerPersonRef===auth.personId&&f.personRef.id===auth.personId),'AUTHORIZATION_DENIED');hydrate(values,false);const items=pair(values.map(f=>row(f))),periods=[...new Set(items.map(r=>r.dto.ciclo).filter(Boolean))].sort().reverse();
    data={contrato:'MINHA_FREQUENCIA_DETALHADA_V2',cycleGrouping:'GEAPA_CYCLE_V1',registros:items.filter(r=>r.dto.ciclo).map(r=>r.dto),registrosPendentes:items.filter(r=>!r.dto.ciclo).map(r=>r.dto),ciclos:periods.map(id=>({ciclo:id,cycleId:id,rotuloCiclo:get('presentationCycles/'+id)?.cycleLabel||id,resumo:summary(items.filter(r=>r.dto.ciclo===id).map(r=>r.derived)),registros:items.filter(r=>r.dto.ciclo===id).map(r=>r.dto)})),ultimaAtualizacao:new Date(clock()).toISOString()};
   }else if(admin){

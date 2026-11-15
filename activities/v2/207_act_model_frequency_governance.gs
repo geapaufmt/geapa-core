@@ -21,18 +21,20 @@ function f4ActivityModelDefinition_(d,load){
  if(d.attendancePolicyRef){N(d.attendancePolicyRef.kind==='attendancePolicy','VALIDATION_ERROR');const policy=load(d.attendancePolicyRef,true);f4ActivityFrequencyPolicy_(policy);policyRevision=policy.revision;}
  return {...d,portalModel:m,policyRevision};
 }
-// Definition approval and permission to use it in a cycle are separate decisions.
-// Read at admission and again in the transaction; never authorize by ID prefix.
+// Approved, globally available models no longer require a per-cycle grant.
+// Historical grants remain as evidence; neither grant nor revocation authorizes use.
 function f4OriginalModelUsage_(get,type,cycleId){
- const M=f4ActivitiesModel_();
- if(type?.recordMode!=='NEW_V2'||type.status!=='ACTIVE'||type.governance?.schemaVersion!=='original-activity-model-v1'||type.governance.state!=='APPROVED')return false;
- const cycle=get('presentationCycles/'+cycleId),grant=type.governance.usageAuthorizations?.find(v=>v.cycleRef?.id===cycleId&&v.cycleRef.kind==='cycle');
- if(cycle?.recordMode!=='NEW_V2'||cycle.status!=='OPEN'||!grant?.enabled||grant.definitionHash!==type.governance.definitionHash)return false;
+ const M=f4ActivitiesModel_(),cycle=get('presentationCycles/'+cycleId);
+ if(type?.recordMode!=='NEW_V2'||type.status!=='ACTIVE'||type.governance?.schemaVersion!=='original-activity-model-v1'||type.governance.state!=='APPROVED'||cycle?.recordMode!=='NEW_V2'||cycle.status!=='OPEN')return false;
  const fields={};for(const k of ['name','durationMinutes','visibility','countsAttendance','countsAbsence','allowsJustification','portalModel','purpose','organizer','participantTypes','allowedFormats','academicRequirements','attendancePolicyRef'])if(k in type)fields[k]=type[k];
- if(M.hash(fields)!==grant.definitionHash)return false;
- if(type.countsAttendance&&!type.attendancePolicyRef)return false;
- if(type.attendancePolicyRef){const p=get(M.path(type.attendancePolicyRef));if(p?.recordMode!=='NEW_V2'||p.approved!==true||p.active===false||p.cycleRef?.id!==cycleId||p.revision!==grant.attendancePolicyRevision||p.revision!==type.governance.attendancePolicyRevision)return false;try{f4ActivityFrequencyPolicy_(p);}catch(e){return false;}}
- return true;
+ return M.hash(fields)===type.governance.definitionHash;
+}
+// The model defines the activity. The selected cycle defines its call policy.
+function f4ActivityModelCyclePolicy_(get,type,cycleId,selected){
+ const M=f4ActivitiesModel_(),N=M.need;if(!type.countsAttendance)return null;
+ const ref=selected||type.attendancePolicyRef,policy=ref&&get(M.path(ref));
+ N(ref?.kind==='attendancePolicy'&&policy?.recordMode==='NEW_V2'&&policy.approved===true&&policy.active!==false&&policy.cycleRef?.id===cycleId,'CONFIG_CAPABILITY_DISABLED','CYCLE_ATTENDANCE_POLICY_REQUIRED');
+ f4ActivityFrequencyPolicy_(policy);return {ref,policy};
 }
 function f4CycleFrequencyPlanning_(){
  const M=f4ActivitiesModel_(),C=f4Core_(),N=M.need;
