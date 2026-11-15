@@ -25,6 +25,18 @@ class MemberStore extends Store{
    if(col==='memberEvidenceAttestations'){if(id!=='MVE_'+op||d.holderId!==person)fail('PILOT_WRITE_DENIED');continue;}
    if(technical.includes(col)){if(['commandRequests','commandReceipts','commandLedger','commandProvenance','commandLeases','commandExecutorOwners','commandProjectionInvalidations'].includes(col)&&id!==op)fail('PILOT_WRITE_DENIED');if(col==='commandExecutorRoutes'&&id!==this.routeId)fail('PILOT_WRITE_DENIED');continue;}
    if(col==='institutionalAccounts'&&id===person)continue;
+   if(this.prepared?.commandType==='members.discipline.dismiss'&&!this.preparation){
+    const intent=this.hostRead('memberPreparedIntents/'+op),check=intent?.operationalChecks,source=check?.sources?.map(s=>s.path)||[];
+    if(s.missing.size)return;
+    if(intent?.disciplineContext&&check?.personId===person){
+     const roots=['presentationUnitHeads','presentationObligations','calendarAssignments','presentationSessions','presentationQuotaOccupancies','presentationQuotaBuckets','presentationDynamicOccupancies','presentationCapacityHeads','presentationClaims'];
+     const root=col+'/'+id;
+     if(roots.includes(col)&&source.includes(root)&&old&&w.path.split('/').length===2&&d.operationId===op&&d.revision===old.revision+1)continue;
+     if(roots.includes(col)&&source.includes(root)&&w.path.split('/').length===4&&w.path.split('/')[2]==='revisions'&&!old&&d.operationId===op&&d.snapshot?.operationId===op)continue;
+     if(col==='publicPresentations'&&source.includes('canonicalPresentations/'+id)&&old&&d.published===false&&d.revision===old.revision+1)continue;
+     if(w.path==='portalReaderResourceFences/activities'&&d.revision===(old?.revision||0)+1)continue;
+    }
+   }
    if(col==='projectionProvenance'&&['memberPortalProfiles/'+person,'memberStatusViews/'+person].includes(d.target)&&id==='M1_'+d.target.replace('/','_'))continue;
    if(w.path==='portalAccessStatus/'+person+'/state/current'||col==='memberFunctionProofs'&&id===person)continue;
    if(w.path==='presentationMemberViews/'+person){if(!old||d.state!=='INVALIDATED'||d.viewEpoch!==old.viewEpoch+1)fail('PILOT_WRITE_DENIED');continue;}

@@ -110,7 +110,7 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
    if(facts!==null)r.evidenceRefs=['MVE_'+op];
    const q=requestFor(get,r,resources,cap,now,end,settings);if(requestId&&cap!=='MEMBERS_VOLUNTARY_REQUEST')q.target.caseId=requestId;
    const pending={};
-   const operationalChecks=r.commandType==='members.voluntary.submit'||r.commandType==='members.membership.voluntaryExit'||r.commandType==='members.voluntary.review'&&p.action==='APPROVE'?f4MemberActivityChecks_().capture(get,db,r.target.personId,now):null;
+   const operationalChecks=r.commandType==='members.discipline.dismiss'||r.commandType==='members.voluntary.submit'||r.commandType==='members.membership.voluntaryExit'||r.commandType==='members.voluntary.review'&&p.action==='APPROVE'?f4MemberActivityChecks_().capture(get,db,r.target.personId,now,r.commandType==='members.discipline.dismiss'):null;
    const browser=Object.fromEntries(['schemaVersion','operationId','commandType','target','payload','evidenceRefs','decisionRef'].map(k=>[k,r[k]]));
    pending[intentPath]={schemaVersion:'member-prepared-intent-v1',operationId:op,ownerUid:identity.uid,inputHash,input:browser,createdAt:T(now),expiresAt:T(end),operationalChecks,...(disciplineContext?{disciplineContext}:{})};
    if(facts!==null){const body={schemaVersion:'member-act-content-v13',...f4MemberActContent_().material(r),facts},hash=C.hash(body),ref=r.evidenceRefs[0];
