@@ -34,6 +34,8 @@ function f4ActivitiesFrequencyCompat_(options){
  function population(cycle){
   const heads=all('memberAggregateHeads'),result=new Map();
   N(heads.length<=180,'SCOPE_TOO_LARGE','RH_MEMBER_DISCOVERY_LIMIT');
+  heads.forEach(h=>{N(h.kind==='PERSON'&&Array.isArray(h.paths),'UNRESOLVED_DEPENDENCY','MEMBERS_HEAD');cache.set('memberAggregateHeads/'+h.id,h);});
+  prefetch(heads.flatMap(h=>h.paths.filter(p=>/^member(Identities|Links|Events)\//.test(p))));
   const model=f4MemberModel_(true,get('memberAuthorityControl/MEMBERS')||undefined);
   const start=C.civilStart(cycle.civilStart),end=C.civilStart(cycle.civilEnd)+86400000;
   for(const h of heads){
@@ -59,9 +61,10 @@ function f4ActivitiesFrequencyCompat_(options){
   N(M.id(params.cycleId)&&(!params.personId||M.id(params.personId)),'VALIDATION_ERROR','SELECT_CANONICAL_CYCLE');
   const cycle=get('presentationCycles/'+params.cycleId);N(cycle,'NOT_FOUND');
   const proof=ports.readAuthority(['presentationCycles/'+cycle.id],false);check([proof]);
-  const cycles=all('presentationCycles');semesters=all('academicSemesters');
+  const cycles=all('presentationCycles');cycles.forEach(c=>cache.set('presentationCycles/'+c.id,c));semesters=all('academicSemesters');
   semesters.forEach(s=>cache.set('academicSemesters/'+s.id,s));
   const activities=all('canonicalActivities'),authorized=[],missing=[];
+  prefetch(activities.map(a=>'activityAttendanceCollections/'+a.id));
   for(const a of activities){
    cache.set('canonicalActivities/'+a.id,a);
    const collection=get('activityAttendanceCollections/'+a.id);
