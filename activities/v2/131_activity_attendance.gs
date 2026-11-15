@@ -45,7 +45,7 @@ function f4AttendanceCommands_(x) {
  }
  function decision(value){N(actor.kind==='BOARD_ACTOR','AUTHORIZATION_DENIED');N(value&&typeof value.reasonCode==='string','HUMAN_DECISION_REQUIRED');return {reasonCode:text(value.reasonCode,80),reason:text(value.reason),decidedAt:M.stamp(now),actorPersonRef:actor.personRef};}
  function fence(){const ref=M.ref('attendanceRegistry','current'),old=load(ref,false,true);save(ref,{epoch:(old?.epoch||0)+1});}
- function history(action,subjectRef,ownerPersonRef,summary){event('history',{action,subjectRef,ownerPersonRef:ownerPersonRef||'',visibility:ownerPersonRef?'OWNER':'BOARD',summary,occurredAt:M.stamp(now)});}
+ function history(action,subjectRef,ownerPersonRef,summary,key){const data={action,subjectRef,ownerPersonRef:ownerPersonRef||'',visibility:ownerPersonRef?'OWNER':'BOARD',summary,occurredAt:M.stamp(now)};if(key){const r=M.ref('history',M.hash({operationId:x.operationId,action,subject:key}).slice(0,32));N(!load(r,false,true),'CONFLICT','EVENT_EXISTS');save(r,{...data,actorAuthorityBasis:x.authorityBasis,actor,recordedAt:M.stamp(now)});}else event('history',data);}
  function collection(activityRef,expected=true){return load(collectionRef(activityRef),expected);}
  // Drafts and roster metadata do not replace the official attendance decision.
  // Keep a pending justification attached to that unchanged fact when its document advances.
@@ -266,7 +266,7 @@ function f4AttendanceCommands_(x) {
    const basis=decision(p.decision);
    revision(p.activityRef,{...original,replacedByRef:p.replacementRef,replacementDecision:basis});
    revision(p.replacementRef,{...replacement,replacementOfRef:p.activityRef,frequencySlotRef:p.activityRef,replacementDecision:basis});
-   fence();history('ACTIVITY_REPLACED',p.activityRef,null,p.decision.reason);history('ACTIVITY_REPLACEMENT_LINKED',p.replacementRef,null,p.decision.reason);
+   fence();history('ACTIVITY_REPLACED',p.activityRef,null,p.decision.reason,p.activityRef.id);history('ACTIVITY_REPLACEMENT_LINKED',p.replacementRef,null,p.decision.reason,p.replacementRef.id);
    return {activityRef:p.activityRef,replacementRef:p.replacementRef,cycleId,originalPlanningPreserved:true};
   },
   FREQUENCY_PERIOD_SAVE(){N(false,'CONFIG_CAPABILITY_DISABLED','LEGACY_PERIOD_READ_ONLY');},
