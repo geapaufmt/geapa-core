@@ -47,7 +47,7 @@ function f4MemberAttendanceCases_(){
   N(f4MemberCommandCatalog_().equal([...q.target.resources].sort(),[path,'memberLinks/'+r.target.linkId].sort()),'AUTH_BINDING_INVALID');
   return {id,expected:head.revision,changes:[{path,expectedRevision:old?.revision||0,data:advance(old,r,cyclePolicy,now)}],now,boardExpected:{},mode:'M13',authorization:{request:q,proof},deadline:C.ms(proof.expiresAt)};
  }
- function change(c,id){record(c.data);N(c.path==='memberAttendanceCases/'+c.data.id&&c.data.personId===id&&c.data.revision===c.expectedRevision+1,'REVISION_CONFLICT');}
+ function change(c,id,old){record(c.data);N(c.path==='memberAttendanceCases/'+c.data.id&&c.data.personId===id&&c.data.revision===c.expectedRevision+1,'REVISION_CONFLICT');if(old){record(old);N(old.state==='OPEN'&&old.personId===id&&old.cycleId===c.data.cycleId&&old.linkId===c.data.linkId&&c.data.history.length===old.history.length+1&&C.hash(F.encode(c.data.history.slice(0,-1)))===C.hash(F.encode(old.history))&&C.hash(old.disciplineSnapshot)===C.hash(c.data.disciplineSnapshot),'REVISION_CONFLICT');}}
  function dismissal(get,r,now){
   const U=f4MemberFamilyInputs_(),context=get('memberPreparedIntents/'+r.operationId)?.disciplineContext;if(!context)return [];
   const path='memberAttendanceCases/'+caseId(r.target.personId,context.cycleId),d=record(get(path));
