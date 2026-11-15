@@ -31,7 +31,12 @@ function f4InstitutionalDocumentaryLinks_(){
  function input(d){if(!d)return null;return Object.fromEntries(['modality','documentDate','documentDatePrecision','documentAuthors','sourceDescription','sourceSha256'].map(k=>[k,d[k]]).concat([['relations',d.relations.map(r=>Object.fromEntries(['normVersionId','expectedNormRevision','expectedNormHash','relation','evidence'].map(k=>[k,r[k]])))]]));}
  function page(records,q){
   if(!q)return {records};
-  C.exact(q,['query','meetingType','boardId','state','from','to','normVersionId','page',...['procedureType','proposer','documentId'].filter(k=>Object.hasOwn(q,k))]);
+  C.exact(q,['query','meetingType','boardId','state','from','to','normVersionId','page',...['procedureType','proposer','documentId','section','bucket'].filter(k=>Object.hasOwn(q,k))]);
+  const sections=['procedures','minutes','records','archive'],buckets=['','mine','ongoing','completed','closed','draft','review','archived','evidence','relations'];
+  N(!Object.hasOwn(q,'section')||sections.includes(q.section),'COMMAND_PAYLOAD_INVALID');N(!Object.hasOwn(q,'bucket')||buckets.includes(q.bucket),'COMMAND_PAYLOAD_INVALID');
+  const belongs=r=>!q.section||q.section==='archive'||q.section==='procedures'&&r.kind==='BOARD_PROCEDURE'||q.section==='minutes'&&!!r.minutes||q.section==='records'&&!r.minutes&&r.kind!=='BOARD_PROCEDURE';
+  const bucket=r=>{const s=r.procedure?.state||r.minutes?.state||r.documentaryState;switch(q.bucket){case 'mine':return r.presentation?.myAction===true;case 'ongoing':return ['OPEN','DRAFT','CONSENT_PENDING','DEFENSE_PENDING','SUSPENDED_COMPOSITION'].includes(s);case 'completed':return ['APPROVED','RECORDED','REJECTED','INSUFFICIENT_MANIFESTATIONS'].includes(s);case 'closed':return ['ARCHIVED','CANCELLED'].includes(s);case 'draft':return ['DRAFT','CORRECTIONS_REQUESTED'].includes(s);case 'review':return ['IN_REVIEW','UNDER_REVIEW'].includes(s);case 'archived':return s==='ARCHIVED';case 'evidence':return s==='EVIDENCE_PENDING'||!!r.references?.length;case 'relations':return !!r.documentaryEvidence?.relations?.length;default:return true;}};
+  records=records.filter(r=>belongs(r)&&bucket(r));
   for(const k of ['procedureType','proposer','documentId'])if(Object.hasOwn(q,k))N(typeof q[k]==='string'&&q[k].length<=100,'COMMAND_PAYLOAD_INVALID');
   for(const k of ['query','meetingType','boardId','state','normVersionId'])N(typeof q[k]==='string'&&q[k].length<=100,'COMMAND_PAYLOAD_INVALID');
   for(const k of ['from','to'])N(q[k]===''||/^\d{4}-\d{2}-\d{2}$/.test(q[k])&&Number.isFinite(Date.parse(q[k]+'T12:00:00Z')),'COMMAND_PAYLOAD_INVALID');
