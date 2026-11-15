@@ -28,7 +28,7 @@ function readerQuery(db,p,decode){
   if(kind){if(v?.kind!==kind||Object.keys(v).length!==2||!/^[A-Za-z0-9_-]{1,48}$/.test(v.id)||kind==='person'&&!/^PES-[0-9]{6}$/.test(v.id))fail('QUERY_NOT_IN_PILOT');}
   else if(f.field==='idDiretoria'){if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,48}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
   else if(f.field==='personRef.ref.id'){if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,48}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
-  else if(f.field==='ownerPersonRef'){if(typeof v!=='string'||!/^PES-[0-9]{6}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
+  else if(f.field==='ownerPersonRef'){if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,48}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
   else if(f.field==='activityRef.id'){if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
   else if(f.field==='state'){if(!['PREVIOUS','PENDING','CORRECTION_REQUESTED','APPROVED','EXCUSED','REJECTED','CLOSED_WITHOUT_ABSENCE','HISTORICAL_PARTIAL'].includes(v))fail('QUERY_NOT_IN_PILOT');}
   else if(f.field==='workflowState'){if(v!=='WAITING')fail('QUERY_NOT_IN_PILOT');}
