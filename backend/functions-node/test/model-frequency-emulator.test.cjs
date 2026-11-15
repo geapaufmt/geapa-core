@@ -57,6 +57,19 @@ test('original models and planning through actual shared executor / ROLE / emula
    const q=(await call('prepare',{operationId:crypto.randomBytes(16).toString('hex'),route:'/atividades/modelo/criar',payload:{...body,dryRun:false,confirmacaoToken:preview.preview.data.confirmacaoToken}})).request;
    a(!q.target.expected.some(r=>r.kind==='presentation'));const r=await call('execute',q);a(['COMPLETED','RECOVERED'].includes(resultState(r)),JSON.stringify(r));const id=q.payload.activityRef.id,activity=(await doc('canonicalActivities/'+id).get()).data();a.equal(activity.typeRef.id,modelId);a.equal((await doc('activityAttendanceCollections/'+id).get()).exists,attendance);a.equal((await doc('commandExecutorOwners/'+q.operationId).get()).data().routeId,'ACTIVITY_CREATE');
    await call('execute',q);a.equal((await doc('canonicalActivities/'+id).get()).data().revision,activity.revision);
+   if(attendance){
+    const other='SYN_OTHER_CYCLE',policy='SYN_OTHER_CALL';
+    await doc('presentationCycles/'+other).set({...fixture()['presentationCycles/SYN_CYCLE'],id:other,status:'OPEN'});
+    await doc('activityPolicies/'+policy).set({...fixture()['activityPolicies/SYN_CALL'],id:policy,cycleRef:{kind:'cycle',id:other},justificationAfterDays:5});
+    await doc('activityExecutorScopes/'+other).set({projectId:PROJECT,synthetic:true,cycleId:other});
+    await doc('memberAuthzPolicies/SYN_USAGE_CREATE').update({'targets.resourceScope.cycleIds':['SYN_CYCLE',other],'targets.allowedResources':['activityAttendanceRegistry/current','activityPolicies/SYN_CALL','activityPolicies/'+policy]});
+    await doc('commandExecutorRoutes/ACTIVITY_CREATE').update({cycleIds:['SYN_CYCLE',other]});
+    const otherBody={...body,atividade:{...body.atividade,cycleId:other,attendancePolicyId:policy}},otherPreview=await call('preview',otherBody);
+    const next=(await call('prepare',{operationId:crypto.randomBytes(16).toString('hex'),route:'/atividades/modelo/criar',payload:{...otherBody,dryRun:false,confirmacaoToken:otherPreview.preview.data.confirmacaoToken}})).request;
+    const completed=await call('execute',next);a(['COMPLETED','RECOVERED'].includes(resultState(completed)),JSON.stringify(completed));
+    const collection=(await doc('activityAttendanceCollections/'+next.payload.activityRef.id).get()).data();a.equal(collection.policyRef.id,policy);a.equal(collection.cycleRef.id,other);
+    a.equal((await doc('activityTypes/'+modelId).get()).data().attendancePolicyRef.id,'SYN_CALL');
+   }
   }
  });
  await t.test('sealed open-cycle recognition: concurrent requests, lost response, recovery and no frequency facts',async()=>{

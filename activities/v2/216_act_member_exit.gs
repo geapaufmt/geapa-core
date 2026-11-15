@@ -7,6 +7,7 @@ function f4ActivitiesMemberExitEffects_(x,ev,unitRefs){
  for(const r of unitRefs){
   const u=load(r,true);N(r.kind==='unit'&&u.personRef?.id===ev.idPessoa&&u.cycleRef?.id===x.cycleRef.id,'AUTHORIZATION_DENIED');
   if(u.membershipExit?.eventId===ev.id)continue;
+  if(['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(u.recordMode)){out.review.push(r.id);continue;}
   const cycle=load(u.cycleRef),pr=u.presentationRef&&load(u.presentationRef),assignment=u.assignmentRef&&load(u.assignmentRef),dynamic=u.dynamicOccupancyRef&&load(u.dynamicOccupancyRef),session=assignment?.sessionRef?load(assignment.sessionRef):dynamic?.sessionRef?load(dynamic.sessionRef):null;
   const immutable=cycle.status==='CLOSED'||cycle.civilEnd<ev.effectiveDate||!!pr?.realizationRef||dynamic?.state==='REALIZED_HISTORY'||session?.civilDate<ev.effectiveDate;
   if(immutable){out.preserved.push(r.id);continue;}
@@ -28,8 +29,8 @@ function f4MemberAttendanceExitPlan_(get,check,ev,now,operationId,authorization)
  const M=f4ActivitiesModel_(),N=M.need,F=f4Firestore_(),C=f4Core_();
  f4MemberActivityChecks_().read(get,check,ev.idPessoa);
  const paths=new Set(check.sources.map(s=>s.path)),writes=new Map(),original=p=>get(p),current=p=>writes.get(p)||get(p),actor={kind:'MEMBERS_DECISION',uid:authorization.proof.uid,personRef:M.ref('person',authorization.proof.idPessoa)},authorityBasis=authorization.proof;
- function load(r,expected,optional){const path=M.path(r),d=current(path);if(optional&&!d)return null;N(paths.has(path),'UNRESOLVED_DEPENDENCY','EXIT_SOURCE_SCOPE');N(optional||d,'UNRESOLVED_DEPENDENCY');N(!d||!['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(d.recordMode),'UNRESOLVED_DEPENDENCY','EXIT_HISTORICAL_REVIEW_REQUIRED');return M.clone(d);}
- function save(r,d){const path=M.path(r),old=original(path);N(paths.has(path)&&old&&!M.immutable.has(r.kind),'AUTHORIZATION_DENIED');const value={...d,id:r.id,revision:old.revision+1,operationId,updatedAt:M.stamp(now)};M.validate(r,value);writes.set(path,value);return value;}
+ function load(r,expected,optional){const path=M.path(r),d=current(path);if(optional&&!d)return null;N(paths.has(path),'UNRESOLVED_DEPENDENCY','EXIT_SOURCE_SCOPE');N(optional||d,'UNRESOLVED_DEPENDENCY');return M.clone(d);}
+ function save(r,d){const path=M.path(r),old=original(path);N(paths.has(path)&&old&&!M.immutable.has(r.kind),'AUTHORIZATION_DENIED');N(!['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(old.recordMode),'UNRESOLVED_DEPENDENCY','EXIT_HISTORICAL_REVIEW_REQUIRED');const value={...d,id:r.id,revision:old.revision+1,operationId,updatedAt:M.stamp(now)};M.validate(r,value);writes.set(path,value);return value;}
  function revision(r,d){const v=save(r,d),path=M.path(r),rp=path+'/revisions/'+v.revision;N(!get(rp)||writes.has(rp),'CONFLICT','REVISION_EXISTS');writes.set(rp,{number:v.revision,predecessorRevision:original(path).revision,snapshot:v,recordedAt:M.stamp(now),actor,actorAuthorityBasis:authorityBasis,operationId});return v;}
  const groups=new Map();for(const id of check.unitIds){const r=M.ref('unit',id),u=load(r);N(u.cycleRef?.kind==='cycle','UNRESOLVED_DEPENDENCY');if(!groups.has(u.cycleRef.id))groups.set(u.cycleRef.id,[]);groups.get(u.cycleRef.id).push(r);}
  const summary={released:[],preserved:[],review:[]};

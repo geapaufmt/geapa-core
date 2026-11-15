@@ -31,9 +31,8 @@ function f4ActivitiesFrequencyCompat_(options){
   const net=value.counts.ABSENT+rows.filter(r=>r.countable&&(r.officialCountBasis||r).countsAbsence!==false&&(r.officialCountBasis||r).applicableAtDate!==false&&(r.status==='JUSTIFIED'&&r.frequencyBasis?.justifiedMode==='COUNT_ABSENT'||r.status==='EXCUSED'&&r.frequencyBasis?.excusedMode==='COUNT_ABSENT')).length;
   return {totalRegistros:rows.length,totalAtividades:['PRESENT','ABSENT','JUSTIFIED','EXCUSED'].reduce((n,k)=>n+value.counts[k],0),totalPresencas:value.counts.PRESENT,totalFaltas:value.counts.ABSENT,totalJustificadas:value.counts.JUSTIFIED,totalAbonadas:value.counts.EXCUSED,totalNaoAplicaveis:value.counts.NOT_APPLICABLE,totalPendentes:value.pending,faltasLiquidas:complete?net:null,percentualFrequencia:value.percentage===null?null:Math.round(value.percentage*100)/100,baseCompleta:complete,mensagemPortal:complete?'':'Totais dos fatos disponíveis. A base histórica ou os pesos não permitem apurar faltas líquidas e percentual completo com segurança.'};
  }
- function population(cycle){
-  const heads=all('memberAggregateHeads'),result=new Map();
-  N(heads.length<=180,'SCOPE_TOO_LARGE','RH_MEMBER_DISCOVERY_LIMIT');
+ function population(cycle,heads){
+  const result=new Map();
   heads.forEach(h=>{N(h.kind==='PERSON'&&Array.isArray(h.paths),'UNRESOLVED_DEPENDENCY','MEMBERS_HEAD');cache.set('memberAggregateHeads/'+h.id,h);});
   prefetch(heads.flatMap(h=>h.paths.filter(p=>/^member(Identities|Links|Events)\//.test(p))));
   const model=f4MemberModel_(true,get('memberAuthorityControl/MEMBERS')||undefined);
@@ -57,13 +56,17 @@ function f4ActivitiesFrequencyCompat_(options){
  // Administrative cycle view reuses the same factual rows, pairing and count
  // basis as SELF. It never derives membership sanctions from attendance.
  function central(params,check){
-  C.exact(params,['cycleId',...('personId'in params?['personId']:[])]);
+  C.exact(params,['cycleId',...('personId'in params?['personId']:[]),...('cursor'in params?['cursor']:[])]);
   N(M.id(params.cycleId)&&(!params.personId||M.id(params.personId)),'VALIDATION_ERROR','SELECT_CANONICAL_CYCLE');
   const cycle=get('presentationCycles/'+params.cycleId);N(cycle,'NOT_FOUND');
   const proof=ports.readAuthority(['presentationCycles/'+cycle.id],false);check([proof]);
+  if(params.cursor){C.exact(params.cursor,['afterId','cycleId']);N(!params.personId&&M.id(params.cursor.afterId)&&params.cursor.cycleId===cycle.id,'VALIDATION_ERROR','RH_CURSOR_CYCLE_MISMATCH');}
+  const after=params.cursor?.afterId,heads=params.personId?[get('memberAggregateHeads/'+params.personId)].filter(Boolean):db.query({collection:'memberAggregateHeads',filters:[],limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(after?{cursor:[new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+'memberAggregateHeads/'+after)]}:{})}).map(r=>r.data);
+  const pagination={pageSize:20,hasMore:!params.personId&&heads.length===20,nextCursor:!params.personId&&heads.length===20?{cycleId:cycle.id,afterId:heads[heads.length-1].id}:null};
+  const people=population(cycle,heads);
   const cycles=all('presentationCycles');cycles.forEach(c=>cache.set('presentationCycles/'+c.id,c));semesters=all('academicSemesters');
   semesters.forEach(s=>cache.set('academicSemesters/'+s.id,s));
-  const activities=all('canonicalActivities'),authorized=[],missing=[];
+  const activities=all('canonicalActivities').filter(a=>{const id=a.cycleId||a.cycleRef?.id||a.cycleRef?.ref?.id;return !id||id===cycle.id;}),authorized=[],missing=[];
   prefetch(activities.map(a=>'activityAttendanceCollections/'+a.id));
   for(const a of activities){
    cache.set('canonicalActivities/'+a.id,a);
@@ -74,12 +77,14 @@ function f4ActivitiesFrequencyCompat_(options){
    if(!['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status)&&a.typeSnapshot?.countsAttendance&&a.civilDate<=Utilities.formatDate(new Date(clock()),'America/Cuiaba','yyyy-MM-dd')&&!collection?.lastFinalizedAt)missing.push(a.id);
    authorized.push(a);
   }
-  const facts=authorized.flatMap(a=>all('activityAttendance',[{field:'activityRef.id',op:'EQUAL',value:a.id}]));
+  const activityIds=new Set(authorized.map(a=>a.id));
+  const facts=heads.flatMap(h=>all('activityAttendance',[{field:'ownerPersonRef',op:'EQUAL',value:h.id}])).filter(f=>activityIds.has(f.activityRef?.id));
   N(facts.every(f=>f.personRef?.id&&f.ownerPersonRef===f.personRef.id),'UNRESOLVED_DEPENDENCY','ATTENDANCE_OWNER_CONFLICT');
   hydrate(facts,true);
   // Resolve and filter BEFORE pairing: another cycle cannot consume a pair.
   const rows=pair(facts.map(f=>row(f)).filter(r=>r.derived.cycleId===cycle.id));
-  const periods=(cycle.frequencyPlanning?.periods||[]).filter(p=>p.state==='APPROVED'),people=population(cycle),discipline=f4MemberAttendanceCases_().rules(get,cycle.id);
+  const periods=(cycle.frequencyPlanning?.periods||[]).filter(p=>p.state==='APPROVED'),discipline=f4MemberAttendanceCases_().rules(get,cycle.id);
+  prefetch(heads.map(h=>'memberPortalProfiles/'+h.id));
   const members=[...new Set([...people.keys(),...rows.map(r=>r.derived.personRef.id)])].sort().filter(id=>!params.personId||id===params.personId).map(id=>{
    const own=rows.filter(r=>r.derived.personRef.id===id),s=summary(own.map(r=>r.derived)),head=get('memberAggregateHeads/'+id),profile=get('memberPortalProfiles/'+id),identity=get('memberIdentities/'+id);
    const person=people.get(id),missingFacts=authorized.filter(a=>{if(['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status)||!a.typeSnapshot?.countsAttendance||!a.civilDate||a.civilDate>Utilities.formatDate(new Date(clock()),'America/Cuiaba','yyyy-MM-dd'))return false;const at=a.startsAt?M.ms(a.startsAt):C.civilStart(a.civilDate);return person?.periods.some(p=>p.state!=='SUSPENSO'&&p.start<=at&&at<p.end)&&!own.some(r=>r.derived.activityRef.id===a.id);}).map(a=>a.id);
@@ -89,7 +94,7 @@ function f4ActivitiesFrequencyCompat_(options){
   });
   ports.recheckAuthority(proof);
   const integrity=missing.length||!periods.length||members.some(m=>m.integrity==='INCOMPLETE')?'INCOMPLETE':cycle.status==='CLOSED'&&members.every(m=>m.integrity==='DEFINITIVE')?'DEFINITIVE':'PROVISIONAL';
-  return {schemaVersion:'attendance-rh-cycle-v1',cycle:{id:cycle.id,label:cycle.cycleLabel||cycle.id,status:cycle.status,revision:cycle.revision},cycles:cycles.map(c=>({id:c.id,label:c.cycleLabel||c.id,status:c.status})),activities:authorized.map(a=>({id:a.id,revision:a.revision,title:a.title,status:a.status,civilDate:a.civilDate,recordedAt:iso(a.recordedAt),replacementOfId:a.replacementOfRef?.id||null,replacedById:a.replacedByRef?.id||null})),canReplace:ports.commandAvailable?.('ACTIVITY_REPLACE')===true,members,missingAttendanceActivityIds:missing,coverage:'CANONICAL_CYCLE_PARTICIPANTS',populationComplete:[...people.values()].every(p=>p.complete),integrity,notice:integrity==='INCOMPLETE'?'Há fontes ou chamadas pendentes de conferência. Ausência de registro não equivale a falta.':integrity==='PROVISIONAL'?'O ciclo está em andamento ou há decisões pendentes. Os totais podem mudar.':'Apuração encerrada com fontes completas e parâmetros do próprio ciclo.',automaticDismissal:false};
+  return {schemaVersion:'attendance-rh-cycle-v1',pagination,scope:'SELECTED_CYCLE_MEMBER_PAGE',cycle:{id:cycle.id,label:cycle.cycleLabel||cycle.id,status:cycle.status,revision:cycle.revision},cycles:cycles.map(c=>({id:c.id,label:c.cycleLabel||c.id,status:c.status})),activities:authorized.map(a=>({id:a.id,revision:a.revision,title:a.title,status:a.status,civilDate:a.civilDate,recordedAt:iso(a.recordedAt),replacementOfId:a.replacementOfRef?.id||null,replacedById:a.replacedByRef?.id||null})),canReplace:ports.commandAvailable?.('ACTIVITY_REPLACE')===true,members,missingAttendanceActivityIds:missing,coverage:'CANONICAL_CYCLE_PARTICIPANTS',populationComplete:[...people.values()].every(p=>p.complete),integrity,notice:integrity==='INCOMPLETE'?'Há fontes ou chamadas pendentes de conferência. Ausência de registro não equivale a falta.':integrity==='PROVISIONAL'?'O ciclo está em andamento ou há decisões pendentes. Os totais podem mudar.':'Apuração encerrada com fontes completas e parâmetros do próprio ciclo.',automaticDismissal:false};
  }
  // Filter by canonical cycle before pagination, never by submission date.
  // Cursor binds the selected cycle, queue and attendance epoch.
