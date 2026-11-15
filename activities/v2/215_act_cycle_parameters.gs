@@ -34,6 +34,7 @@ function f4CycleDecisionGuidance_(configuration,keys){
 function f4CycleParameterCatalog_(){
  const field=(key,label,section,type,extra={})=>({key,label,section,type,...extra});
  return [
+  field('attendanceDisciplinePolicyRef','Providências de frequência e direito de manifestação',2,'policy',{usage:'ATTENDANCE_DISCIPLINE',optionalExtension:true}),
   field('calendarMode','Formação da agenda',3,'select',{choices:['BOARD_INITIAL','MEMBER_SELF_SCHEDULE']}),
   field('planningMode','Base do planejamento',1,'select',{choices:['INCIDENCE','RECOGNIZED_PREAGENDA']}),
   field('preAgendaPolicyRef','Reconhecimento da pré-agenda',1,'policy',{usage:'HISTORICAL_PREAGENDA'}),
@@ -114,10 +115,10 @@ function f4CycleParameters_(){
  }
  function validate(parameters,cycle,policy,get,approved=false){
   N(isManaged(parameters),'VALIDATION_ERROR','PARAMETER_SCHEMA');
-  const evidence=parameters.parameterEvidence;C.exact(evidence,['schemaVersion','items']);C.exact(evidence.items,catalog.map(f=>f.key));
+  const evidence=parameters.parameterEvidence;C.exact(evidence,['schemaVersion','items']);C.exact(evidence.items,catalog.filter(f=>!f.optionalExtension||Object.hasOwn(evidence.items,f.key)).map(f=>f.key));
   const governance=approved?normative(policy,cycle,get):policy?.parameterGovernance;
   for(const f of catalog){
-   const e=evidence.items[f.key];N(e&&typeof e==='object','VALIDATION_ERROR','PARAMETER_EVIDENCE');C.exact(e,['status','basis',...('documentedFrom'in e?['documentedFrom']:[]),...('documentedUntil'in e?['documentedUntil']:[])]);
+   const e=evidence.items[f.key];if(!e&&f.optionalExtension){N(!Object.hasOwn(parameters,f.key),'VALIDATION_ERROR');continue;}N(e&&typeof e==='object','VALIDATION_ERROR','PARAMETER_EVIDENCE');C.exact(e,['status','basis',...('documentedFrom'in e?['documentedFrom']:[]),...('documentedUntil'in e?['documentedUntil']:[])]);
    N(statuses.includes(e.status)&&typeof e.basis==='string'&&e.basis.length<=2000,'VALIDATION_ERROR','PARAMETER_EVIDENCE');
    if(e.documentedFrom)M.civil(e.documentedFrom);if(e.documentedUntil)M.civil(e.documentedUntil);
    if(e.documentedFrom&&e.documentedUntil)N(M.gap(e.documentedFrom,e.documentedUntil)>=0,'VALIDATION_ERROR','EVIDENCE_INTERVAL');
