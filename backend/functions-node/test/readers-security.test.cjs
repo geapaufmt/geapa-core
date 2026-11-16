@@ -28,6 +28,7 @@ test('all derived and canonical writes and preparation denied by reader store',(
 const db={projectId:DEMO,collection(){return {where(){return this},orderBy(){return this},limit(){return this},startAfter(){return this}}},doc:p=>p};
 const simple={collection:'activityJustifications',filters:[{field:'state',op:'EQUAL',value:encode('PENDING')}],limit:11,order:[{field:'__name__',direction:'ASCENDING'}]};
 const decode=require('../src/firestore.cjs').decode;
+test('attendance case lookup requires one canonical cycle and stays a bounded private reader',()=>{const plan={collection:'memberAttendanceCases',filters:[{field:'cycleId',op:'EQUAL',value:encode('C1')}],limit:20,order:[{field:'__name__',direction:'ASCENDING'}]};a(readerQuery(db,plan,decode));for(const patch of [{filters:[]},{limit:21},{filters:[{...plan.filters[0],value:encode('../ALL')}]},{filters:[{...plan.filters[0],op:'NOT_EQUAL'}]}])a.throws(()=>readerQuery(db,{...plan,...patch},decode),/QUERY_NOT_IN_PILOT/);a.throws(()=>queryPlan(db,plan,decode),/QUERY_NOT_IN_PILOT/);});
 
 test('cycle configuration history permits one bounded child collection and isolated cursors',()=>{
  const plan={collection:'presentationCycles/SYN_CYCLE/configRevisions',filters:[],limit:21,order:[{field:'__name__',direction:'ASCENDING'}]};
