@@ -6,6 +6,7 @@ function f4MemberCommandCatalog_(){
   'members.self.update':['MEMBERS_SELF_UPDATE'],
   'members.profile.correct':['MEMBERS_PROFILE_CORRECT'],
   'members.ingress.execute':['MEMBERS_INGRESS_EXECUTE'],
+  'members.attendance.record':['MEMBERS_DISCIPLINE_EXECUTE'],
   'members.discipline.suspend':['MEMBERS_DISCIPLINE_EXECUTE'],
   'members.discipline.dismiss':['MEMBERS_DISCIPLINE_EXECUTE'],
   'members.membership.voluntaryExit':['MEMBERS_VOLUNTARY_EXIT_EXECUTE'],
@@ -37,6 +38,7 @@ function f4MemberFamilyCatalog_(config){
   'members.self.update':f4MemberProfileCommands_(),
   'members.profile.correct':f4MemberProfileCommands_(),
   'members.ingress.execute':f4MemberIngressCommands_(),
+  'members.attendance.record':f4MemberAttendanceCases_(),
   'members.discipline.suspend':f4MemberMembershipCommands_(),
   'members.discipline.dismiss':f4MemberMembershipCommands_(),
   'members.membership.voluntaryExit':f4MemberMembershipCommands_(),
@@ -55,7 +57,7 @@ function f4MemberFamilyCatalog_(config){
 function f4MemberFamilyAudit_(request,actorPersonId,now){
  const C=f4Core_(),F=f4Firestore_(),events={
   'members.self.update':'SELF_UPDATED','members.profile.correct':'PROFILE_CORRECTED',
-  'members.ingress.execute':'INGRESS_EXECUTED','members.discipline.suspend':'SUSPENSAO',
+  'members.attendance.record':'ATTENDANCE_CASE_RECORDED','members.ingress.execute':'INGRESS_EXECUTED','members.discipline.suspend':'SUSPENSAO',
   'members.discipline.dismiss':'DESLIGAMENTO','members.membership.voluntaryExit':'DESLIGAMENTO',
   'members.voluntary.submit':'VOLUNTARY_REQUESTED','members.voluntary.review':'VOLUNTARY_REVIEWED',
   'members.governance.appoint':'FUNCTION_APPOINTED','members.governance.endFunction':'FUNCTION_ENDED',

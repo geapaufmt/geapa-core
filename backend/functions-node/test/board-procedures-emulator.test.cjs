@@ -1,8 +1,9 @@
 'use strict';
-Object.assign(process.env,{GEAPA_RUNTIME:'EMULATOR',GEAPA_PILOT_MODE:'SHARED_DEV',GCLOUD_PROJECT:'demo-geapa-functions-local',FUNCTIONS_EMULATOR:'true',FIRESTORE_EMULATOR_HOST:'127.0.0.1:8187',FIREBASE_AUTH_EMULATOR_HOST:'127.0.0.1:9197'});
+Object.assign(process.env,{GEAPA_RUNTIME:'EMULATOR',GEAPA_PILOT_MODE:'SHARED_DEV',GCLOUD_PROJECT:'demo-geapa-functions-local',FUNCTIONS_EMULATOR:'true',FIRESTORE_EMULATOR_HOST:process.env.FIRESTORE_EMULATOR_HOST||'127.0.0.1:8187',FIREBASE_AUTH_EMULATOR_HOST:process.env.FIREBASE_AUTH_EMULATOR_HOST||'127.0.0.1:9197'});
 const {test}=require('node:test'),a=require('node:assert/strict'),{Firestore}=require('@google-cloud/firestore'),{editGovernance}=require('../src/institutional-governance.cjs'),{PROJECT,DEMO,EXECUTOR,ROOT}=require('../src/environment.cjs'),{fixture}=require('./institutional-fixture.cjs'),crypto=require('node:crypto');
 test('board procedures use the governance transaction, own identities and original receipts',{skip:process.env.GEAPA_INSTITUTIONAL_EMULATOR_TEST!=='1'},async t=>{
- const db=new Firestore({projectId:DEMO}),ref=p=>db.doc((ROOT?ROOT+'/':'')+p),now=Date.now();let revoked=false,badApp=false;
+ const databaseId=process.env.GEAPA_TEST_DATABASE||'(default)';a(databaseId==='(default)'||/^test-[a-z0-9-]+$/.test(databaseId));
+ const db=new Firestore({projectId:DEMO,databaseId}),ref=p=>db.doc((ROOT?ROOT+'/':'')+p),now=Date.now();let revoked=false,badApp=false;
  const auth={verifyIdToken:async(uid,check)=>{a.equal(check,true);if(revoked)throw Object.assign(Error('revoked'),{code:'auth/id-token-revoked'});return {uid,sub:uid,aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000)}}},appCheck={verifyToken:async()=>{if(badApp)throw Error('bad');return {appId:'SYN_APP'}}};
  const call=(uid,phase,request,hooks={})=>editGovernance({db,auth,appCheck,token:uid,appCheckToken:'synthetic',origin:'https://geapa-convergencia-dev.web.app',body:{action:'institutionalGovernance'+phase,request},hooks});
  const prepare=async(uid,input)=>(await call(uid,'Preview',{operationId:crypto.randomBytes(16).toString('hex'),input})).result.request;
@@ -79,6 +80,45 @@ test('board procedures use the governance transaction, own identities and origin
    const minute={id:q.conventionalMinuteId,revision:1,title:'Ata convencional sintética isolada',minutes:{state:'ARCHIVED',submitted:{contentHash:'b'.repeat(64)},archive:{contentHash:'b'.repeat(64)}}};const state=await read();await ref('institutionalGovernanceDrafts/current').set({...state,records:[...state.records,minute]});
    q.conventionalMinuteHash=JSON.parse(fixture('PRESIDENTE').domain.run('(x)=>f4Core_().hash(f4Firestore_().encode(x))',minute));q.category='MEETING_REQUIRED';await replaceBasis({procedureRequirements:{EXTRAORDINARY_EXTENSION:q}});await a.rejects(action('CF_ADMIN','BP_ENACT'),/MEETING_REQUIRED/);
    q.category='ADDITIONAL_EXCEPTION';await replaceBasis({procedureRequirements:{EXTRAORDINARY_EXTENSION:q}});await a.rejects(action('CF_ADMIN','BP_ENACT'),/ART33_SPECIFIC_EXCEPTION_REQUIRED/);await replaceBasis({exceptionProcedureHashes:[r.procedure.contentHash]});await action('CF_ADMIN','BP_ENACT');a.deepEqual((await read()).records[0].procedure.enactment.documentaryAuthorization,q);
+  });
+
+
+  async function simplifiedFixture(){
+   await cleanNewFunctions();await effectSeed();
+   const minute={id:'GOV_'+'e'.repeat(32),revision:1,title:'Ata sintética de fundamento',minutes:{number:'ATA-SYN-001',state:'ARCHIVED',submitted:{contentHash:'b'.repeat(64)},archive:{contentHash:'b'.repeat(64)}}};
+   const hash=x=>JSON.parse(fixture('PRESIDENTE').domain.run('(x)=>f4Core_().hash(f4Firestore_().encode(x))',x)),mh=hash(minute);
+   await ref('institutionalGovernanceDrafts/current').set({schemaVersion:'institutional-governance-drafts-v1',revision:0,records:[minute]});
+   await replaceBasis({schemaVersion:'member-board-effect-basis-v3',procedureRequirements:{EXTRAORDINARY_EXTENSION:{category:'ADDITIONAL_EXCEPTION',conventionalMinuteId:minute.id,conventionalMinuteHash:mh,authorizedTypes:['EXTRAORDINARY_EXTENSION'],authorizesAsynchronous:true}},defenseProcess:{allowProceedWithoutStatement:false,minimumDays:7,verifiedNoticeOperationIds:[]},individualException:{mode:'EXPRESS_SEALED_DELIBERATION',articles:['ART_33_PAR_5','ART_47'],approvalRule:'ABSOLUTE_MAJORITY',automaticEffect:true,interpretationSourceHash:mh}});
+   await ref('institutionalGovernanceControl/current').update({'boardProcedures.votingDaysByType':{EXTRAORDINARY_EXTENSION:[1,2,3,7]}});
+   return {...input,proposal:{flowVersion:2,type:'EXTRAORDINARY_EXTENSION',target:{personId:'PES-000002',functionId:'VIG-002',endDate:'2026-12-20'},individualGrounds:'Fundamento individual exclusivamente sintético da exceção, sem ato institucional real.',documents:[],days:1}};
+  }
+  async function compactAction(uid,action,extra={},hooks={}){const v=await read(),r=v.records.find(x=>x.kind==='BOARD_PROCEDURE');return call(uid,'Execute',await prepare(uid,{action,id:r.id,expectedRevision:v.revision,expectedRecordRevision:r.revision,reason:'',...extra}),hooks);}
+  await t.test('new sealed flow opens once with own consent, authentic journals and automatic effect',async()=>{
+   const input=await simplifiedFixture();for(const days of [1,2,3,7])await prepare('CF_ADMIN',{...input,proposal:{...input.proposal,days}});await a.rejects(prepare('CF_ADMIN',{...input,proposal:{...input.proposal,days:4}}),/COMMAND_PAYLOAD_INVALID/);
+   await a.rejects(prepare('CF_OTHER',input),/PRESIDENT_REQUIRED/);await call('CF_ADMIN','Execute',await prepare('CF_ADMIN',input));
+   let v=await read(),r=v.records.find(x=>x.kind==='BOARD_PROCEDURE');const sealed=r.procedure.contentHash;
+   a.equal(r.procedure.state,'CONSENT_PENDING');a.equal(r.procedure.workflow.days,1);a.match(r.procedure.basis,/ATA-SYN-001/);
+   await a.rejects(compactAction('CF_ADMIN','BP_CONSENT',{accepted:true,contentHash:sealed}),/SELF_REQUIRED/);
+   const consent=await prepare('CF_OTHER',{action:'BP_CONSENT',id:r.id,expectedRevision:v.revision,expectedRecordRevision:r.revision,reason:'',accepted:true,contentHash:sealed});
+   await a.rejects(call('CF_OTHER','Execute',consent,{afterCommit:()=>{throw Error('LOST_RESPONSE')}}),/LOST_RESPONSE/);
+   a.equal((await call('CF_OTHER','Status',{operationId:consent.operationId,digest:consent.digest})).result.state,'COMPLETED');a.equal((await call('CF_OTHER','Execute',consent)).metrics.writes,0);
+   r=(await read()).records.find(x=>x.kind==='BOARD_PROCEDURE');a.equal(r.procedure.state,'OPEN');a.equal(r.procedure.contentHash,sealed);a.equal(r.procedure.openingMode,'CONSENT_AUTOMATIC');a.equal(r.procedure.deadline-r.procedure.openedAt,86400000);a.equal(r.procedure.electorate.people.length,2);
+   const events=(await ref('institutionalGovernanceHistory/current').get()).data().events;a.equal(events.length,2);a.equal((await ref('institutionalGovernanceAudit/'+consent.operationId).get()).data().action,'BP_CONSENT');
+   await compactAction('CF_ADMIN','BP_VOTE',{choice:'YES',contentHash:sealed});await compactAction('CF_OTHER','BP_VOTE',{choice:'YES',contentHash:sealed});
+   await ref('institutionalBoardAutomationControl/current').set({schemaVersion:'board-automation-control-v1',projectId:PROJECT,executor:EXECUTOR,enabled:true,revision:1,epoch:1,startsAt:now-1000,expiresAt:now+3600000,boardIds:['DIR-001'],policyContinuity:[]});
+   const worker=require('../src/board-automation.cjs');await worker.phase({db,id:r.id,phase:'SETTLE'});await worker.phase({db,id:r.id,phase:'ENACT'});
+   r=(await read()).records.find(x=>x.kind==='BOARD_PROCEDURE');a.equal(r.procedure.enactment.state,'ENACTED');a.equal(r.procedure.votes.length,2);a.equal((await ref('memberFunctions/VIG-002').get()).data().endDatePlanned,'2026-12-20');a.equal((await worker.phase({db,id:r.id,phase:'ENACT'})).metrics.writes,0);
+  });
+  await t.test('refusal closes without opening; revoked proposer blocks automatic opening',async()=>{
+   const input=await simplifiedFixture();await call('CF_ADMIN','Execute',await prepare('CF_ADMIN',input));let r=(await read()).records.find(x=>x.kind==='BOARD_PROCEDURE');
+   await ref('memberAuthzPolicies/BP_PRES').update({active:false});await a.rejects(compactAction('CF_OTHER','BP_CONSENT',{accepted:true,contentHash:r.procedure.contentHash}),/AUTHORIZATION_DENIED/);
+   a.equal((await read()).records.find(x=>x.kind==='BOARD_PROCEDURE').procedure.consent,null);
+   await compactAction('CF_OTHER','BP_CONSENT',{accepted:false,contentHash:r.procedure.contentHash});r=(await read()).records.find(x=>x.kind==='BOARD_PROCEDURE');a.equal(r.procedure.state,'REJECTED');a.equal(r.procedure.openedAt,null);a.equal(r.procedure.electorate,null);
+  });
+  await t.test('proposal and consent reject voting past current tenure without inventing extension',async()=>{
+   const input=await simplifiedFixture(),date=new Date(Date.now()-4*3600000).toISOString().slice(0,10);await ref('memberFunctions/VIG-002').update({endDatePlanned:date});await a.rejects(prepare('CF_ADMIN',input),/DECISION_AFTER_FUNCTION_END/);
+   await ref('memberFunctions/VIG-002').update({endDatePlanned:'2026-11-30'});await call('CF_ADMIN','Execute',await prepare('CF_ADMIN',input));const r=(await read()).records.find(x=>x.kind==='BOARD_PROCEDURE');await ref('memberFunctions/VIG-002').update({endDatePlanned:date});await a.rejects(compactAction('CF_OTHER','BP_CONSENT',{accepted:true,contentHash:r.procedure.contentHash}),/DECISION_AFTER_FUNCTION_END/);
+   a.equal((await read()).records.find(x=>x.kind==='BOARD_PROCEDURE').procedure.state,'CONSENT_PENDING');
   });
 
   await t.test('v3 automatic exception preserves approval on failure and recovers original effect receipt',async()=>{

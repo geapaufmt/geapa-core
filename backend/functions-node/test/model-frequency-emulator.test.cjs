@@ -42,24 +42,34 @@ test('original models and planning through actual shared executor / ROLE / emula
   a.equal((await doc('activityTypes/'+id).get()).data().revision,3);a.equal((await doc('activityTypes/'+id).get()).data().status,'INACTIVE');
   const foreign='cfg_'+crypto.randomBytes(16).toString('hex');await doc('activityTypes/'+foreign).set({...m,id:foreign});await a.rejects(async()=>call('execute',await prepare('ACTIVITY_MODEL_APPROVE',{typeRef:{kind:'activityType',id:foreign},definitionHash:m.governance.definitionHash,evidence:'SYN',reason:'Not adopted'})));
  });
- await t.test('contextual original model use: authorization, receipt and ordinary create route',async()=>{
+ await t.test('global approved model use: receipt and ordinary create route',async()=>{
   for(const attendance of [true,false]){
-   commands.push('ACTIVITY_MODEL_USAGE_SET');if(!caps.includes('ACTIVITY_MODEL_USAGE_MANAGE'))caps.push('ACTIVITY_MODEL_USAGE_MANAGE');
    await seed();await doc('presentationCycles/SYN_CYCLE').update({status:'OPEN',presentationRefs:Array.from({length:60},(_,i)=>({kind:'presentation',id:'UNRELATED_'+i}))});
    const def=definition();if(!attendance){def.countsAttendance=false;def.countsAbsence=false;def.allowsJustification=false;delete def.attendancePolicyRef;}
    await call('execute',await prepare('ACTIVITY_MODEL_DRAFT_SAVE',{typeRef:{kind:'activityType',id:modelId},definition:def,reason:'Synthetic draft'}));
    const draft=(await doc('activityTypes/'+modelId).get()).data();await call('execute',await prepare('ACTIVITY_MODEL_APPROVE',{typeRef:{kind:'activityType',id:modelId},definitionHash:draft.governance.definitionHash,evidence:'SYN',reason:'Synthetic approval'}));
-   const usage={typeRef:{kind:'activityType',id:modelId},cycleRef:{kind:'cycle',id:'SYN_CYCLE'},enabled:true,definitionHash:draft.governance.definitionHash,evidence:'SYN_USAGE',reason:'Synthetic cycle use'},one=(await call('flowPortalPrepare',{operationId:crypto.randomBytes(16).toString('hex'),route:'/admin/atividades/modelos/uso',payload:{id:modelId,revision:2,cycleRef:usage.cycleRef,enabled:true,definitionHash:usage.definitionHash,evidence:usage.evidence,reason:usage.reason}})).request,two=await prepare('ACTIVITY_MODEL_USAGE_SET',usage);
-   await a.rejects(call('execute',one,{afterCommit:()=>{throw Error('SYN_USAGE_LOST')}}),/SYN_USAGE_LOST/);await call('execute',one);await Promise.allSettled([call('execute',two)]);a.equal((await doc('activityTypes/'+modelId).get()).data().revision,3);a.equal((await doc('commandReceipts/'+one.operationId).get()).data().state,'COMPLETED');
    const original=(await doc('memberAuthzPolicies/CF_DEV_ACT_POLICY').get()).data();await doc('memberAuthzPolicies/SYN_USAGE_CREATE').set({...original,id:'SYN_USAGE_CREATE',capabilities:['ACTIVITY_MANAGE'],fieldMasks:{ACTIVITY_MANAGE:[]},targets:{...original.targets,allowedTargetScopes:['ACTIVITIES'],allowedResources:['activityAttendanceRegistry/current','activityPolicies/SYN_CALL'],resourceScope:{kind:'ACTIVITIES',cycleIds:['SYN_CYCLE'],originalModelUsage:true}}});
    await doc('activityExecutorControl/current').update({policyIds:['CF_DEV_ACT_POLICY','SYN_USAGE_CREATE']});await doc('activityExecutorScopes/SYN_CYCLE').set({projectId:PROJECT,synthetic:true,cycleId:'SYN_CYCLE'});
    await doc('commandExecutorRoutes/ACTIVITY_CREATE').set({schemaVersion:'geapa-activity-executor-route-v2',projectId:PROJECT,routeId:'ACTIVITY_CREATE',operation:'CREATE',syntheticOnly:true,executor:EXECUTOR,state:'ACTIVE',epoch:1,revision:1,actorUids:['CF_ADMIN'],cycleIds:['SYN_CYCLE'],typeIds:['LEGACY_ALLOWED'],originalModelUsage:true,resourceIds:[],operationIds:[],maxOperations:8,availabilityMode:'TIMEBOXED',startsAt:now-1000,expiresAt:now+3600000});
-   const body={idConfig:modelId,dryRun:true,atividade:{tituloPublico:'Synthetic original use',dataAtividade:'2026-11-06',horarioInicio:'18:00',horarioFim:'19:30',local:'Synthetic room',formato:'PRESENCIAL'}};
+   const body={idConfig:modelId,dryRun:true,atividade:{cycleId:'SYN_CYCLE',tituloPublico:'Synthetic original use',dataAtividade:'2026-11-06',horarioInicio:'18:00',horarioFim:'19:30',local:'Synthetic room',formato:'PRESENCIAL'}};
    const routing=await call('activityRoute',{route:'/atividades/modelo/validar',payload:body});a.equal(routing.executor,EXECUTOR);a.equal(routing.routeId,'ACTIVITY_CREATE');
    const preview=await call('preview',body);a.equal(preview.preview.data.atividadePreview.cycleId,'SYN_CYCLE');
    const q=(await call('prepare',{operationId:crypto.randomBytes(16).toString('hex'),route:'/atividades/modelo/criar',payload:{...body,dryRun:false,confirmacaoToken:preview.preview.data.confirmacaoToken}})).request;
    a(!q.target.expected.some(r=>r.kind==='presentation'));const r=await call('execute',q);a(['COMPLETED','RECOVERED'].includes(resultState(r)),JSON.stringify(r));const id=q.payload.activityRef.id,activity=(await doc('canonicalActivities/'+id).get()).data();a.equal(activity.typeRef.id,modelId);a.equal((await doc('activityAttendanceCollections/'+id).get()).exists,attendance);a.equal((await doc('commandExecutorOwners/'+q.operationId).get()).data().routeId,'ACTIVITY_CREATE');
    await call('execute',q);a.equal((await doc('canonicalActivities/'+id).get()).data().revision,activity.revision);
+   if(attendance){
+    const other='SYN_OTHER_CYCLE',policy='SYN_OTHER_CALL';
+    await doc('presentationCycles/'+other).set({...fixture()['presentationCycles/SYN_CYCLE'],id:other,status:'OPEN'});
+    await doc('activityPolicies/'+policy).set({...fixture()['activityPolicies/SYN_CALL'],id:policy,cycleRef:{kind:'cycle',id:other},justificationAfterDays:5});
+    await doc('activityExecutorScopes/'+other).set({projectId:PROJECT,synthetic:true,cycleId:other});
+    await doc('memberAuthzPolicies/SYN_USAGE_CREATE').update({'targets.resourceScope.cycleIds':['SYN_CYCLE',other],'targets.allowedResources':['activityAttendanceRegistry/current','activityPolicies/SYN_CALL','activityPolicies/'+policy]});
+    await doc('commandExecutorRoutes/ACTIVITY_CREATE').update({cycleIds:['SYN_CYCLE',other]});
+    const otherBody={...body,atividade:{...body.atividade,cycleId:other,attendancePolicyId:policy}},otherPreview=await call('preview',otherBody);
+    const next=(await call('prepare',{operationId:crypto.randomBytes(16).toString('hex'),route:'/atividades/modelo/criar',payload:{...otherBody,dryRun:false,confirmacaoToken:otherPreview.preview.data.confirmacaoToken}})).request;
+    const completed=await call('execute',next);a(['COMPLETED','RECOVERED'].includes(resultState(completed)),JSON.stringify(completed));
+    const collection=(await doc('activityAttendanceCollections/'+next.payload.activityRef.id).get()).data();a.equal(collection.policyRef.id,policy);a.equal(collection.cycleRef.id,other);
+    a.equal((await doc('activityTypes/'+modelId).get()).data().attendancePolicyRef.id,'SYN_CALL');
+   }
   }
  });
  await t.test('sealed open-cycle recognition: concurrent requests, lost response, recovery and no frequency facts',async()=>{

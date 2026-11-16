@@ -12,13 +12,20 @@ function f4ActivitiesGovernanceCompat_(options){
   }else{
    N(route==='/admin/justificativas/janelas','VALIDATION_ERROR');const activities=all('canonicalActivities').filter(a=>a.recordMode!=='HISTORICAL_PARTIAL'&&a.typeSnapshot?.allowsJustification&&a.typeSnapshot.countsAbsence===true&&!['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status));
    const collections=db.getMany(activities.map(a=>'activityAttendanceCollections/'+a.id));
-   data={activities:activities.filter((a,i)=>collections[i]?.lastFinalizedAt).map(a=>({id:a.id,label:a.title,civilDate:a.civilDate})),windows:all('activityExceptionalJustificationWindows').map(w=>({id:w.id,revision:w.revision,status:w.status==='OPEN'&&M.ms(w.newDeadline)<=clock()?'EXPIRED':w.status,deadline:M.ms(w.newDeadline),activityIds:w.activityRefs.map(r=>r.id),reasonCode:w.reasonCode,reason:w.reason})),canOpen:ports.commandAvailable('ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN'),canClose:ports.commandAvailable('ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE')};
+   data={activities:activities.filter((a,i)=>collections[i]?.lastFinalizedAt).map(a=>({id:a.id,label:a.title,civilDate:a.civilDate})),windows:all('activityExceptionalJustificationWindows').map(w=>({id:w.id,revision:w.revision,status:w.status==='OPEN'&&M.ms(w.newDeadline)<=clock()?'EXPIRED':w.status,deadline:M.ms(w.newDeadline),activityIds:w.activityRefs.map(r=>r.id),reasonCode:w.reasonCode,reason:w.reason,...f4ExceptionalWindowAttribution_(p=>db.get(p),w)})),canOpen:ports.commandAvailable('ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN'),canClose:ports.commandAvailable('ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE')};
   }
   ports.recheckAuthority(auth);return {ok:true,data};
  }
  function prepare(input){
   C.exact(input,['operationId','route','payload']);const p=input.payload;let commandType,payload,expected;
-  if(input.route==='/admin/ciclos-semestres/semestre'){
+  if(input.route==='/admin/atividades/substituicao'){
+   C.exact(p,['activityId','activityRevision','replacementId','replacementRevision','reason']);N([p.activityId,p.replacementId].every(M.id)&&typeof p.reason==='string'&&p.reason.trim().length>=10&&p.reason.length<=2000,'VALIDATION_ERROR');
+   N(db.get('canonicalActivities/'+p.activityId)?.revision===p.activityRevision&&db.get('canonicalActivities/'+p.replacementId)?.revision===p.replacementRevision,'STALE_REVISION');
+   commandType='ACTIVITY_REPLACE';expected={ref:M.ref('activity',p.activityId),revision:p.activityRevision};payload={activityRef:expected.ref,replacementRef:M.ref('activity',p.replacementId),decision:{reasonCode:'DOCUMENTED_ACTIVITY_REPLACEMENT',reason:p.reason}};
+  }else if(['/atividades/chamada/extraordinaria/autorizar','/atividades/chamada/extraordinaria/revogar'].includes(input.route)){
+   const revoke=input.route.endsWith('/revogar');C.exact(p,['activityId','collectionRevision',...(revoke?['confirmed']:['reason'])]);
+   commandType=revoke?'ATTENDANCE_EXTRAORDINARY_REVOKE':'ATTENDANCE_EXTRAORDINARY_AUTHORIZE';expected={ref:M.ref('attendanceCollection',p.activityId),revision:p.collectionRevision};payload={activityRef:M.ref('activity',p.activityId),collectionRevision:p.collectionRevision,...(revoke?{confirmed:p.confirmed}:{reason:p.reason})};
+  }else if(input.route==='/admin/ciclos-semestres/semestre'){
    C.exact(p,['id','revision','label','civilStart','civilEnd','status','reason']);const semesterRef=M.ref('academicSemester',p.id||'sem_'+input.operationId);expected={ref:semesterRef,revision:p.revision};
    commandType='ACTIVITY_SEMESTER_SAVE';payload={semesterRef,label:p.label,civilStart:p.civilStart,civilEnd:p.civilEnd,status:p.status,reason:p.reason};
   }else if(input.route==='/admin/ciclos-semestres/ciclo'){
@@ -33,6 +40,7 @@ function f4ActivitiesGovernanceCompat_(options){
   if(expected){N(Number.isSafeInteger(expected.revision)&&expected.revision>=0,'VALIDATION_ERROR');N((db.get(M.path(expected.ref))?.revision||0)===expected.revision,'STALE_REVISION');}
   const prepared=ports.prepare({operationId:input.operationId,commandType:'ACT.'+commandType,payload});
   if(expected)N(prepared.target.expected.some(e=>M.path({kind:e.kind,id:e.id,...(e.parent?{parent:e.parent}:{})})===M.path(expected.ref)&&(expected.revision?e.revision===expected.revision:e.exists===false)),'STALE_REVISION');
+  if(commandType==='ACTIVITY_REPLACE')N(prepared.target.expected.some(e=>e.kind==='activity'&&e.id===p.replacementId&&e.revision===p.replacementRevision),'STALE_REVISION');
   return prepared;
  }
  return {read,prepare};

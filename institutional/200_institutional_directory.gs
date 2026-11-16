@@ -48,11 +48,18 @@ function f4InstitutionalPolicies_(get,identity,now,ids,cap,path){
  const C=f4Core_(),K=f4MemberAuthzContracts_(),N=K.need;
  N(now<identity.expiresAt,'ACCESS_REVOKED');
  const actor=f4MemberAuthz_().identify(get,identity.uid,now);
+ const result=f4InstitutionalRolePolicies_(get,actor,now,ids,cap,path);
+ return {...result,validUntil:Math.min(identity.expiresAt,result.validUntil)};
+}
+// Reusable policy resolution for an already identified canonical actor. This
+// does not authenticate an HTTP caller or manufacture a Firebase credential.
+function f4InstitutionalRolePolicies_(get,actor,now,ids,cap,path){
+ const C=f4Core_(),K=f4MemberAuthzContracts_(),N=K.need;
  N(Array.isArray(ids)&&ids.length>0&&ids.length<=16&&new Set(ids).size===ids.length&&ids.every(C.id),'AUTHORIZATION_DENIED');
  const policies=ids.map(id=>get('memberAuthzPolicies/'+id)).filter(Boolean).filter(p=>{
   K.policy(p);return p.active&&p.proofKind==='ROLE'&&p.capabilities.includes(cap)&&C.ms(p.issuedAt)<=now&&now<C.ms(p.expiresAt)&&!p.targets.ownPerson&&p.targets.allowedPersons.includes(actor.actor.h.id)&&p.targets.allowedResources.includes(path)&&actor.derived.currentFunctions.some(f=>f.roleKey===p.actorSelector.roleKey&&f.group===p.actorSelector.group&&f.scopeKey===p.actorSelector.actorScope);
  });N(policies.length>0,'AUTHORIZATION_DENIED');
- return {actor,policies,mask:[...new Set(policies.flatMap(p=>p.fieldMasks[cap]))],validUntil:Math.min(now+60000,identity.expiresAt,C.ms(actor.state.validUntil),C.ms(actor.derived.state.validUntil),...policies.map(p=>C.ms(p.expiresAt)))};
+ return {actor,policies,mask:[...new Set(policies.flatMap(p=>p.fieldMasks[cap]))],validUntil:Math.min(now+60000,C.ms(actor.state.validUntil),C.ms(actor.derived.state.validUntil),...policies.map(p=>C.ms(p.expiresAt)))};
 }
 
 // Minimal shell context, not ACT authority. No private directory or ACT facts.
