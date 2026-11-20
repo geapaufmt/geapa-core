@@ -19,8 +19,6 @@ function f4ActivityContextActions_(options,id){
   else add('cancel','Cancelar atividade','ACTIVITY_PUBLICATION_SET',normal&&notCancelled&&!a.realizationRef,'Atividade histórica, encerrada ou já realizada.');
   add('realize','Registrar realização','ACTIVITY_REALIZE',normal&&notCancelled&&!a.realizationRef&&a.civilDate<=M.day(now),'A atividade precisa ser operacional, ainda não realizada e ocorrer até hoje.');
   add('attendance','Gerenciar chamada','ATTENDANCE_FINALIZE',normal&&notCancelled&&!!c,'Não existe chamada operacional elegível.');
-  const exceptionalAttendance=f4ExtraordinaryAttendanceEligibility_(a,c,now),authorization=c?.extraordinaryAttendance,activeAuthorization=authorization?.status==='ACTIVE';
-  if(c)add('attendance-authorization',activeAuthorization?'Revogar autorização de chamada extraordinária':'Autorizar chamada extraordinária',activeAuthorization?'ATTENDANCE_EXTRAORDINARY_REVOKE':'ATTENDANCE_EXTRAORDINARY_AUTHORIZE',activeAuthorization||exceptionalAttendance.eligible,exceptionalAttendance.reason);
   if(c?.state==='CLOSED')add('attendance-view','Visualizar chamada',null,true,'');
   N((c?.exceptionalWindowRefs||[]).length<=32&&Object.keys(c?.roster||{}).length<=200,'SCOPE_TOO_LARGE');
   const windows=(c?.exceptionalWindowRefs||[]).map(r=>({ref:r,value:get(M.path(r))})).filter(v=>v.value?.activityRefs?.some(r=>r.id===id));
@@ -29,10 +27,9 @@ function f4ActivityContextActions_(options,id){
   add('window',active?'Gerenciar prazo extraordinário':'Reabrir prazo de justificativas','ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN',eligibility.eligible,eligibility.reason);
   add('history','Histórico e vínculos',null,true,'');
   return {ok:true,data:{schemaVersion:'activity-actions-v1',activityId:id,revision:a.revision,title:a.title||id,validUntil:now+30000,actions,
-   attendanceAuthorization:c?{collectionRevision:c.revision,status:authorization?.status||'NONE',reason:authorization?.reason||'',authorizedAt:authorization?.authorizedAt?M.ms(authorization.authorizedAt):null}:null,
    extraordinary:allowed('ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN')||allowed('ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE')?{
     eligible:eligibility.eligible,reason:eligibility.reason,canOpen:allowed('ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN')&&eligibility.eligible&&!active,
-    windows:windows.map(({ref,value:w})=>({id:ref.id,revision:w.revision,status:w.status==='OPEN'&&M.ms(w.newDeadline)<=now?'EXPIRED':w.status,deadline:M.ms(w.newDeadline),reasonCode:w.reasonCode,reason:w.reason,...f4ExceptionalWindowAttribution_(get,w),personIds:(w.personRefs||[]).map(r=>r.id),canClose:w.status==='OPEN'&&allowed('ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE',[ref])})),
+    windows:windows.map(({ref,value:w})=>({id:ref.id,revision:w.revision,status:w.status==='OPEN'&&M.ms(w.newDeadline)<=now?'EXPIRED':w.status,deadline:M.ms(w.newDeadline),reasonCode:w.reasonCode,reason:w.reason,personIds:(w.personRefs||[]).map(r=>r.id),canClose:w.status==='OPEN'&&allowed('ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE',[ref])})),
     recipients:eligibility.eligible?Object.values(c?.roster||{}).map(r=>get(M.path(r))).filter(f=>f?.activityRef?.id===id&&f.status==='ABSENT'&&f.applicableAtDate!==false&&f.countsAbsence!==false).map(f=>({id:f.personRef.id,label:get('memberIdentities/'+f.personRef.id)?.displayName||f.personRef.id})):[]}:null}};
  });
 }
@@ -45,10 +42,4 @@ function f4ExceptionalWindowEligibility_(get,a,c,now){
  const M=f4ActivitiesModel_(),cycle=a.cycleRef&&get(M.path(a.cycleRef)),day=M.day(now);
  const reason=['HISTORICAL_PARTIAL','HISTORICAL_RECOGNIZED'].includes(a.recordMode)?'Registro histórico somente leitura.':!cycle||cycle.status!=='OPEN'||!cycle.civilStart||!cycle.civilEnd||day<cycle.civilStart||day>cycle.civilEnd?'O ciclo não está em andamento.':['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status)?'A atividade não admite chamada disciplinar.':!a.typeSnapshot?.countsAbsence||!a.typeSnapshot?.allowsJustification?'A atividade não admite justificativas de falta.':!c?.lastFinalizedAt||c.state!=='CLOSED'?'A chamada precisa estar finalizada.':'';
  return {eligible:!reason,reason};
-}
-
-// Called only inside the authorized board readers; never guesses a missing author.
-function f4ExceptionalWindowAttribution_(get,w){
- const M=f4ActivitiesModel_(),person=r=>r?.kind==='person'?get('memberIdentities/'+r.id)?.displayName||null:null;
- return {openedAt:w.openedAt?M.ms(w.openedAt):null,openedByLabel:person(w.openedBy),closedAt:w.closedAt?M.ms(w.closedAt):null,closedByLabel:person(w.closedBy)};
 }

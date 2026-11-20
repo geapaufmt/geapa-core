@@ -3,7 +3,7 @@ const {Store,decode,encode}=require('./firestore.cjs'),{createDomain}=require('.
 const {fence,fail,SHARED,EXECUTOR,PROJECT,PRODUCTION,profile}=require('./environment.cjs'),{authenticate,appCheckGate}=require('./auth.cjs');
 const {windowLive}=require('./execution-window.cjs');
 const CONTROL='memberExecutorControl/current';
-const types=['members.attendance.record','members.discipline.dismiss','members.self.update','members.profile.correct','members.ingress.execute','members.voluntary.submit','members.voluntary.review','members.membership.voluntaryExit','members.onboarding.complete'];
+const types=['members.self.update','members.profile.correct','members.ingress.execute','members.voluntary.submit','members.voluntary.review','members.membership.voluntaryExit','members.onboarding.complete'];
 function control(c,uid){fence();if(!SHARED||c?.schemaVersion!=='member-executor-control-v1'||c.projectId!==PROJECT||!c.enabled||!windowLive(c,Date.now())||!Array.isArray(c.actorUids)||c.actorUids.length>(require('./environment.cjs').PRODUCTION?128:16)||!c.actorUids.includes(uid)||!Array.isArray(c.scopeIds)||!c.scopeIds.length||c.scopeIds.length>4||!c.scopeIds.every(x=>/^[A-Za-z0-9_-]{1,48}$/.test(x))||c.appCheck?.mode!=='REQUIRED'||c.browserEnabled!==true)fail('PILOT_DISABLED');return c;}
 class MemberStore extends Store{
  constructor(...args){super(...args);this.specializedReaders=true;this.queryConcurrency=4;}
@@ -14,11 +14,9 @@ class MemberStore extends Store{
   if(s.writes.length&&!person)fail('PILOT_RESOURCE_DENIED');
   const scoped=this.control.scopeIds.map(id=>this.hostRead('memberExecutorScopes/'+id));if(s.missing.size)return;
   const fresh=person==='P_'+op&&this.prepared?.payload.operation==='PRE_REGISTER'&&scoped.some(v=>v?.projectId===PROJECT&&v.synthetic===!PRODUCTION&&v.approvalRefs?.includes(this.prepared.payload.approvalRef));
-  const dynamic=scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.profileCorrectionCurrentMembers===true)&&this.prepared?.commandType==='members.profile.correct'&&(()=>{try{return JSON.parse(createDomain(raw=>{const q=JSON.parse(raw);if(q.kind!=='get')fail('SDK_OPERATION_DENIED');const value=this.hostRead(q.path);return JSON.stringify(value===undefined?null:encode(value));}).run(x=>f4MemberProfileTargetEligible_(nodeRead,x,Date.now()),person));}catch(e){if(s.missing.size)return false;throw e;}})();if(s.missing.size)return;
-  const bindingDynamic=scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.bindingCurrentMembers===true)&&(this.bindingAdministrative===true||this.bindingUid&&this.prepared?.commandType==='members.binding.associate')&&(()=>{try{return JSON.parse(createDomain(raw=>{const q=JSON.parse(raw);if(q.kind!=='get')fail('SDK_OPERATION_DENIED');const value=this.hostRead(q.path);return JSON.stringify(value===undefined?null:encode(value));}).run(x=>f4MemberBindingTargetEligible_(nodeRead,x,Date.now()),person));}catch(e){if(s.missing.size)return false;throw e;}})();if(s.missing.size)return;
-  if(!scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.personIds?.includes(person))&&!fresh&&!dynamic&&!bindingDynamic)fail('PILOT_RESOURCE_DENIED');
+  if(!scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.personIds?.includes(person))&&!fresh)fail('PILOT_RESOURCE_DENIED');
   const technical=['memberAdmissionTickets','memberAdmissionCounters','memberAdmissionUses','commandProvenance','commandRequests','commandReceipts','commandLedger','commandTombstones','commandLeases','commandReconciliation','memberAudit','commandProjectionInvalidations','commandExecutorOwners','commandExecutorRoutes'];
-  const personCollections=['memberAttendanceCases','memberIdentities','memberIdentifiers','memberIdentifierClaims','memberPrivateProfiles','memberLinks','memberEvents','memberAggregateHeads','memberCurrentStates','memberStatusViews','memberScopeGrants','memberPortalProfiles','memberPublicProfiles','memberCurrentFunctions','memberCurrentDirectors','memberTransitionQueue','memberAuthzSubjects','memberVoluntaryRequests','memberVoluntaryIndexes','memberEnrollments','memberEnrollmentIndexes','memberEnrollmentFacts','memberProfileCorrections','memberProfileCorrectionIndexes'];
+  const personCollections=['memberIdentities','memberIdentifiers','memberIdentifierClaims','memberPrivateProfiles','memberLinks','memberEvents','memberAggregateHeads','memberCurrentStates','memberStatusViews','memberScopeGrants','memberPortalProfiles','memberPublicProfiles','memberCurrentFunctions','memberCurrentDirectors','memberTransitionQueue','memberAuthzSubjects','memberVoluntaryRequests','memberVoluntaryIndexes','memberEnrollments','memberEnrollmentIndexes','memberEnrollmentFacts','memberProfileCorrections','memberProfileCorrectionIndexes'];
   for(const w of s.writes){const [col,id]=w.path.split('/'),d=w.mode==='delete'?null:decode(w.data),old=this.hostRead(w.path);if(s.missing.size)return;if(w.mode==='delete'){if(['memberCurrentFunctions','memberCurrentDirectors','memberFunctionProofs'].includes(col)&&id===person&&w.path.split('/')[2]==='items'&&w.path.split('/').length===4)continue;fail('PILOT_WRITE_DENIED');}
    if(col==='memberEnrollmentSessions'&&this.opening&&id===this.identity.uid&&d.uid===id&&d.personId===person&&d.environment===profile.environment&&d.projectId===PROJECT)continue;
    if(this.preparation&&!['memberPreparedIntents','devProtectedInputs','memberEvidenceContents','memberEvidenceAttestations'].includes(col))fail('PILOT_WRITE_DENIED');
@@ -26,24 +24,7 @@ class MemberStore extends Store{
    if(col==='memberEvidenceContents'){if(d.target?.personId!==person)fail('PILOT_WRITE_DENIED');continue;}
    if(col==='memberEvidenceAttestations'){if(id!=='MVE_'+op||d.holderId!==person)fail('PILOT_WRITE_DENIED');continue;}
    if(technical.includes(col)){if(['commandRequests','commandReceipts','commandLedger','commandProvenance','commandLeases','commandExecutorOwners','commandProjectionInvalidations'].includes(col)&&id!==op)fail('PILOT_WRITE_DENIED');if(col==='commandExecutorRoutes'&&id!==this.routeId)fail('PILOT_WRITE_DENIED');continue;}
-   if(w.path==='projectionRecoveryControl/current'&&this.bindingUid&&this.prepared?.commandType==='members.binding.associate'){
-    if(!old||d.revision!==old.revision+1)fail('PILOT_WRITE_DENIED');
-    const expected={...old,revision:old.revision+1,actorUids:[...new Set([...old.actorUids,this.bindingUid])],specializedReaders:{...old.specializedReaders,actorUids:[...new Set([...old.specializedReaders.actorUids,this.bindingUid])]}};
-    if(JSON.stringify(encode(d))!==JSON.stringify(encode(expected)))fail('PILOT_WRITE_DENIED');continue;
-   }
    if(col==='institutionalAccounts'&&id===person)continue;
-   if(this.prepared?.commandType==='members.discipline.dismiss'&&!this.preparation){
-    const intent=this.hostRead('memberPreparedIntents/'+op),check=intent?.operationalChecks,source=check?.sources?.map(s=>s.path)||[];
-    if(s.missing.size)return;
-    if(intent?.disciplineContext&&check?.personId===person){
-     const roots=['presentationUnitHeads','presentationObligations','calendarAssignments','presentationSessions','presentationQuotaOccupancies','presentationQuotaBuckets','presentationDynamicOccupancies','presentationCapacityHeads','presentationClaims'];
-     const root=col+'/'+id;
-     if(roots.includes(col)&&source.includes(root)&&old&&w.path.split('/').length===2&&d.operationId===op&&d.revision===old.revision+1)continue;
-     if(roots.includes(col)&&source.includes(root)&&w.path.split('/').length===4&&w.path.split('/')[2]==='revisions'&&!old&&d.operationId===op&&d.snapshot?.operationId===op)continue;
-     if(col==='publicPresentations'&&source.includes('canonicalPresentations/'+id)&&old&&d.published===false&&d.revision===old.revision+1)continue;
-     if(w.path==='portalReaderResourceFences/activities'&&d.revision===(old?.revision||0)+1)continue;
-    }
-   }
    if(col==='projectionProvenance'&&['memberPortalProfiles/'+person,'memberStatusViews/'+person].includes(d.target)&&id==='M1_'+d.target.replace('/','_'))continue;
    if(w.path==='portalAccessStatus/'+person+'/state/current'||col==='memberFunctionProofs'&&id===person)continue;
    if(w.path==='presentationMemberViews/'+person){if(!old||d.state!=='INVALIDATED'||d.viewEpoch!==old.viewEpoch+1)fail('PILOT_WRITE_DENIED');continue;}

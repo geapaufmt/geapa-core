@@ -93,10 +93,7 @@ class Store {
     if(s.writes.length>400||new Set(s.writes.map(w=>w.path)).size!==s.writes.length)fail('SCHEMA_INVALID');
     this.validateWrites(s);
     if(s.writes.length>400||new Set(s.writes.map(w=>w.path)).size!==s.writes.length)fail('SCHEMA_INVALID');
-    // Validation can discover a protected cycle or another canonical source.
-    // Resolve it through the same native transaction before rerunning domain
-    // and write validation. Clearing it at the next round loses the read forever.
-    if(s.missing.size){const paths=[...s.missing].filter(p=>!s.cache.has(p));if(s.cache.size+paths.length>720)fail('SCOPE_TOO_LARGE');for(let i=0;i<paths.length;i+=180){const part=paths.slice(i,i+180);this.metrics.reads+=part.length;const docs=await this.measure(()=>native.getAll(...part.map(p=>this.ref(p))));docs.forEach((d,j)=>{const data=d.exists?d.data():undefined;s.cache.set(part[j],{exists:d.exists,encoded:d.exists?encode(data):null,stamp:d.exists?encode(d.updateTime).timestampValue:null,revision:data?.revision??data?.sourceRevision??null});});}continue;}
+    if(s.missing.size)continue;
     for(const w of s.writes){const ref=this.ref(w.path);if(!s.cache.has(w.path))fail('PRECONDITION_REQUIRED');if(w.mode==='delete')native.delete(ref);else if(w.mode==='update')native.update(ref,decode(w.data));else native.set(ref,decode(w.data));}this.metrics.writes+=s.writes.length;await this.beforeCommit?.();
    }return value;
   }fail('READ_DISCOVERY_LIMIT');}catch(e){if(this.discoveryDiagnostics)e.readDiscovery={rounds:this.metrics.discoveryRounds,trace:this.discoveryTrace||[]};throw e;}finally{this.active=null;}

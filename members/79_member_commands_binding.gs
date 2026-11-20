@@ -13,8 +13,7 @@ function f4MemberBindingCommands_(config){
   const resources=[path,'portalUsers/'+r.target.uid,'portalAccessStatus/'+r.target.uid];N(K.equal([...q.target.resources].sort(),resources.sort()),'AUTH_BINDING_INVALID');
   const data={schemaVersion:'binding-v1',id:r.target.uid,revision:revision+1,origin:old?.origin||'M13_COMMAND',uid:r.target.uid,idPessoa:r.target.personId,active:associate,bindingVersion:(old?.bindingVersion||0)+1,policyVersion:1,sourceRevision:revision+1,createdAt:old?.createdAt??now,updatedAt:now,domainVersion:'m11'};
   f4MemberModel_(true).validate('memberAuthBindings',data);
-  const changes=[{path,expectedRevision:revision,data}],subjectPath='memberAuthzSubjects/'+r.target.personId,subject=get(subjectPath);if(associate&&get('memberBindingVerifications/'+r.operationId)){N(!subject||subject.active===true&&subject.idPessoa===r.target.personId,'ACCESS_REVOKED');if(!subject){N(U.revision(r,subjectPath)===0,'REVISION_CONFLICT');changes.push({path:subjectPath,expectedRevision:0,data:{schemaVersion:'member-authz-subject-v13',idPessoa:r.target.personId,revision:1,authzEpoch:1,active:true,approvalRef:r.decisionRef,updatedAt:f4Firestore_().Timestamp.fromMillis(now)}});}}
-  return {id:r.target.personId,expected:U.revision(r,'memberAggregateHeads/'+r.target.personId),changes,accessBootstrap:associate&&!!get('memberBindingVerifications/'+r.operationId),now,boardExpected:{},mode:'M13',authorization:{request:q,proof},deadline:C.ms(proof.expiresAt)};
+  return {id:r.target.personId,expected:U.revision(r,'memberAggregateHeads/'+r.target.personId),changes:[{path,expectedRevision:revision,data}],now,boardExpected:{},mode:'M13',authorization:{request:q,proof},deadline:C.ms(proof.expiresAt)};
  }
  return {validate,resolve};
 }

@@ -4,7 +4,7 @@
 function f4MemberActivityChecks_(){
  const C=f4Core_(),N=C.need,F=f4Firestore_(),M=f4ActivitiesModel_();
  const fencePath='portalReaderResourceFences/activities';
- function capture(get,db,personId,now,exitConsequences=false){
+ function capture(get,db,personId,now){
   N(C.id(personId),'COMMAND_PAYLOAD_INVALID');
   const gate=get('portalReaderControl/current');N(gate?.enabled&&gate.operationalWrites===true,'ACCESS_REVOKED');
   const fence=get(fencePath),rows=[];let cursor;
@@ -16,10 +16,9 @@ function f4MemberActivityChecks_(){
   function visit(path,depth=0){
    if(seen.has(path))return;seen.add(path);N(depth<=6&&seen.size<=180,'SCOPE_TOO_LARGE');
    const d=get(path);N(d,'RECONCILIATION_REQUIRED');paths.add(path);
-   for(const k of ['assignmentRef','sessionRef','presentationRef','realizationRef','materialRequirementRef','currentRegularizationRef','currentReceiptRef',...(exitConsequences?['cycleRef','obligationRef','dynamicOccupancyRef','quotaOccupancyRef']:[])])if(d[k]?.kind&&d[k].kind!=='NONE')visit(M.path(d[k]),depth+1);
+   for(const k of ['assignmentRef','sessionRef','presentationRef','realizationRef','materialRequirementRef','currentRegularizationRef','currentReceiptRef'])if(d[k]?.kind&&d[k].kind!=='NONE')visit(M.path(d[k]),depth+1);
   }
   for(const row of rows){N(row.data.personRef?.id===personId,'RECONCILIATION_REQUIRED');visit('presentationUnitHeads/'+row.data.id);}
-  if(exitConsequences)for(const row of rows){const u=get('presentationUnitHeads/'+row.data.id);N(u.cycleRef?.kind==='cycle','RECONCILIATION_REQUIRED');visit('presentationCapacityHeads/'+u.cycleRef.id);const claim='presentationClaims/'+M.hash({kind:'ACTIVE_ASSIGNMENT',unit:u.id}).slice(0,32);if(get(claim))visit(claim);if(u.quotaOccupancyRef){const q=get(M.path(u.quotaOccupancyRef));visit('presentationQuotaBuckets/'+M.hash({cycle:u.cycleRef.id,axis:q.axisRef.id}).slice(0,32));}}
   const sources=[...paths].sort().map(path=>({path,hash:C.hash(F.encode(get(path)))}));
   return {schemaVersion:'member-activity-check-v1',personId,at:now,generation:gate.generation,fenceRevision:fence?.revision||0,unitIds:rows.map(row=>row.data.id).sort(),sources};
  }
