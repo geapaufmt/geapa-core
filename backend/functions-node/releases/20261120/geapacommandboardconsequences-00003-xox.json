@@ -1,0 +1,363 @@
+{
+  "revision": "geapacommandboardconsequences-00003-xox",
+  "treeCommit": "c1d792e99625e2e343fffae7675ceefa5b12ecf6",
+  "zipSha256": "1392c7cce72b2b7010021e447e0c9404c480fa42836f5f8170232e0edb1c5808",
+  "archiveDate": "2026-11-13T00:00:00.000Z",
+  "archiveOrder": [
+    ".gcloudignore",
+    "generated/domain.gs",
+    "generated/source-manifest.json",
+    "generated/workspace-drive.gs",
+    "package-lock.json",
+    "scripts/verify-release.cjs",
+    "package.json",
+    "src/act-cycle-scope.cjs",
+    "src/act-flows.cjs",
+    "src/act-readers.cjs",
+    "src/activity-commands.cjs",
+    "src/auth.cjs",
+    "src/board-automation.cjs",
+    "src/board-procedure-pdf-v1.cjs",
+    "src/board-procedure-pdf.cjs",
+    "src/board-procedure-pdf-v2.cjs",
+    "src/dev-institutional-reader-scope.cjs",
+    "src/domain-port.js",
+    "src/domain.cjs",
+    "src/environment.cjs",
+    "src/execution-window.cjs",
+    "src/executor.cjs",
+    "src/firestore.cjs",
+    "src/http.cjs",
+    "src/institutional-edit.cjs",
+    "src/index.cjs",
+    "src/institutional-files.cjs",
+    "src/institutional-governance.cjs",
+    "src/institutional-parameters.cjs",
+    "src/institutional-visibility.cjs",
+    "src/member-binding-admin.cjs",
+    "src/member-executor.cjs",
+    "src/member-query.cjs",
+    "src/member-readers.cjs",
+    "src/minute-letterhead.json",
+    "src/minute-font-license.txt",
+    "src/pilot.cjs",
+    "src/projection-recovery.cjs",
+    "src/minute-pdf.cjs",
+    "src/projection.cjs",
+    "src/query.cjs",
+    "src/reader-query.cjs",
+    "src/runtime-profile.cjs",
+    "src/runtime.cjs",
+    "src/storage-control.cjs",
+    "src/storage-download.cjs",
+    "src/storage-notice.cjs",
+    "src/storage-transfer.cjs",
+    "src/trusted-system.cjs",
+    "src/workspace-download.cjs",
+    "src/workspace-storage.cjs",
+    "src/workspace-upload.cjs",
+    "src/workspace-drive.cjs",
+    "release-manifest.json"
+  ],
+  "package": {
+    "name": "geapa-core-functions-candidate",
+    "version": "0.2.0",
+    "private": true,
+    "main": "src/index.cjs",
+    "engines": {
+      "node": "22"
+    },
+    "scripts": {
+      "build": "node scripts/verify-release.cjs",
+      "gcp-build": "node scripts/verify-release.cjs",
+      "start": "functions-framework --target=geapaCommand",
+      "deploy": "node -e \"throw Error('DEPLOY_NOT_AUTHORIZED')\""
+    },
+    "dependencies": {
+      "@google-cloud/firestore": "9.3.1",
+      "@google-cloud/functions-framework": "5.0.5",
+      "firebase-admin": "14.5.0",
+      "firebase-functions": "7.4.0",
+      "google-auth-library": "11.3.1",
+      "jspdf": "4.2.1"
+    }
+  },
+  "release": {
+    "schemaVersion": 1,
+    "environment": "PROD",
+    "projectId": "portal-geapa",
+    "remoteActionsAuthorized": false,
+    "sourceCommit": "b73b4de0cb66389005a8dde0b9661c0bca8d9eab",
+    "candidateCommit": "0a028d18e2b7af8a20040f69bd1337adfdf9b446",
+    "sourceDigest": "7b02a03b3c4c7506266c35005120f8fba80c74288840023b1663f4c01c0f9d4c",
+    "files": [
+      {
+        "path": ".gcloudignore",
+        "bytes": 20,
+        "sha256": "7adf89042f0139a05ce44074dc1c7094b400e7748cf289373c712c3e581dff8a"
+      },
+      {
+        "path": "generated/domain.gs",
+        "bytes": 3177264,
+        "sha256": "720766d65911f9fba9e6e19409be301c2fc4aa2a6f31b8ed3aa21603ae67bc63"
+      },
+      {
+        "path": "generated/source-manifest.json",
+        "bytes": 29343,
+        "sha256": "a9eb29bed39658dd97d13ebc8c97450f9dabc154e2afed11fae5abcf410f0673"
+      },
+      {
+        "path": "generated/workspace-drive.gs",
+        "bytes": 7837,
+        "sha256": "3b0f978d65e5f41ce6d1eb8aed4d397849d2f077e3edaae20afe491fc30d810d"
+      },
+      {
+        "path": "package-lock.json",
+        "bytes": 149006,
+        "sha256": "121af6fe4d66053ed676f07cf42876b5864ecc58632b35e51a33eb3978c09888"
+      },
+      {
+        "path": "package.json",
+        "bytes": 635,
+        "sha256": "227f80fe24ff7e8d104fa57923a65bdd72ec6644205144a63f537c0555723d04"
+      },
+      {
+        "path": "scripts/verify-release.cjs",
+        "bytes": 1917,
+        "sha256": "ac570a17c1c77331bf9a2f14b443a2617337d8c39c761188101e064bed1f2e04"
+      },
+      {
+        "path": "src/act-cycle-scope.cjs",
+        "bytes": 849,
+        "sha256": "a1305669c47bdfcbe680ecea5b2fdb1c10bbf42397f59d41b7cbf0c7f7b0dcc2"
+      },
+      {
+        "path": "src/act-flows.cjs",
+        "bytes": 21258,
+        "sha256": "75692ec7685ceb0669201bf348357f63245085f5c3fc36038486250c62744832"
+      },
+      {
+        "path": "src/act-readers.cjs",
+        "bytes": 8189,
+        "sha256": "e7fd4aa0366c33a7b4f2786de4ed514a3ac392a92e8e7416da0683c5bf997bae"
+      },
+      {
+        "path": "src/activity-commands.cjs",
+        "bytes": 5845,
+        "sha256": "7d94518965ffd8d9c603d28b6ebfb268908a8d1902ec56f7f61d0314944ab35b"
+      },
+      {
+        "path": "src/auth.cjs",
+        "bytes": 2002,
+        "sha256": "9a279e8d384617f95b526002315fc9f787e61d8b3765744a937fc68475a12018"
+      },
+      {
+        "path": "src/board-automation.cjs",
+        "bytes": 7180,
+        "sha256": "cdf057bfd44657eb58f5fc347b8bcd7ca5222746c6d480e793e7ad1e17208899"
+      },
+      {
+        "path": "src/board-procedure-pdf-v1.cjs",
+        "bytes": 6105,
+        "sha256": "3fefd50ebc8677a642f7b444a3fcfbcadca582b9258209c11b65177e349e4350"
+      },
+      {
+        "path": "src/board-procedure-pdf-v2.cjs",
+        "bytes": 8060,
+        "sha256": "e486e37ff425c563ac149ec1a096d481ebce5d0ff7e1db5114f4726b1a816c20"
+      },
+      {
+        "path": "src/board-procedure-pdf.cjs",
+        "bytes": 8293,
+        "sha256": "8d41e58c0939da07dbf80a7ed222b6fca0c48ef75a51a21c6c4d3b542786a8d4"
+      },
+      {
+        "path": "src/dev-institutional-reader-scope.cjs",
+        "bytes": 783,
+        "sha256": "017d967ef40e2be3683ff8f331a3fb485f633aaa868bd7cebe2aed9e707077be"
+      },
+      {
+        "path": "src/domain-port.js",
+        "bytes": 17489,
+        "sha256": "cdee53d9a2a93eb15fc16668e8f979358c0097d0c77e51572350aaa7a995eb5b"
+      },
+      {
+        "path": "src/domain.cjs",
+        "bytes": 2317,
+        "sha256": "dd4078a8cf997ca0381625292d84b2b87ad727c560d5653e0eaddbc8ada44ca6"
+      },
+      {
+        "path": "src/environment.cjs",
+        "bytes": 2553,
+        "sha256": "2bf5d1b9b9aa1bd929645287bed97587ee69f74a944a20961cc89fa13556be88"
+      },
+      {
+        "path": "src/execution-window.cjs",
+        "bytes": 354,
+        "sha256": "b1534e92046b4dfa196185209ac89e4cdcc3730b246421bf684c2398e5b56d65"
+      },
+      {
+        "path": "src/executor.cjs",
+        "bytes": 11765,
+        "sha256": "246994bdec88191db6cc85892778539fb8b6f9165363ec4e1c83357d304602af"
+      },
+      {
+        "path": "src/firestore.cjs",
+        "bytes": 12020,
+        "sha256": "e3d2bab0c9edbf162367bd7bcbce544f0c46dbaa28c27a2b9cf4db8f6f3189b0"
+      },
+      {
+        "path": "src/http.cjs",
+        "bytes": 8475,
+        "sha256": "f9a446f3643672c58429a7d4fff5dd5f959c226acd2f1fd7715304e574755f40"
+      },
+      {
+        "path": "src/index.cjs",
+        "bytes": 4350,
+        "sha256": "91c3cfd5b4c64c29cf3e74911c07411cad7212faccc8052214fa5d9429496fe2"
+      },
+      {
+        "path": "src/institutional-edit.cjs",
+        "bytes": 3635,
+        "sha256": "1a71bdd5dc9393297143a5ec081fc4fd0ba4ebe51b2b125ef7c2923106d68ebe"
+      },
+      {
+        "path": "src/institutional-files.cjs",
+        "bytes": 2139,
+        "sha256": "615d15279f0870b5414e7297555dc8258b9810ed8f6dec98d5144df8e62ef732"
+      },
+      {
+        "path": "src/institutional-governance.cjs",
+        "bytes": 12422,
+        "sha256": "b608f0424696abd1d295c712d5fcfd5cf4494c8c34ea3972d0c850ed9e14b469"
+      },
+      {
+        "path": "src/institutional-parameters.cjs",
+        "bytes": 3961,
+        "sha256": "efe24b6f75e40b1d3a64f77f89cfc34f91e002310519b62c4ba7f042a29cdf2c"
+      },
+      {
+        "path": "src/institutional-visibility.cjs",
+        "bytes": 3814,
+        "sha256": "e9c026de08a1e926ef3dce0133101503a365dc80c98e311f8ef52c1d37fa2e5b"
+      },
+      {
+        "path": "src/member-binding-admin.cjs",
+        "bytes": 7802,
+        "sha256": "666f616a9f17c6b9e22b2a8d82923595f4c6baa49f32afaf9f33f06a54921607"
+      },
+      {
+        "path": "src/member-executor.cjs",
+        "bytes": 15343,
+        "sha256": "0a8124dba5a952ba470ec9cdd574fd249ab37eaffa9be21082e9295d6b2405cd"
+      },
+      {
+        "path": "src/member-query.cjs",
+        "bytes": 3183,
+        "sha256": "0e02eee0843b39f4e23bdfef65028b9118296208b8f96f27c0e9bdfe4e766f95"
+      },
+      {
+        "path": "src/member-readers.cjs",
+        "bytes": 1699,
+        "sha256": "0e28c130174496f8fd9f700ba0806a9236d862d83628f47e393aa7cf887885f4"
+      },
+      {
+        "path": "src/minute-font-license.txt",
+        "bytes": 4377,
+        "sha256": "0dab92d0544f7b233403f14b84a663bdbfa746982eda629e7f4f9ffe1b036feb"
+      },
+      {
+        "path": "src/minute-letterhead.json",
+        "bytes": 2513087,
+        "sha256": "2385f88ed79c1046830b30c3be8e6f10f02c47ba62c1d579bdbfa665e6b1e109"
+      },
+      {
+        "path": "src/minute-pdf.cjs",
+        "bytes": 8104,
+        "sha256": "8e1d96c1adf8835a43356004a9538c6d9b85362754dbc691555f3f47e9f3b441"
+      },
+      {
+        "path": "src/pilot.cjs",
+        "bytes": 5987,
+        "sha256": "0c6a40b5987bc3fce7a184c5062fd64399f29b35a25f2fbaf15d0b4b0612a7aa"
+      },
+      {
+        "path": "src/projection-recovery.cjs",
+        "bytes": 11665,
+        "sha256": "a327938bba8e969ae6c19489abf8ea087dc4464f371382bc20f9b30c560b6063"
+      },
+      {
+        "path": "src/projection.cjs",
+        "bytes": 1618,
+        "sha256": "a5b7a5229b2ba662722d6f6a99c9602b2700da38c037b5127bac657c56555be8"
+      },
+      {
+        "path": "src/query.cjs",
+        "bytes": 3508,
+        "sha256": "000a333360c443f3c4ba839e9befe3fe221e33df4b14d3dd33950edaf17d8801"
+      },
+      {
+        "path": "src/reader-query.cjs",
+        "bytes": 4673,
+        "sha256": "d1a71babd38e683927ac3e6df9e14342a95ca706b99f384f78a889254f2f96de"
+      },
+      {
+        "path": "src/runtime-profile.cjs",
+        "bytes": 1286,
+        "sha256": "4619633a0a5d3690de0b012b6d1e29d12086857b26368712bb0b444113b21e90"
+      },
+      {
+        "path": "src/runtime.cjs",
+        "bytes": 1376,
+        "sha256": "1c4caa47da91e0c072f7b40ad5522fee3e86c3e52d24f546872da75d6dd166f9"
+      },
+      {
+        "path": "src/storage-control.cjs",
+        "bytes": 1895,
+        "sha256": "e2e3736d63122122469f575f6bb9d5b314af585f1e8552fb0ee44373732d05ce"
+      },
+      {
+        "path": "src/storage-download.cjs",
+        "bytes": 2018,
+        "sha256": "b45e00079e99e9965b14c6af2b9667931020ca7f8538b9fb852881f7bbe9c76a"
+      },
+      {
+        "path": "src/storage-notice.cjs",
+        "bytes": 4906,
+        "sha256": "b3449b2b5c31fbb8f6ce98acf15b5f85da0b3535fde11ab78332d9d19710cdc9"
+      },
+      {
+        "path": "src/storage-transfer.cjs",
+        "bytes": 7682,
+        "sha256": "ec25d372739399dcf08a68a490c89a5edd9f5039fdef9a3d7227ff8634ea5716"
+      },
+      {
+        "path": "src/trusted-system.cjs",
+        "bytes": 1351,
+        "sha256": "cb29cc6bcfb4315339020e777704a05e5bfdd0cca4d91a61006d450a4d788c93"
+      },
+      {
+        "path": "src/workspace-download.cjs",
+        "bytes": 2166,
+        "sha256": "4c7761f7f8ac0fce92d83d9f002e33c40c52117b1a6c7e2a309fe60bc5dd3054"
+      },
+      {
+        "path": "src/workspace-drive.cjs",
+        "bytes": 3801,
+        "sha256": "76f1bf5a0df36ff711b8726936d234e5e08970a1b89754c245e3ac6724876925"
+      },
+      {
+        "path": "src/workspace-storage.cjs",
+        "bytes": 7615,
+        "sha256": "c7339db0e57ff817d0ec580ff6014bfbbf64b3ece6162283bb4962be208f5f8c"
+      },
+      {
+        "path": "src/workspace-upload.cjs",
+        "bytes": 2909,
+        "sha256": "c3cd0760be16d36f3ed6a1437d99c7179e64282f2ae67c34de3b29447f47f856"
+      }
+    ],
+    "inventoryDigest": "adbee0b57c6699118167417826e7da2e74cf69ac265bcff18b3464b3a9784bec"
+  },
+  "bundleSha256": "720766d65911f9fba9e6e19409be301c2fc4aa2a6f31b8ed3aa21603ae67bc63"
+}
