@@ -37,7 +37,7 @@ function nodeFlowPrepare({input,portal}){
  if(route==='/v2/apresentacoes/agenda')return f4ActivitiesCalendarCompat_(options).prepare(input);
  if(route==='/v2/apresentacoes/reorganizacao')return f4ActivitiesReorganizationCompat_(options).prepare(input);
  if(route==='/admin/apresentacoes/planejamento/salvar')return f4ActivitiesPlanningCompat_(options).prepare(input);
- if(['/v2/apresentacoes/titulo-eixo/enviar','/v2/apresentacoes/titulo-eixo/revisar','/v2/apresentacoes/titulo-eixo/reprovar','/v2/apresentacoes/titulo-eixo/retirar','/v2/apresentacoes/titulo-eixo/natureza'].includes(route))return f4ActivitiesPresentationCompat_(options).prepare(input);
+ if(["/v2/apresentacoes/titulo-eixo/autorizar","/v2/apresentacoes/titulo-eixo/revogar","/v2/apresentacoes/titulo-eixo/regularizar","/v2/apresentacoes/titulo-eixo/registrar",'/v2/apresentacoes/titulo-eixo/enviar','/v2/apresentacoes/titulo-eixo/revisar','/v2/apresentacoes/titulo-eixo/reprovar','/v2/apresentacoes/titulo-eixo/retirar','/v2/apresentacoes/titulo-eixo/natureza'].includes(route))return f4ActivitiesPresentationCompat_(options).prepare(input);
  if(['/admin/atividades/salvar','/admin/atividades/publicar','/admin/atividades/ocultar','/admin/atividades/cancelar','/admin/atividades/reabrir','/admin/atividades/realizacao'].includes(route))return f4ActivitiesActivityCompat_(options).prepare(input);
  if(route==='/atividades/modelo/criar')return f4ActivitiesActivityCompat_(options).prepare(input);
  f4Core_().fail('COMMAND_TYPE_INVALID');
@@ -55,7 +55,7 @@ function nodeFlowPortalType(input,optional=false){
  '/v2/apresentacoes/compatibilidade':{REQUEST:'COMPATIBILITY_REQUEST',DECIDE:'COMPATIBILITY_DECIDE'}[p.action],
  '/v2/apresentacoes/agenda':{AGENDAR:'CALENDAR_RESERVE',CANCELAR:'CALENDAR_RELEASE'}[p.acao],
  '/v2/apresentacoes/reorganizacao':{PROPOSE:'CALENDAR_CHANGE_PROPOSE',CONFIRM:'CALENDAR_CHANGE_CONFIRM',CONSENT:'JOINT_CONSENT',JOINT:'JOINT_PROPOSE',COMPOSE:'COMPOSITION_CONFIRM'}[p.action],
- '/v2/apresentacoes/titulo-eixo/enviar':'THEME_SUBMIT','/v2/apresentacoes/titulo-eixo/revisar':'THEME_VALIDATE','/v2/apresentacoes/titulo-eixo/reprovar':'THEME_VALIDATE',
+ "/v2/apresentacoes/titulo-eixo/autorizar":"THEME_EXTRAORDINARY_AUTHORIZE","/v2/apresentacoes/titulo-eixo/revogar":"THEME_EXTRAORDINARY_REVOKE","/v2/apresentacoes/titulo-eixo/regularizar":"THEME_REGULARIZE","/v2/apresentacoes/titulo-eixo/registrar":"THEME_REGULARIZE_ADMIN",'/v2/apresentacoes/titulo-eixo/enviar':'THEME_SUBMIT','/v2/apresentacoes/titulo-eixo/revisar':'THEME_VALIDATE','/v2/apresentacoes/titulo-eixo/reprovar':'THEME_VALIDATE',
  '/v2/apresentacoes/titulo-eixo/retirar':'THEME_WITHDRAW','/v2/apresentacoes/titulo-eixo/natureza':'THEME_MATERIALITY_DECIDE',
  '/v2/apresentacoes/finalizacao':{TITULO:'FINAL_TITLE_CONFIRM',CONFERIR:'OPERATIONAL_CHECK'}[p.acao],'/v2/apresentacoes/realizacao':'REALIZATION_RECOGNIZE','/atividades/modelo/validar':'MEMBER_PRESENTATION_ACTIVITY_CREATE','/atividades/modelo/criar':'MEMBER_PRESENTATION_ACTIVITY_CREATE'};
  let type=f4ActRemainingConsumers_().type(input,nodeRead)||table[r];if(r==='/v2/apresentacoes/titulo-eixo/enviar'&&typeof p.idApresentacao==='string'&&p.idApresentacao.startsWith('APU_')){const u=nodeRead('presentationUnitHeads/'+p.idApresentacao.slice(4)),t=u?.thematicRequestRef&&nodeRead(f4ActivitiesModel_().path(u.thematicRequestRef));if(t?.workflowState==='PAUSED')type='THEME_COMPLEMENT';}if(optional&&!type)return null;f4Core_().need(type&&f4ActFlowExecutor_().commands.includes(type),'COMMAND_TYPE_INVALID');return 'ACT.'+type;

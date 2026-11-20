@@ -89,14 +89,14 @@ function f4ActivitiesFunctionalPorts_(options){
   }
   if(cmd==='QUOTA_CONFIGURE')for(const item of input.payload.axisLimits||[])addExpected(M.ref('bucket',M.hash({cycle:input.payload.cycleRef.id,axis:item.axisRef.id}).slice(0,32)));
   for(const [path,d] of documents){if(!d)continue;
-   if(path===M.path(input.payload.unitRef||M.ref('unit','NONE'))&&cmd==='THEME_SUBMIT')addExpected(d.thematicRequestRef||M.ref('thematic',M.hash({unit:d.id,cycle:d.cycleRef.id}).slice(0,32)));
+   if(path===M.path(input.payload.unitRef||M.ref('unit','NONE'))&&['THEME_SUBMIT','THEME_REGULARIZE','THEME_REGULARIZE_ADMIN'].includes(cmd))addExpected(d.thematicRequestRef||M.ref('thematic',M.hash({unit:d.id,cycle:d.cycleRef.id}).slice(0,32)));
    if(cmd==='DYNAMIC_DECIDE'&&path.startsWith('presentationUnitHeads/')&&d.cycleRef)addExpected(d.dynamicOccupancyRef||M.ref('dynamic',M.hash({unit:d.id,cycle:d.cycleRef.id}).slice(0,32)));
-   if(d.cycleRef?.kind&&d.cycleRef?.id){const cycle=documents.get(M.path(d.cycleRef)),cfg=cycle?.currentConfigRef&&documents.get(M.path(cycle.currentConfigRef));if(cfg?.parameters.quota)for(const axis of [d.principalAxisRef,d.candidate?.principalAxisRef,path.startsWith('presentationQuotaOccupancies/')?d.axisRef:null,cmd==='THEME_SUBMIT'&&path.startsWith('presentationUnitHeads/')?input.payload.principalAxisRef:null,cmd==='THEME_VALIDATE'&&path.startsWith('presentationThematicRequests/')?input.payload.reviewedContent?.principalAxisRef:null].filter(Boolean))addExpected(M.ref('bucket',M.hash({cycle:d.cycleRef.id,axis:axis.id}).slice(0,32)));}
+   if(d.cycleRef?.kind&&d.cycleRef?.id){const cycle=documents.get(M.path(d.cycleRef)),cfg=cycle?.currentConfigRef&&documents.get(M.path(cycle.currentConfigRef));if(cfg?.parameters.quota)for(const axis of [d.principalAxisRef,d.candidate?.principalAxisRef,path.startsWith('presentationQuotaOccupancies/')?d.axisRef:null,['THEME_SUBMIT','THEME_REGULARIZE','THEME_REGULARIZE_ADMIN'].includes(cmd)&&path.startsWith('presentationUnitHeads/')?input.payload.principalAxisRef:null,cmd==='THEME_VALIDATE'&&path.startsWith('presentationThematicRequests/')?input.payload.reviewedContent?.principalAxisRef:null].filter(Boolean))addExpected(M.ref('bucket',M.hash({cycle:d.cycleRef.id,axis:axis.id}).slice(0,32)));}
   }
   const expected=[...expectedRefs].map(([path,ref])=>({...ref,...(documents.get(path)?{revision:documents.get(path).revision}:{exists:false})}));
   const direct=[...selected.values()],primary=direct.filter(r=>!['policy','artifact','config','assessment','receipt','review','realization','reconciliation'].includes(r.kind)),targetRefs=(primary.length?primary:direct).filter(r=>cmd!=='ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN'||r.kind!=='person');N(targetRefs.length>0&&targetRefs.length<=32,'SCOPE_TOO_LARGE');
   let last;
-  for(const authorization of selectors(cmd.startsWith('ATTENDANCE_EXTRAORDINARY_'))){
+  for(const authorization of selectors(cmd.startsWith('ATTENDANCE_EXTRAORDINARY_')||(cmd.startsWith('THEME_EXTRAORDINARY_')||cmd==='THEME_REGULARIZE_ADMIN'))){if((cmd.startsWith('THEME_EXTRAORDINARY_')||cmd==='THEME_REGULARIZE_ADMIN')&&(authorization.kind!=='ROLE'||get('memberAuthzPolicies/'+authorization.sourceId)?.actorSelector.roleKey!=='DIRETOR_ADMINISTRATIVO'))continue;
    const self=authorization.kind==='SELF'||authorization.kind==='DEV_ADMIN'&&authorization.actorScope==='SELF';
    if(cmd==='DYNAMIC_CANCEL'&&input.payload.cause!=='WITHDRAWAL'&&self)continue;
    if(!contract.actors.includes(self?'PORTAL_AUTHENTICATED_MEMBER':'BOARD_ACTOR'))continue;
@@ -191,7 +191,7 @@ function f4ActivitiesFunctionalPorts_(options){
    // an invalid command probe or invent a model just to render their read menu.
    if(!type)return false;payload.typeRef=type;}}
   if(window)payload.windowRef=window;
-  for(const authorization of selectors(command.startsWith('ATTENDANCE_EXTRAORDINARY_'))){
+  for(const authorization of selectors(command.startsWith('ATTENDANCE_EXTRAORDINARY_')||(command.startsWith('THEME_EXTRAORDINARY_')||command==='THEME_REGULARIZE_ADMIN'))){if((command.startsWith('THEME_EXTRAORDINARY_')||command==='THEME_REGULARIZE_ADMIN')&&(authorization.kind!=='ROLE'||get('memberAuthzPolicies/'+authorization.sourceId)?.actorSelector.roleKey!=='DIRETOR_ADMINISTRATIVO'))continue;
    const self=authorization.kind==='SELF'||authorization.actorScope==='SELF';
    if(self!==(actorScope==='SELF'))continue;
    const request={schemaVersion:'geapa-act-command-v13',operationId:'00000000000000000000000000000000',commandType:'ACT.'+command,payload,target:{scope:{targetRefs},expected:[],authorization},evidenceRefs:[],decisionRef:null};
@@ -295,6 +295,7 @@ function f4JustificationWorkflowDependencies_(command,kind,d){
 // historic capacity assessment, material policy or frequency-planning evidence.
 // The normal handler still reads/validates authority, deadlines and revisions.
 function f4ThemeSubmissionDependencies_(command,kind,d){
+ if(command.startsWith('THEME_EXTRAORDINARY_')||command.startsWith('THEME_REGULARIZE')){if(kind==='cycle')return [d.currentConfigRef,d.scheduledConfigRef,f4ActivitiesModel_().ref('capacity',d.id)].filter(Boolean);if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.preAgendaPolicyRef].filter(Boolean);const fields={unit:['cycleRef','assignmentRef','presentationRef','thematicRequestRef','obligationRef','preAgendaBasisRef'],cycle:['currentConfigRef','scheduledConfigRef'],config:['parameters'],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef'],presentation:['unitRef','cycleRef','realizationRef'],thematic:['principalAxisRef'],capacity:[],bucket:[],realization:[],flow:['policyRef'],policy:[],obligation:[],evidence:[]}[kind];return fields?fields.map(k=>d[k]).filter(Boolean):null;}
  if(!['THEME_SUBMIT','THEME_COMPLEMENT','THEME_VALIDATE'].includes(command))return null;
  const review=command==='THEME_VALIDATE';
  const M=f4ActivitiesModel_();
