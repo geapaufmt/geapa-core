@@ -4,11 +4,23 @@ function f4CycleParameterDocumentHash_(v){return f4Core_().hash(f4Firestore_().e
 // A catalog-only approval cannot certify deadlines copied into its technical
 // payload. Interpret the documented approval scope without rewriting the record.
 // Recognition or a new, governed approval remains the only way to establish them.
-function f4CycleEffectiveConfiguration_(cfg){
- if(!cfg||cfg.approvalScope!=='OPERATIONAL_AXIS_CATALOG_AND_CLOSED_FEATURES')return cfg;
+function f4CycleEffectiveConfiguration_(cfg,get,visited){
+ if(!cfg)return cfg;
+ const limited=cfg.approvalScope==='OPERATIONAL_AXIS_CATALOG_AND_CLOSED_FEATURES',keys=['newDateMinimumDays','thematicMinimumDays','titleMinimumDays','dynamicRequestLeadDays'];
+ // A later approval of another field does not establish inherited deadlines.
+ // Read immutable predecessors through the same fenced canonical reader.
+ let inherited={};
+ if(!limited&&get&&cfg.predecessorRef?.kind==='config'&&cfg.parameters?.parameterEvidence?.schemaVersion!=='cycle-parameters-v1'){
+  const M=f4ActivitiesModel_(),r=cfg.predecessorRef,seen=new Set(visited||[]),path=M.path(r);
+  M.need(r.parent===cfg.cycleRef?.id&&!seen.has(path)&&seen.size<16,'UNRESOLVED_DEPENDENCY','CONFIGURATION_LINEAGE');seen.add(path);
+  const prior=get(path);M.need(prior?.approved&&prior.cycleRef?.id===cfg.cycleRef.id,'UNRESOLVED_DEPENDENCY','CONFIGURATION_PREDECESSOR');
+  const effective=f4CycleEffectiveConfiguration_(prior,get,seen);
+  for(const key of keys)if(!cfg.parameters?.parameterEvidence?.items?.[key]&&Object.hasOwn(cfg.parameters||{},key)&&Object.hasOwn(prior.parameters||{},key)&&M.hash(cfg.parameters[key])===M.hash(prior.parameters[key])&&effective.parameters?.parameterEvidence?.items?.[key]?.status==='UNESTABLISHED')inherited[key]=effective.parameters.parameterEvidence.items[key];
+ }
+ if(!limited&&!Object.keys(inherited).length)return cfg;
  const parameters={...cfg.parameters},items={...parameters.parameterEvidence?.items};
- for(const key of ['newDateMinimumDays','thematicMinimumDays','titleMinimumDays','dynamicRequestLeadDays']){
-  items[key]={status:'UNESTABLISHED',basis:'A aprovação deste registro abrange o catálogo de eixos e funcionalidades fechadas, não comprova este prazo.'+(Object.hasOwn(parameters,key)?' Valor técnico anteriormente registrado: '+parameters[key]+'.':'')};delete parameters[key];
+ for(const key of limited?keys:Object.keys(inherited)){
+  items[key]=inherited[key]||{status:'UNESTABLISHED',basis:'A aprovação deste registro abrange o catálogo de eixos e funcionalidades fechadas, não comprova este prazo.'+(Object.hasOwn(parameters,key)?' Valor técnico anteriormente registrado: '+parameters[key]+'.':'')};delete parameters[key];
  }
  parameters.parameterEvidence={schemaVersion:'limited-legacy-approval-view',items};return {...cfg,parameters};
 }
@@ -22,6 +34,7 @@ function f4CycleDecisionGuidance_(configuration,keys){
 function f4CycleParameterCatalog_(){
  const field=(key,label,section,type,extra={})=>({key,label,section,type,...extra});
  return [
+  field('attendanceDisciplinePolicyRef','Providências de frequência e direito de manifestação',2,'policy',{usage:'ATTENDANCE_DISCIPLINE',optionalExtension:true}),
   field('calendarMode','Formação da agenda',3,'select',{choices:['BOARD_INITIAL','MEMBER_SELF_SCHEDULE']}),
   field('planningMode','Base do planejamento',1,'select',{choices:['INCIDENCE','RECOGNIZED_PREAGENDA']}),
   field('preAgendaPolicyRef','Reconhecimento da pré-agenda',1,'policy',{usage:'HISTORICAL_PREAGENDA'}),
@@ -102,10 +115,10 @@ function f4CycleParameters_(){
  }
  function validate(parameters,cycle,policy,get,approved=false){
   N(isManaged(parameters),'VALIDATION_ERROR','PARAMETER_SCHEMA');
-  const evidence=parameters.parameterEvidence;C.exact(evidence,['schemaVersion','items']);C.exact(evidence.items,catalog.map(f=>f.key));
+  const evidence=parameters.parameterEvidence;C.exact(evidence,['schemaVersion','items']);C.exact(evidence.items,catalog.filter(f=>!f.optionalExtension||Object.hasOwn(evidence.items,f.key)).map(f=>f.key));
   const governance=approved?normative(policy,cycle,get):policy?.parameterGovernance;
   for(const f of catalog){
-   const e=evidence.items[f.key];N(e&&typeof e==='object','VALIDATION_ERROR','PARAMETER_EVIDENCE');C.exact(e,['status','basis',...('documentedFrom'in e?['documentedFrom']:[]),...('documentedUntil'in e?['documentedUntil']:[])]);
+   const e=evidence.items[f.key];if(!e&&f.optionalExtension){N(!Object.hasOwn(parameters,f.key),'VALIDATION_ERROR');continue;}N(e&&typeof e==='object','VALIDATION_ERROR','PARAMETER_EVIDENCE');C.exact(e,['status','basis',...('documentedFrom'in e?['documentedFrom']:[]),...('documentedUntil'in e?['documentedUntil']:[])]);
    N(statuses.includes(e.status)&&typeof e.basis==='string'&&e.basis.length<=2000,'VALIDATION_ERROR','PARAMETER_EVIDENCE');
    if(e.documentedFrom)M.civil(e.documentedFrom);if(e.documentedUntil)M.civil(e.documentedUntil);
    if(e.documentedFrom&&e.documentedUntil)N(M.gap(e.documentedFrom,e.documentedUntil)>=0,'VALIDATION_ERROR','EVIDENCE_INTERVAL');
@@ -193,10 +206,10 @@ function f4CycleParametersCompat_(options){
   const part=db.query({collection:'presentationPolicyReferences',filters:[],order:[{field:'__name__',direction:'ASCENDING'}],limit:20,...(cursor?{cursor:[cursor]}:{})});rows.push(...part.map(r=>r.data));if(part.length<20)return rows;
   cursor=new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+part[part.length-1].path);
  }N(false,'SCOPE_TOO_LARGE','PARAMETER_POLICY_CATALOG_BOUND');}
- function summary(d){return d?{id:d.id,revision:d.revision,state:d.state||(d.approved?'APPROVED':'DRAFT'),effectiveFrom:M.ms(d.effectiveFrom),recordedAt:M.ms(d.recognizedAt||d.createdAt),reason:d.reason||d.approvalDecision?.basis?.reason||'',normativeReference:d.normativeReference||'',predecessorId:d.predecessorRef?.id||'',definitionHash:d.definitionHash||'',parameters:f4CycleEffectiveConfiguration_(d).parameters}:null;}
+ function summary(d){return d?{id:d.id,revision:d.revision,state:d.state||(d.approved?'APPROVED':'DRAFT'),effectiveFrom:M.ms(d.effectiveFrom),recordedAt:M.ms(d.recognizedAt||d.createdAt),reason:d.reason||d.approvalDecision?.basis?.reason||'',normativeReference:d.normativeReference||'',predecessorId:d.predecessorRef?.id||'',definitionHash:d.definitionHash||'',parameters:f4CycleEffectiveConfiguration_(d,path=>db.get(path)).parameters}:null;}
  function read(input){
   C.exact(input,['cycleId',...('cursor'in input?['cursor']:[])]);if(input.cursor)N(M.id(input.cursor),'VALIDATION_ERROR');const z=context(input.cycleId),config=z.draft||z.pending||z.current;
-  const parameters=f4CycleEffectiveConfiguration_(config)?.parameters||{},references=refOptions(),scoped=references.filter(r=>r.approved&&r.active&&(!r.cycleRef||r.cycleRef.id===z.cycle.id));
+  const parameters=f4CycleEffectiveConfiguration_(config,path=>db.get(path))?.parameters||{},references=refOptions(),scoped=references.filter(r=>r.approved&&r.active&&(!r.cycleRef||r.cycleRef.id===z.cycle.id));
   const prefix='presentationCycles/'+z.cycle.id+'/configRevisions',cursor=input.cursor?new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+prefix+'/'+input.cursor):null;
   const page=db.query({collection:prefix,filters:[],order:[{field:'__name__',direction:'ASCENDING'}],limit:21,...(cursor?{cursor:[cursor]}:{})});
   const fields=P.catalog.map(f=>({...f,...P.entry(parameters,f.key),revision:config?.id||'',effectiveFrom:config?M.ms(config.effectiveFrom):null,origin:config?.state==='HISTORICAL_RECOGNITION'?'DOCUMENTARY_RECOGNITION':P.isManaged(parameters)?'CYCLE_CONFIGURATION':'LEGACY_CONFIGURATION',rule:z.policy?.parameterGovernance?.rules?.[f.key]||null,options:f.usage?scoped.filter(r=>r.usage===f.usage).map(r=>({id:r.id,label:r.label||r.name||r.code||r.id,revision:r.revision})):[]}));

@@ -2,7 +2,7 @@
 // evidence and selectors are produced here; the Portal gets a command intent.
 function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
  const C=f4Core_(),N=C.need,F=f4Firestore_(),K=f4MemberCommandCatalog_(),db=F.connect(config),T=F.Timestamp.fromMillis;
- const allowed=['members.self.update','members.profile.correct','members.ingress.execute','members.voluntary.submit','members.voluntary.review','members.membership.voluntaryExit'];
+ const allowed=['members.attendance.record','members.discipline.dismiss','members.self.update','members.profile.correct','members.ingress.execute','members.voluntary.submit','members.voluntary.review','members.membership.voluntaryExit'];
  const material=r=>Object.fromEntries(['commandType','target','payload','evidenceRefs','decisionRef'].map(k=>[k,r[k]]));
  function current(get,now){return f4DevAdmin_().profile(get,identity.uid,now)?f4DevAdmin_().identify(get,identity.uid,now):f4MemberAuthz_().identify(get,identity.uid,now);}
  function configuration(get){const s=get('memberOperationalConfig/portal');N(s?.schemaVersion==='member-operational-portal-v1'&&s.enabled===true&&C.id(s.approvalRef)&&Array.isArray(s.commands)&&s.commands.every(c=>allowed.includes(c))&&Array.isArray(s.policyIds)&&s.policyIds.length<=16&&s.policyIds.every(C.id),'ACCESS_REVOKED');return s;}
@@ -11,10 +11,12 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
   N(!self||r.target.personId===a.binding.idPessoa,'ACCESS_REVOKED');
   let source=technical,kind=technical?'DEV_ADMIN':null,functionId=null,actorScope=null;
   if(!technical){for(const id of settings.policyIds){const p=get('memberAuthzPolicies/'+id);if(!p?.active||!p.capabilities?.includes(cap))continue;f4MemberAuthzContracts_().policy(p);if(self&&p.proofKind==='SELF'){source=p;kind='SELF';break;}if(!self&&p.proofKind==='ROLE'){const f=a.derived.currentFunctions.find(f=>f.roleKey===p.actorSelector.roleKey&&f.scopeKey===p.actorSelector.actorScope);if(f){source=p;kind='ROLE';functionId=f.idVigencia;actorScope=f.scopeKey;break;}}}}
+  if(cap==='MEMBERS_DISCIPLINE_EXECUTE'){source=null;kind=null;for(const id of settings.disciplineGrantIds||[]){const g=get('memberExplicitGrants/'+id);if(g?.active&&g.uid===identity.uid&&g.capabilities?.includes(cap)&&g.actorScopes?.includes('RECURSOS_HUMANOS')&&g.targets?.allowedPersons?.includes(r.target.personId)){source=g;kind='EXPLICIT';functionId=null;actorScope='RECURSOS_HUMANOS';break;}}}
   N(source&&kind,'ACCESS_REVOKED');
   const target={personId:r.target.personId,scopeKey:self?null:cap==='MEMBERS_INGRESS_EXECUTE'?'ADMINISTRACAO':'RECURSOS_HUMANOS',boardId:null,roleKey:null,resources,caseId:self?null:r.target.requestId||'ADM_'+r.operationId,purpose:self?null:cap==='MEMBERS_INGRESS_EXECUTE'?'ADMINISTRATIVE_INGRESS':cap==='MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'?'VOLUNTARY_SUSPENSION':'VOLUNTARY_EXIT',fieldMask:[],linkId:self?null:r.target.linkId,effect:self?null:cap==='MEMBERS_INGRESS_EXECUTE'?(r.payload.operation==='PRE_REGISTER'?'PRE_REGISTRATION':r.payload.operation==='MANAGE_INVITATION'?'INVITATION':'INGRESSO'):cap==='MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'?(r.payload.action==='RETURN'?'RETORNO':'SUSPENSAO'):'DESLIGAMENTO',effectiveDate:self?null:cap==='MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'?suspensionDate(get,r):r.payload.startDate||r.payload.effectiveDate||Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd')};
+  if(cap==='MEMBERS_DISCIPLINE_EXECUTE'){target.purpose='ATTENDANCE_RH';target.effect=r.commandType==='members.discipline.dismiss'?'DESLIGAMENTO':r.payload.action;target.effectiveDate=r.payload.occurrenceDate||r.payload.effectiveDate;}
   if(['MEMBERS_SELF_UPDATE','MEMBERS_PROFILE_CORRECT'].includes(cap)){target.fieldMask=f4MemberProfileCorrections_().is(r)?(self?[]:[r.payload.field]):Object.keys(r.payload.patch||r.payload.corrections).sort();target.linkId=null;if(!self){target.scopeKey='ADMINISTRACAO';target.purpose='PROFILE_CORRECTION';target.effect='PROFILE_CORRECTION';if(f4MemberProfileCorrections_().is(r))target.caseId=r.payload.requestId;}}
-  return {schemaVersion:'member-authz-request-v13',uid:identity.uid,kind,sourceId:technical?identity.uid:source.id,functionId,actorScope,capability:cap,expected:{authorityEpoch:a.control.epoch,policyEpoch:a.control.policyEpoch,readAuthzEpoch:a.control.readAuthzEpoch,subjectEpoch:a.subject.authzEpoch,bindingVersion:a.binding.bindingVersion,personRevision:a.actor.h.revision,authorizationRevision:source.revision},tokenExpiresAt:T(identity.expiresAt),admissionExpiresAt:T(end),target,evidenceRefs:r.evidenceRefs};
+  return {schemaVersion:'member-authz-request-v13',uid:identity.uid,kind,sourceId:kind==='DEV_ADMIN'?identity.uid:source.id,functionId,actorScope,capability:cap,expected:{authorityEpoch:a.control.epoch,policyEpoch:a.control.policyEpoch,readAuthzEpoch:a.control.readAuthzEpoch,subjectEpoch:a.subject.authzEpoch,bindingVersion:a.binding.bindingVersion,personRevision:a.actor.h.revision,authorizationRevision:source.revision},tokenExpiresAt:T(identity.expiresAt),admissionExpiresAt:T(end),target,evidenceRefs:r.evidenceRefs};
  }
  function suspensionDate(get,r){const v=f4MemberVoluntarySuspension_().validate(get('memberVoluntaryRequests/'+r.target.requestId));return r.payload.action==='RETURN'?new Date(Date.parse(v.endDate+'T12:00:00Z')+86400000).toISOString().slice(0,10):v.startDate;}
  function prepare(input){
@@ -25,8 +27,17 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
    const intentPath='memberPreparedIntents/'+input.operationId,inputHash=C.hash(input),prior=get(intentPath);
    if(prior){N(prior.ownerUid===identity.uid&&prior.inputHash===inputHash,'OPERATION_CONFLICT');current(get,now);return prior.input;}
    const p=input.payload,op=input.operationId,r={schemaVersion:'geapa-members-command-v13',operationId:op,ownerUid:identity.uid,commandType:null,target:null,payload:null,evidenceRefs:[],decisionRef:null};
-   let paths=[],resources=[],facts=null,requestId,cap;
-   if(['/meu-perfil/correcoes/solicitar','/meu-perfil/correcoes/acao','/admin/correcoes-cadastrais/acao'].includes(input.route)){
+   let paths=[],resources=[],facts=null,requestId,cap,disciplineContext=null;
+   if(input.route==='/admin/frequencia-rh/providencia'){
+    C.exact(p,['personId','linkId','cycleId','personRevision','caseRevision','action','occurrenceDate','reason','documentReference','decisionReference','confirmed']);
+    N([p.personId,p.linkId,p.cycleId,p.decisionReference].every(C.id)&&C.rev(p.personRevision)&&C.rev(p.caseRevision)&&get('memberAggregateHeads/'+p.personId)?.revision===p.personRevision,'REVISION_CONFLICT');
+    const W=f4MemberAttendanceCases_(),casePath='memberAttendanceCases/'+W.caseId(p.personId,p.cycleId);N((get(casePath)?.revision||0)===p.caseRevision,'REVISION_CONFLICT');
+    r.commandType=p.action==='DISMISS'?'members.discipline.dismiss':'members.attendance.record';r.target={personId:p.personId,linkId:p.linkId,...(p.action==='DISMISS'?{}:{cycleId:p.cycleId})};
+    r.payload=p.action==='DISMISS'?{effectiveDate:p.occurrenceDate}:{action:p.action,occurrenceDate:p.occurrenceDate,reason:p.reason,documentReference:p.documentReference,confirmed:p.confirmed};r.decisionRef=p.decisionReference;cap='MEMBERS_DISCIPLINE_EXECUTE';facts={};
+    N(p.confirmed===true&&typeof p.reason==='string'&&p.reason.trim().length>=10,'HUMAN_DECISION_REQUIRED');
+    disciplineContext={cycleId:p.cycleId,caseId:W.caseId(p.personId,p.cycleId),caseRevision:p.caseRevision,reason:p.reason,documentReference:p.documentReference,confirmed:p.confirmed};
+    paths=[casePath];resources=[casePath,'memberLinks/'+p.linkId];if(p.action==='DISMISS'){paths.push('memberEvents/EVT_'+op);resources.push('memberEvents/EVT_'+op);}
+   }else if(['/meu-perfil/correcoes/solicitar','/meu-perfil/correcoes/acao','/admin/correcoes-cadastrais/acao'].includes(input.route)){
     const W=f4MemberProfileCorrections_(),self=input.route.startsWith('/meu-perfil/'),submit=input.route.endsWith('/solicitar');
     C.exact(p,submit?['field','value','reason','personRevision']:['requestId','revision','action','reason']);
     let old=null;if(!submit){N(C.op(p.requestId)&&C.rev(p.revision),'COMMAND_PAYLOAD_INVALID');old=W.record(get('memberProfileCorrections/'+p.requestId));N(old.revision===p.revision,'REVISION_CONFLICT');}
@@ -99,11 +110,11 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
    if(facts!==null)r.evidenceRefs=['MVE_'+op];
    const q=requestFor(get,r,resources,cap,now,end,settings);if(requestId&&cap!=='MEMBERS_VOLUNTARY_REQUEST')q.target.caseId=requestId;
    const pending={};
-   const operationalChecks=r.commandType==='members.voluntary.submit'||r.commandType==='members.membership.voluntaryExit'||r.commandType==='members.voluntary.review'&&p.action==='APPROVE'?f4MemberActivityChecks_().capture(get,db,r.target.personId,now):null;
+   const operationalChecks=r.commandType==='members.discipline.dismiss'||r.commandType==='members.voluntary.submit'||r.commandType==='members.membership.voluntaryExit'||r.commandType==='members.voluntary.review'&&p.action==='APPROVE'?f4MemberActivityChecks_().capture(get,db,r.target.personId,now,r.commandType==='members.discipline.dismiss'):null;
    const browser=Object.fromEntries(['schemaVersion','operationId','commandType','target','payload','evidenceRefs','decisionRef'].map(k=>[k,r[k]]));
-   pending[intentPath]={schemaVersion:'member-prepared-intent-v1',operationId:op,ownerUid:identity.uid,inputHash,input:browser,createdAt:T(now),expiresAt:T(end),operationalChecks};
+   pending[intentPath]={schemaVersion:'member-prepared-intent-v1',operationId:op,ownerUid:identity.uid,inputHash,input:browser,createdAt:T(now),expiresAt:T(end),operationalChecks,...(disciplineContext?{disciplineContext}:{})};
    if(facts!==null){const body={schemaVersion:'member-act-content-v13',...f4MemberActContent_().material(r),facts},hash=C.hash(body),ref=r.evidenceRefs[0];
-    pending['memberEvidenceContents/'+hash]=body;pending['memberEvidenceAttestations/'+ref]={schemaVersion:'member-evidence-attestation-v13',id:ref,revision:1,active:true,kind:cap==='MEMBERS_PROFILE_CORRECT'?'CADASTRAL_EVIDENCE':cap==='MEMBERS_INGRESS_EXECUTE'?'BOARD_DECISION':'VOLUNTARY_REQUEST',holderId:r.target.personId,linkId:r.target.linkId||null,targetResourceIds:resources,effect:q.target.effect,effectiveDate:q.target.effectiveDate,issuerRef:identity.uid,approvalRef:r.decisionRef||'REQUEST_'+requestId,contentHash:hash,verifiedAt:T(now),expiresAt:T(end)};
+    pending['memberEvidenceContents/'+hash]=body;pending['memberEvidenceAttestations/'+ref]={schemaVersion:'member-evidence-attestation-v13',id:ref,revision:1,active:true,kind:cap==='MEMBERS_PROFILE_CORRECT'?'CADASTRAL_EVIDENCE':['MEMBERS_INGRESS_EXECUTE','MEMBERS_DISCIPLINE_EXECUTE'].includes(cap)?'BOARD_DECISION':'VOLUNTARY_REQUEST',holderId:r.target.personId,linkId:r.target.linkId||null,targetResourceIds:resources,effect:q.target.effect,effectiveDate:q.target.effectiveDate,issuerRef:identity.uid,approvalRef:r.decisionRef||'REQUEST_'+requestId,contentHash:hash,verifiedAt:T(now),expiresAt:T(end)};
    }
    const overlay=path=>Object.hasOwn(pending,path)?pending[path]:get(path),auth=r.commandType==='members.ingress.execute'?f4MemberAuthz_().authorizeCommand(overlay,q,r,now):f4MemberAuthz_().authorize(overlay,q,now);
    const simulated={...r,ticketId:'PREPARE_'+op,digest:K.digest(config.projectId,r),receivedAt:T(now),state:'RECEIVED'};
