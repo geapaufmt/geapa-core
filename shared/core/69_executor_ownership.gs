@@ -152,7 +152,7 @@ function f4ActivityExecutorRoutes_(){
   if(op==='EDIT'){
    editFields(r,a);
   }else if(op==='CREATE'){
-   N(p.decision?.reasonCode==='PORTAL_MODEL_CREATION'&&Object.keys(p).every(k=>['activityRef','typeRef','cycleRef','academicSemesterRef','title','location','startsAt','endsAt','status','details','modelContent','decision'].includes(k))&&p.status==='SCHEDULED','COMMAND_PAYLOAD_INVALID');
+   N(p.decision?.reasonCode==='PORTAL_MODEL_CREATION'&&Object.keys(p).every(k=>['activityRef','typeRef','cycleRef','academicSemesterRef','attendancePolicyRef','title','location','startsAt','endsAt','status','details','modelContent','decision'].includes(k))&&p.status==='SCHEDULED','COMMAND_PAYLOAD_INVALID');
   }
  }
  function editFields(r,a){const p=r.payload;N(p.decision?.reasonCode==='PORTAL_ADMIN_EDIT'&&Object.keys(p).every(k=>['activityRef','typeRef','title','location','startsAt','endsAt','status','details','decision',...(a?.presentationSessionRef?['sessionRef','calendarAssessmentRef']:[])].includes(k))&&p.typeRef?.id===a?.typeRef?.id&&p.status===a?.status,'COMMAND_PAYLOAD_INVALID');}
@@ -204,7 +204,7 @@ function f4ActivityRealExecutor_(){
   N(a?.recordMode!=='HISTORICAL_PARTIAL'&&!a?.presentationSessionRef,'ACCESS_REVOKED');
   const cycle=get('presentationCycles/'+i.cycleId),type=get('activityTypes/'+i.typeId),policy=i.policyId&&get('activityPolicies/'+i.policyId);
   N(cycle?.recordMode==='NEW_V2'&&cycle.revision===i.cycleRevision&&type?.recordMode==='NEW_V2'&&type.revision===i.typeRevision&&type.status==='ACTIVE'&&!type.portalModel?.memberPresentation,'ACCESS_REVOKED');
-  N(type.attendancePolicyRef?.id===i.policyId||!type.attendancePolicyRef&&i.policyId===null,'ACCESS_REVOKED');if(i.policyId)N(policy?.revision===i.policyRevision,'ACCESS_REVOKED');
+  const usedPolicy=r.payload.attendancePolicyRef||(a?get('activityAttendanceCollections/'+a.id)?.policyRef:type.attendancePolicyRef);N(usedPolicy?.id===i.policyId||!usedPolicy&&i.policyId===null,'ACCESS_REVOKED');if(r.payload.attendancePolicyRef)N(policy?.cycleRef?.id===i.cycleId,'ACCESS_REVOKED');if(i.policyId)N(policy?.revision===i.policyRevision,'ACCESS_REVOKED');
   if(v.operation==='CREATE')N(!a&&r.operationId===i.operationId&&hash(r.payload)===i.payloadHash&&r.payload.cycleRef?.id===i.cycleId&&r.payload.typeRef?.id===i.typeId,'COMMAND_PAYLOAD_INVALID');
   else{
    const owner=get('commandExecutorOwners/'+i.operationId),ledger=get('commandLedger/'+i.operationId);

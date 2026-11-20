@@ -4,8 +4,8 @@ const {PROJECT,ROOT,fail}=require('./environment.cjs');
 // Only plans emitted by the Core reader producers. Never exposed in HTTP.
 const material=['presentationMaterialSubmissions','presentationMaterialReviews','presentationMaterialReceipts','presentationCorrectionOpportunities','presentationMaterialRegularizations'];
 const shapes={
- memberGovernanceBoards:[[]],memberFunctions:[['idDiretoria']],commandExecutorRoutes:[[]],canonicalPresentations:[['personRef.ref.id']],canonicalActivities:[[],['cycleRef']],memberAggregateHeads:[[]],activityTypes:[[]],activityPolicies:[[]],activityAttachmentPolicies:[[]],
- academicSemesters:[[]],activityExceptionalJustificationWindows:[[]],presentationCycles:[[]],
+ memberGovernanceBoards:[[]],memberFunctions:[['idDiretoria']],commandExecutorRoutes:[[]],canonicalPresentations:[['personRef.ref.id']],canonicalActivities:[[],['cycleRef']],memberAggregateHeads:[[]],activityTypes:[[]],activityPolicies:[[],['cycleRef']],activityAttachmentPolicies:[[]],
+ academicSemesters:[[]],activityExceptionalJustificationWindows:[[]],presentationCycles:[[]],memberAttendanceCases:[['cycleId']],
  presentationPolicyReferences:[[],['cycleRef'],['cycleRef','usage']],
  presentationSessions:[['cycleRef']],presentationObligations:[['cycleRef']],
  presentationUnitHeads:[[],['personRef'],['cycleRef']],presentationFlowCases:[['cycleRef']],
@@ -26,9 +26,9 @@ function readerQuery(db,p,decode){
   if(Object.keys(f).sort().join()!=='field,op,value'||f.op!=='EQUAL')fail('QUERY_NOT_IN_PILOT');
   const v=decode(f.value),kind={cycleRef:'cycle',personRef:'person',unitRef:'unit',presentationRef:'presentation'}[f.field];
   if(kind){if(v?.kind!==kind||Object.keys(v).length!==2||!/^[A-Za-z0-9_-]{1,48}$/.test(v.id)||kind==='person'&&!/^PES-[0-9]{6}$/.test(v.id))fail('QUERY_NOT_IN_PILOT');}
-  else if(f.field==='idDiretoria'){if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,48}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
+  else if(['idDiretoria','cycleId'].includes(f.field)){if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,48}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
   else if(f.field==='personRef.ref.id'){if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,48}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
-  else if(f.field==='ownerPersonRef'){if(typeof v!=='string'||!/^PES-[0-9]{6}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
+  else if(f.field==='ownerPersonRef'){if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,48}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
   else if(f.field==='activityRef.id'){if(typeof v!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(v))fail('QUERY_NOT_IN_PILOT');}
   else if(f.field==='state'){if(!['PREVIOUS','PENDING','CORRECTION_REQUESTED','APPROVED','EXCUSED','REJECTED','CLOSED_WITHOUT_ABSENCE','HISTORICAL_PARTIAL'].includes(v))fail('QUERY_NOT_IN_PILOT');}
   else if(f.field==='workflowState'){if(v!=='WAITING')fail('QUERY_NOT_IN_PILOT');}

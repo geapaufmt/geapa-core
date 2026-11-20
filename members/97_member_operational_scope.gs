@@ -4,6 +4,14 @@
 function f4MemberOperationalScope_(get,q,limits,actorPerson,command,now){
  const K=f4MemberAuthzContracts_(),N=K.need;K.targets(limits);
  const scopes=limits.commandScopes||[],t=q.target;
+ if(scopes.includes('ATTENDANCE_RH')&&q.capability==='MEMBERS_DISCIPLINE_EXECUTE'){
+  N(q.kind==='EXPLICIT'&&!limits.ownPerson&&limits.allowedPersons.includes(t.personId)&&limits.allowedTargetScopes.includes('RECURSOS_HUMANOS')&&t.scopeKey==='RECURSOS_HUMANOS'&&t.purpose==='ATTENDANCE_RH'&&t.fieldMask.length===0&&/^ADM_[a-f0-9]{32}$/.test(t.caseId));
+  const op=t.caseId.slice(4),intent=get('memberPreparedIntents/'+op),context=intent?.disciplineContext,r=intent?.input;
+  N(intent?.ownerUid===q.uid&&r?.target.personId===t.personId&&r.target.linkId===t.linkId&&context?.caseId===f4MemberAttendanceCases_().caseId(t.personId,context.cycleId));
+  const roots=['memberAttendanceCases/'+context.caseId,'memberLinks/'+t.linkId];K.subset(roots,limits.allowedResources);
+  N(['members.attendance.record','members.discipline.dismiss'].includes(r.commandType));
+  N(K.digest([...t.resources].sort())===K.digest([...roots,...(r.commandType==='members.discipline.dismiss'?['memberEvents/EVT_'+op]:[])].sort()));return true;
+ }
  if(scopes.includes('ACCOUNT_BINDING')&&q.capability==='MEMBERS_BINDING_MANAGE'){
   const named=limits.allowedPersons.includes(t.personId),dynamic=scopes.includes('ACCOUNT_BINDING_CURRENT_MEMBERS');
   if(!named){N(dynamic);const actor=f4MemberAuthz_().identify(get,q.uid,now);N(actor.derived.currentFunctions.some(f=>f.roleKey==='DIRETOR_ADMINISTRATIVO'&&f.group==='DIRETORIA'&&f.scopeKey==='ADMINISTRACAO'));N(f4MemberBindingTargetEligible_(get,t.personId,now));}

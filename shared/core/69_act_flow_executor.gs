@@ -1,7 +1,7 @@
 // Execution boundaries only. Payloads, authority and effects belong to the ACT contracts.
 function f4ActFlowExecutor_(){
  const C=f4Core_(),N=C.need,M=f4ActivitiesModel_();
- const commands=["THEME_EXTRAORDINARY_AUTHORIZE","THEME_EXTRAORDINARY_REVOKE","THEME_REGULARIZE","THEME_REGULARIZE_ADMIN",'ATTENDANCE_EXTRAORDINARY_AUTHORIZE','ATTENDANCE_EXTRAORDINARY_REVOKE','ACTIVITY_IMPORT_RECOGNIZE','CYCLE_OPEN','CAPACITY_ASSESSMENT_SEAL','HISTORICAL_PREAGENDA_RECOGNIZE','PRESENTATION_CONTINUITY_CONNECT','ACTIVITY_PROMOTE_OPERATIONAL','ACTIVITY_ADMIN_REVIEW','ACTIVITY_SAVE','ACTIVITY_PUBLICATION_SET','ACTIVITY_REALIZE','MEMBER_PRESENTATION_ACTIVITY_CREATE','SESSION_CONFIGURE','CALENDAR_RESERVE','CALENDAR_RELEASE','CALENDAR_CHANGE_PROPOSE','CALENDAR_CHANGE_CONFIRM','JOINT_PROPOSE','JOINT_CONSENT','COMPOSITION_CONFIRM','THEME_SUBMIT','THEME_COMPLEMENT','THEME_MATERIALITY_DECIDE','THEME_VALIDATE','THEME_WITHDRAW','COMPATIBILITY_REQUEST','COMPATIBILITY_DECIDE','FINAL_TITLE_CONFIRM','OPERATIONAL_CHECK','REALIZATION_RECOGNIZE','ATTENDANCE_ROSTER_APPLY','ATTENDANCE_SAVE_DRAFT','ATTENDANCE_FINALIZE','ATTENDANCE_REOPEN','ATTENDANCE_RECORD','ATTENDANCE_CORRECT','ATTENDANCE_JUSTIFICATION_REQUEST','ATTENDANCE_JUSTIFICATION_DECIDE','ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN','ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE',...f4ActRemainingConsumers_().commands];
+ const commands=["THEME_EXTRAORDINARY_AUTHORIZE","THEME_EXTRAORDINARY_REVOKE","THEME_REGULARIZE","THEME_REGULARIZE_ADMIN",'ACTIVITY_REPLACE','ATTENDANCE_EXTRAORDINARY_AUTHORIZE','ATTENDANCE_EXTRAORDINARY_REVOKE','ACTIVITY_IMPORT_RECOGNIZE','CYCLE_OPEN','CAPACITY_ASSESSMENT_SEAL','HISTORICAL_PREAGENDA_RECOGNIZE','PRESENTATION_CONTINUITY_CONNECT','ACTIVITY_PROMOTE_OPERATIONAL','ACTIVITY_ADMIN_REVIEW','ACTIVITY_SAVE','ACTIVITY_PUBLICATION_SET','ACTIVITY_REALIZE','MEMBER_PRESENTATION_ACTIVITY_CREATE','SESSION_CONFIGURE','CALENDAR_RESERVE','CALENDAR_RELEASE','CALENDAR_CHANGE_PROPOSE','CALENDAR_CHANGE_CONFIRM','JOINT_PROPOSE','JOINT_CONSENT','COMPOSITION_CONFIRM','THEME_SUBMIT','THEME_COMPLEMENT','THEME_MATERIALITY_DECIDE','THEME_VALIDATE','THEME_WITHDRAW','COMPATIBILITY_REQUEST','COMPATIBILITY_DECIDE','FINAL_TITLE_CONFIRM','OPERATIONAL_CHECK','REALIZATION_RECOGNIZE','ATTENDANCE_ROSTER_APPLY','ATTENDANCE_SAVE_DRAFT','ATTENDANCE_FINALIZE','ATTENDANCE_REOPEN','ATTENDANCE_RECORD','ATTENDANCE_CORRECT','ATTENDANCE_JUSTIFICATION_REQUEST','ATTENDANCE_JUSTIFICATION_DECIDE','ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN','ATTENDANCE_EXCEPTIONAL_WINDOW_CLOSE',...f4ActRemainingConsumers_().commands];
  const supports=r=>commands.includes(r?.commandType?.slice(4))&&r.commandType.startsWith('ACT.');
  const path=r=>M.path({kind:r.kind,id:r.id,...(r.parent?{parent:r.parent}:{})});
  function route(get,config,id){
@@ -33,11 +33,20 @@ function f4ActFlowExecutor_(){
   // protected, explicit opt-in permits only its operation-derived new output;
   // institutional authoring permission and all canonical validators still run.
   const originalOutput=s.originalModelCreation===true&&r.commandType==='ACT.ACTIVITY_MODEL_DRAFT_SAVE'&&r.payload.typeRef?.kind==='activityType'&&r.payload.typeRef.id==='cfg_'+r.operationId&&!get(path(r.payload.typeRef))&&expected.some(e=>e.kind==='activityType'&&e.id===r.payload.typeRef.id&&e.exists===false)&&r.target.scope.targetRefs.length===1&&path(r.target.scope.targetRefs[0])===path(r.payload.typeRef);
-  N(originalOutput||r.target.scope.targetRefs.some(ref=>s.resourcePaths.includes(path(ref))||s.operational&&f4ActCycleBoundary_().contains(get,path(ref),s.operational,false)),'PILOT_RESOURCE_DENIED');
+  const semesterOutput=syntheticSemesterOutput(get,r,v,s);
+  N(originalOutput||semesterOutput||r.target.scope.targetRefs.some(ref=>s.resourcePaths.includes(path(ref))||s.operational&&f4ActCycleBoundary_().contains(get,path(ref),s.operational,false)),'PILOT_RESOURCE_DENIED');
+ }
+ // Explicit DEV-only opt-in for a new operation-derived semester, which has no
+ // existing aggregate anchor. Existing records still require exact scope roots.
+ function syntheticSemesterOutput(get,r,v,s){
+  if(!s.syntheticSemesterCreation||r.commandType!=='ACT.ACTIVITY_SEMESTER_SAVE')return false;
+  const o=s.syntheticSemesterCreation,p=r.payload,ref=p.semesterRef,expected=r.target.expected;
+  N(!f4ExecutionEnvironment_().production&&v.projectId==='geapa-convergencia-dev'&&s.projectId===v.projectId&&s.synthetic===true&&!s.operational&&v.availabilityMode==='TIMEBOXED'&&Object.keys(o).join()==='labelPrefix'&&/^PIA DEV [0-9]{8} - $/.test(o.labelPrefix),'ACCESS_REVOKED');
+  return ref?.kind==='academicSemester'&&ref.id==='sem_'+r.operationId&&!get(path(ref))&&typeof p.label==='string'&&p.label.startsWith(o.labelPrefix)&&expected.some(e=>e.kind===ref.kind&&e.id===ref.id&&e.exists===false)&&r.target.scope.targetRefs.length===1&&path(r.target.scope.targetRefs[0])===path(ref);
  }
  function select(get,r,config){if(!supports(r))return null;if(['ACT.ACTIVITY_SAVE','ACT.ACTIVITY_PUBLICATION_SET','ACT.ACTIVITY_REALIZE'].includes(r.commandType)&&!get('canonicalActivities/'+r.payload?.activityRef?.id)?.presentationSessionRef)return null;const id='ACT_FLOW_'+r.commandType.slice(4);if(!get('commandExecutorRoutes/'+id))return null;const v=route(get,config,id);fields(get,r,v);return id;}
  function resource(r){return C.hash({commandType:r.commandType,scope:r.target.scope}).slice(0,32);}
- return {commands,supports,route,scope,fields,select,resource};
+ return {commands,supports,route,scope,fields,select,resource,syntheticSemesterOutput};
 }
 
 // Reusable protected boundary for an approved cycle, independent of per-activity

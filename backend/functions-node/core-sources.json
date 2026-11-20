@@ -260,6 +260,8 @@
     "institutional/213_board_extraordinary.gs",
     "institutional/214_board_automation.gs",
     "activities/v2/215_act_cycle_parameters.gs",
+    "members/115_member_attendance_cases.gs",
+    "activities/v2/216_act_member_exit.gs",
     "members/115_member_import_rectification.gs"
   ]
 }
