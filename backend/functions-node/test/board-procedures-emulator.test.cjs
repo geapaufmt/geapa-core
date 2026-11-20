@@ -169,18 +169,32 @@ test('board procedures use the governance transaction, own identities and origin
   await t.test('cross-semester consent and effect share one occupation and recover original receipt',async()=>{
    await cleanNewFunctions();const d=await effectSeed();
    const term=d['memberGovernanceTerms/TERM-001'],relation=Object.values(d).find(x=>x.schemaVersion==='m1-memberGovernanceBoardTerms-v1'&&x.idDiretoria==='DIR-001');
-   term.endDate='2026-11-18';relation.endDate=term.endDate;
-   const extraTerm={...term,id:'TERM-002',startDate:'2026-11-19',endDate:'2026-12-31'},extraRelation={...relation,id:'REL-002',idTermo:'TERM-002',startDate:extraTerm.startDate,endDate:extraTerm.endDate};
+   // Both officers must still hold office when they propose and consent.
+   // Anchor the synthetic terms to the institutional civil day of this run.
+   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Cuiaba',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+   const civilDay=offset=>new Date(Date.parse(today+'T00:00:00Z')+offset*86400000).toISOString().slice(0,10);
+   const board=d['memberGovernanceBoards/DIR-001'];
+   board.startDate=term.startDate=relation.startDate=civilDay(-174);
+   term.endDate=relation.endDate=civilDay(7);
+   board.endDate=civilDay(189);
+   const extensionEnd=civilDay(30);
+   const extraTerm={...term,id:'TERM-002',startDate:civilDay(8),endDate:board.endDate},extraRelation={...relation,id:'REL-002',idTermo:'TERM-002',startDate:extraTerm.startDate,endDate:extraTerm.endDate};
    d['memberBoardHeads/DIR-001'].paths.push('memberGovernanceBoardTerms/REL-002');
-   const batch=db.batch();for(const [path,value] of Object.entries({'memberGovernanceTerms/TERM-001':term,['memberGovernanceBoardTerms/'+relation.id]:relation,'memberGovernanceTerms/TERM-002':extraTerm,'memberGovernanceBoardTerms/REL-002':extraRelation,'memberBoardHeads/DIR-001':d['memberBoardHeads/DIR-001']}))batch.set(ref(path),value);batch.update(ref('memberFunctions/VIG-001'),{endDatePlanned:'2026-11-18'});batch.update(ref('memberFunctions/VIG-002'),{endDatePlanned:'2026-11-18'});await batch.commit();
+   const batch=db.batch();
+   for(const [path,value] of Object.entries({'memberGovernanceBoards/DIR-001':board,'memberGovernanceTerms/TERM-001':term,['memberGovernanceBoardTerms/'+relation.id]:relation,'memberGovernanceTerms/TERM-002':extraTerm,'memberGovernanceBoardTerms/REL-002':extraRelation,'memberBoardHeads/DIR-001':d['memberBoardHeads/DIR-001']}))batch.set(ref(path),value);
+   for(const id of ['VIG-001','VIG-002'])batch.update(ref('memberFunctions/'+id),{startDate:today,endDatePlanned:term.endDate});
+   await batch.commit();
    await replaceBasis({termUnits:[{termId:'TERM-001',semesterUnits:1},{termId:'TERM-002',semesterUnits:1}]});
-   await proposal('ORDINARY_EXTENSION',{personId:'PES-000002',functionId:'VIG-002',endDate:'2026-12-20'});
+   await proposal('ORDINARY_EXTENSION',{personId:'PES-000002',functionId:'VIG-002',endDate:extensionEnd});
    let r=(await read()).records[0];await action('CF_OTHER','BP_CONSENT',{accepted:true,contentHash:r.procedure.contentHash});
    const v=await read(),q=await prepare('CF_ADMIN',{action:'BP_ENACT',id:r.id,expectedRevision:v.revision,expectedRecordRevision:v.records[0].revision,reason:'Prorrogação sintética entre semestres com aceite'});
    await a.rejects(call('CF_ADMIN','Execute',q,{afterCommit:()=>{throw Error('LOST_RESPONSE')}}),/LOST_RESPONSE/);
    a.equal((await call('CF_ADMIN','Status',{operationId:q.operationId,digest:q.digest})).result.state,'COMPLETED');a.equal((await call('CF_ADMIN','Execute',q)).metrics.writes,0);
    const head=(await ref('memberAggregateHeads/PES-000002').get()).data(),segments=[];for(const path of head.paths.filter(p=>p.startsWith('memberFunctions/'))){const f=(await ref(path).get()).data();if(f.occupationId==='VIG-002')segments.push(f);}
-   a.equal(segments.length,2);a.equal(segments.find(f=>f.id==='VIG-002').endDatePlanned,'2026-11-18');a.equal(segments.find(f=>f.idTermo==='TERM-002').startDate,'2026-11-19');a((await ref('institutionalGovernanceAudit/'+q.operationId).get()).exists);
+   a.equal(segments.length,2);a.equal(segments.find(f=>f.id==='VIG-002').endDatePlanned,term.endDate);
+   const continuation=segments.find(f=>f.idTermo==='TERM-002');
+   a.equal(continuation.startDate,extraTerm.startDate);a.equal(continuation.endDatePlanned,extensionEnd);
+   a((await ref('institutionalGovernanceAudit/'+q.operationId).get()).exists);
    a.equal((await ref('memberLinks/VINC-002').get()).data().endDate,null);
   });
  }finally{await db.terminate();}

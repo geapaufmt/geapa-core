@@ -23,7 +23,8 @@
     "jspdf": "4.2.1"
   },
   "devDependencies": {
-    "firebase-tools": "15.34.0"
+    "firebase-tools": "15.34.0",
+    "zip-stream": "6.0.1"
   },
   "optionalDependencies": {
     "node-win-x64": "22.22.0"
