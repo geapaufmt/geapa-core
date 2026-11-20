@@ -3,6 +3,7 @@
 function f4MemberAttendanceCases_(){
  const C=f4Core_(),N=C.need,F=f4Firestore_();
  const actions=['INFORMAL_WARNING','FORMAL_WARNING','COMMUNICATION','FOLLOW_UP','MANIFESTATION','CLOSE'];
+ const requiresDocument=action=>['FORMAL_WARNING','COMMUNICATION','DISMISS'].includes(action);
  const caseId=(personId,cycleId)=>'RH_'+C.hash({personId,cycleId}).slice(0,32);
  function rules(get,cycleId){
   const cycle=get('presentationCycles/'+cycleId);N(cycle,'RESOURCE_NOT_FOUND');
@@ -27,7 +28,7 @@ function f4MemberAttendanceCases_(){
   N(policy.cycle.civilStart<=p.occurrenceDate&&p.occurrenceDate<=policy.cycle.civilEnd&&p.occurrenceDate<=day,'COMMAND_PAYLOAD_INVALID');
   if(old){record(old);N(old.id===id&&old.linkId===r.target.linkId&&old.state==='OPEN','DOMAIN_STATE_INVALID');N(old.history.length<100,'SCOPE_TOO_LARGE');N(p.occurrenceDate>=old.history.at(-1).occurrenceDate,'DOMAIN_STATE_INVALID','CASE_CHRONOLOGY');}
   const history=old?.history||[],has=action=>history.some(h=>h.action===action);
-  if(['FORMAL_WARNING','COMMUNICATION'].includes(p.action))N(p.documentReference.trim(),'HUMAN_DECISION_REQUIRED','DOCUMENT_REQUIRED');
+  if(requiresDocument(p.action))N(p.documentReference.trim(),'HUMAN_DECISION_REQUIRED','DOCUMENT_REQUIRED');
   if(p.action==='FORMAL_WARNING')N(has('INFORMAL_WARNING'),'DOMAIN_STATE_INVALID','INFORMAL_WARNING_REQUIRED');
   if(p.action==='COMMUNICATION')N(has('FORMAL_WARNING')&&!has('COMMUNICATION'),'DOMAIN_STATE_INVALID','FORMAL_WARNING_REQUIRED');
   if(p.action==='MANIFESTATION')N(has('COMMUNICATION'),'DOMAIN_STATE_INVALID','COMMUNICATION_REQUIRED');
@@ -56,5 +57,5 @@ function f4MemberAttendanceCases_(){
   return [{path,expectedRevision:d.revision,data:{...d,revision:d.revision+1,state:'DISMISSED',dismissalEventId:'EVT_'+r.operationId,history:[...d.history,{operationId:r.operationId,action:'DISMISS',occurrenceDate:r.payload.effectiveDate,recordedAt:F.Timestamp.fromMillis(now),actorUid:r.ownerUid,reason:context.reason,documentReference:context.documentReference,decisionRef:r.decisionRef,evidenceRefs:r.evidenceRefs}]}}];
  }
  function allowedActions(d,canDismiss,now){if(d&&d.state!=='OPEN')return [];const has=a=>d?.history.some(h=>h.action===a),out=['FOLLOW_UP'];if(!has('INFORMAL_WARNING'))out.push('INFORMAL_WARNING');if(has('INFORMAL_WARNING')&&!has('FORMAL_WARNING'))out.push('FORMAL_WARNING');if(has('FORMAL_WARNING')&&!has('COMMUNICATION'))out.push('COMMUNICATION');if(has('COMMUNICATION'))out.push('MANIFESTATION');if(d)out.push('CLOSE');if(canDismiss&&d?.manifestationEndsAtExclusive&&Date.parse(d.manifestationEndsAtExclusive)<=now)out.push('DISMISS');return out;}
- return {actions,caseId,rules,record,validate,advance,resolve,change,dismissal,allowedActions};
+ return {actions,requiresDocument,caseId,rules,record,validate,advance,resolve,change,dismissal,allowedActions};
 }
