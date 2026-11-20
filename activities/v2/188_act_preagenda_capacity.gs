@@ -21,7 +21,7 @@ function f4ActivitiesPreagendaCapacity_(options){
    const current=model.derive(docs,u.personRef.id,h.revision,now).state,atDate=model.derive(docs,u.personRef.id,h.revision,M.ms(a.startsAt)).state;
    N(current.state==='MEMBRO_EFETIVO'&&!current.blocked&&atDate.state==='MEMBRO_EFETIVO'&&!atDate.blocked,'HUMAN_DECISION_REQUIRED','PREAGENDA_MEMBERSHIP_INELIGIBLE');
    const assignment=u.assignmentRef&&get(M.path(u.assignmentRef)),assigned=!!(assignment&&['ACTIVE','CONFIRMED'].includes(assignment.status)&&assignment.sessionRef?.id===s.id&&s.slots.some(v=>v.unitRef.id===u.id&&v.assignmentRef.id===assignment.id));
-   const available=M.gap(M.day(now),s.civilDate)>0&&(M.gap(M.day(now),s.civilDate)>=(cfg.parameters.newDateMinimumDays??30)||P.deadline({get,now},s,'CALENDAR',u));
+   const available=M.gap(M.day(now),s.civilDate)>0&&(f4CycleParameters_().dateAvailable(cfg.parameters,'newDateMinimumDays',M.day(now),s.civilDate)||P.deadline({get,now},s,'CALENDAR',u));
    members.push({personId:u.personRef.id,demandKind:'RECOGNIZED_PREAGENDA',assigned,eligibleSessionIds:available||assigned?[s.id]:[],validUntil:until});
    N(!sessions.some(v=>v.ref.id===s.id),'UNRESOLVED_DEPENDENCY','PREAGENDA_SESSION_AMBIGUOUS');
    sessions.push({ref:M.ref('session',s.id),revision:s.revision,availableForNew:available,admittedCapacity:cfg.parameters.shared?s.config.capacity:1,allowedPersonId:u.personRef.id,validUntil:until});

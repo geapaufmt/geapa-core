@@ -6,9 +6,9 @@ function f4ActivitiesIncidenceSource_(options){
  function scan(cycleRef){
   const now=clock(),cycle=db.get(M.path(cycleRef)),registry=db.get('presentationCapacityHeads/registry'),head=db.get('presentationCapacityHeads/'+cycleRef.id),activityRegistry=db.get('activityAttendanceRegistry/current');
   N(cycle&&registry&&head&&activityRegistry,'UNRESOLVED_DEPENDENCY');
-  const config=cycle.currentConfigRef&&db.get(M.path(cycle.currentConfigRef)),policy=db.get(M.path(cycle.policyVersionRef));
+  const config=f4CycleEffectiveConfiguration_(cycle.currentConfigRef&&db.get(M.path(cycle.currentConfigRef))),policy=db.get(M.path(cycle.policyVersionRef));
   N(config?.approved&&policy?.approved&&policy.incidenceRule==='ORDINARY_FIRST_EFFECTIVATION','CONFIG_CAPABILITY_DISABLED','INCIDENCE_RULE_REQUIRED');
-  const lead=config.parameters.newDateMinimumDays??30;N(Number.isSafeInteger(lead)&&lead>=30,'CONFIG_CAPABILITY_DISABLED');
+  const required=!f4CycleParameters_().isManaged(config.parameters)||f4CycleParameters_().value(config.parameters,'annualPresentationRequired')===true;const leadRule=f4CycleParameters_().entry(config.parameters,'newDateMinimumDays');
   const sessions=all('presentationSessions',[{field:'cycleRef',op:'EQUAL',value:cycleRef}]).map(r=>r.data);N(sessions.length<=32,'SCOPE_TOO_LARGE');
   const activities=new Map();for(const s of sessions){const a=s.activityRef&&db.get(M.path(s.activityRef));N(a&&a.civilDate===s.civilDate,'UNRESOLVED_DEPENDENCY','SESSION_ACTIVITY_REQUIRED');activities.set(s.id,a);}
   const obligations=all('presentationObligations',[{field:'cycleRef',op:'EQUAL',value:cycleRef}]).map(r=>r.data),byPerson=new Map();
@@ -22,6 +22,8 @@ function f4ActivitiesIncidenceSource_(options){
    const state=model.derive(docs,h.id,h.revision,now).state,existing=byPerson.get(h.id),links=model.rows(docs,'memberLinks').filter(v=>v.type==='MEMBRO_EFETIVO'),events=model.rows(docs,'memberEvents');
    const item={personRef:M.ref('person',h.id),personRevision:h.revision,disposition:'NOT_INCIDENT',reasonCode:'NO_EFFECTIVE_MEMBERSHIP'};
    if(existing){N(existing.incidenceState==='INCIDENT','HUMAN_DECISION_REQUIRED','INCIDENCE_EXISTING_REVIEW');item.disposition='INCIDENT';item.reasonCode='EXISTING_OBLIGATION_PRESERVED';item.obligationRef=M.ref('obligation',existing.id);if(existing.effectiveCivilDate)item.effectiveCivilDate=existing.effectiveCivilDate;if(existing.membershipFactRef?.kind==='membership')item.membershipRef=existing.membershipFactRef;byPerson.delete(h.id);}
+   else if(!required){item.reasonCode='CYCLE_NO_ANNUAL_OBLIGATION';}
+   else if(leadRule.status==='UNESTABLISHED'){item.disposition='REVIEW_REQUIRED';item.reasonCode='CYCLE_DEADLINE_NOT_ESTABLISHED';}
    else if(links.length>1||events.some(e=>['RETORNO','RETIFICACAO'].includes(e.type))){item.disposition='REVIEW_REQUIRED';item.reasonCode='N03_RESIDUAL';}
    else if(links.length===1){
     const link=links[0],effective=C.civilStart(link.startDate);item.membershipRef=M.ref('membership',link.id);item.effectiveCivilDate=link.startDate;
@@ -29,7 +31,7 @@ function f4ActivitiesIncidenceSource_(options){
     else if(state.state!=='MEMBRO_EFETIVO'||state.blocked){item.disposition='REVIEW_REQUIRED';item.reasonCode='MEMBERS_TRANSITION_REVIEW';}
     else{
      const atEffect=model.derive(docs,h.id,h.revision,effective).state;N(atEffect.state==='MEMBRO_EFETIVO'&&!atEffect.blocked,'UNRESOLVED_DEPENDENCY','EFFECTIVATION_PROOF');
-     const eligible=sessions.filter(s=>{const a=activities.get(s.id),at=model.derive(docs,h.id,h.revision,M.ms(a.startsAt)).state;return a.status==='SCHEDULED'&&s.config.destination==='ORDINARY'&&M.gap(link.startDate,s.civilDate)>=lead&&M.gap(cycle.civilStart,s.civilDate)>=0&&M.gap(s.civilDate,cycle.civilEnd)>=0&&at.state==='MEMBRO_EFETIVO'&&!at.blocked;});
+     const eligible=sessions.filter(s=>{const a=activities.get(s.id),at=model.derive(docs,h.id,h.revision,M.ms(a.startsAt)).state;return a.status==='SCHEDULED'&&s.config.destination==='ORDINARY'&&f4CycleParameters_().dateAvailable(config.parameters,'newDateMinimumDays',link.startDate,s.civilDate)&&M.gap(cycle.civilStart,s.civilDate)>=0&&M.gap(s.civilDate,cycle.civilEnd)>=0&&at.state==='MEMBRO_EFETIVO'&&!at.blocked;});
      // A later scan of an open cycle cannot reconstruct its historical planning
      // merely from today's sessions. Existing decisions remain authoritative.
      const knownAtEffect=s=>{const a=activities.get(s.id);return Number.isFinite(M.ms(s.createdAt))&&M.ms(s.createdAt)<=effective&&Number.isFinite(M.ms(s.updatedAt))&&M.ms(s.updatedAt)<=effective&&Number.isFinite(M.ms(a.updatedAt))&&M.ms(a.updatedAt)<=effective;};

@@ -5,11 +5,16 @@ function f4ActivitiesCyclePolicyCommands_(x){
  function context(){
   const cycle=load(p.cycleRef,true);N(cycle.status==='DRAFT','HUMAN_DECISION_REQUIRED','CYCLE_POLICY_DRAFT_REQUIRED');
   N(typeof p.reason==='string'&&p.reason.trim()&&p.reason.length<=2000&&Number.isSafeInteger(p.effectiveFrom)&&p.effectiveFrom>=x.now,'VALIDATION_ERROR');
-  const predecessor=cycle.scheduledConfigRef?.kind==='config'?cycle.scheduledConfigRef:cycle.currentConfigRef,prior=predecessor&&load(predecessor,true),policy=load(cycle.policyVersionRef);
+  N(!cycle.scheduledConfigRef||cycle.scheduledConfigRef.kind==='NONE','INVALID_STATE_TRANSITION','ACTIVATE_OR_REVIEW_PENDING_CONFIGURATION');
+  const predecessor=cycle.draftConfigRef?.kind==='config'?cycle.draftConfigRef:cycle.currentConfigRef,prior=predecessor&&load(predecessor,true),policy=load(cycle.policyVersionRef);
   const parameters=prior?.parameters||policy.initialParameters;N(parameters,'CONFIG_CAPABILITY_DISABLED','INITIAL_PARAMETERS_REQUIRED');return {cycle,predecessor,parameters};
  }
  function policy(key,values){const ref=M.ref('policy',M.hash({operationId:x.operationId,key}).slice(0,32));N(!load(ref,false,true),'CONFLICT');save(ref,{...values,cycleRef:p.cycleRef,approved:true,active:true,approvalReason:p.reason.trim(),approvedAt:M.stamp(x.now),approvedBy:x.actor,actorAuthorityBasis:x.authorityBasis});return ref;}
  function schedule(z,parameters){
+  if(f4CycleParameters_().isManaged(parameters)){
+   const items={...parameters.parameterEvidence.items};for(const f of f4CycleParameterCatalog_())if(M.hash(z.parameters[f.key]??null)!==M.hash(parameters[f.key]??null))items[f.key]={status:Object.hasOwn(parameters,f.key)?'DEFINED':'UNESTABLISHED',basis:p.reason.trim()};
+   return f4CycleParameterCommands_({...x,p:{cycleRef:p.cycleRef,parameters:{...parameters,parameterEvidence:{schemaVersion:'cycle-parameters-v1',items}},effectiveFrom:p.effectiveFrom,reason:p.reason}}).CONFIG_DRAFT_SAVE();
+  }
   const ref=M.ref('assessment',M.hash({operationId:x.operationId,kind:'CYCLE_POLICY_CONFIG'}).slice(0,32)),items=Object.entries(parameters).map(([key,value])=>({key,value}));N(items.length<=32,'SCOPE_TOO_LARGE');
   save(ref,{cycleRef:p.cycleRef,state:'SEALED',complete:true,items,digest:M.hash(items)});
   return f4ActivitiesPlanning_({...x,p:{cycleRef:p.cycleRef,parameters,parameterClasses:'STRUCTURAL',effectiveFrom:p.effectiveFrom,predecessorRef:z.predecessor||{kind:'NONE',id:'INITIAL'},approvalBasis:{reasonCode:'PORTAL_CYCLE_POLICY_CONFIGURATION',reason:p.reason.trim()},itemManifestRef:ref}}).CONFIG_RECORD();
