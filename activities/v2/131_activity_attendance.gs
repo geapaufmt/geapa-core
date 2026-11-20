@@ -45,7 +45,7 @@ function f4AttendanceCommands_(x) {
  }
  function decision(value){N(actor.kind==='BOARD_ACTOR','AUTHORIZATION_DENIED');N(value&&typeof value.reasonCode==='string','HUMAN_DECISION_REQUIRED');return {reasonCode:text(value.reasonCode,80),reason:text(value.reason),decidedAt:M.stamp(now),actorPersonRef:actor.personRef};}
  function fence(){const ref=M.ref('attendanceRegistry','current'),old=load(ref,false,true);save(ref,{epoch:(old?.epoch||0)+1});}
- function history(action,subjectRef,ownerPersonRef,summary,key){const data={action,subjectRef,ownerPersonRef:ownerPersonRef||'',visibility:ownerPersonRef?'OWNER':'BOARD',summary,occurredAt:M.stamp(now)};if(key){const r=M.ref('history',M.hash({operationId:x.operationId,action,subject:key}).slice(0,32));N(!load(r,false,true),'CONFLICT','EVENT_EXISTS');save(r,{...data,actorAuthorityBasis:x.authorityBasis,actor,recordedAt:M.stamp(now)});}else event('history',data);}
+ function history(action,subjectRef,ownerPersonRef,summary){event('history',{action,subjectRef,ownerPersonRef:ownerPersonRef||'',visibility:ownerPersonRef?'OWNER':'BOARD',summary,occurredAt:M.stamp(now)});}
  function collection(activityRef,expected=true){return load(collectionRef(activityRef),expected);}
  // Drafts and roster metadata do not replace the official attendance decision.
  // Keep a pending justification attached to that unchanged fact when its document advances.
@@ -207,10 +207,9 @@ function f4AttendanceCommands_(x) {
    N(!old?.presentationSessionRef||p.status===old.status,'INVALID_STATE_TRANSITION','USE_ACTIVITY_CANCELLATION');
    N(end>start&&end-start<=86400000,'VALIDATION_ERROR');N(['SCHEDULED','CANCELLED'].includes(p.status),'VALIDATION_ERROR');
    const attendancePolicy=type.attendancePolicyRef?load(type.attendancePolicyRef):null,cycleContext=f4ActivityCycleContext_(x.get,p.cycleRef||old?.cycleRef||attendancePolicy?.cycleRef,p.academicSemesterRef||(old?.academicSemesterId?M.ref('academicSemester',old.academicSemesterId):null),M.day(start));
-   const cyclePolicy=(type.governance||type.attendancePolicyRef||p.attendancePolicyRef)&&(!old||old.typeRef.id!==p.typeRef.id||old.cycleId!==cycleContext.cycleId)?f4ActivityModelCyclePolicy_(x.get,type,cycleContext.cycleId,p.attendancePolicyRef):null;
+   if(type.governance&&(!old||old.typeRef.id!==p.typeRef.id))N(type.governance.state==='APPROVED'&&(!type.attendancePolicyRef||attendancePolicy?.revision===type.governance.attendancePolicyRevision),'STALE_REVISION','MODEL_POLICY_CHANGED');
    if(type.governance&&(!old||old.typeRef.id!==p.typeRef.id||old.cycleId!==cycleContext.cycleId))N(f4OriginalModelUsage_(x.get,type,cycleContext.cycleId),'AUTHORIZATION_DENIED','MODEL_USAGE_NOT_AUTHORIZED');
    const c=load(collectionRef(p.activityRef),false,true),structural=old&&(old.typeRef.id!==p.typeRef.id||M.ms(old.startsAt)!==start||M.ms(old.endsAt)!==end||old.cycleId!==cycleContext.cycleId||(old.academicSemesterId||null)!==cycleContext.academicSemesterId);
-   N(!c||old.cycleId===cycleContext.cycleId,'INVALID_STATE_TRANSITION','CHANGE_CYCLE_REQUIRES_NEW_ACTIVITY');
    N(!old?.realizationRef&&(!structural||!c||c.state==='DRAFT'&&c.rosterCount===0&&!c.preRosterFactCount),'INVALID_STATE_TRANSITION','ACTIVITY_ALREADY_COLLECTING');
    if(old?.presentationSessionRef&&(M.ms(old.startsAt)!==start||M.ms(old.endsAt)!==end))f4ActivitiesApplyActivityCalendar_(x,old);
    if(structural&&c){
@@ -221,18 +220,18 @@ function f4AttendanceCommands_(x) {
    }
    const details=p.details?f4ActivityPortalDetails_(p.details):old?.details||{},appliedModel=old&&old.typeRef.id===p.typeRef.id?old.typeSnapshot.portalModel:type.portalModel,modelContent=p.modelContent===undefined&&old?.modelContent?old.modelContent:appliedModel?f4ActivityContent_(appliedModel,p.modelContent||old?.modelContent,x.get,start,x.memberPresentationCreation===true):null;
    const criteria=old&&old.typeRef.id===p.typeRef.id?old.typeSnapshot:type;
-   if(criteria.allowedFormats){N(criteria.allowedFormats.includes(details.formato||old?.format),'VALIDATION_ERROR','MODEL_FORMAT_NOT_ALLOWED');if(!old||old.cycleId!==cycleContext.cycleId)N(!type.attendancePolicyRef||(cyclePolicy?.policy||attendancePolicy)?.cycleRef?.id===cycleContext.cycleId,'CONFLICT','MODEL_ATTENDANCE_POLICY_CYCLE');}
+   if(criteria.allowedFormats){N(criteria.allowedFormats.includes(details.formato||old?.format),'VALIDATION_ERROR','MODEL_FORMAT_NOT_ALLOWED');N(!type.attendancePolicyRef||attendancePolicy?.cycleRef?.id===cycleContext.cycleId,'CONFLICT','MODEL_ATTENDANCE_POLICY_CYCLE');}
    const guestParticipants=p.guestParticipants===undefined?old?.guestParticipants||[]:p.guestParticipants;
    N(Array.isArray(guestParticipants)&&guestParticipants.length<=25,'SCOPE_TOO_LARGE','GUEST_ROSTER_LIMIT');
    N(!c||['DRAFT','OPEN','REOPENED'].includes(c.state)||M.hash(guestParticipants)===M.hash(old?.guestParticipants||[]),'INVALID_STATE_TRANSITION','FINALIZED_GUEST_ROSTER');
    const guestIds=new Set();
    for(const guest of guestParticipants){f4Core_().exact(guest,['personRef','participantType','institutionLabel']);N(guest.personRef?.kind==='person'&&!guestIds.has(guest.personRef.id)&&['PROFESSOR','CONVIDADO','EXTERNO','EGRESSO'].includes(guest.participantType),'VALIDATION_ERROR','GUEST_REFERENCE');N(!criteria.participantTypes||criteria.participantTypes.includes(guest.participantType),'VALIDATION_ERROR','MODEL_PARTICIPANT_NOT_ALLOWED');guestIds.add(guest.personRef.id);N(typeof guest.institutionLabel==='string'&&guest.institutionLabel.length<=180&&!/[<>\x00-\x08]/.test(guest.institutionLabel),'VALIDATION_ERROR');const identity=load(guest.personRef),head=x.get('memberAggregateHeads/'+guest.personRef.id);N(identity?.idPessoa===guest.personRef.id&&!identity.technicalAccount&&head?.paths?.includes(M.path(guest.personRef)),'UNRESOLVED_DEPENDENCY','GUEST_CORE_IDENTITY_REQUIRED');}
-   revision(p.activityRef,{...old,...(!old?{recordedAt:M.stamp(now)}:{}),...cycleContext,...(!old&&cycleContext.cycleId&&x.get('presentationCycles/'+cycleContext.cycleId)?.administrativeReviewRequired===true?{administrativeReview:f4ActivityReview_().initial(cycleContext.cycleId,x.operationId,now)}:{}),guestParticipants,...(modelContent?{modelContent}:{}),title:text(p.title,240),location:text(p.location,240),startsAt:M.stamp(start),endsAt:M.stamp(end),civilDate:M.day(start),typeRef:p.typeRef,typeRevision:old&&old.typeRef.id===p.typeRef.id?old.typeRevision:type.revision,typeSnapshot:old&&old.typeRef.id===p.typeRef.id?old.typeSnapshot:f4ActivityOperationalSnapshot_(type,start,end),details,format:details.formato||old?.format||'',publicationStatus:old?.publicationStatus||'RASCUNHO',publishedVisibility:old?.publishedVisibility||'BOARD',status:p.status,decision:decision(p.decision)});
+   revision(p.activityRef,{...old,...cycleContext,...(!old&&cycleContext.cycleId&&x.get('presentationCycles/'+cycleContext.cycleId)?.administrativeReviewRequired===true?{administrativeReview:f4ActivityReview_().initial(cycleContext.cycleId,x.operationId,now)}:{}),guestParticipants,...(modelContent?{modelContent}:{}),title:text(p.title,240),location:text(p.location,240),startsAt:M.stamp(start),endsAt:M.stamp(end),civilDate:M.day(start),typeRef:p.typeRef,typeRevision:old&&old.typeRef.id===p.typeRef.id?old.typeRevision:type.revision,typeSnapshot:old&&old.typeRef.id===p.typeRef.id?old.typeSnapshot:f4ActivityOperationalSnapshot_(type,start,end),details,format:details.formato||old?.format||'',publicationStatus:old?.publicationStatus||'RASCUNHO',publishedVisibility:old?.publishedVisibility||'BOARD',status:p.status,decision:decision(p.decision)});
    if(!old&&type.portalModel&&type.countsAttendance){
-    N(type.attendancePolicyRef,'CONFIG_CAPABILITY_DISABLED','ATTENDANCE_POLICY_REQUIRED');const appliedPolicyRef=cyclePolicy?.ref||type.attendancePolicyRef,policy=load(appliedPolicyRef,true),frequencyBasis=f4ActivityFrequencyPolicy_(policy);
+    N(type.attendancePolicyRef,'CONFIG_CAPABILITY_DISABLED','ATTENDANCE_POLICY_REQUIRED');const policy=load(type.attendancePolicyRef),frequencyBasis=f4ActivityFrequencyPolicy_(policy);
     const opensAt=start-policy.opensBeforeMinutes*60000,closesAt=end+policy.closesAfterMinutes*60000,justificationEndsAt=f4ActivityJustificationWindow_(policy,start,end).endsAt;
     N(closesAt>opensAt&&justificationEndsAt>=end,'VALIDATION_ERROR');
-    revision(collectionRef(p.activityRef),{...(policy.proofUploadPolicyRef?{proofUploadPolicyRef:policy.proofUploadPolicyRef}:{}),activityRef:p.activityRef,...cycleContext,state:'DRAFT',opensAt:M.stamp(opensAt),closesAt:M.stamp(closesAt),justificationOpensAt:M.stamp(f4ActivityJustificationWindow_(policy,start,end).opensAt),justificationEndsAt:M.stamp(justificationEndsAt),acceptLateJustification:policy.acceptLateJustification,rosterCount:0,unrecordedCount:0,frequencyBasis,policyRef:appliedPolicyRef,policyRevision:policy.revision});
+    revision(collectionRef(p.activityRef),{...(policy.proofUploadPolicyRef?{proofUploadPolicyRef:policy.proofUploadPolicyRef}:{}),activityRef:p.activityRef,...cycleContext,state:'DRAFT',opensAt:M.stamp(opensAt),closesAt:M.stamp(closesAt),justificationOpensAt:M.stamp(f4ActivityJustificationWindow_(policy,start,end).opensAt),justificationEndsAt:M.stamp(justificationEndsAt),acceptLateJustification:policy.acceptLateJustification,rosterCount:0,unrecordedCount:0,frequencyBasis,policyRef:type.attendancePolicyRef,policyRevision:policy.revision});
    }
    fence();history(p.status==='CANCELLED'?'ACTIVITY_CANCELLED':'ACTIVITY_SAVED',p.activityRef,null,p.title);return {activityRef:p.activityRef,atividade:{idAtividade:p.activityRef.id,tituloPublico:p.title,dataAtividade:M.day(start),statusOperacional:p.status==='CANCELLED'?'CANCELADA':'PLANEJADA',statusPublicacaoPortal:old?.publicationStatus==='PUBLICADO'?'PUBLICADA':old?.publicationStatus||'RASCUNHO',visibilidadePortal:{PUBLIC:'PUBLICA',MEMBERS:'MEMBROS',BOARD:'DIRETORIA',HIDDEN:'OCULTA'}[old?.publishedVisibility||'BOARD']}};
   },
@@ -247,27 +246,11 @@ function f4AttendanceCommands_(x) {
   },
   ACTIVITY_REALIZE(){
    const activity=load(p.activityRef,true);N(typeof p.occurred==='boolean','VALIDATION_ERROR');N(activity.status!=='CANCELLED','INVALID_STATE_TRANSITION');
-   N(!activity.replacedByRef||p.occurred===false,'INVALID_STATE_TRANSITION','REPLACED_ACTIVITY_CANNOT_COUNT_AGAIN');
    N(activity.realizationRef?M.path(activity.realizationRef)===M.path(p.predecessorRef):p.predecessorRef.kind==='NONE','STALE_REVISION');
    const temporal=p.occurrenceTemporalObject;N(temporal&&['DAY','INSTANT'].includes(temporal.precision),'VALIDATION_ERROR');M.civil(temporal.civilDate);N(M.gap(temporal.civilDate,M.day(now))>=0,'VALIDATION_ERROR','FUTURE_OCCURRENCE');
    if(temporal.precision==='INSTANT')N(instant(temporal.instant)<=now&&M.day(temporal.instant)===temporal.civilDate,'VALIDATION_ERROR');
    const basis=decision(p.basis),ref=event('activityRealization',{activityRef:p.activityRef,occurred:p.occurred,recognized:true,occurrenceTemporalObject:temporal,basis,predecessorRef:p.predecessorRef,recognizedAt:M.stamp(now)});
    revision(p.activityRef,{...activity,status:p.occurred?'OCCURRED':'NOT_OCCURRED',realizationRef:ref});fence();history('ACTIVITY_RECOGNIZED',p.activityRef,null,p.occurred?'Ocorreu':'Não ocorreu');return {realizationRef:ref};
-  },
-  ACTIVITY_REPLACE(){
-   N(p.activityRef.kind==='activity'&&p.replacementRef.kind==='activity'&&p.activityRef.id!==p.replacementRef.id,'VALIDATION_ERROR');
-   const original=load(p.activityRef,true),replacement=load(p.replacementRef,true),cycleId=original.cycleId||original.cycleRef?.id;
-   N(cycleId&&(replacement.cycleId||replacement.cycleRef?.id)===cycleId,'CONFLICT','REPLACEMENT_CYCLE_MISMATCH');
-   const cycle=load(M.ref('cycle',cycleId));N(cycle.status==='OPEN','INVALID_STATE_TRANSITION','CYCLE_CLOSED');
-   N(original.status==='NOT_OCCURRED'&&replacement.status==='OCCURRED'&&original.realizationRef&&replacement.realizationRef,'INVALID_STATE_TRANSITION','REPLACEMENT_REQUIRES_RECOGNIZED_OCCURRENCES');
-   N(!original.replacedByRef&&!original.replacementOfRef&&!replacement.replacedByRef&&!replacement.replacementOfRef,'CONFLICT','REPLACEMENT_ALREADY_LINKED');
-   const before=load(original.realizationRef),after=load(replacement.realizationRef);
-   N(before.recognized&&before.occurred===false&&after.recognized&&after.occurred===true&&before.occurrenceTemporalObject.civilDate===after.occurrenceTemporalObject.civilDate,'CONFLICT','REPLACEMENT_OCCURRENCE_DATE');
-   const basis=decision(p.decision);
-   revision(p.activityRef,{...original,replacedByRef:p.replacementRef,replacementDecision:basis});
-   revision(p.replacementRef,{...replacement,replacementOfRef:p.activityRef,frequencySlotRef:p.activityRef,replacementDecision:basis});
-   fence();history('ACTIVITY_REPLACED',p.activityRef,null,p.decision.reason,p.activityRef.id);history('ACTIVITY_REPLACEMENT_LINKED',p.replacementRef,null,p.decision.reason,p.replacementRef.id);
-   return {activityRef:p.activityRef,replacementRef:p.replacementRef,cycleId,originalPlanningPreserved:true};
   },
   FREQUENCY_PERIOD_SAVE(){N(false,'CONFIG_CAPABILITY_DISABLED','LEGACY_PERIOD_READ_ONLY');},
   ATTENDANCE_EXTRAORDINARY_AUTHORIZE(){return extraordinary(false);},

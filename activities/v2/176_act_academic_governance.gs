@@ -56,7 +56,9 @@ function f4ActivityFrequencyPolicy_(policy){
 function f4ActivityCreationContext_(get,type,value,now){
  const M=f4ActivitiesModel_(),N=M.need,day=value.dataAtividade,today=M.day(now);
  let cycleRef=value.cycleId?M.ref('cycle',value.cycleId):type.attendancePolicyRef?get(M.path(type.attendancePolicyRef))?.cycleRef:null;
- N(cycleRef,'UNRESOLVED_DEPENDENCY','CURRENT_CYCLE_REQUIRED');
+ if(!cycleRef){const candidates=(type.governance?.usageAuthorizations||[]).filter(g=>{
+  const c=get(M.path(g.cycleRef));return c&&c.status==='OPEN'&&c.civilStart<=today&&today<=c.civilEnd&&c.civilStart<=day&&day<=c.civilEnd&&f4OriginalModelUsage_(get,type,c.id);
+ });N(candidates.length===1,'UNRESOLVED_DEPENDENCY',candidates.length?'AMBIGUOUS_CURRENT_CYCLE':'CURRENT_CYCLE_REQUIRED');cycleRef=candidates[0].cycleRef;}
  const cycle=get(M.path(cycleRef));N(cycle,'UNRESOLVED_DEPENDENCY');
  if(!value.cycleId)N(cycle.status==='OPEN'&&cycle.civilStart<=today&&today<=cycle.civilEnd,'UNRESOLVED_DEPENDENCY','CURRENT_CYCLE_REQUIRED');
  let semesterRef=value.academicSemesterId?M.ref('academicSemester',value.academicSemesterId):null;

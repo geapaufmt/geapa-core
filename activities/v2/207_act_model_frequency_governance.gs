@@ -21,20 +21,18 @@ function f4ActivityModelDefinition_(d,load){
  if(d.attendancePolicyRef){N(d.attendancePolicyRef.kind==='attendancePolicy','VALIDATION_ERROR');const policy=load(d.attendancePolicyRef,true);f4ActivityFrequencyPolicy_(policy);policyRevision=policy.revision;}
  return {...d,portalModel:m,policyRevision};
 }
-// Approved, globally available models no longer require a per-cycle grant.
-// Historical grants remain as evidence; neither grant nor revocation authorizes use.
+// Definition approval and permission to use it in a cycle are separate decisions.
+// Read at admission and again in the transaction; never authorize by ID prefix.
 function f4OriginalModelUsage_(get,type,cycleId){
- const M=f4ActivitiesModel_(),cycle=get('presentationCycles/'+cycleId);
- if(type?.recordMode!=='NEW_V2'||type.status!=='ACTIVE'||type.governance?.schemaVersion!=='original-activity-model-v1'||type.governance.state!=='APPROVED'||cycle?.recordMode!=='NEW_V2'||cycle.status!=='OPEN')return false;
+ const M=f4ActivitiesModel_();
+ if(type?.recordMode!=='NEW_V2'||type.status!=='ACTIVE'||type.governance?.schemaVersion!=='original-activity-model-v1'||type.governance.state!=='APPROVED')return false;
+ const cycle=get('presentationCycles/'+cycleId),grant=type.governance.usageAuthorizations?.find(v=>v.cycleRef?.id===cycleId&&v.cycleRef.kind==='cycle');
+ if(cycle?.recordMode!=='NEW_V2'||cycle.status!=='OPEN'||!grant?.enabled||grant.definitionHash!==type.governance.definitionHash)return false;
  const fields={};for(const k of ['name','durationMinutes','visibility','countsAttendance','countsAbsence','allowsJustification','portalModel','purpose','organizer','participantTypes','allowedFormats','academicRequirements','attendancePolicyRef'])if(k in type)fields[k]=type[k];
- return M.hash(fields)===type.governance.definitionHash;
-}
-// The model defines the activity. The selected cycle defines its call policy.
-function f4ActivityModelCyclePolicy_(get,type,cycleId,selected){
- const M=f4ActivitiesModel_(),N=M.need;if(!type.countsAttendance)return null;
- const ref=selected||type.attendancePolicyRef,policy=ref&&get(M.path(ref));
- N(ref?.kind==='attendancePolicy'&&policy?.recordMode==='NEW_V2'&&policy.approved===true&&policy.active!==false&&policy.cycleRef?.id===cycleId,'CONFIG_CAPABILITY_DISABLED','CYCLE_ATTENDANCE_POLICY_REQUIRED');
- f4ActivityFrequencyPolicy_(policy);return {ref,policy};
+ if(M.hash(fields)!==grant.definitionHash)return false;
+ if(type.countsAttendance&&!type.attendancePolicyRef)return false;
+ if(type.attendancePolicyRef){const p=get(M.path(type.attendancePolicyRef));if(p?.recordMode!=='NEW_V2'||p.approved!==true||p.active===false||p.cycleRef?.id!==cycleId||p.revision!==grant.attendancePolicyRevision||p.revision!==type.governance.attendancePolicyRevision)return false;try{f4ActivityFrequencyPolicy_(p);}catch(e){return false;}}
+ return true;
 }
 function f4CycleFrequencyPlanning_(){
  const M=f4ActivitiesModel_(),C=f4Core_(),N=M.need;
@@ -77,8 +75,17 @@ function f4ActivitiesModelFrequencyCommands_(x){
   },
   ACTIVITY_MODEL_AVAILABILITY_SET(){const record=decision(),d=model();N(d.governance.state==='APPROVED'&&['ACTIVE','INACTIVE'].includes(p.status),'INVALID_STATE_TRANSITION');revision(p.typeRef,{...d,status:p.status,availabilityDecision:record});history(p.typeRef,'ACTIVITY_MODEL_AVAILABILITY_CHANGED');fence();return {typeRef:p.typeRef,status:p.status};},
   ACTIVITY_MODEL_USAGE_SET(){
-   // Keep the contract for receipt replay, but stop creating or revoking grants.
-   N(false,'INVALID_STATE_TRANSITION','MODEL_CYCLE_AUTHORIZATION_RETIRED');
+   const record=decision(),d=model(),c=load(p.cycleRef,true);
+   N(p.cycleRef.kind==='cycle'&&c.recordMode==='NEW_V2'&&c.status==='OPEN','INVALID_STATE_TRANSITION','MODEL_USAGE_REQUIRES_OPEN_CYCLE');
+   N(typeof p.enabled==='boolean'&&d.governance.state==='APPROVED','INVALID_STATE_TRANSITION');
+   N(p.definitionHash===d.governance.definitionHash,'STALE_REVISION','MODEL_DEFINITION_CHANGED');
+   N(typeof p.evidence==='string'&&p.evidence.trim()&&p.evidence.length<=800,'HUMAN_DECISION_REQUIRED','MODEL_USAGE_EVIDENCE_REQUIRED');
+   const grants=d.governance.usageAuthorizations||[],old=grants.find(v=>v.cycleRef.id===c.id);
+   N(old||grants.length<8,'SCOPE_TOO_LARGE');
+   const grant={cycleRef:p.cycleRef,enabled:p.enabled,definitionHash:p.definitionHash,attendancePolicyRevision:d.governance.attendancePolicyRevision,decision:{...record,evidence:p.evidence.trim()}},next={...d,governance:{...d.governance,usageAuthorizations:[...grants.filter(v=>v.cycleRef.id!==c.id),grant]}};
+   if(d.attendancePolicyRef)load(d.attendancePolicyRef,true);
+   N(!p.enabled||f4OriginalModelUsage_(x.get,next,c.id),'CONFIG_CAPABILITY_DISABLED','MODEL_USAGE_INCOMPATIBLE');
+   revision(p.typeRef,next);history(p.typeRef,p.enabled?'ACTIVITY_MODEL_USAGE_AUTHORIZED':'ACTIVITY_MODEL_USAGE_REVOKED');fence();return {typeRef:p.typeRef,cycleRef:p.cycleRef,enabled:p.enabled};
   },
   CYCLE_FREQUENCY_PLAN_SAVE(){
    const record=decision(),c=cycle(),policy=load(p.plan.policyRef,true),plan=f4CycleFrequencyPlanning_().validate(p.plan,c,policy),periods=c.frequencyPlanning?.periods||[],old=periods.find(v=>v.periodId===plan.periodId);

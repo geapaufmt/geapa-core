@@ -18,11 +18,7 @@ function f4ActivitiesGovernanceCompat_(options){
  }
  function prepare(input){
   C.exact(input,['operationId','route','payload']);const p=input.payload;let commandType,payload,expected;
-  if(input.route==='/admin/atividades/substituicao'){
-   C.exact(p,['activityId','activityRevision','replacementId','replacementRevision','reason']);N([p.activityId,p.replacementId].every(M.id)&&typeof p.reason==='string'&&p.reason.trim().length>=10&&p.reason.length<=2000,'VALIDATION_ERROR');
-   N(db.get('canonicalActivities/'+p.activityId)?.revision===p.activityRevision&&db.get('canonicalActivities/'+p.replacementId)?.revision===p.replacementRevision,'STALE_REVISION');
-   commandType='ACTIVITY_REPLACE';expected={ref:M.ref('activity',p.activityId),revision:p.activityRevision};payload={activityRef:expected.ref,replacementRef:M.ref('activity',p.replacementId),decision:{reasonCode:'DOCUMENTED_ACTIVITY_REPLACEMENT',reason:p.reason}};
-  }else if(['/atividades/chamada/extraordinaria/autorizar','/atividades/chamada/extraordinaria/revogar'].includes(input.route)){
+  if(['/atividades/chamada/extraordinaria/autorizar','/atividades/chamada/extraordinaria/revogar'].includes(input.route)){
    const revoke=input.route.endsWith('/revogar');C.exact(p,['activityId','collectionRevision',...(revoke?['confirmed']:['reason'])]);
    commandType=revoke?'ATTENDANCE_EXTRAORDINARY_REVOKE':'ATTENDANCE_EXTRAORDINARY_AUTHORIZE';expected={ref:M.ref('attendanceCollection',p.activityId),revision:p.collectionRevision};payload={activityRef:M.ref('activity',p.activityId),collectionRevision:p.collectionRevision,...(revoke?{confirmed:p.confirmed}:{reason:p.reason})};
   }else if(input.route==='/admin/ciclos-semestres/semestre'){
@@ -40,7 +36,6 @@ function f4ActivitiesGovernanceCompat_(options){
   if(expected){N(Number.isSafeInteger(expected.revision)&&expected.revision>=0,'VALIDATION_ERROR');N((db.get(M.path(expected.ref))?.revision||0)===expected.revision,'STALE_REVISION');}
   const prepared=ports.prepare({operationId:input.operationId,commandType:'ACT.'+commandType,payload});
   if(expected)N(prepared.target.expected.some(e=>M.path({kind:e.kind,id:e.id,...(e.parent?{parent:e.parent}:{})})===M.path(expected.ref)&&(expected.revision?e.revision===expected.revision:e.exists===false)),'STALE_REVISION');
-  if(commandType==='ACTIVITY_REPLACE')N(prepared.target.expected.some(e=>e.kind==='activity'&&e.id===p.replacementId&&e.revision===p.replacementRevision),'STALE_REVISION');
   return prepared;
  }
  return {read,prepare};

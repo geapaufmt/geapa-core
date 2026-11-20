@@ -30,14 +30,14 @@ function nodeFlowPrepare({input,portal}){
  if(route==='/atividades/chamada/preparar'){f4Core_().exact(input,['operationId','route','payload']);f4Core_().exact(input.payload,['activityRef']);let rosterRef;try{rosterRef=f4ActivitiesAttendanceRoster_(options).prepare(input.payload.activityRef);}catch(e){e.preparationStage='ROSTER_DISCOVERY';throw e;}try{return ports.prepare({operationId:input.operationId,commandType:'ACT.ATTENDANCE_ROSTER_APPLY',payload:{activityRef:input.payload.activityRef,rosterRef}});}catch(e){e.preparationStage='COMMAND_PREPARATION';throw e;}}
  if(route==='/atividades/chamada/salvar'){const {route,...request}=input;return f4ActivitiesPortalCompat_(options).prepareChamada(request);}
  if(['/v2/justificativas/enviar','/v2/justificativas/analisar'].includes(route))return f4ActivitiesFrequencyCompat_(options).prepare(input);
- if(['/admin/atividades/substituicao','/atividades/chamada/extraordinaria/autorizar','/atividades/chamada/extraordinaria/revogar','/admin/justificativas/janelas/abrir','/admin/justificativas/janelas/encerrar'].includes(route))return f4ActivitiesGovernanceCompat_(options).prepare(input);
+ if(['/atividades/chamada/extraordinaria/autorizar','/atividades/chamada/extraordinaria/revogar','/admin/justificativas/janelas/abrir','/admin/justificativas/janelas/encerrar'].includes(route))return f4ActivitiesGovernanceCompat_(options).prepare(input);
  if(route==='/v2/apresentacoes/finalizacao')return f4ActivitiesFinalizationCompat_(options).prepare(input);
  if(route==='/v2/apresentacoes/realizacao')return f4ActivitiesRealizationCompat_(options).prepare(input);
  if(route==='/v2/apresentacoes/compatibilidade')return f4ActivitiesCompatibilityCompat_(options).prepare(input);
  if(route==='/v2/apresentacoes/agenda')return f4ActivitiesCalendarCompat_(options).prepare(input);
  if(route==='/v2/apresentacoes/reorganizacao')return f4ActivitiesReorganizationCompat_(options).prepare(input);
  if(route==='/admin/apresentacoes/planejamento/salvar')return f4ActivitiesPlanningCompat_(options).prepare(input);
- if(['/v2/apresentacoes/titulo-eixo/enviar','/v2/apresentacoes/titulo-eixo/revisar','/v2/apresentacoes/titulo-eixo/reprovar','/v2/apresentacoes/titulo-eixo/retirar','/v2/apresentacoes/titulo-eixo/natureza'].includes(route))return f4ActivitiesPresentationCompat_(options).prepare(input);
+ if(["/v2/apresentacoes/titulo-eixo/autorizar","/v2/apresentacoes/titulo-eixo/revogar","/v2/apresentacoes/titulo-eixo/regularizar","/v2/apresentacoes/titulo-eixo/registrar",'/v2/apresentacoes/titulo-eixo/enviar','/v2/apresentacoes/titulo-eixo/revisar','/v2/apresentacoes/titulo-eixo/reprovar','/v2/apresentacoes/titulo-eixo/retirar','/v2/apresentacoes/titulo-eixo/natureza'].includes(route))return f4ActivitiesPresentationCompat_(options).prepare(input);
  if(['/admin/atividades/salvar','/admin/atividades/publicar','/admin/atividades/ocultar','/admin/atividades/cancelar','/admin/atividades/reabrir','/admin/atividades/realizacao'].includes(route))return f4ActivitiesActivityCompat_(options).prepare(input);
  if(route==='/atividades/modelo/criar')return f4ActivitiesActivityCompat_(options).prepare(input);
  f4Core_().fail('COMMAND_TYPE_INVALID');
@@ -45,7 +45,7 @@ function nodeFlowPrepare({input,portal}){
 function nodeFlowPortalType(input,optional=false){
  const p=input.payload||{},r=input.route,table={
  '/admin/atividades/conferencia':'ACTIVITY_ADMIN_REVIEW',
- '/admin/atividades/substituicao':'ACTIVITY_REPLACE','/admin/atividades/salvar':'ACTIVITY_SAVE','/admin/atividades/publicar':'ACTIVITY_PUBLICATION_SET','/admin/atividades/ocultar':'ACTIVITY_PUBLICATION_SET','/admin/atividades/cancelar':'ACTIVITY_PUBLICATION_SET','/admin/atividades/reabrir':'ACTIVITY_PUBLICATION_SET','/admin/atividades/realizacao':'ACTIVITY_REALIZE',
+ '/admin/atividades/salvar':'ACTIVITY_SAVE','/admin/atividades/publicar':'ACTIVITY_PUBLICATION_SET','/admin/atividades/ocultar':'ACTIVITY_PUBLICATION_SET','/admin/atividades/cancelar':'ACTIVITY_PUBLICATION_SET','/admin/atividades/reabrir':'ACTIVITY_PUBLICATION_SET','/admin/atividades/realizacao':'ACTIVITY_REALIZE',
  '/atividades/chamada/extraordinaria/autorizar':'ATTENDANCE_EXTRAORDINARY_AUTHORIZE','/atividades/chamada/extraordinaria/revogar':'ATTENDANCE_EXTRAORDINARY_REVOKE',
  '/atividades/chamada/preparar':'ATTENDANCE_ROSTER_APPLY',
  '/atividades/chamada/salvar':{SALVAR:'ATTENDANCE_SAVE_DRAFT',FINALIZAR:'ATTENDANCE_FINALIZE',REABRIR:'ATTENDANCE_REOPEN',REGISTRAR:'ATTENDANCE_RECORD',CORRIGIR:'ATTENDANCE_CORRECT'}[p.operacao],
@@ -55,7 +55,7 @@ function nodeFlowPortalType(input,optional=false){
  '/v2/apresentacoes/compatibilidade':{REQUEST:'COMPATIBILITY_REQUEST',DECIDE:'COMPATIBILITY_DECIDE'}[p.action],
  '/v2/apresentacoes/agenda':{AGENDAR:'CALENDAR_RESERVE',CANCELAR:'CALENDAR_RELEASE'}[p.acao],
  '/v2/apresentacoes/reorganizacao':{PROPOSE:'CALENDAR_CHANGE_PROPOSE',CONFIRM:'CALENDAR_CHANGE_CONFIRM',CONSENT:'JOINT_CONSENT',JOINT:'JOINT_PROPOSE',COMPOSE:'COMPOSITION_CONFIRM'}[p.action],
- '/v2/apresentacoes/titulo-eixo/enviar':'THEME_SUBMIT','/v2/apresentacoes/titulo-eixo/revisar':'THEME_VALIDATE','/v2/apresentacoes/titulo-eixo/reprovar':'THEME_VALIDATE',
+ "/v2/apresentacoes/titulo-eixo/autorizar":"THEME_EXTRAORDINARY_AUTHORIZE","/v2/apresentacoes/titulo-eixo/revogar":"THEME_EXTRAORDINARY_REVOKE","/v2/apresentacoes/titulo-eixo/regularizar":"THEME_REGULARIZE","/v2/apresentacoes/titulo-eixo/registrar":"THEME_REGULARIZE_ADMIN",'/v2/apresentacoes/titulo-eixo/enviar':'THEME_SUBMIT','/v2/apresentacoes/titulo-eixo/revisar':'THEME_VALIDATE','/v2/apresentacoes/titulo-eixo/reprovar':'THEME_VALIDATE',
  '/v2/apresentacoes/titulo-eixo/retirar':'THEME_WITHDRAW','/v2/apresentacoes/titulo-eixo/natureza':'THEME_MATERIALITY_DECIDE',
  '/v2/apresentacoes/finalizacao':{TITULO:'FINAL_TITLE_CONFIRM',CONFERIR:'OPERATIONAL_CHECK'}[p.acao],'/v2/apresentacoes/realizacao':'REALIZATION_RECOGNIZE','/atividades/modelo/validar':'MEMBER_PRESENTATION_ACTIVITY_CREATE','/atividades/modelo/criar':'MEMBER_PRESENTATION_ACTIVITY_CREATE'};
  let type=f4ActRemainingConsumers_().type(input,nodeRead)||table[r];if(r==='/v2/apresentacoes/titulo-eixo/enviar'&&typeof p.idApresentacao==='string'&&p.idApresentacao.startsWith('APU_')){const u=nodeRead('presentationUnitHeads/'+p.idApresentacao.slice(4)),t=u?.thematicRequestRef&&nodeRead(f4ActivitiesModel_().path(u.thematicRequestRef));if(t?.workflowState==='PAUSED')type='THEME_COMPLEMENT';}if(optional&&!type)return null;f4Core_().need(type&&f4ActFlowExecutor_().commands.includes(type),'COMMAND_TYPE_INVALID');return 'ACT.'+type;

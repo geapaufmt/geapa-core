@@ -31,71 +31,6 @@ function f4ActivitiesFrequencyCompat_(options){
   const net=value.counts.ABSENT+rows.filter(r=>r.countable&&(r.officialCountBasis||r).countsAbsence!==false&&(r.officialCountBasis||r).applicableAtDate!==false&&(r.status==='JUSTIFIED'&&r.frequencyBasis?.justifiedMode==='COUNT_ABSENT'||r.status==='EXCUSED'&&r.frequencyBasis?.excusedMode==='COUNT_ABSENT')).length;
   return {totalRegistros:rows.length,totalAtividades:['PRESENT','ABSENT','JUSTIFIED','EXCUSED'].reduce((n,k)=>n+value.counts[k],0),totalPresencas:value.counts.PRESENT,totalFaltas:value.counts.ABSENT,totalJustificadas:value.counts.JUSTIFIED,totalAbonadas:value.counts.EXCUSED,totalNaoAplicaveis:value.counts.NOT_APPLICABLE,totalPendentes:value.pending,faltasLiquidas:complete?net:null,percentualFrequencia:value.percentage===null?null:Math.round(value.percentage*100)/100,baseCompleta:complete,mensagemPortal:complete?'':'Totais dos fatos disponíveis. A base histórica ou os pesos não permitem apurar faltas líquidas e percentual completo com segurança.'};
  }
- function population(cycle,heads){
-  const result=new Map();
-  heads.forEach(h=>{N(h.kind==='PERSON'&&Array.isArray(h.paths),'UNRESOLVED_DEPENDENCY','MEMBERS_HEAD');cache.set('memberAggregateHeads/'+h.id,h);});
-  prefetch(heads.flatMap(h=>h.paths.filter(p=>/^member(Identities|Links|Events)\//.test(p))));
-  const model=f4MemberModel_(true,get('memberAuthorityControl/MEMBERS')||undefined);
-  const start=C.civilStart(cycle.civilStart),end=C.civilStart(cycle.civilEnd)+86400000;
-  for(const h of heads){
-   N(h.kind==='PERSON'&&Array.isArray(h.paths),'UNRESOLVED_DEPENDENCY','MEMBERS_HEAD');
-   const paths=h.paths.filter(p=>/^member(Identities|Links|Events)\//.test(p));N(paths.length<=180,'SCOPE_TOO_LARGE','MEMBERS_SOURCES');prefetch(paths);
-   const docs=Object.fromEntries(paths.map(p=>[p,get(p)])),identity=docs['memberIdentities/'+h.id];
-   if(identity?.technicalAccount)continue;
-   if(!identity||Object.values(docs).some(d=>!d||d.idPessoa!==h.id)){result.set(h.id,{complete:false,periods:[]});continue;}
-   for(const d of Object.values(docs))if(d.type==='RETIFICACAO'&&d.correctionPath?.startsWith('memberFunctions/')&&['m1-memberFunctions-v2','m1-memberFunctions-v3'].includes(d.prior?.schemaVersion)){const p='memberRoleCatalog/'+d.prior.idCargo;docs[p]=get(p);}
-   // Canonical derivation at every change boundary preserves ingress, suspension,
-   // dismissal and corrections without using today's membership projection.
-   const points=new Set([start,end]);for(const d of Object.values(docs)){for(const k of ['startDate','effectiveDate','endDate','exitDate'])if(d[k]){const at=C.civilStart(d[k])+(k==='endDate'?86400000:0);if(start<at&&at<end)points.add(at);}}
-   const sorted=[...points].sort((a,b)=>a-b),periods=[];
-   for(let i=0;i<sorted.length-1;i++){const state=model.derive(docs,h.id,h.revision,sorted[i]).state.state;if(['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','SUSPENSO'].includes(state))periods.push({start:sorted[i],end:sorted[i+1],state});}
-   if(periods.length)result.set(h.id,{complete:true,personRevision:h.revision,periods});
-  }
-  return result;
- }
- // Administrative cycle view reuses the same factual rows, pairing and count
- // basis as SELF. It never derives membership sanctions from attendance.
- function central(params,check){
-  C.exact(params,['cycleId',...('personId'in params?['personId']:[]),...('cursor'in params?['cursor']:[])]);
-  N(M.id(params.cycleId)&&(!params.personId||M.id(params.personId)),'VALIDATION_ERROR','SELECT_CANONICAL_CYCLE');
-  const cycle=get('presentationCycles/'+params.cycleId);N(cycle,'NOT_FOUND');
-  const proof=ports.readAuthority(['presentationCycles/'+cycle.id],false);check([proof]);
-  if(params.cursor){C.exact(params.cursor,['afterId','cycleId']);N(!params.personId&&M.id(params.cursor.afterId)&&params.cursor.cycleId===cycle.id,'VALIDATION_ERROR','RH_CURSOR_CYCLE_MISMATCH');}
-  const after=params.cursor?.afterId,heads=params.personId?[get('memberAggregateHeads/'+params.personId)].filter(Boolean):db.query({collection:'memberAggregateHeads',filters:[],limit:20,order:[{field:'__name__',direction:'ASCENDING'}],...(after?{cursor:[new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+'memberAggregateHeads/'+after)]}:{})}).map(r=>r.data);
-  const pagination={pageSize:20,hasMore:!params.personId&&heads.length===20,nextCursor:!params.personId&&heads.length===20?{cycleId:cycle.id,afterId:heads[heads.length-1].id}:null};
-  const people=population(cycle,heads);
-  const cycles=all('presentationCycles');cycles.forEach(c=>cache.set('presentationCycles/'+c.id,c));semesters=all('academicSemesters');
-  semesters.forEach(s=>cache.set('academicSemesters/'+s.id,s));
-  const activities=all('canonicalActivities').filter(a=>{const id=a.cycleId||a.cycleRef?.id||a.cycleRef?.ref?.id;return !id||id===cycle.id;}),authorized=[],missing=[];
-  prefetch(activities.map(a=>'activityAttendanceCollections/'+a.id));
-  for(const a of activities){
-   cache.set('canonicalActivities/'+a.id,a);
-   const collection=get('activityAttendanceCollections/'+a.id);
-   const resolved=f4ActivityFrequencyCycle_(a,collection||{},{},get,semesters);
-   if(resolved.cycleId!==cycle.id)continue;
-   const access=ports.readAuthority(['canonicalActivities/'+a.id],false);check([access]);
-   if(!['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status)&&a.typeSnapshot?.countsAttendance&&a.civilDate<=Utilities.formatDate(new Date(clock()),'America/Cuiaba','yyyy-MM-dd')&&!collection?.lastFinalizedAt)missing.push(a.id);
-   authorized.push(a);
-  }
-  const activityIds=new Set(authorized.map(a=>a.id));
-  const facts=heads.flatMap(h=>all('activityAttendance',[{field:'ownerPersonRef',op:'EQUAL',value:h.id}])).filter(f=>activityIds.has(f.activityRef?.id));
-  N(facts.every(f=>f.personRef?.id&&f.ownerPersonRef===f.personRef.id),'UNRESOLVED_DEPENDENCY','ATTENDANCE_OWNER_CONFLICT');
-  hydrate(facts,true);
-  // Resolve and filter BEFORE pairing: another cycle cannot consume a pair.
-  const rows=pair(facts.map(f=>row(f)).filter(r=>r.derived.cycleId===cycle.id));
-  const periods=(cycle.frequencyPlanning?.periods||[]).filter(p=>p.state==='APPROVED'),discipline=f4MemberAttendanceCases_().rules(get,cycle.id);
-  prefetch(heads.map(h=>'memberPortalProfiles/'+h.id));
-  const members=[...new Set([...people.keys(),...rows.map(r=>r.derived.personRef.id)])].sort().filter(id=>!params.personId||id===params.personId).map(id=>{
-   const own=rows.filter(r=>r.derived.personRef.id===id),s=summary(own.map(r=>r.derived)),head=get('memberAggregateHeads/'+id),profile=get('memberPortalProfiles/'+id),identity=get('memberIdentities/'+id);
-   const person=people.get(id),missingFacts=authorized.filter(a=>{if(['CANCELLED','NOT_OCCURRED','ARCHIVED'].includes(a.status)||!a.typeSnapshot?.countsAttendance||!a.civilDate||a.civilDate>Utilities.formatDate(new Date(clock()),'America/Cuiaba','yyyy-MM-dd'))return false;const at=a.startsAt?M.ms(a.startsAt):C.civilStart(a.civilDate);return person?.periods.some(p=>p.state!=='SUSPENSO'&&p.start<=at&&at<p.end)&&!own.some(r=>r.derived.activityRef.id===a.id);}).map(a=>a.id);
-   const integrity=!person?.complete||!s.baseCompleta||missingFacts.length||missing.length||!periods.length||own.some(r=>r.derived.recordMode==='HISTORICAL_PARTIAL')?'INCOMPLETE':cycle.status!=='CLOSED'||s.totalPendentes||own.some(r=>r.derived.pendingJustificationRef)?'PROVISIONAL':'DEFINITIVE';
-   const plans=periods.map(p=>{const scoped=own.filter(r=>r.dto.dataAtividade>=p.civilStart&&r.dto.dataAtividade<=p.civilEnd),count=summary(scoped.map(r=>r.derived));return {periodId:p.periodId,civilStart:p.civilStart,civilEnd:p.civilEnd,plannedActivities:p.attendanceActivitiesCount,absenceLimit:p.absenceLimit,minimumAttendanceBasisPoints:p.rules?.minimumAttendanceBasisPoints??null,absenceNorm:p.rules?.absenceNorm||'',attendanceNorm:p.rules?.attendanceNorm||'',discipline:discipline.established?{normativeReference:discipline.rules.normativeReference,informalWarningAt:typeof p.absenceLimit==='number'?Math.ceil(p.absenceLimit*discipline.rules.informalBasisPoints/10000):null,formalWarningAt:typeof p.absenceLimit==='number'?Math.ceil(p.absenceLimit*discipline.rules.formalBasisPoints/10000):null,manifestationDays:discipline.rules.manifestationDays}:null,netAbsences:count.faltasLiquidas,atLimit:typeof p.absenceLimit==='number'&&p.absenceLimit>=0&&count.faltasLiquidas!==null?count.faltasLiquidas>=p.absenceLimit:null,decisionRequired:true};});
-   return {personId:id,personRevision:head?.revision||null,label:profile&&head&&profile.sourceRevision===head.revision?profile.displayLabel:identity?.displayName||id,summary:s,integrity,participation:person?.periods.map(p=>({start:new Date(p.start).toISOString(),endExclusive:new Date(p.end).toISOString(),state:p.state}))||[],missingActivityIds:missingFacts,periods:plans,records:own.map(r=>({activityId:r.dto.idAtividade,title:r.dto.tituloAtividade,civilDate:r.dto.dataAtividade,status:r.dto.statusPresenca,label:r.dto.statusPresencaRotulo,cycleId:cycle.id,pending:!!r.derived.pendingJustificationRef}))};
-  });
-  ports.recheckAuthority(proof);
-  const integrity=missing.length||!periods.length||members.some(m=>m.integrity==='INCOMPLETE')?'INCOMPLETE':cycle.status==='CLOSED'&&members.every(m=>m.integrity==='DEFINITIVE')?'DEFINITIVE':'PROVISIONAL';
-  return {schemaVersion:'attendance-rh-cycle-v1',pagination,scope:'SELECTED_CYCLE_MEMBER_PAGE',cycle:{id:cycle.id,label:cycle.cycleLabel||cycle.id,status:cycle.status,revision:cycle.revision},cycles:cycles.map(c=>({id:c.id,label:c.cycleLabel||c.id,status:c.status})),activities:authorized.map(a=>({id:a.id,revision:a.revision,title:a.title,status:a.status,civilDate:a.civilDate,recordedAt:iso(a.recordedAt),replacementOfId:a.replacementOfRef?.id||null,replacedById:a.replacedByRef?.id||null})),canReplace:ports.commandAvailable?.('ACTIVITY_REPLACE')===true,members,missingAttendanceActivityIds:missing,coverage:'CANONICAL_CYCLE_PARTICIPANTS',populationComplete:[...people.values()].every(p=>p.complete),integrity,notice:integrity==='INCOMPLETE'?'Há fontes ou chamadas pendentes de conferência. Ausência de registro não equivale a falta.':integrity==='PROVISIONAL'?'O ciclo está em andamento ou há decisões pendentes. Os totais podem mudar.':'Apuração encerrada com fontes completas e parâmetros do próprio ciclo.',automaticDismissal:false};
- }
  // Filter by canonical cycle before pagination, never by submission date.
  // Cursor binds the selected cycle, queue and attendance epoch.
  function queueGroup(j,f,a){return ['APPROVED','EXCUSED','REJECTED','CLOSED_WITHOUT_ABSENCE'].includes(j.state)?'HISTORY':f4JustificationDecisionReadiness_(j,f,a).eligible?'ANALYSIS':'ACTION_REQUIRED';}
@@ -132,11 +67,10 @@ function f4ActivitiesFrequencyCompat_(options){
  }
  function read(route,params={}){return ports.readWithAuthoritySnapshot(check=>readSnapshot(route,params,check));}
  function readSnapshot(route,params={},check){
-  if(!['/v2/justificativas/pendencias','/admin/frequencia-rh'].includes(route))C.exact(params,[]);
+  if(route!=='/v2/justificativas/pendencias')C.exact(params,[]);
   cache.clear();temporalValidUntil=Infinity;
-  const admin=['/v2/justificativas/pendencias','/admin/frequencia-rh'].includes(route),auth=ports.readAuthority(admin?['activityAttendanceRegistry/current']:[],!admin),epoch=get('activityAttendanceRegistry/current')?.epoch||0;let data;check([auth]);
-  if(route==='/admin/frequencia-rh'){data=central(params,check);}
-  else if(route==='/v2/minha-frequencia'){
+  const admin=route==='/v2/justificativas/pendencias',auth=ports.readAuthority(admin?['activityAttendanceRegistry/current']:[],!admin),epoch=get('activityAttendanceRegistry/current')?.epoch||0;let data;check([auth]);
+  if(route==='/v2/minha-frequencia'){
    const values=all('activityAttendance',[{field:'ownerPersonRef',op:'EQUAL',value:auth.personId}]);N(values.every(f=>f.ownerPersonRef===auth.personId&&f.personRef.id===auth.personId),'AUTHORIZATION_DENIED');hydrate(values,false);const items=pair(values.map(f=>row(f))),periods=[...new Set(items.map(r=>r.dto.ciclo).filter(Boolean))].sort().reverse();
    data={contrato:'MINHA_FREQUENCIA_DETALHADA_V2',cycleGrouping:'GEAPA_CYCLE_V1',registros:items.filter(r=>r.dto.ciclo).map(r=>r.dto),registrosPendentes:items.filter(r=>!r.dto.ciclo).map(r=>r.dto),ciclos:periods.map(id=>({ciclo:id,cycleId:id,rotuloCiclo:get('presentationCycles/'+id)?.cycleLabel||id,resumo:summary(items.filter(r=>r.dto.ciclo===id).map(r=>r.derived)),registros:items.filter(r=>r.dto.ciclo===id).map(r=>r.dto)})),ultimaAtualizacao:new Date(clock()).toISOString()};
   }else if(admin){

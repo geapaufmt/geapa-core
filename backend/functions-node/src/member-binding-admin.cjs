@@ -12,6 +12,7 @@ async function googleAccount(auth,email){
  return {uid:u.uid,email:u.email.toLowerCase(),emailVerified:true,provider:'google.com'};
 }
 class BindingStore extends MemberStore{
+ constructor(...args){super(...args);this.bindingAdministrative=true;}
  guard(){const c=super.guard(),b=this.hostRead('memberBindingAdminControl/current');if(!b?.enabled||b.projectId!==PROJECT||b.schemaVersion!=='member-binding-admin-control-v1')fail('ACCESS_REVOKED');if(this.bindingPinned&&this.bindingPinned!==JSON.stringify(b))fail('ACCESS_REVOKED');this.bindingPinned=JSON.stringify(b);return c;}
  validateWrites(s){
   const extra=s.writes.filter(w=>w.path.startsWith('memberBindingVerifications/'));
@@ -37,6 +38,7 @@ async function bindingAdmin(options){
   const c=await store.transaction(()=>call('context',[q.personId]));let email=null;if(c.uid){try{const linked=await googleAccount(auth,(await auth.getUser(c.uid)).email);if(linked.uid!==c.uid)fail('BINDING_ACCOUNT_CHANGED');email=linked.email;}catch(e){if(!['BINDING_ACCOUNT_NOT_FOUND','BINDING_EMAIL_UNVERIFIED','BINDING_GOOGLE_REQUIRED','BINDING_ACCOUNT_DISABLED'].includes(e.code)&&e.code!=='auth/user-not-found')throw e;}}
   const after=await store.transaction(()=>call('context',[q.personId]));if(after.uid!==c.uid)fail('BINDING_CONFLICT');result={canManage:c.canManage,state:c.state,email};
  }else if(body.action==='memberBindingVerify'){
+  await store.read(()=>run('(p)=>{f4MemberBindingAdmin_({config:nodeConfig,identity:nodeActor}).eligible(nodeRead,p);return null}',q.personId));
   const account=await googleAccount(auth,q.email);store.phase='verify';
   result=await store.transaction(()=>run('(x)=>f4MemberBindingAdmin_({config:nodeConfig,identity:nodeActor}).verify(nodeTx,x.input,x.account)',{input:{operationId:q.operationId,personId:q.personId,evidence:q.evidence},account}));
  }else{

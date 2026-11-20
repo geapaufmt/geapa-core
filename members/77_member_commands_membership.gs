@@ -12,7 +12,7 @@ function f4MemberMembershipCommands_(){
   validate(r);const {request:q,proof}=U.authorization(get,r),effect=types[r.commandType],voluntary=r.commandType==='members.membership.voluntaryExit';
   N(q.capability===(voluntary?'MEMBERS_VOLUNTARY_EXIT_EXECUTE':'MEMBERS_DISCIPLINE_EXECUTE')&&(voluntary||q.kind==='EXPLICIT'),'AUTH_BINDING_INVALID');
   N(q.target.personId===r.target.personId&&q.target.linkId===r.target.linkId&&q.target.effect===effect&&q.target.effectiveDate===r.payload.effectiveDate,'AUTH_BINDING_INVALID');
-  const workflow=voluntary?f4MemberVoluntaryExecution_(get,r,now):r.commandType==='members.discipline.dismiss'?f4MemberAttendanceCases_().dismissal(get,r,now):[];
+  const workflow=voluntary?f4MemberVoluntaryExecution_(get,r,now):[];
   if(!voluntary)f4MemberActContent_().empty(get,r,now);f4MemberAuthz_().recheck(get,q,proof,now);
   const control=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')),loaded=f4MemberAuthz_().load(get,r.target.personId,control),M=loaded.M,link=loaded.d['memberLinks/'+r.target.linkId],at=C.civilStart(r.payload.effectiveDate);
   N(link&&link.idPessoa===r.target.personId&&['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE'].includes(link.type),'COMMAND_PAYLOAD_INVALID');const iv=M.interval(link.startDate,link.endDate);N(iv.a<=at&&at<iv.z,'COMMAND_PAYLOAD_INVALID');
