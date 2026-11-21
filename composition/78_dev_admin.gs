@@ -72,7 +72,7 @@ function f4DevAdministrativeAccess_(){
  }
  function correction(get,identity,now,target){const a=source(get,identity,now,'MEMBERS_PROFILE_CORRECT');N(a&&a.source.syntheticPersonIds.includes(target.personId),'AUTHORIZATION_DENIED');
   N(target.scopeKey==='ADMINISTRACAO'&&target.purpose==='PROFILE_CORRECTION'&&target.effect==='PROFILE_CORRECTION'&&target.fieldMask.every(f=>a.mask.includes(f)),'AUTHORIZATION_DENIED');
-  f4MemberOperationalScope_(get,{capability:'MEMBERS_PROFILE_CORRECT',target},{ownPerson:false,allowedPersons:a.source.syntheticPersonIds,allowedTargetScopes:['ADMINISTRACAO'],commandScopes:['PROFILE_CORRECTION']},a.actor.binding.idPessoa);return a;
+  f4MemberOperationalScope_(get,{capability:'MEMBERS_PROFILE_CORRECT',target},{ownPerson:false,allowedPersons:a.source.syntheticPersonIds,allowedTargetScopes:['ADMINISTRACAO'],allowedBoards:[],allowedRoles:[],allowedResources:[],commandScopes:['PROFILE_CORRECTION']},a.actor.binding.idPessoa);return a;
  }
  function governanceInput(auth,input,old){if(!auth.technical)return;
   N(!input.action&&!input.minutes&&!input.documentaryEvidence&&!input.attachments?.length&&input.sourceRecordId===null&&input.references?.length===0&&input.documentaryState==='DRAFT'&&(!old||old.devTechnicalOwnerUid===auth.source.uid&&old.documentaryState==='DRAFT'&&!old.kind),'AUTHORIZATION_DENIED');
