@@ -10,10 +10,17 @@ function f4MemberPreRegistration_(){
   E.quick(r.payload.registration);return true;
  }
  function approval(get,ref,registration,now){
-  const d=get('memberAdmissionApprovals/'+ref);N(d?.schemaVersion==='member-admission-approval-v1'&&d.id===ref&&d.active===true&&C.rev(d.revision)&&d.revision>0,'ACCESS_REVOKED');
+  const d=get('memberAdmissionApprovals/'+ref);N(d,'ADMISSION_APPROVAL_REQUIRED');N(d?.schemaVersion==='member-admission-approval-v1'&&d.id===ref&&d.active===true&&C.rev(d.revision)&&d.revision>0,'ACCESS_REVOKED');
   N(d.registrationDigest===C.hash({email:registration.email,rga:registration.rga})&&C.id(d.reference)&&C.id(d.approvedBy),'AUTH_BINDING_INVALID');
   C.civilStart(d.approvedOn);N(C.civilStart(d.approvedOn)<=now&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(d.membershipType),'COMMAND_PAYLOAD_INVALID');
   return d;
+ }
+ function key(registration){return 'AP_'+C.hash({email:registration.email,rga:registration.rga}).slice(0,40);}
+ function locate(get,registration,reference,now){
+  const indexed=key(registration);
+  // Retain the identity index when present, including its revocation.
+  const ref=get('memberAdmissionApprovals/'+indexed)||!C.id(reference)?indexed:reference;
+  return approval(get,ref,registration,now);
  }
  function proposal(get,r,now){
   validate(r);const p=r.payload,id=r.target.personId,body=f4MemberActContent_().act(get,r,now),facts=body.facts;
@@ -33,7 +40,10 @@ function f4MemberPreRegistration_(){
   for(const item of resolution.identifiers){const claim=get('memberIdentifierClaims/'+C.hash(item));N(claim?.active&&claim.idPessoa===id||p.identifiers.filter(v=>v.kind===item.kind&&v.value===item.value).length===1,'COMMAND_PAYLOAD_INVALID');}
   const indexPath='memberEnrollmentIndexes/'+id,index=get(indexPath);N(!index||index.schemaVersion==='member-enrollment-index-v1'&&index.personId===id&&index.activeEnrollmentId===null,'OPERATION_CONFLICT');
   const enrollment=E.create({id:r.operationId,personId:id,registration,approval:{reference:a.reference,approvedBy:a.approvedBy,approvedOn:a.approvedOn,membershipType:a.membershipType},actorUid:r.ownerUid,now,expiresAt:now+policy.invitationLifetimeHours*3600000});
-  enrollment.profile=E.profile(p.profile,today);N(!get('memberEnrollments/'+r.operationId),'OPERATION_CONFLICT');add('memberEnrollments/'+r.operationId,enrollment);
+  if(a.id!==key(registration))enrollment.approvalId=a.id;
+  enrollment.profile=E.profile(p.profile,today);
+  if(!enrollment.profile.courseId&&policy.courseIds?.length===1)enrollment.profile.courseId=policy.courseIds[0];
+  if(enrollment.profile.courseId)E.eligibleCourse(get,policy,enrollment.profile.courseId);N(!get('memberEnrollments/'+r.operationId),'OPERATION_CONFLICT');add('memberEnrollments/'+r.operationId,enrollment);
   add(indexPath,{schemaVersion:'member-enrollment-index-v1',personId:id,revision:(index?.revision||0)+1,activeEnrollmentId:r.operationId});
   const overlay=Object.fromEntries(changes.map(v=>[v.path,v.data])),paths=[...new Set([...(h?.paths||[]),...changes.filter(v=>/^member(Identities|Identifiers)\//.test(v.path)).map(v=>v.path)])].sort();
   const future=path=>path==='memberAggregateHeads/'+id?{schemaVersion:'m11-head-v1',id,kind:'PERSON',revision:Math.max(1,expected+1),paths}:Object.hasOwn(overlay,path)?overlay[path]:get(path);
@@ -47,5 +57,5 @@ function f4MemberPreRegistration_(){
   }else{C.exact(d,['schemaVersion','personId','revision','activeEnrollmentId']);N(c.path==='memberEnrollmentIndexes/'+id&&d.schemaVersion==='member-enrollment-index-v1'&&(d.activeEnrollmentId===null||C.op(d.activeEnrollmentId)),'COMMAND_PAYLOAD_INVALID');}
   return true;
  }
- return {validate,approval,proposal,change};
+ return {validate,approval,key,locate,proposal,change};
 }

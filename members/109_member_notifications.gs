@@ -4,6 +4,7 @@
 function f4MemberNotifications_(){
  const C=f4Core_(),N=C.need,K=f4MemberCommandCatalog_();
  const messages={
+  ENROLLMENT_REGISTERED:['Novo pré-cadastro de membro','Um pré-cadastro está disponível para conferência da Presidência.','/admin/membros'],
   ENROLLMENT_INVITATION:['Convite de ingresso no GEAPA','Seu ingresso foi previamente aprovado. Acesse o Portal para aceitar ou recusar o convite e completar seu cadastro.','/ingresso'],
   ENROLLMENT_ACCEPTED:['Convite aceito — cadastro pendente','Seu aceite foi registrado. Complete os dados obrigatórios e registre a ciência das normas para confirmar o ingresso.','/ingresso'],
   ENROLLMENT_DECLINED:['Recusa de convite registrada','Sua decisão foi registrada. Nenhum vínculo foi ativado.','/ingresso'],
@@ -16,6 +17,7 @@ function f4MemberNotifications_(){
  };
  function policy(get){const p=get('memberOperationalConfig/notifications');N(p?.schemaVersion==='member-notification-policy-v1'&&p.enabled===true&&p.mode==='DRY_RUN'&&p.projectId===f4ExecutionEnvironment_().project&&p.environment===f4ExecutionEnvironment_().environment&&C.rev(p.revision)&&p.revision>0&&C.id(p.approvalRef),'ACCESS_REVOKED');return p;}
  function event(r,changes){
+  if(r.commandType==='members.ingress.execute'&&r.payload.operation==='PRE_REGISTER')return 'ENROLLMENT_REGISTERED';
   if(f4MemberEnrollmentCommands_().is(r))return {ACCEPT:'ENROLLMENT_ACCEPTED',DECLINE:'ENROLLMENT_DECLINED',COMPLETE:'ENROLLMENT_COMPLETED'}[r.payload.action]||null;
   if(r.commandType==='members.voluntary.submit')return 'VOLUNTARY_RECEIVED';
   if(r.commandType==='members.membership.voluntaryExit')return 'VOLUNTARY_EXIT';
@@ -37,6 +39,11 @@ function f4MemberNotifications_(){
   N(r?.operationId===id&&r.digest===o.sourceDigest&&r.target.personId===o.personId&&l?.state==='COMPLETED'&&l.digest===r.digest&&audit?.digest===r.digest,'RECONCILIATION_REQUIRED');
   if(o.event==='ENROLLMENT_INVITATION')N(r.commandType==='members.ingress.execute'&&r.payload.operation==='MANAGE_INVITATION'&&['SEND','RESEND'].includes(r.payload.action)&&r.payload.enrollmentId===o.enrollmentId,'RECONCILIATION_REQUIRED');
   else N(event(r,[])===o.event,'RECONCILIATION_REQUIRED');
+  if(o.event==='ENROLLMENT_REGISTERED'){
+   const recipient=policy(get).presidencyEmail;
+   N(typeof recipient==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient),'UNRESOLVED_DEPENDENCY');
+   return {outbox:o,recipient};
+  }
   if(o.enrollmentId){const e=f4MemberEnrollmentContract_().validate(get('memberEnrollments/'+o.enrollmentId));N(e.personId===o.personId,'AUTH_BINDING_INVALID');const superseded=o.event==='ENROLLMENT_INVITATION'&&e.status!=='INVITED'||o.event==='ENROLLMENT_ACCEPTED'&&e.status!=='ACCEPTED';return {outbox:o,recipient:e.registration.email,superseded};}
   const h=get('memberAggregateHeads/'+o.personId);N(h?.id===o.personId&&Array.isArray(h.paths),'AUTH_BINDING_INVALID');
   const addresses=[...new Set(h.paths.filter(p=>p.startsWith('memberIdentifiers/')).map(get).filter(v=>v?.idPessoa===o.personId&&v.active&&v.kind==='EMAIL').map(v=>v.value))];
