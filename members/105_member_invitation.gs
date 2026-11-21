@@ -65,7 +65,7 @@ function f4MemberInvitation_(){
   const amend=p.action==='AMEND'?amendment(get,old,p,now):null;
   if(amend){
    next.registration=amend.registration;
-   if(amend.approval){const a=amend.approval;next.approvalId=a.id;next.approval={reference:a.reference,approvedBy:a.approvedBy,approvedOn:a.approvedOn,membershipType:a.membershipType};}
+   if(amend.approval){const a=amend.approval;next.approvalId=a.id;next.approval=f4MemberPreRegistration_().snapshot(a);}
    next.review={state:'RESOLVED',at:now,actorUid:r.ownerUid,note:p.reason};
   }else if(reviewing||resolving)next.review={state:p.action==='ACKNOWLEDGE'?'ACKNOWLEDGED':resolving?'RESOLVED':'CORRECTION_REQUESTED',at:now,actorUid:r.ownerUid,note:p.reason};
   else if(p.action==='CANCEL')next.status='CANCELLED';
