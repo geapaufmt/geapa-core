@@ -24,7 +24,7 @@ function f4MemberEnrollmentPortal_({config,identity,clock=Date.now}){
    if(v.status==='INVITED')return {ok:true,data:{enrollmentId:v.id,revision:v.revision,status:v.status,registration:v.registration,membershipType:v.approval.membershipType,entrySemester:core_parseEntrySemesterFromRga_(v.registration.rga),expiresAt:v.expiresAt}};
    const c=D.catalog(get,now),today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),complete=E.completeness(get,v.profile,today),ids=s.policy.courseIds;
    N(Array.isArray(ids)&&ids.length<=100&&ids.every(C.id),'SCHEMA_INVALID');
-   const courses=ids.map(id=>get('memberCourseCatalog/'+id)).filter(v=>v?.active===true).map(v=>({id:v.id,name:v.name}));
+   const courses=ids.map(id=>get('memberCourseCatalog/'+id)).filter(v=>v?.active===true).map(v=>({id:v.id,name:v.name,institution:v.institution||null,campus:v.campus||null,level:v.level||null}));
    const axisIds=s.policy.interestAxisIds||[];N(Array.isArray(axisIds)&&axisIds.length<=100&&axisIds.every(C.id),'SCHEMA_INVALID');
    const interestAxes=axisIds.map(id=>get('presentationPolicyReferences/'+id)).filter(v=>v?.active===true&&v.approved===true).map(v=>({id:v.id,name:v.label||v.name||v.id}));
    // Identity, CPF and draft data are returned only to the verified invitee.
