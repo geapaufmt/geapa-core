@@ -17,12 +17,22 @@ function f4MemberEnrollmentAccess_(){
   const policy=get('memberOperationalConfig/registration');N(policy?.enabled===true&&policy.stagedEnrollment===true&&C.rev(policy.revision)&&policy.revision>0,'ACCESS_REVOKED');const approvalRef=enrollment.approvalId||f4MemberPreRegistration_().key(enrollment.registration),approval=f4MemberPreRegistration_().approval(get,approvalRef,enrollment.registration,now);N(approval.reference===enrollment.approval.reference&&approval.membershipType===enrollment.approval.membershipType,'ACCESS_REVOKED');
   return {session,enrollment,head,control,policy,approval};
  }
+ function account(personId,uid){
+  const rows=f4MemberBindingAdmin_({config:f4ExecutionConfig_(),identity:{uid}}).bindings(personId);
+  N(rows.length===0||rows.length===1&&rows[0].active===true&&rows[0].uid===uid,'BINDING_CONFLICT');
+ }
  function establish(tx,verified,now,config){
   environment(config);C.exact(verified,['uid','expiresAt','projectId','email','emailVerified']);N(verified.projectId===config.projectId&&verified.emailVerified===true&&C.id(verified.uid)&&typeof verified.email==='string'&&Number.isSafeInteger(verified.expiresAt)&&now<verified.expiresAt,'AUTH_BINDING_INVALID');
   const get=p=>tx.get(p).data(),email=verified.email.trim().toLowerCase(),emailClaimId=C.hash({kind:'EMAIL',value:email}),claim=get('memberIdentifierClaims/'+emailClaimId);N(claim?.active===true&&C.id(claim.idPessoa),'AUTH_BINDING_INVALID');
   const index=get('memberEnrollmentIndexes/'+claim.idPessoa);N(index?.schemaVersion==='member-enrollment-index-v1'&&index.personId===claim.idPessoa&&C.op(index.activeEnrollmentId),'ACCESS_REVOKED');
   const enrollment=E.validate(get('memberEnrollments/'+index.activeEnrollmentId));N(['INVITED','ACCEPTED'].includes(enrollment.status)&&enrollment.invitedAt!==null,'ACCESS_REVOKED');E.identity(enrollment,verified,now,config.projectId);
   const path='memberEnrollmentSessions/'+verified.uid,old=get(path);N(!old||old.schemaVersion==='member-enrollment-session-v1'&&old.uid===verified.uid&&old.personId===claim.idPessoa,'AUTH_BINDING_INVALID');
+  account(enrollment.personId,verified.uid);
+  if(old?.enrollmentId===enrollment.id&&old.emailClaimId===emailClaimId&&old.projectId===config.projectId&&old.environment===config.environment&&
+   now<C.ms(old.expiresAt)&&C.ms(old.expiresAt)<=Math.min(verified.expiresAt,enrollment.expiresAt)){
+   source(get,verified.uid,now);
+   return {personId:enrollment.personId,enrollmentId:enrollment.id,revision:enrollment.revision,expiresAt:C.ms(old.expiresAt)};
+  }
   const data={schemaVersion:'member-enrollment-session-v1',uid:verified.uid,personId:claim.idPessoa,enrollmentId:enrollment.id,revision:(old?.revision||0)+1,emailClaimId,projectId:config.projectId,environment:config.environment,issuedAt:T(now),expiresAt:T(Math.min(verified.expiresAt,enrollment.expiresAt))};
   source(p=>p===path?data:get(p),verified.uid,now);
   // Refreshing login never extends an already prepared proof; revision makes
@@ -54,5 +64,5 @@ function f4MemberEnrollmentAccess_(){
   // never used to authorize execution: claim/finalize still recheck the source.
   return {proof};
  }
- return {cap,schema,source,establish,request,authorize,recheck,statusAccess};
+ return {cap,schema,source,account,establish,request,authorize,recheck,statusAccess};
 }

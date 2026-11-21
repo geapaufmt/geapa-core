@@ -12,9 +12,16 @@ function database(docs){
  const doc=path=>({path});
  const snap=ref=>({exists:!!docs[ref.path],ref,data:()=>docs[ref.path],updateTime:Timestamp.fromMillis(version)});
  const getAll=async(...refs)=>refs.map(snap);
- return {projectId:DEMO,doc,getAll,async runTransaction(fn){
+ function collection(name){
+  assert.equal(name,'memberAuthBindings');
+  let person;
+  return {where(field,op,value){assert.equal(field,'idPessoa');assert.equal(op,'==');person=value;return this;},
+   orderBy(){return this;},limit(n){assert.equal(n,2);return this;},
+   async get(){const rows=Object.keys(docs).filter(p=>p.startsWith(name+'/')&&docs[p].idPessoa===person).sort().slice(0,2).map(p=>snap(doc(p)));return {docs:rows,size:rows.length,empty:!rows.length};}};
+ }
+ return {projectId:DEMO,doc,getAll,collection,async runTransaction(fn){
   const writes=[];
-  const result=await fn({getAll,get:async ref=>snap(ref),set:(r,v)=>writes.push([r.path,v]),update:(r,v)=>writes.push([r.path,v]),delete:r=>writes.push([r.path,null])});
+  const result=await fn({getAll,get:async ref=>ref.get?ref.get():snap(ref),set:(r,v)=>writes.push([r.path,v]),update:(r,v)=>writes.push([r.path,v]),delete:r=>writes.push([r.path,null])});
   for(const [p,v] of writes){if(v)docs[p]=v;else delete docs[p];}version++;return result;
  }};
 }
@@ -32,7 +39,11 @@ async function fixture(category,t){
  const email='convite@example.invalid',rga='202610345';
  const hash=JSON.parse(createDomain(()=>{}).run('(v)=>f4Core_().hash(v)',{email,rga}));
  const ref=category==='MEMBRO_EFETIVO'?'FAST_PREVIOUS_APPROVAL':'AP_'+hash.slice(0,40),approval=Object.values(docs).find(v=>v.schemaVersion==='member-admission-approval-v1');
- docs['memberAdmissionApprovals/'+ref]={...approval,id:ref,membershipType:category,registrationDigest:hash};
+ docs['memberAdmissionApprovals/'+ref]={...approval,id:ref,membershipType:category,registrationDigest:hash,courseId:'AGRONOMIA_UFMT_SINOP'};
+ if(category==='MEMBRO_EFETIVO'){
+  docs['memberOperationalConfig/registration'].recognizePastAdmission=true;
+  docs['memberAdmissionApprovals/'+ref].recognizedEffects={on:approval.approvedOn,reference:'SYN_PAST_EFFECT',approvedBy:approval.approvedBy};
+ }
  const control={schemaVersion:'member-executor-control-v1',projectId:PROJECT,revision:1,enabled:true,actorUids:['CF_ADMIN'],scopeIds:['SYN_ADMISSION'],startsAt:now-1000,expiresAt:now+3600000,browserEnabled:true,appCheck:{mode:'REQUIRED',appIds:['SYN_APP']}};
  docs['memberExecutorControl/current']=control;
  docs['memberExecutorScopes/SYN_ADMISSION']={schemaVersion:'member-executor-scope-v1',id:'SYN_ADMISSION',projectId:PROJECT,synthetic:true,revision:1,personIds:['PES-000001'],approvalRefs:[ref]};
@@ -72,6 +83,7 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
   await assert.rejects(rh(route,{...registration,referenciaAprovacao:'OUTRA'}),/ADMISSION_APPROVAL_REQUIRED/);
   const registered=await rh(route,registration),id=registered.request.operationId,person=registered.request.target.personId;
   const enrollment=()=>docs['memberEnrollments/'+id];
+  if(type==='MEMBRO_EFETIVO')assert.equal(enrollment().approval.recognizedEffects.reference,'SYN_PAST_EFFECT');
   assert(!docs['memberLinks/V_'+id]);assert(!docs['memberAuthBindings/SYN_INVITEE']);
   await assert.rejects(rh(route,registration),/OPERATION_CONFLICT/);
   const manage=(action,reason)=>rh('/admin/ingressos-membros/convite',{enrollmentId:id,revision:enrollment().revision,action,reason});
@@ -98,6 +110,12 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
   const open=(opts)=>call('SYN_INVITEE','memberEnrollmentOpen',{},opts);
   await assert.rejects(open({claims:{email_verified:false}}),/AUTH_BINDING_INVALID/);
   await assert.rejects(open({claims:{email:'diferente@example.invalid'}}),/AUTH_BINDING_INVALID/);
+  if(category==='DECLINE'){
+   const binding={...docs['memberAuthBindings/CF_ADMIN'],uid:'OTHER_SYNTHETIC',id:'OTHER_SYNTHETIC',idPessoa:person};
+   await set('memberAuthBindings/OTHER_SYNTHETIC',binding);
+   await assert.rejects(open(),/BINDING_CONFLICT/);
+   await set('memberAuthBindings/OTHER_SYNTHETIC',{...binding,idPessoa:'OTHER_SYNTHETIC_PERSON'});
+  }
   const view=(await open()).result.data;
   assert.equal(view.membershipType,type);assert.equal(view.entrySemester.semester,1);assert(!view.profile);
   const candidate=(action,payload={})=>submit('SYN_INVITEE','memberEnrollmentPrepare',{revision:enrollment().revision,action,payload});
@@ -111,11 +129,15 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
   await candidate('ACKNOWLEDGE',{accepted:true,termVersion:terms.normTermVersion,documents:terms.norms.map(({id,version})=>({id,version}))});
   await candidate('IMAGE',{choice:'DECLINED',termVersion:terms.imageTerm.version});
   const prepared=await call('SYN_INVITEE','memberEnrollmentPrepare',{operationId:op(),revision:enrollment().revision,action:'COMPLETE',payload:{}});
+  await open(); // Reopening a valid invitation preserves the prepared proof.
   await assert.rejects(call('SYN_INVITEE','memberExecute',prepared.request,{hooks:{afterCommit(){throw Error('LOST_RESPONSE');}}}),/LOST_RESPONSE/);
   const receipt=await call('SYN_INVITEE','memberRecover',prepared.key);
   assert.equal(receipt.dto.receipt.state,'COMPLETED');assert.equal(enrollment().status,'COMPLETED');
   assert.equal(docs['portalUsers/SYN_INVITEE'].idPessoa,person);assert.equal(docs['memberCurrentStates/'+person].state,type);
   const link=docs['memberLinks/V_'+id];assert.equal(link.type,type);assert.equal(docs['memberAuthBindings/SYN_INVITEE'].idPessoa,person);
+  const localDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Cuiaba',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(enrollment().completedAt));
+  assert.equal(link.startDate,localDay);
+  assert(enrollment().createdAt<=enrollment().respondedAt&&enrollment().respondedAt<=enrollment().completedAt);
   assert.equal(Object.values(docs).filter(v=>v.schemaVersion==='m1-memberLinks-v1'&&v.idPessoa===person).length,1);
   if(type==='MEMBRO_INGRESSANTE'){
    const input={personId:person,recognizedOn:link.startDate,reference:''};

@@ -13,7 +13,16 @@ function f4MemberPreRegistration_(){
   const d=get('memberAdmissionApprovals/'+ref);N(d,'ADMISSION_APPROVAL_REQUIRED');N(d?.schemaVersion==='member-admission-approval-v1'&&d.id===ref&&d.active===true&&C.rev(d.revision)&&d.revision>0,'ACCESS_REVOKED');
   N(d.registrationDigest===C.hash({email:registration.email,rga:registration.rga})&&C.id(d.reference)&&C.id(d.approvedBy),'AUTH_BINDING_INVALID');
   C.civilStart(d.approvedOn);N(C.civilStart(d.approvedOn)<=now&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(d.membershipType),'COMMAND_PAYLOAD_INVALID');
+  if(Object.hasOwn(d,'recognizedEffects')){
+   const effects=d.recognizedEffects;
+   C.exact(effects,['on','reference','approvedBy']);
+   N(C.id(effects.reference)&&C.id(effects.approvedBy)&&C.civilStart(effects.on)<=now&&
+    get('memberOperationalConfig/registration')?.recognizePastAdmission===true,'ADMISSION_APPROVAL_REQUIRED');
+  }
   return d;
+ }
+ function snapshot(a){
+  return {reference:a.reference,approvedBy:a.approvedBy,approvedOn:a.approvedOn,membershipType:a.membershipType,...(a.recognizedEffects?{recognizedEffects:a.recognizedEffects}:{})};
  }
  function key(registration){return 'AP_'+C.hash({email:registration.email,rga:registration.rga}).slice(0,40);}
  function locate(get,registration,reference,now){
@@ -39,10 +48,11 @@ function f4MemberPreRegistration_(){
   for(const item of p.identifiers){N(!get('memberIdentifiers/'+item.id)&&resolution.identifiers.some(v=>v.kind===item.kind&&v.value===item.value),'COMMAND_PAYLOAD_INVALID');add('memberIdentifiers/'+item.id,entity('memberIdentifiers',item.id,{idPessoa:id,kind:item.kind,value:item.value,active:true}));}
   for(const item of resolution.identifiers){const claim=get('memberIdentifierClaims/'+C.hash(item));N(claim?.active&&claim.idPessoa===id||p.identifiers.filter(v=>v.kind===item.kind&&v.value===item.value).length===1,'COMMAND_PAYLOAD_INVALID');}
   const indexPath='memberEnrollmentIndexes/'+id,index=get(indexPath);N(!index||index.schemaVersion==='member-enrollment-index-v1'&&index.personId===id&&index.activeEnrollmentId===null,'OPERATION_CONFLICT');
-  const enrollment=E.create({id:r.operationId,personId:id,registration,approval:{reference:a.reference,approvedBy:a.approvedBy,approvedOn:a.approvedOn,membershipType:a.membershipType},actorUid:r.ownerUid,now,expiresAt:now+policy.invitationLifetimeHours*3600000});
+  const enrollment=E.create({id:r.operationId,personId:id,registration,approval:snapshot(a),actorUid:r.ownerUid,now,expiresAt:now+policy.invitationLifetimeHours*3600000});
   if(a.id!==key(registration))enrollment.approvalId=a.id;
   enrollment.profile=E.profile(p.profile,today);
-  if(!enrollment.profile.courseId&&policy.courseIds?.length===1)enrollment.profile.courseId=policy.courseIds[0];
+  const knownCourse=a.courseId||get('memberPrivateProfiles/'+id)?.courseId;
+  if(knownCourse&&(!enrollment.profile.courseId||a.courseId))enrollment.profile.courseId=knownCourse;
   if(enrollment.profile.courseId)E.eligibleCourse(get,policy,enrollment.profile.courseId);N(!get('memberEnrollments/'+r.operationId),'OPERATION_CONFLICT');add('memberEnrollments/'+r.operationId,enrollment);
   add(indexPath,{schemaVersion:'member-enrollment-index-v1',personId:id,revision:(index?.revision||0)+1,activeEnrollmentId:r.operationId});
   const overlay=Object.fromEntries(changes.map(v=>[v.path,v.data])),paths=[...new Set([...(h?.paths||[]),...changes.filter(v=>/^member(Identities|Identifiers)\//.test(v.path)).map(v=>v.path)])].sort();
@@ -57,5 +67,5 @@ function f4MemberPreRegistration_(){
   }else{C.exact(d,['schemaVersion','personId','revision','activeEnrollmentId']);N(c.path==='memberEnrollmentIndexes/'+id&&d.schemaVersion==='member-enrollment-index-v1'&&(d.activeEnrollmentId===null||C.op(d.activeEnrollmentId)),'COMMAND_PAYLOAD_INVALID');}
   return true;
  }
- return {validate,approval,key,locate,proposal,change};
+ return {validate,approval,key,locate,snapshot,proposal,change};
 }
