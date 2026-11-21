@@ -10,3 +10,14 @@ test('no default discipline rule and no cross-cycle mutation',()=>{a.throws(()=>
 test('formal decision, communication order, acknowledgment and chronology are mandatory',()=>{a.throws(()=>advance(null,request('FORMAL_WARNING')),/DOMAIN_STATE_INVALID/);let c=advance(null,request('INFORMAL_WARNING'));a.throws(()=>advance(c,request('COMMUNICATION')),/DOMAIN_STATE_INVALID/);a.throws(()=>advance(c,{...request('FORMAL_WARNING'),payload:{...request('FORMAL_WARNING').payload,documentReference:''}}),/DOMAIN_STATE_INVALID/);a.throws(()=>advance(c,request('FOLLOW_UP','SYN_2026','2026-12-01')),/COMMAND_PAYLOAD_INVALID/);a.throws(()=>advance(c,request('FOLLOW_UP','SYN_2026','2026-10-31')),/DOMAIN_STATE_INVALID/);a.throws(()=>advance(c,{...request('FOLLOW_UP'),payload:{...request('FOLLOW_UP').payload,confirmed:false}}),/COMMAND_PAYLOAD_INVALID/);});
 test('closing retains history and disallows further ordinary edits',()=>{const c=advance(advance(null,request('FOLLOW_UP')),request('CLOSE'));a.equal(c.state,'CLOSED');a.equal(c.history.length,2);a.throws(()=>advance(c,request('FOLLOW_UP')),/DOMAIN_STATE_INVALID/);});
 test('dismissal action stays unavailable during manifestation and requires separate capability',()=>{const c={state:'OPEN',history:[{action:'INFORMAL_WARNING'},{action:'FORMAL_WARNING'},{action:'COMMUNICATION'}],manifestationEndsAtExclusive:'2026-11-16T04:00:00Z'};const available=(v,can)=>JSON.parse(domain.run('x=>f4MemberAttendanceCases_().allowedActions(x.c,x.can,x.now)',{c:v,can,now}));a(!available(c,true).includes('DISMISS'));c.manifestationEndsAtExclusive='2026-11-14T04:00:00Z';a(!available(c,false).includes('DISMISS'));a(available(c,true).includes('DISMISS'));});
+
+test('RH read contract describes documentary requirements enforced by the command',()=>{
+ const requirements=JSON.parse(domain.run("()=>{const w=f4MemberAttendanceCases_();return Object.fromEntries([...w.actions,'DISMISS'].map(a=>[a,w.requiresDocument(a)]));}",{}));
+ a.deepEqual(requirements,{INFORMAL_WARNING:false,FORMAL_WARNING:true,COMMUNICATION:true,FOLLOW_UP:false,MANIFESTATION:false,CLOSE:false,DISMISS:true});
+ const req=request('FOLLOW_UP');req.payload.documentReference='';a.equal(advance(null,req).state,'OPEN');
+ let c=advance(null,request('INFORMAL_WARNING'));
+ for(const action of ['FORMAL_WARNING','COMMUNICATION']){
+  const req=request(action);req.payload.documentReference=' ';a.throws(()=>advance(c,req));
+  c=advance(c,request(action));
+ }
+});
