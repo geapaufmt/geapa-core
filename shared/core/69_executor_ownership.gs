@@ -77,7 +77,7 @@ function f4ExecutorOwnership_(){
   if(!f4ActFlowExecutor_().supports(r)&&!f4MemberExecutor_().supports(r))return [];
   const previous=get('commandExecutorOwners/'+r.operationId),routeId=previous?.routeId||(selected(r)?ID:f4MemberExecutor_().select(get,r,config)||f4ActFlowExecutor_().select(get,r,config)||f4ActivityExecutorRoutes_().select(get,r,config));if(!routeId){N(!f4ExecutionEnvironment_().production,'ACCESS_REVOKED');return [];}const routes=routeId.startsWith('MEMBERS_')?f4MemberExecutor_():routeId.startsWith('ACT_FLOW_')?f4ActFlowExecutor_():f4ActivityExecutorRoutes_();
   const v=route(get,config,routeId),path='commandExecutorOwners/'+r.operationId,old=get(path);
-  N(v.state==='ACTIVE'&&f4ExecutorWindow_().live(v,now)&&v.actorUids.includes(r.ownerUid)&&v.executor===executor(),'ACCESS_REVOKED');if(routeId===ID)fields(get,r);else routes.fields(get,r,v);
+  N(v.state==='ACTIVE'&&f4ExecutorWindow_().live(v,now)&&(v.actorUids.includes(r.ownerUid)||routeId?.startsWith('MEMBERS_')&&routes.invitationActor(get,r,r.ownerUid,v))&&v.executor===executor(),'ACCESS_REVOKED');if(routeId===ID)fields(get,r);else routes.fields(get,r,v);
   if(old){N(old.executor===executor()&&old.epoch===v.epoch&&old.digest===r.digest&&old.ownerUid===r.ownerUid&&old.ticketId===r.ticketId&&(v.operationIds.includes(r.operationId)||f4ServiceAvailability_().permanent(v)&&f4ExecutorBudget_().settled(get,r.operationId,v,now)),'OPERATION_CONFLICT');return [];}
   const budget=f4ExecutorBudget_().admit(get,v,r.operationId,now);
   const scoped=routeId.startsWith('ACTIVITY_REAL_')?f4ActivityRealExecutor_().admission(get,r,v,now):[];
@@ -92,7 +92,7 @@ function f4ExecutorOwnership_(){
   N(o?.schemaVersion==='geapa-command-executor-owner-v1'&&o.executor===executor()&&o.ownerUid===uid&&o.digest===key.digest&&o.ticketId===r.ticketId&&o.activityId===(routes.resource?routes.resource(r):r.payload.activityRef.id)&&o.commandType===r.commandType&&key.commandType===r.commandType,'ACCESS_REVOKED');
   // A terminal receipt remains pinned to its executor after rollback. It cannot execute again.
   const l=get('commandLedger/'+key.operationId);if(l)return;
-  N(['ACTIVE','DRAINING'].includes(v.state)&&v.epoch===o.epoch&&v.executor===o.executor&&v.operationIds.includes(key.operationId)&&v.actorUids.includes(uid)&&f4ExecutorWindow_().live(v,now),'ACCESS_REVOKED');if(routeId===ID)fields(get,r);else routes.fields(get,r,v);
+  N(['ACTIVE','DRAINING'].includes(v.state)&&v.epoch===o.epoch&&v.executor===o.executor&&v.operationIds.includes(key.operationId)&&(v.actorUids.includes(uid)||routeId?.startsWith('MEMBERS_')&&routes.invitationActor(get,r,uid,v))&&f4ExecutorWindow_().live(v,now),'ACCESS_REVOKED');if(routeId===ID)fields(get,r);else routes.fields(get,r,v);
  }
  // Operator uses a CAS transaction: draining first, then settle every admission.
  function switchPlan(get,config,expectedRevision,nextExecutor,now,routeId){
