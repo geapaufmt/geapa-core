@@ -28,10 +28,17 @@ function f4MemberOperationalScope_(get,q,limits,actorPerson,command,now){
   return true;
  }
  if(q.capability==='MEMBERS_PROFILE_CORRECT'&&scopes.includes('PROFILE_CORRECTION')){N(limits.allowedPersons.includes(t.personId)||!f4ExecutionEnvironment_().production&&limits.allowedPersons.length===0);N(!limits.ownPerson&&t.scopeKey==='ADMINISTRACAO'&&limits.allowedTargetScopes.includes(t.scopeKey)&&t.purpose==='PROFILE_CORRECTION'&&t.resources.every(p=>p==='memberIdentities/'+t.personId||p==='memberPrivateProfiles/'+t.personId||p==='memberProfileCorrectionIndexes/'+t.personId||p==='memberProfileCorrections/'+t.caseId||p.startsWith('memberIdentifiers/')&&get(p)?.idPessoa===t.personId||/^memberIdentifiers\/I_[a-f0-9]{32}$/.test(p)&&!get(p)));return true;}
+ if(scopes.includes('ENROLLMENT_SUPERVISION')&&q.capability==='MEMBERS_INGRESS_EXECUTE'&&
+    command?.payload?.operation==='MANAGE_INVITATION'&&['ACKNOWLEDGE','REQUEST_CORRECTION'].includes(command.payload.action)){
+  N(q.kind==='ROLE'&&!limits.ownPerson&&limits.allowedTargetScopes.includes('ADMINISTRACAO')&&t.scopeKey==='ADMINISTRACAO'&&
+    t.resources.length===1&&t.resources[0]==='memberEnrollments/'+command.payload.enrollmentId);
+  return true;
+ }
+ if(scopes.includes('ENROLLMENT_SUPERVISION')&&!scopes.includes('ADMINISTRATIVE_INGRESS')&&q.capability==='MEMBERS_INGRESS_EXECUTE')N(false);
  if(command?.commandType==='members.ingress.execute'&&q.capability==='MEMBERS_INGRESS_EXECUTE'&&scopes.includes('ADMINISTRATIVE_INGRESS')){
   N(!limits.ownPerson&&t.scopeKey==='ADMINISTRACAO'&&limits.allowedTargetScopes.includes(t.scopeKey));
   const body=f4MemberActContent_().act(get,command,now);
-  N(body.facts.schemaVersion==='member-administrative-ingress-v1'&&command.payload.operation==='RECORD_INGRESS'||body.facts.schemaVersion==='member-preregistration-v1'&&command.payload.operation==='PRE_REGISTER'||body.facts.schemaVersion==='member-invitation-action-v1'&&command.payload.operation==='MANAGE_INVITATION');
+  N(body.facts.schemaVersion==='member-effectivation-v1'&&command.payload.operation==='RECORD_EFFECTIVATION'||body.facts.schemaVersion==='member-administrative-ingress-v1'&&command.payload.operation==='RECORD_INGRESS'||body.facts.schemaVersion==='member-preregistration-v1'&&command.payload.operation==='PRE_REGISTER'||body.facts.schemaVersion==='member-invitation-action-v1'&&command.payload.operation==='MANAGE_INVITATION');
   // authorizeCommand already compared resources with the exact prospective
   // canonical changes; no arbitrary path prefix becomes a write capability.
   N(t.resources.every(p=>/^member(Identities|Identifiers|Links|Events|Enrollments|EnrollmentIndexes)\/[A-Za-z0-9_-]{1,48}$/.test(p)));

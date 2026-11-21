@@ -44,6 +44,11 @@ function f4MemberEnrollmentContract_(){
   }
   return out;
  }
+ function eligibleCourse(get,policy,id){
+  const course=get('memberCourseCatalog/'+id);
+  N(Array.isArray(policy?.courseIds)&&policy.courseIds.includes(id)&&course?.active===true&&course.id===id&&course.schemaVersion==='member-course-v1'&&C.rev(course.revision)&&course.revision>0,'COMMAND_PAYLOAD_INVALID');
+  return course;
+ }
  function completeness(get,p,today){
   const v=profile(p,today),missing=required.filter(k=>!v[k]);
   if(v.countryCode==='BR'&&!v.stateCode)missing.push('stateCode');
@@ -60,18 +65,27 @@ function f4MemberEnrollmentContract_(){
   N(invite.uid===null||invite.uid===verified.uid,'AUTH_BINDING_INVALID');
   N(invite.status!=='CANCELLED'&&now<invite.expiresAt,'ACCESS_REVOKED');return verified.uid;
  }
+ function validateApprovalShape(a,now){
+  C.exact(a,['reference','approvedBy','approvedOn','membershipType',...(Object.hasOwn(a,'recognizedEffects')?['recognizedEffects']:[])]);
+  if(a.recognizedEffects){
+   const e=a.recognizedEffects;C.exact(e,['on','reference','approvedBy']);
+   N(C.id(e.reference)&&C.id(e.approvedBy)&&C.civilStart(e.on)<=now,'SCHEMA_INVALID');
+  }
+ }
  function create({id,personId,registration,approval,actorUid,now,expiresAt}){
   N(C.op(id)&&C.id(personId)&&C.id(actorUid)&&Number.isSafeInteger(now)&&Number.isSafeInteger(expiresAt)&&expiresAt>now,'COMMAND_PAYLOAD_INVALID');
-  C.exact(approval,['reference','approvedBy','approvedOn','membershipType']);
+  validateApprovalShape(approval,now);
   N(C.id(approval.reference)&&C.id(approval.approvedBy)&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(approval.membershipType),'COMMAND_PAYLOAD_INVALID');
   C.civilStart(approval.approvedOn);N(C.civilStart(approval.approvedOn)<=now,'COMMAND_PAYLOAD_INVALID');
   return {schemaVersion:'member-enrollment-v1',id,personId,revision:1,registration:quick(registration),approval:{...approval},createdBy:actorUid,createdAt:now,updatedAt:now,expiresAt,uid:null,status:'PRE_REGISTERED',invitedAt:null,respondedAt:null,completedAt:null,profile:{},normAcknowledgement:null,imageManifestation:null};
  }
  function validate(v){
-  C.exact(v,['schemaVersion','id','personId','revision','registration','approval','createdBy','createdAt','updatedAt','expiresAt','uid','status','invitedAt','respondedAt','completedAt','profile','normAcknowledgement','imageManifestation']);
+  C.exact(v,['schemaVersion','id','personId','revision','registration','approval','createdBy','createdAt','updatedAt','expiresAt','uid','status','invitedAt','respondedAt','completedAt','profile','normAcknowledgement','imageManifestation',...(Object.hasOwn(v,'review')?['review']:[]),...(Object.hasOwn(v,'approvalId')?['approvalId']:[])]);
+  if(Object.hasOwn(v,'approvalId'))N(C.id(v.approvalId),'SCHEMA_INVALID');
+  if(v.review){C.exact(v.review,['state','at','actorUid','note']);N(['ACKNOWLEDGED','CORRECTION_REQUESTED','RESOLVED'].includes(v.review.state)&&C.id(v.review.actorUid)&&Number.isSafeInteger(v.review.at)&&v.review.at>=v.createdAt&&v.review.at<=v.updatedAt,'SCHEMA_INVALID');text(v.review.note,500,false);}
   N(v.schemaVersion==='member-enrollment-v1'&&C.op(v.id)&&C.id(v.personId)&&C.id(v.createdBy)&&C.rev(v.revision)&&v.revision>0&&['PRE_REGISTERED','INVITED','ACCEPTED','DECLINED','CANCELLED','COMPLETED'].includes(v.status),'SCHEMA_INVALID');
   N(K.equal(quick(v.registration),v.registration)&&Number.isSafeInteger(v.createdAt)&&Number.isSafeInteger(v.updatedAt)&&v.createdAt<=v.updatedAt&&Number.isSafeInteger(v.expiresAt)&&v.expiresAt>v.createdAt,'SCHEMA_INVALID');
-  C.exact(v.approval,['reference','approvedBy','approvedOn','membershipType']);N(C.id(v.approval.reference)&&C.id(v.approval.approvedBy)&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(v.approval.membershipType)&&C.civilStart(v.approval.approvedOn)<=v.createdAt,'SCHEMA_INVALID');
+  validateApprovalShape(v.approval,v.createdAt);N(C.id(v.approval.reference)&&C.id(v.approval.approvedBy)&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(v.approval.membershipType)&&C.civilStart(v.approval.approvedOn)<=v.createdAt,'SCHEMA_INVALID');
   N(v.uid===null||C.id(v.uid),'SCHEMA_INVALID');for(const k of ['invitedAt','respondedAt','completedAt'])N(v[k]===null||Number.isSafeInteger(v[k])&&v.createdAt<=v[k]&&v[k]<=v.updatedAt,'SCHEMA_INVALID');
   N(!['ACCEPTED','DECLINED','COMPLETED'].includes(v.status)||v.uid!==null&&v.respondedAt!==null&&v.invitedAt!==null,'SCHEMA_INVALID');
   N(v.status!=='PRE_REGISTERED'||v.invitedAt===null&&v.uid===null&&v.respondedAt===null&&v.completedAt===null,'SCHEMA_INVALID');
@@ -115,5 +129,5 @@ function f4MemberEnrollmentContract_(){
   // commit them together with the existing ingress/binding kernel and receipt.
   return {personId:old.personId,uid,enrollmentId:old.id,membershipType:old.approval.membershipType,effectiveDate:today,completedAt:now,courseId:state.course.id,courseRevision:state.course.revision,profile:state.profile,normAcknowledgement:receipt};
  }
- return {quick,cpf,profile,completeness,identity,create,validate,response,save,normReceipt,imageReceipt,ready,acknowledgement};
+ return {quick,cpf,profile,eligibleCourse,completeness,identity,create,validate,response,save,normReceipt,imageReceipt,ready,acknowledgement};
 }

@@ -13,7 +13,7 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
   function scope(capability,commandScope){
    if(technical)return {source:technical,kind:'DEV_ADMIN',expiresAt:Math.min(identity.expiresAt,C.ms(technical.expiresAt))};
    for(const p of policies){K.policy(p);if(!p.active||!p.capabilities.includes(capability)||(commandScope&&!p.targets.commandScopes?.includes(commandScope))||p.proofKind!=='ROLE')continue;
-    if(commandScope&&(p.targets.ownPerson||!p.targets.allowedTargetScopes.includes(commandScope==='ADMINISTRATIVE_INGRESS'?'ADMINISTRACAO':'RECURSOS_HUMANOS')))continue;
+    if(commandScope&&(p.targets.ownPerson||!p.targets.allowedTargetScopes.includes(['ADMINISTRATIVE_INGRESS','ENROLLMENT_SUPERVISION'].includes(commandScope)?'ADMINISTRACAO':'RECURSOS_HUMANOS')))continue;
     if(!(C.ms(p.issuedAt)<=now&&now<C.ms(p.expiresAt)))continue;
     const fn=actor.derived.currentFunctions.find(v=>v.roleKey===p.actorSelector.roleKey&&v.group===p.actorSelector.group&&v.scopeKey===p.actorSelector.actorScope);
     if(fn)return {source:p,kind:'ROLE',functionId:fn.idVigencia,actorScope:fn.scopeKey,expiresAt:Math.min(identity.expiresAt,C.ms(p.expiresAt),C.ms(actor.state.validUntil))};
@@ -21,7 +21,8 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
   }
   const reviewExit=settings.commands.includes('members.voluntary.review')&&scope('MEMBERS_VOLUNTARY_EXIT_EXECUTE','VOLUNTARY_REVIEW'),reviewSuspension=settings.commands.includes('members.voluntary.review')&&scope('MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE','VOLUNTARY_REVIEW');
   const own=['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE'].includes(actor.state.state)&&!actor.state.blocked;
-  return {actor,technical,settings,own,directory:scope('MEMBERS_CASE_READ',null),ingress:settings.commands.includes('members.ingress.execute')&&scope('MEMBERS_INGRESS_EXECUTE','ADMINISTRATIVE_INGRESS'),review:reviewExit||reviewSuspension,reviewExit,reviewSuspension};
+  const supervision=settings.commands.includes('members.ingress.execute')&&f4MemberInvitation_().reviewer(actor,get('memberOperationalConfig/registration'))&&scope('MEMBERS_INGRESS_EXECUTE','ENROLLMENT_SUPERVISION');
+  return {actor,technical,settings,own,supervision,directory:scope('MEMBERS_CASE_READ',null),ingress:settings.commands.includes('members.ingress.execute')&&scope('MEMBERS_INGRESS_EXECUTE','ADMINISTRATIVE_INGRESS'),review:reviewExit||reviewSuspension,reviewExit,reviewSuspension};
  }
  function item(v){W.validate(v);return {idSolicitacao:v.id,revision:v.revision,tipo:v.modality==='SUSPENSAO_TEMPORARIA'?'SUSPENSAO_VOLUNTARIA':'DESLIGAMENTO_VOLUNTARIO',modalidade:v.modality,status:v.status,idSemestre:v.semesterId,dataSolicitacao:iso(v.createdAt),mensagemDiretoria:v.history.filter(h=>!['SUBMIT','CANCEL_SELF','COMPLEMENT'].includes(h.action)).at(-1)?.note||'',podeCancelar:!W.terminal.includes(v.status)&&!['HOMOLOGADO_AGUARDANDO_INICIO','SUSPENSAO_ATIVA'].includes(v.status),podeComplementar:v.status==='AGUARDANDO_COMPLEMENTO'};}
  function tracking(params){
@@ -72,7 +73,7 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
   let data,expires=f4ServiceAvailability_().bound(gate,Math.min(status.validUntil,identity.expiresAt));
   if(view==='members_self')data=selfData(get,a,now);
   else if(view==='members_catalog')data=catalog(get);
-  else {N(view==='members_context','COMMAND_PAYLOAD_INVALID');data={canRegister:!!a.ingress,canReview:!!a.review,canReadDirectory:!!a.directory,canReadPeople:false,canReviewCorrections:false};try{const people=f4PeopleDirectory_({config,identity,clock}).access(get,now);data.canReadPeople=true;data.canReadDirectory=true;expires=Math.min(expires,people.expiresAt);}catch(e){if(!['M13_AUTHZ_DENIED','ACCESS_REVOKED','SCOPE_TOO_LARGE'].includes(e.code||e.message))throw e;}try{const correction=f4MemberProfileCorrectionReader_({config,identity,clock}).access(get,now,false);data.canReviewCorrections=correction.mask.length>0;expires=Math.min(expires,correction.expires);}catch{};for(const v of [a.ingress,a.review,a.directory])if(v)expires=Math.min(expires,v.expiresAt);}
+  else {N(view==='members_context','COMMAND_PAYLOAD_INVALID');data={canRegister:!!a.ingress,canSuperviseEnrollment:!!a.supervision,canReview:!!a.review,canReadDirectory:!!a.directory,canReadPeople:false,canReviewCorrections:false};try{const people=f4PeopleDirectory_({config,identity,clock}).access(get,now);data.canReadPeople=true;data.canReadDirectory=true;expires=Math.min(expires,people.expiresAt);}catch(e){if(!['M13_AUTHZ_DENIED','ACCESS_REVOKED','SCOPE_TOO_LARGE'].includes(e.code||e.message))throw e;}try{const correction=f4MemberProfileCorrectionReader_({config,identity,clock}).access(get,now,false);data.canReviewCorrections=correction.mask.length>0;expires=Math.min(expires,correction.expires);}catch{};for(const v of [a.ingress,a.supervision,a.review,a.directory])if(v)expires=Math.min(expires,v.expiresAt);}
   const sp=actor.control.selfReadPolicy,p=a.technical||get('memberAuthzPolicies/'+sp.policyId),fence=get('portalReaderResourceFences/members_operations');
   const basis={generation:gate.generation,ownerUid:identity.uid,personId:actor.binding.idPessoa,bindingVersion:actor.binding.bindingVersion,personRevision:actor.actor.h.revision,authorityEpoch:actor.control.epoch,kind:a.technical?'DEV_ADMIN':'SELF',capability:'MEMBERS_SELF_READ',issuedAt:F.Timestamp.fromMillis(now),expiresAt:F.Timestamp.fromMillis(expires),dataFence:{id:'members_operations',revision:fence?.revision||0}};
   if(a.technical)basis.profileRevision=p.revision;else Object.assign(basis,{subjectEpoch:actor.subject.authzEpoch,policyEpoch:actor.control.policyEpoch,readAuthzEpoch:actor.control.readAuthzEpoch,policyId:p.id,policyRevision:p.revision,state:actor.state.state});
@@ -101,7 +102,8 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
  }
  function attendanceCases(params){
   C.exact(params,['cycleId',...('personId'in params?['personId']:[]),...('cursor'in params?['cursor']:[])]);N(C.id(params.cycleId)&&(!params.personId||C.id(params.personId)),'COMMAND_PAYLOAD_INVALID');
-  const get=p=>db.get(p),before=access(get,clock()),W=f4MemberAttendanceCases_();N(before.directory,'ACCESS_REVOKED');
+  const get=p=>db.get(p),before=access(get,clock()),W=f4MemberAttendanceCases_();
+  if(!before.directory)return syntheticAttendanceCase(params);
   if(!before.technical)K.subset(['attendanceCases'],before.directory.source.fieldMasks.MEMBERS_CASE_READ);
   const policy=W.rules(get,params.cycleId),fence=get('portalReaderResourceFences/members_operations')?.revision||0;
   const allowed=id=>before.technical||before.directory.source.targets.allowedPersons.includes(id);
@@ -117,6 +119,45 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
    const allowedActions=canRecord?W.allowedActions(items[0],before.settings.commands.includes('members.discipline.dismiss'),clock()):[];
    const documentRequiredByAction=Object.fromEntries(allowedActions.map(action=>[action,W.requiresDocument(action)]));
    return {ok:true,data:{cycleId:params.cycleId,pagination,items:f4MemberOwnReader_().wire(items),policy:policy.established?{established:true,policyId:policy.policyId,policyRevision:policy.policyRevision,rules:policy.rules}:{established:false},allowedActions,documentRequiredByAction,person:person?{id:person.id,revision:person.revision,links:links.map(l=>({id:l.id,type:l.type,startDate:l.startDate,endDate:l.endDate}))}:null,canRecord,canDismiss:canRecord&&before.settings.commands.includes('members.discipline.dismiss'),institutionalHistory:institutionHistory,historyScope:'PERMANENT_INSTITUTIONAL',notice:!policy.established?'O ciclo ainda não possui política de providências reconhecida na configuração aprovada.':!canRecord?'O registro exige autorização institucional específica; consultar frequência não concede essa competência.':''}};});
+ }
+ // A DEV fixture may inspect one specifically granted case. Directory and
+ // discipline authority continue to be decided by their existing policies.
+ function syntheticAttendanceCase(params){
+  N(config.projectId==='geapa-convergencia-dev'&&config.environment==='DEV'&&params.personId&&!params.cursor,'ACCESS_REVOKED');
+  return db.transaction(tx=>{
+   const get=path=>tx.get(path).data(),now=clock(),current=access(get,now);
+   const W=f4MemberAttendanceCases_(),caseId=W.caseId(params.personId,params.cycleId),path='memberAttendanceCases/'+caseId;
+   requireSyntheticAttendanceGrant(get,current,params.personId,path,now);
+   const row=get(path);
+   N(row&&row.id===caseId&&row.personId===params.personId&&row.cycleId===params.cycleId,'ACCESS_REVOKED');
+   const policy=W.rules(get,params.cycleId);
+   return {ok:true,data:{cycleId:params.cycleId,pagination:{hasMore:false,nextCursor:null},items:f4MemberOwnReader_().wire([W.record(row)]),
+    policy:policy.established?{established:true,policyId:policy.policyId,policyRevision:policy.policyRevision,rules:policy.rules}:{established:false},
+    allowedActions:[],documentRequiredByAction:{},person:{id:params.personId,links:[]},canRecord:false,canDismiss:false,institutionalHistory:[],
+    historyScope:'AUTHORIZED_CASE',notice:'Consulta autorizada para este caso de teste.'}};
+  });
+ }
+ function requireSyntheticAttendanceGrant(get,current,target,path,now){
+  const ids=current.settings.attendanceReadGrantIds,actor=current.actor;
+  N(Array.isArray(ids)&&ids.length>0&&ids.length<=16&&ids.every(C.id)&&actor.state.state==='MEMBRO_EFETIVO','ACCESS_REVOKED');
+  const control=get('memberExecutorControl/current');
+  N(control?.projectId===config.projectId&&control.enabled===true&&control.browserEnabled===true&&control.appCheck?.mode==='REQUIRED'&&
+   f4ExecutorWindow_().live(control,now)&&control.actorUids?.includes(identity.uid)&&Array.isArray(control.scopeIds)&&control.scopeIds.length<=4,'ACCESS_REVOKED');
+  const scopes=control.scopeIds.map(id=>get('memberExecutorScopes/'+id)).filter((s,i)=>s?.schemaVersion==='member-executor-scope-v1'&&
+   s.id===control.scopeIds[i]&&s.projectId===config.projectId&&s.synthetic===true&&Array.isArray(s.personIds));
+  N(scopes.some(s=>s.personIds.includes(actor.binding.idPessoa)),'ACCESS_REVOKED');
+  const allowed=ids.some(id=>{
+   const g=get('memberExplicitGrants/'+id);
+   if(!g?.active||g.id!==id||g.uid!==identity.uid||g.origin!=='SYNTHETIC_TEST'||g.environment!=='DEV')return false;
+   K.grant(g);
+   return g.idPessoa===actor.binding.idPessoa&&g.bindingVersion===actor.binding.bindingVersion&&g.subjectEpoch===actor.subject.authzEpoch&&
+    C.ms(g.issuedAt)<=now&&now<C.ms(g.expiresAt)&&g.capabilities.length===1&&g.capabilities[0]==='MEMBERS_CASE_READ'&&
+    g.fieldMasks.MEMBERS_CASE_READ?.includes('attendanceCases')&&g.actorScopes.includes('RECURSOS_HUMANOS')&&
+    g.targets.commandScopes?.includes('ATTENDANCE_RH')&&g.targets.allowedTargetScopes.includes('RECURSOS_HUMANOS')&&
+    !g.targets.ownPerson&&g.targets.allowedPersons.includes(target)&&g.targets.allowedResources.includes(path)&&
+    scopes.some(s=>s.id===g.runId&&s.personIds.includes(target));
+  });
+  N(allowed,'ACCESS_REVOKED');
  }
  function requestPage(params){
   C.exact(params,['filtros',...(Object.hasOwn(params,'cursor')?['cursor']:[])]);let filters;try{filters=JSON.parse(params.filtros);}catch{N(false,'COMMAND_PAYLOAD_INVALID');}
@@ -149,14 +190,16 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
 
  function enrollments(params){
   C.exact(params,Object.hasOwn(params,'cursor')?['cursor']:[]);
-  const get=p=>db.get(p),before=access(get,clock());N(before.ingress,'ACCESS_REVOKED');const fence=get('portalReaderResourceFences/members_operations')?.revision||0;
-  const paging=f4MemberListPage_({uid:identity.uid,route:'/admin/ingressos-membros',source:before.ingress.source,actor:before.actor,fence,filters:{}}),after=paging.after(params.cursor);
+  const get=p=>db.get(p),before=access(get,clock()),permission=before.ingress||before.supervision;N(permission,'ACCESS_REVOKED');const fence=get('portalReaderResourceFences/members_operations')?.revision||0;
+  const paging=f4MemberListPage_({uid:identity.uid,route:'/admin/ingressos-membros',source:permission.source,actor:before.actor,fence,filters:{}}),after=paging.after(params.cursor);
   const rows=db.query({collection:'memberEnrollments',filters:after?[{field:'id',op:'GREATER_THAN',value:after}]:[],order:[{field:'id',direction:'ASCENDING'}],limit:10});
   return db.transaction(tx=>{
-   const get=p=>tx.get(p).data(),current=access(get,clock());N(current.ingress&&current.ingress.kind===before.ingress.kind&&K.digest(current.ingress.source)===K.digest(before.ingress.source)&&(get('portalReaderResourceFences/members_operations')?.revision||0)===fence,'ACCESS_REVOKED');
+   const get=p=>tx.get(p).data(),current=access(get,clock()),live=current.ingress||current.supervision;N(live&&live.kind===permission.kind&&K.digest(live.source)===K.digest(permission.source)&&(get('portalReaderResourceFences/members_operations')?.revision||0)===fence,'ACCESS_REVOKED');
    // Every enrollment command advances this fence atomically. Checking it in
    // the authorization transaction lets us reuse the query snapshot safely.
-   const items=rows.map(row=>{const v=f4MemberEnrollmentContract_().validate(row.data),email=v.registration.email,at=email.indexOf('@');return {enrollmentId:v.id,personId:v.personId,revision:v.revision,name:v.registration.fullName,emailMasked:email.slice(0,Math.min(2,at))+'***'+email.slice(at),status:v.status,expired:clock()>=v.expiresAt,createdAt:new Date(v.createdAt).toISOString(),canSend:v.status==='PRE_REGISTERED',canResend:['INVITED','ACCEPTED'].includes(v.status),canCancel:['PRE_REGISTERED','INVITED','ACCEPTED'].includes(v.status)};});
+   const policy=get('memberOperationalConfig/registration'),invitation=f4MemberInvitation_(),canReview=invitation.reviewer(current.actor,policy);
+   const items=rows.map(row=>{const v=f4MemberEnrollmentContract_().validate(row.data),open=['PRE_REGISTERED','INVITED','ACCEPTED'].includes(v.status),
+    releasable=!invitation.requiresReview(policy)||v.review?.state==='ACKNOWLEDGED',email=v.registration.email,at=email.indexOf('@');return {enrollmentId:v.id,personId:v.personId,revision:v.revision,name:v.registration.fullName,membershipType:v.approval.membershipType,approvalReference:v.approval.reference,recognizedOn:v.approval.recognizedEffects?.on||null,acceptedAt:v.respondedAt&&v.status!=='DECLINED'?new Date(v.respondedAt).toISOString():null,completedAt:v.completedAt?new Date(v.completedAt).toISOString():null,reviewState:v.review?.state||'PENDING',reviewNote:v.review?.note||'',canReview:canReview&&open,canAmend:!!current.ingress&&open,canResolve:!!current.ingress&&open&&v.review?.state==='CORRECTION_REQUESTED',emailMasked:current.ingress?email.slice(0,Math.min(2,at))+'***'+email.slice(at):null,status:v.status,expired:clock()>=v.expiresAt,createdAt:new Date(v.createdAt).toISOString(),canSend:!!current.ingress&&releasable&&v.status==='PRE_REGISTERED',canResend:!!current.ingress&&releasable&&['INVITED','ACCEPTED'].includes(v.status),canCancel:!!current.ingress&&['PRE_REGISTERED','INVITED','ACCEPTED'].includes(v.status)};});
    return {ok:true,data:{items,nextCursor:rows.length===10?paging.next(rows.at(-1).data.id):null,pageSize:10,notificationMode:get('memberOperationalConfig/notifications')?.mode==='DRY_RUN'?'DRY_RUN':'DISABLED'}};
   });
  }

@@ -10,11 +10,12 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
   const technical=f4DevAdmin_().profile(get,identity.uid,now),a=technical?f4DevAdmin_().identify(get,identity.uid,now):f4MemberAuthz_().identify(get,identity.uid,now),self=['MEMBERS_SELF_UPDATE','MEMBERS_VOLUNTARY_REQUEST'].includes(cap);
   N(!self||r.target.personId===a.binding.idPessoa,'ACCESS_REVOKED');
   let source=technical,kind=technical?'DEV_ADMIN':null,functionId=null,actorScope=null;
-  if(!technical){for(const id of settings.policyIds){const p=get('memberAuthzPolicies/'+id);if(!p?.active||!p.capabilities?.includes(cap))continue;f4MemberAuthzContracts_().policy(p);if(self&&p.proofKind==='SELF'){source=p;kind='SELF';break;}if(!self&&p.proofKind==='ROLE'){const f=a.derived.currentFunctions.find(f=>f.roleKey===p.actorSelector.roleKey&&f.scopeKey===p.actorSelector.actorScope);if(f){source=p;kind='ROLE';functionId=f.idVigencia;actorScope=f.scopeKey;break;}}}}
+  if(!technical){for(const id of settings.policyIds){const p=get('memberAuthzPolicies/'+id);if(!p?.active||!p.capabilities?.includes(cap))continue;
+   if(cap==='MEMBERS_INGRESS_EXECUTE'&&p.targets?.commandScopes?.includes('ENROLLMENT_SUPERVISION')&&!p.targets.commandScopes.includes('ADMINISTRATIVE_INGRESS')&&!['ACKNOWLEDGE','REQUEST_CORRECTION'].includes(r.payload.action))continue;f4MemberAuthzContracts_().policy(p);if(self&&p.proofKind==='SELF'){source=p;kind='SELF';break;}if(!self&&p.proofKind==='ROLE'){const f=a.derived.currentFunctions.find(f=>f.roleKey===p.actorSelector.roleKey&&f.scopeKey===p.actorSelector.actorScope);if(f){source=p;kind='ROLE';functionId=f.idVigencia;actorScope=f.scopeKey;break;}}}}
   if(cap==='MEMBERS_PROFILE_CORRECT'){const dev=f4DevAdministrativeAccess_().source(get,identity,now,cap);if(dev){source=dev.source;kind='DEV_TECHNICAL';functionId=null;actorScope=null;}}
   if(cap==='MEMBERS_DISCIPLINE_EXECUTE'){source=null;kind=null;for(const id of settings.disciplineGrantIds||[]){const g=get('memberExplicitGrants/'+id);if(g?.active&&g.uid===identity.uid&&g.capabilities?.includes(cap)&&g.actorScopes?.includes('RECURSOS_HUMANOS')&&g.targets?.allowedPersons?.includes(r.target.personId)){source=g;kind='EXPLICIT';functionId=null;actorScope='RECURSOS_HUMANOS';break;}}}
   N(source&&kind,'ACCESS_REVOKED');
-  const target={personId:r.target.personId,scopeKey:self?null:cap==='MEMBERS_INGRESS_EXECUTE'?'ADMINISTRACAO':'RECURSOS_HUMANOS',boardId:null,roleKey:null,resources,caseId:self?null:r.target.requestId||'ADM_'+r.operationId,purpose:self?null:cap==='MEMBERS_INGRESS_EXECUTE'?'ADMINISTRATIVE_INGRESS':cap==='MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'?'VOLUNTARY_SUSPENSION':'VOLUNTARY_EXIT',fieldMask:[],linkId:self?null:r.target.linkId,effect:self?null:cap==='MEMBERS_INGRESS_EXECUTE'?(r.payload.operation==='PRE_REGISTER'?'PRE_REGISTRATION':r.payload.operation==='MANAGE_INVITATION'?'INVITATION':'INGRESSO'):cap==='MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'?(r.payload.action==='RETURN'?'RETORNO':'SUSPENSAO'):'DESLIGAMENTO',effectiveDate:self?null:cap==='MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'?suspensionDate(get,r):r.payload.startDate||r.payload.effectiveDate||Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd')};
+  const target={personId:r.target.personId,scopeKey:self?null:cap==='MEMBERS_INGRESS_EXECUTE'?'ADMINISTRACAO':'RECURSOS_HUMANOS',boardId:null,roleKey:null,resources,caseId:self?null:r.target.requestId||'ADM_'+r.operationId,purpose:self?null:cap==='MEMBERS_INGRESS_EXECUTE'?'ADMINISTRATIVE_INGRESS':cap==='MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'?'VOLUNTARY_SUSPENSION':'VOLUNTARY_EXIT',fieldMask:[],linkId:self?null:r.target.linkId,effect:self?null:cap==='MEMBERS_INGRESS_EXECUTE'?(r.payload.operation==='PRE_REGISTER'?'PRE_REGISTRATION':r.payload.operation==='MANAGE_INVITATION'?'INVITATION':r.payload.operation==='RECORD_EFFECTIVATION'?'EFETIVACAO':'INGRESSO'):cap==='MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'?(r.payload.action==='RETURN'?'RETORNO':'SUSPENSAO'):'DESLIGAMENTO',effectiveDate:self?null:cap==='MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'?suspensionDate(get,r):r.payload.startDate||r.payload.effectiveDate||Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd')};
   if(cap==='MEMBERS_DISCIPLINE_EXECUTE'){target.purpose='ATTENDANCE_RH';target.effect=r.commandType==='members.discipline.dismiss'?'DESLIGAMENTO':r.payload.action;target.effectiveDate=r.payload.occurrenceDate||r.payload.effectiveDate;}
   if(['MEMBERS_SELF_UPDATE','MEMBERS_PROFILE_CORRECT'].includes(cap)){target.fieldMask=f4MemberProfileCorrections_().is(r)?(self?[]:[r.payload.field]):Object.keys(r.payload.patch||r.payload.corrections).sort();target.linkId=null;if(!self){target.scopeKey='ADMINISTRACAO';target.purpose='PROFILE_CORRECTION';target.effect='PROFILE_CORRECTION';if(f4MemberProfileCorrections_().is(r))target.caseId=r.payload.requestId;}}
   return {schemaVersion:'member-authz-request-v13',uid:identity.uid,kind,sourceId:kind==='DEV_ADMIN'?identity.uid:source.id,functionId,actorScope,capability:cap,expected:{authorityEpoch:a.control.epoch,policyEpoch:a.control.policyEpoch,readAuthzEpoch:a.control.readAuthzEpoch,subjectEpoch:a.subject.authzEpoch,bindingVersion:a.binding.bindingVersion,personRevision:a.actor.h.revision,authorizationRevision:source.revision},tokenExpiresAt:T(identity.expiresAt),admissionExpiresAt:T(end),target,evidenceRefs:r.evidenceRefs};
@@ -55,21 +56,35 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
     paths=[...(Object.hasOwn(patch,'displayName')?['memberIdentities/'+personId]:[]),...(Object.keys(patch).some(k=>k!=='displayName')?['memberPrivateProfiles/'+personId]:[])];resources=paths.slice();
     if(!self){N(C.id(p.documentReference),'COMMAND_PAYLOAD_INVALID');r.decisionRef=p.documentReference;facts={};}
    }else if(input.route==='/admin/ingressos-membros/cadastrar'){
-    const keys=['nomeCompleto','emailPrincipal','rga','telefone'];C.exact(p,[...keys,...(Object.hasOwn(p,'dadosComplementares')?['dadosComplementares']:[])]);
+    const selected=Object.hasOwn(p,'categoriaIngresso')||Object.hasOwn(p,'referenciaAprovacao');
+    const keys=['nomeCompleto','emailPrincipal','rga','telefone',...(selected?['categoriaIngresso','referenciaAprovacao']:[])];C.exact(p,[...keys,...(Object.hasOwn(p,'dadosComplementares')?['dadosComplementares']:[])]);
     const E=f4MemberEnrollmentContract_(),registration=E.quick({fullName:p.nomeCompleto,email:p.emailPrincipal,rga:p.rga,phone:p.telefone});
-    const approvalRef='AP_'+C.hash({email:registration.email,rga:registration.rga}).slice(0,40),approval=f4MemberPreRegistration_().approval(get,approvalRef,registration,now),policy=get('memberOperationalConfig/registration');
+    const approval=f4MemberPreRegistration_().locate(get,registration,p.referenciaAprovacao,now),approvalRef=approval.id,policy=get('memberOperationalConfig/registration');
     N(policy?.enabled===true&&policy.stagedEnrollment===true,'ACCESS_REVOKED');
+    if(selected)N(approval.reference===p.referenciaAprovacao&&approval.membershipType===p.categoriaIngresso,'ADMISSION_APPROVAL_REQUIRED');
     const resolution=f4MemberRegistrationIdentity_().resolve(get,{email:registration.email,rga:registration.rga}),personId=resolution.personId||'P_'+op;
     const identifiers=resolution.identifiers.filter(v=>!get('memberIdentifierClaims/'+C.hash(v))).map((v,i)=>({id:'I'+i+'_'+op,...v}));
     r.commandType='members.ingress.execute';r.target={personId,linkId:null};r.payload={operation:'PRE_REGISTER',identity:resolution.personId?null:{displayName:registration.fullName},identifiers,registration,profile:p.dadosComplementares||{},approvalRef};r.decisionRef=approval.reference;cap='MEMBERS_INGRESS_EXECUTE';
     facts={schemaVersion:'member-preregistration-v1',personId,approvalRef,approvalRevision:approval.revision,policyRevision:policy.revision};
     paths=['memberEnrollments/'+op,'memberEnrollmentIndexes/'+personId,...identifiers.map(v=>'memberIdentifiers/'+v.id)];if(!resolution.personId)paths.push('memberIdentities/'+personId);resources=paths.slice();
    }else if(input.route==='/admin/ingressos-membros/convite'){
-    C.exact(p,['enrollmentId','revision','action','reason']);N(C.op(p.enrollmentId)&&C.rev(p.revision),'COMMAND_PAYLOAD_INVALID');
+    C.exact(p,['enrollmentId','revision','action','reason',...(p.action==='AMEND'?['field','value']:[])]);N(C.op(p.enrollmentId)&&C.rev(p.revision),'COMMAND_PAYLOAD_INVALID');
     const old=f4MemberEnrollmentContract_().validate(get('memberEnrollments/'+p.enrollmentId)),policy=get('memberOperationalConfig/registration');N(old.revision===p.revision,'REVISION_CONFLICT');
-    r.commandType='members.ingress.execute';r.target={personId:old.personId,linkId:null};r.payload={operation:'MANAGE_INVITATION',enrollmentId:old.id,action:p.action,reason:p.reason};r.decisionRef=old.approval.reference;cap='MEMBERS_INGRESS_EXECUTE';
+    r.commandType='members.ingress.execute';r.target={personId:old.personId,linkId:null};r.payload={operation:'MANAGE_INVITATION',enrollmentId:old.id,action:p.action,reason:p.reason,...(p.action==='AMEND'?{field:p.field,value:p.value}:{})};r.decisionRef=old.approval.reference;cap='MEMBERS_INGRESS_EXECUTE';
     facts={schemaVersion:'member-invitation-action-v1',personId:old.personId,enrollmentId:old.id,enrollmentRevision:old.revision,policyRevision:policy?.revision};
-    paths=['memberEnrollments/'+old.id,...(p.action==='CANCEL'?['memberEnrollmentIndexes/'+old.personId]:[])];resources=paths.slice();
+    const amended=p.action==='AMEND'?f4MemberInvitation_().amendment(get,old,p,now):null;
+    paths=['memberEnrollments/'+old.id,...(amended?.path?[amended.path]:[]),...(p.action==='CANCEL'?['memberEnrollmentIndexes/'+old.personId]:[])];resources=paths.slice();
+   }else if(input.route==='/admin/membros/efetivar'){
+    C.exact(p,['personId','recognizedOn','reference']);
+    N(C.id(p.personId)&&p.personId!==binding.idPessoa,'ACCESS_REVOKED');
+    const old=f4MemberIngressContent_().incoming(get,p.personId,now);
+    const today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd');
+    const linkId=old.link.startDate===today?old.link.id:'V_'+op;
+    r.commandType='members.ingress.execute';r.target={personId:p.personId,linkId};
+    r.payload={operation:'RECORD_EFFECTIVATION',identity:null,identifiers:[],startDate:today,endDate:null,originalEventId:null};
+    r.decisionRef='EF_'+op;cap='MEMBERS_INGRESS_EXECUTE';
+    facts={schemaVersion:'member-effectivation-v1',personId:p.personId,ingress:{eventId:old.event.id},recognizedOn:p.recognizedOn,reference:p.reference};
+    paths=[...new Set(['memberLinks/'+old.link.id,'memberEvents/COR_'+op,'memberLinks/'+linkId,'memberEvents/EVT_'+op])];resources=paths.slice();
    }else if(input.route==='/admin/ingressos-membros/admitir-excepcional'){
     N(get('memberOperationalConfig/registration')?.exceptionalDirectAdmission===true,'ACCESS_REVOKED');
     const fields=['modalidadeCadastro','nomeCompleto','nomeExibicao','emailPrincipal','telefone','rga','cursoId','cursoNomeOutro','dataIngresso','semestreEntrada','formaIngresso','origemCadastro','documentoReferencia','observacaoAdministrativa'];
