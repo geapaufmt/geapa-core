@@ -60,7 +60,8 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
  const identity=await authenticate(auth,token),store=new MemberStore(db,identity),domain=createDomain(x=>store.io(x));
  const run=(fn,v)=>{const r=domain.run(fn,v);return r===undefined?undefined:JSON.parse(r);};run('(x)=>nodeIdentity(x)',identity);
  // Candidate requests can only enter the invitation family and its owner-bound receipt.
- const candidate=body.action.startsWith('memberEnrollment')||
+ const receiptLookup=['memberRecover','memberStatus'].includes(body.action)&&body.request?.commandType==='members.onboarding.complete';
+ let candidate=body.action.startsWith('memberEnrollment')||
   ['memberRecover','memberStatus','memberExecute'].includes(body.action)&&body.request?.commandType==='members.onboarding.complete'&&(body.action!=='memberExecute'||body.request.payload?.operation==='ENROLLMENT');
  store.candidate=candidate;
  store.inEnrollmentScope=(person,refs)=>{
@@ -73,6 +74,16 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
  const commandEnabled=t=>!store.control.commandTypes||store.control.commandTypes.includes(t);
  if(body.action.startsWith('memberEnrollment')&&!commandEnabled('members.onboarding.complete'))fail('PILOT_DISABLED');
  if(body.action==='memberPrepare'&&store.control.portalRoutes&&!store.control.portalRoutes.includes(body.request?.route))fail('PILOT_RESOURCE_DENIED');
+ let receiptEnrollment;
+ if(receiptLookup){
+  if(!/^[a-f0-9]{32}$/.test(body.request.operationId)||!/^[a-f0-9]{64}$/.test(body.request.digest))fail('COMMAND_PAYLOAD_INVALID');
+  const request=await store.read(()=>store.hostRead('commandRequests/'+body.request.operationId));
+  if(!request||request.ownerUid!==identity.uid||request.digest!==body.request.digest)fail('NOT_FOUND');
+  candidate=request.commandType==='members.onboarding.complete'&&request.payload?.operation==='ENROLLMENT';
+  store.candidate=candidate;
+  if(candidate)receiptEnrollment=request.target;
+  else await store.read(()=>store.guard());
+ }
  let verified;
  if(candidate){
   const claims=await auth.verifyIdToken(token,true);
@@ -82,9 +93,9 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
  const checked=fn=>()=>{
   store.guard();
   if(candidate&&body.action!=='memberEnrollmentOpen'){
-   const session=store.hostRead('memberEnrollmentSessions/'+identity.uid);
-   const enrollment=session&&store.hostRead('memberEnrollments/'+session.enrollmentId);
-   if(!enrollment||enrollment.personId!==session.personId||enrollment.registration.email!==verified.email)fail('AUTH_BINDING_INVALID');
+   const target=receiptEnrollment||store.hostRead('memberEnrollmentSessions/'+identity.uid);
+   const enrollment=target&&store.hostRead('memberEnrollments/'+target.enrollmentId);
+   if(!enrollment||enrollment.personId!==target.personId||enrollment.registration.email!==verified.email)fail('AUTH_BINDING_INVALID');
   }
   return fn();
  };

@@ -131,6 +131,10 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
   await assert.rejects(candidate('SAVE',{profile:{rga:'202610000'}}),/COMMAND_PAYLOAD_INVALID/);
   await assert.rejects(candidate('SAVE',{profile:{courseId:'UNLISTED'}}),/COMMAND_PAYLOAD_INVALID/);
   await candidate('SAVE',{profile:{cpf:'52998224725',birthDate:'2001-05-01',countryCode:'BR',stateCode:'MT'}});
+  const termsPath='memberOperationalConfig/enrollmentTerms',publishedTerms=docs[termsPath];
+  await set(termsPath,{...publishedTerms,enabled:false});
+  assert.equal((await open()).result.data.termsUnavailable,true);await candidate('SAVE',{profile:{city:'Sinop'}});
+  await assert.rejects(candidate('COMPLETE'));await set(termsPath,publishedTerms);
   const terms=(await call('SYN_INVITEE','memberEnrollmentRead',{})).result.data;
   await candidate('ACKNOWLEDGE',{accepted:true,termVersion:terms.normTermVersion,documents:terms.norms.map(({id,version})=>({id,version}))});
   await candidate('IMAGE',{choice:'DECLINED',termVersion:terms.imageTerm.version});

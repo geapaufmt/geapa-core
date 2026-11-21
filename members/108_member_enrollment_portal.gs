@@ -22,13 +22,19 @@ function f4MemberEnrollmentPortal_({config,identity,clock=Date.now}){
    const get=p=>tx.get(p).data(),now=clock(),s=A.source(get,identity.uid,now),v=s.enrollment;
    N(['INVITED','ACCEPTED'].includes(v.status)&&now<v.expiresAt&&get('memberEnrollmentIndexes/'+v.personId)?.activeEnrollmentId===v.id,'ACCESS_REVOKED');
    if(v.status==='INVITED')return {ok:true,data:{enrollmentId:v.id,revision:v.revision,status:v.status,registration:v.registration,membershipType:v.approval.membershipType,entrySemester:core_parseEntrySemesterFromRga_(v.registration.rga),expiresAt:v.expiresAt}};
-   const c=D.catalog(get,now),today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),complete=E.completeness(get,v.profile,today),ids=s.policy.courseIds;
+   let c;
+   try{c=D.catalog(get,now);}catch(error){
+    if(error.code!=='ACCESS_REVOKED')throw error;
+    // A missing approved publication blocks acknowledgement and completion only.
+    c={norms:[],configuration:{normTermVersion:null}};
+   }
+   const today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),complete=E.completeness(get,v.profile,today),ids=s.policy.courseIds;
    N(Array.isArray(ids)&&ids.length<=100&&ids.every(C.id),'SCHEMA_INVALID');
    const courses=ids.map(id=>get('memberCourseCatalog/'+id)).filter(v=>v?.active===true).map(v=>({id:v.id,name:v.name,institution:v.institution||null,campus:v.campus||null,level:v.level||null}));
    const axisIds=s.policy.interestAxisIds||[];N(Array.isArray(axisIds)&&axisIds.length<=100&&axisIds.every(C.id),'SCHEMA_INVALID');
    const interestAxes=axisIds.map(id=>get('presentationPolicyReferences/'+id)).filter(v=>v?.active===true&&v.approved===true).map(v=>({id:v.id,name:v.label||v.name||v.id}));
    // Identity, CPF and draft data are returned only to the verified invitee.
-   return {ok:true,data:{enrollmentId:v.id,revision:v.revision,status:v.status,registration:v.registration,membershipType:v.approval.membershipType,entrySemester:core_parseEntrySemesterFromRga_(v.registration.rga),profile:v.profile,expiresAt:v.expiresAt,missing:complete.missing,courseConfirmed:s.approval.courseId===v.profile.courseId&&!!v.profile.courseId,courses,interestAxes,norms:c.norms.map(n=>({id:n.id,version:n.version,label:n.label||n.title||n.id,pdfUrl:n.pdfUrl})),normTermVersion:c.configuration.normTermVersion,acknowledgement:E.acknowledgement,normAcknowledgement:v.normAcknowledgement,imageTerm:c.configuration.imageTerm||null,imageManifestation:v.imageManifestation}};
+   return {ok:true,data:{enrollmentId:v.id,revision:v.revision,status:v.status,registration:v.registration,membershipType:v.approval.membershipType,entrySemester:core_parseEntrySemesterFromRga_(v.registration.rga),profile:v.profile,expiresAt:v.expiresAt,missing:complete.missing,courseConfirmed:s.approval.courseId===v.profile.courseId&&!!v.profile.courseId,courses,interestAxes,norms:c.norms.map(n=>({id:n.id,version:n.version,label:n.label||n.title||n.id,pdfUrl:n.pdfUrl})),termsUnavailable:!c.norms.length,normTermVersion:c.configuration.normTermVersion,acknowledgement:E.acknowledgement,normAcknowledgement:v.normAcknowledgement,imageTerm:c.configuration.imageTerm||null,imageManifestation:v.imageManifestation}};
   });
  }
  function prepare(input){
