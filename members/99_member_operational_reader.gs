@@ -102,7 +102,8 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
  }
  function attendanceCases(params){
   C.exact(params,['cycleId',...('personId'in params?['personId']:[]),...('cursor'in params?['cursor']:[])]);N(C.id(params.cycleId)&&(!params.personId||C.id(params.personId)),'COMMAND_PAYLOAD_INVALID');
-  const get=p=>db.get(p),before=access(get,clock()),W=f4MemberAttendanceCases_();N(before.directory,'ACCESS_REVOKED');
+  const get=p=>db.get(p),before=access(get,clock()),W=f4MemberAttendanceCases_();
+  if(!before.directory)return syntheticAttendanceCase(params);
   if(!before.technical)K.subset(['attendanceCases'],before.directory.source.fieldMasks.MEMBERS_CASE_READ);
   const policy=W.rules(get,params.cycleId),fence=get('portalReaderResourceFences/members_operations')?.revision||0;
   const allowed=id=>before.technical||before.directory.source.targets.allowedPersons.includes(id);
@@ -118,6 +119,45 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
    const allowedActions=canRecord?W.allowedActions(items[0],before.settings.commands.includes('members.discipline.dismiss'),clock()):[];
    const documentRequiredByAction=Object.fromEntries(allowedActions.map(action=>[action,W.requiresDocument(action)]));
    return {ok:true,data:{cycleId:params.cycleId,pagination,items:f4MemberOwnReader_().wire(items),policy:policy.established?{established:true,policyId:policy.policyId,policyRevision:policy.policyRevision,rules:policy.rules}:{established:false},allowedActions,documentRequiredByAction,person:person?{id:person.id,revision:person.revision,links:links.map(l=>({id:l.id,type:l.type,startDate:l.startDate,endDate:l.endDate}))}:null,canRecord,canDismiss:canRecord&&before.settings.commands.includes('members.discipline.dismiss'),institutionalHistory:institutionHistory,historyScope:'PERMANENT_INSTITUTIONAL',notice:!policy.established?'O ciclo ainda não possui política de providências reconhecida na configuração aprovada.':!canRecord?'O registro exige autorização institucional específica; consultar frequência não concede essa competência.':''}};});
+ }
+ // A DEV fixture may inspect one specifically granted case. Directory and
+ // discipline authority continue to be decided by their existing policies.
+ function syntheticAttendanceCase(params){
+  N(config.projectId==='geapa-convergencia-dev'&&config.environment==='DEV'&&params.personId&&!params.cursor,'ACCESS_REVOKED');
+  return db.transaction(tx=>{
+   const get=path=>tx.get(path).data(),now=clock(),current=access(get,now);
+   const W=f4MemberAttendanceCases_(),caseId=W.caseId(params.personId,params.cycleId),path='memberAttendanceCases/'+caseId;
+   requireSyntheticAttendanceGrant(get,current,params.personId,path,now);
+   const row=get(path);
+   N(row&&row.id===caseId&&row.personId===params.personId&&row.cycleId===params.cycleId,'ACCESS_REVOKED');
+   const policy=W.rules(get,params.cycleId);
+   return {ok:true,data:{cycleId:params.cycleId,pagination:{hasMore:false,nextCursor:null},items:f4MemberOwnReader_().wire([W.record(row)]),
+    policy:policy.established?{established:true,policyId:policy.policyId,policyRevision:policy.policyRevision,rules:policy.rules}:{established:false},
+    allowedActions:[],documentRequiredByAction:{},person:{id:params.personId,links:[]},canRecord:false,canDismiss:false,institutionalHistory:[],
+    historyScope:'AUTHORIZED_CASE',notice:'Consulta autorizada para este caso de teste.'}};
+  });
+ }
+ function requireSyntheticAttendanceGrant(get,current,target,path,now){
+  const ids=current.settings.attendanceReadGrantIds,actor=current.actor;
+  N(Array.isArray(ids)&&ids.length>0&&ids.length<=16&&ids.every(C.id)&&actor.state.state==='MEMBRO_EFETIVO','ACCESS_REVOKED');
+  const control=get('memberExecutorControl/current');
+  N(control?.projectId===config.projectId&&control.enabled===true&&control.browserEnabled===true&&control.appCheck?.mode==='REQUIRED'&&
+   f4ExecutorWindow_().live(control,now)&&control.actorUids?.includes(identity.uid)&&Array.isArray(control.scopeIds)&&control.scopeIds.length<=4,'ACCESS_REVOKED');
+  const scopes=control.scopeIds.map(id=>get('memberExecutorScopes/'+id)).filter((s,i)=>s?.schemaVersion==='member-executor-scope-v1'&&
+   s.id===control.scopeIds[i]&&s.projectId===config.projectId&&s.synthetic===true&&Array.isArray(s.personIds));
+  N(scopes.some(s=>s.personIds.includes(actor.binding.idPessoa)),'ACCESS_REVOKED');
+  const allowed=ids.some(id=>{
+   const g=get('memberExplicitGrants/'+id);
+   if(!g?.active||g.id!==id||g.uid!==identity.uid||g.origin!=='SYNTHETIC_TEST'||g.environment!=='DEV')return false;
+   K.grant(g);
+   return g.idPessoa===actor.binding.idPessoa&&g.bindingVersion===actor.binding.bindingVersion&&g.subjectEpoch===actor.subject.authzEpoch&&
+    C.ms(g.issuedAt)<=now&&now<C.ms(g.expiresAt)&&g.capabilities.length===1&&g.capabilities[0]==='MEMBERS_CASE_READ'&&
+    g.fieldMasks.MEMBERS_CASE_READ?.includes('attendanceCases')&&g.actorScopes.includes('RECURSOS_HUMANOS')&&
+    g.targets.commandScopes?.includes('ATTENDANCE_RH')&&g.targets.allowedTargetScopes.includes('RECURSOS_HUMANOS')&&
+    !g.targets.ownPerson&&g.targets.allowedPersons.includes(target)&&g.targets.allowedResources.includes(path)&&
+    scopes.some(s=>s.id===g.runId&&s.personIds.includes(target));
+  });
+  N(allowed,'ACCESS_REVOKED');
  }
  function requestPage(params){
   C.exact(params,['filtros',...(Object.hasOwn(params,'cursor')?['cursor']:[])]);let filters;try{filters=JSON.parse(params.filtros);}catch{N(false,'COMMAND_PAYLOAD_INVALID');}

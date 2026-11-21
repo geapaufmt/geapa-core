@@ -22,6 +22,32 @@ test('RH canonical member pipeline: explicit authority, transactions, replay, cy
  async function record(action,cycle){const prepared=await call('memberPrepare',await input(action,cycle));const result=await call('memberExecute',prepared.request);a.equal(result.result.state,'COMPLETED',JSON.stringify(result));return {prepared,result};}
  async function calendar(){const b=db.batch(),ref=(kind,id)=>({kind,id}),stamp=Timestamp.fromMillis(now);for(const [id,date]of [['FUTURE','2026-11-30'],['PAST','2026-10-30']]){const common={id,recordMode:'NEW_V2',revision:1,operationId:'0'.repeat(32),originRef:{kind:'SYNTHETIC_FIXTURE'},createdAt:stamp,updatedAt:stamp};b.set(db.doc('presentationUnitHeads/'+id),{...common,personRef:ref('person',personId),cycleRef:ref('cycle','C1'),assignmentRef:ref('assignment',id),obligationRef:ref('obligation',id)});b.set(db.doc('calendarAssignments/'+id),{...common,status:'ACTIVE',unitRef:ref('unit',id),sessionRef:ref('session',id)});b.set(db.doc('presentationSessions/'+id),{...common,civilDate:date,cycleRef:ref('cycle','C1'),config:{capacity:2,destination:'ORDINARY'},compositionRevision:1,slots:[{unitRef:ref('unit',id),assignmentRef:ref('assignment',id)},{unitRef:ref('unit','OTHER_MEMBER'),assignmentRef:ref('assignment','OTHER_ASSIGNMENT')}]});b.set(db.doc('presentationObligations/'+id),{...common,personRef:ref('person',personId),cycleRef:ref('cycle','C1'),incidenceState:'INCIDENT',result:'PENDING'});}b.set(db.doc('presentationCapacityHeads/C1'),{id:'C1',revision:1,state:'SEALED',capacityEpoch:1,dynamicActiveCount:0});await b.commit();}
  try{
+ await t.test('temporary DEV reader is restricted to the bound fixture and named case',async()=>{
+  await reset();
+  await record('FOLLOW_UP','C1');
+  const id='SYN_READ',scope='SYN_RH',casePath='memberAttendanceCases/'+caseId('C1');
+  const grant={...docs['memberExplicitGrants/SYN_RH'],id,origin:'SYNTHETIC_TEST',runId:scope,capabilities:['MEMBERS_CASE_READ'],
+   targets:{...docs['memberExplicitGrants/SYN_RH'].targets,allowedResources:[casePath]},fieldMasks:{MEMBERS_CASE_READ:['attendanceCases']}};
+  const settings=db.doc('memberOperationalConfig/portal'),storedGrant=db.doc('memberExplicitGrants/'+id);
+  await settings.update({policyIds:['PEOPLE_POLICY'],attendanceReadGrantIds:[id]});
+  await db.doc('memberExecutorScopes/'+scope).set({schemaVersion:'member-executor-scope-v1',id:scope,projectId:PROJECT,revision:1,synthetic:true,personIds:[actor.idPessoa,personId],approvalRefs:[]});
+  await db.doc('memberExecutorControl/current').update({scopeIds:[scope]});
+  await storedGrant.set(grant);
+  const read=params=>require('../src/act-readers.cjs').readAct({db,auth,appCheck,token:'synthetic-local',appCheckToken:'synthetic-local',
+   origin:'https://geapa-convergencia-dev.web.app',body:{action:'actRead',request:{route:'/admin/frequencia-rh/providencias',params}}});
+  const params={cycleId:'C1',personId};
+  const result=(await read(params)).result.data;
+  a.equal(result.items.length,1);a.equal(result.items[0].personId,personId);a.equal(result.canRecord,false);
+  a.deepEqual(result.documentRequiredByAction,{});a.deepEqual(result.institutionalHistory,[]);a.deepEqual(result.person.links,[]);
+  for(const outside of [{cycleId:'C1'},{...params,cycleId:'C2'},{...params,personId:'OTHER_PERSON'}])await a.rejects(read(outside));
+  for(const change of [{uid:'OTHER_UID'},{active:false},{idPessoa:'OTHER_PERSON'},{bindingVersion:actor.bindingVersion+1},
+   {subjectEpoch:subject.authzEpoch+1},{expiresAt:Timestamp.fromMillis(now-1)},{environment:'PROD'},{runId:'UNKNOWN_SCOPE'}]){
+   await storedGrant.set({...grant,...change});await a.rejects(read(params));
+  }
+  await storedGrant.set(grant);
+  await db.doc('memberExecutorScopes/'+scope).update({synthetic:false});await a.rejects(read(params));
+  await storedGrant.delete();
+ });
  await t.test('Core reader dispatcher returns only authorized cycle cases through the protected transport',async()=>{await reset();await record('FOLLOW_UP','C1');await record('FOLLOW_UP','C2');const read=params=>require('../src/act-readers.cjs').readAct({db,auth,appCheck,token:'synthetic-local',appCheckToken:'synthetic-local',origin:'https://geapa-convergencia-dev.web.app',body:{action:'actRead',request:{route:'/admin/frequencia-rh/providencias',params}}});const r=await read({cycleId:'C1',personId});a.equal(r.result.data.items.length,1);a.equal(r.result.data.items[0].cycleId,'C1');a(r.result.data.canRecord);
   a.deepEqual(Object.keys(r.result.data.documentRequiredByAction).sort(),[...r.result.data.allowedActions].sort());
   a.equal(r.result.data.documentRequiredByAction.FOLLOW_UP,false);
