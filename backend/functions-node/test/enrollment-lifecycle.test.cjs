@@ -25,6 +25,12 @@ function database(docs){
   for(const [p,v] of writes){if(v)docs[p]=v;else delete docs[p];}version++;return result;
  }};
 }
+test('ordinary absence limits follow the effective membership category',()=>{
+ const domain=createDomain(()=>{});
+ const counts=(state,countsAbsence)=>JSON.parse(domain.run('(v)=>f4MemberCountsAbsence_(v.state,v.activity)',{state,activity:{countsAbsence}}));
+ assert.equal(counts('MEMBRO_INGRESSANTE',true),false);assert.equal(counts('MEMBRO_EM_ESPERA',true),false);
+ assert.equal(counts('MEMBRO_EFETIVO',true),true);assert.equal(counts('MEMBRO_EFETIVO',false),false);
+});
 const op=()=>randomUUID().replaceAll('-','');
 async function fixture(category,t){
  const {docs:raw,now}=seed(),docs=Object.fromEntries(Object.entries(raw).map(([key,v])=>[key,decode({mapValue:v})]));
@@ -148,3 +154,20 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
   }
  });
 }
+
+test('RH effectivates a prior incoming link and preserves its interval and event',async t=>{
+ const {docs,set,rh}=await fixture('MEMBRO_INGRESSANTE',t);
+ const id='SYN_PRIOR',link='SYN_PRIOR_LINK',event='SYN_PRIOR_ENTRY';
+ const day=delta=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Cuiaba',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.now()+delta*86400000));
+ const scope=docs['memberExecutorScopes/SYN_ADMISSION'];
+ await set('memberExecutorScopes/SYN_ADMISSION',{...scope,personIds:[...scope.personIds,id]});
+ await set('memberIdentities/'+id,{...docs['memberIdentities/PES-000001'],id,idPessoa:id,displayName:'Pessoa sintética anterior'});
+ await set('memberLinks/'+link,{...docs['memberLinks/VINC-001'],id:link,idPessoa:id,type:'MEMBRO_INGRESSANTE',startDate:day(-10)});
+ await set('memberEvents/'+event,{schemaVersion:'m1-memberEvents-v1',id:event,revision:1,origin:'SYN_TEST',idPessoa:id,idVinculo:link,type:'INGRESSO',effect:'INGRESSO',effectiveDate:day(-10),endDate:null,supersedes:null,correctionPath:null,prior:null});
+ await set('memberAggregateHeads/'+id,{schemaVersion:'m11-head-v1',id,kind:'PERSON',revision:1,paths:['memberIdentities/'+id,'memberLinks/'+link,'memberEvents/'+event]});
+ const promote=date=>rh('/admin/membros/efetivar',{personId:id,recognizedOn:date,reference:''});
+ await assert.rejects(promote(day(1)));await assert.rejects(promote(day(-1)));
+ const result=await promote(day(0));
+ assert.equal(docs['memberLinks/'+link].endDate,day(-1));assert.equal(docs['memberLinks/'+link].type,'MEMBRO_INGRESSANTE');
+ assert.equal(docs['memberLinks/'+result.request.target.linkId].startDate,day(0));assert.equal(docs['memberCurrentStates/'+id].state,'MEMBRO_EFETIVO');
+});
