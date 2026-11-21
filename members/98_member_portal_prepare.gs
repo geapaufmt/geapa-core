@@ -60,7 +60,7 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
     const E=f4MemberEnrollmentContract_(),registration=E.quick({fullName:p.nomeCompleto,email:p.emailPrincipal,rga:p.rga,phone:p.telefone});
     const approval=f4MemberPreRegistration_().locate(get,registration,p.referenciaAprovacao,now),approvalRef=approval.id,policy=get('memberOperationalConfig/registration');
     N(policy?.enabled===true&&policy.stagedEnrollment===true,'ACCESS_REVOKED');
-    if(selected)N(approval.reference===p.referenciaAprovacao&&approval.membershipType===p.categoriaIngresso,'HUMAN_DECISION_REQUIRED');
+    if(selected)N(approval.reference===p.referenciaAprovacao&&approval.membershipType===p.categoriaIngresso,'ADMISSION_APPROVAL_REQUIRED');
     const resolution=f4MemberRegistrationIdentity_().resolve(get,{email:registration.email,rga:registration.rga}),personId=resolution.personId||'P_'+op;
     const identifiers=resolution.identifiers.filter(v=>!get('memberIdentifierClaims/'+C.hash(v))).map((v,i)=>({id:'I'+i+'_'+op,...v}));
     r.commandType='members.ingress.execute';r.target={personId,linkId:null};r.payload={operation:'PRE_REGISTER',identity:resolution.personId?null:{displayName:registration.fullName},identifiers,registration,profile:p.dadosComplementares||{},approvalRef};r.decisionRef=approval.reference;cap='MEMBERS_INGRESS_EXECUTE';

@@ -10,7 +10,7 @@ function f4MemberInvitation_(){
  function requiresReview(policy){
   const rules=policy?.presidencyReview;
   if(rules?.required!==true)return false;
-  N(C.id(rules.decisionRef),'HUMAN_DECISION_REQUIRED');return true;
+  N(C.id(rules.decisionRef),'ADMISSION_APPROVAL_REQUIRED');return true;
  }
  function validate(r){
   C.exact(r.target,['personId','linkId']);N(C.id(r.target.personId)&&r.target.linkId===null&&C.id(r.decisionRef)&&r.evidenceRefs.length>0,'COMMAND_PAYLOAD_INVALID');
@@ -36,7 +36,7 @@ function f4MemberInvitation_(){
   const target=get('memberIdentifierClaims/'+C.hash({kind,value:registration[field]}));
   N(!target?.active,'OPERATION_CONFLICT');
   const approval=f4MemberPreRegistration_().locate(get,registration,old.approval.reference,now);
-  N(approval.reference===old.approval.reference&&approval.membershipType===old.approval.membershipType,'HUMAN_DECISION_REQUIRED');
+  N(approval.reference===old.approval.reference&&approval.membershipType===old.approval.membershipType,'ADMISSION_APPROVAL_REQUIRED');
   return {registration,path,prior,data:{...prior,value:registration[field],revision:prior.revision+1},approval};
  }
  function proposal(get,r,now){
@@ -58,7 +58,7 @@ function f4MemberInvitation_(){
    N(p.action!=='ACKNOWLEDGE'||old.review?.state!=='CORRECTION_REQUESTED','DOMAIN_STATE_INVALID');
   }
   if(resolving)N(old.review?.state==='CORRECTION_REQUESTED','DOMAIN_STATE_INVALID');
-  if(['SEND','RESEND'].includes(p.action)&&requiresReview(policy))N(old.review?.state==='ACKNOWLEDGED','HUMAN_DECISION_REQUIRED');
+  if(['SEND','RESEND'].includes(p.action)&&requiresReview(policy))N(old.review?.state==='ACKNOWLEDGED','ADMISSION_APPROVAL_REQUIRED');
   N(p.action==='SEND'?old.status==='PRE_REGISTERED':p.action==='RESEND'?['INVITED','ACCEPTED'].includes(old.status):['PRE_REGISTERED','INVITED','ACCEPTED'].includes(old.status),'DOMAIN_STATE_INVALID');
   const revision=U.revision(r,path),expected=U.revision(r,'memberAggregateHeads/'+id),h=get('memberAggregateHeads/'+id);N(old.revision===revision&&h?.revision===expected,'REVISION_CONFLICT');
   const next={...old,revision:old.revision+1,updatedAt:now};

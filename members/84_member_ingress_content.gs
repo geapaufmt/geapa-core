@@ -25,7 +25,7 @@ function f4MemberIngressContent_(){
     v.personId===r.target.personId&&old.event.id===v.ingress.eventId&&v.recognizedOn>=old.link.startDate&&
     C.civilStart(v.recognizedOn)<=C.civilStart(today),'COMMAND_PAYLOAD_INVALID');
   N(typeof v.reference==='string'&&v.reference.length<=500&&!/[<>\x00-\x1f]/.test(v.reference),'COMMAND_PAYLOAD_INVALID');
-  if(v.recognizedOn!==today)N(v.reference.trim()&&get('memberOperationalConfig/registration')?.retroactiveEffectivation===true,'HUMAN_DECISION_REQUIRED');
+  if(v.recognizedOn!==today)N(v.reference.trim()&&get('memberOperationalConfig/registration')?.retroactiveEffectivation===true,'ADMISSION_APPROVAL_REQUIRED');
  }
  function validate(get,r,now){const body=f4MemberActContent_().act(get,r,now),v=body.facts;
   if(v.schemaVersion==='member-effectivation-v1'){effectivation(get,r,v,now);return body;}

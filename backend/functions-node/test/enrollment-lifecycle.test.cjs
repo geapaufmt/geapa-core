@@ -69,7 +69,7 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
   const type=category==='DECLINE'?'MEMBRO_INGRESSANTE':category;
   const {docs,call,rh,submit,registration,set}=await fixture(type,t);
   const route='/admin/ingressos-membros/cadastrar';
-  await assert.rejects(rh(route,{...registration,referenciaAprovacao:'OUTRA'}),/HUMAN_DECISION_REQUIRED/);
+  await assert.rejects(rh(route,{...registration,referenciaAprovacao:'OUTRA'}),/ADMISSION_APPROVAL_REQUIRED/);
   const registered=await rh(route,registration),id=registered.request.operationId,person=registered.request.target.personId;
   const enrollment=()=>docs['memberEnrollments/'+id];
   assert(!docs['memberLinks/V_'+id]);assert(!docs['memberAuthBindings/SYN_INVITEE']);
@@ -86,7 +86,7 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
     await set(grant,on?{...original[grant],actorSelector:{...original[grant].actorSelector,roleKey:'PRESIDENTE',actorScope:'PRESIDENCIA'},targets:{...original[grant].targets,commandScopes:['ENROLLMENT_SUPERVISION']}}:original[grant]);
    }
    await set(policy,{...docs[policy],revision:2,presidencyReview:{required:true,decisionRef:'SYN_APPROVED_RULE'}});
-   await assert.rejects(manage('SEND','Teste'),/HUMAN_DECISION_REQUIRED/);
+   await assert.rejects(manage('SEND','Teste'),/ADMISSION_APPROVAL_REQUIRED/);
    await presidency(true);await manage('REQUEST_CORRECTION','Conferir telefone');
    await assert.rejects(manage('SEND','Teste'));
    await presidency(false);

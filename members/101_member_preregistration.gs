@@ -10,7 +10,7 @@ function f4MemberPreRegistration_(){
   E.quick(r.payload.registration);return true;
  }
  function approval(get,ref,registration,now){
-  const d=get('memberAdmissionApprovals/'+ref);N(d,'HUMAN_DECISION_REQUIRED');N(d?.schemaVersion==='member-admission-approval-v1'&&d.id===ref&&d.active===true&&C.rev(d.revision)&&d.revision>0,'ACCESS_REVOKED');
+  const d=get('memberAdmissionApprovals/'+ref);N(d,'ADMISSION_APPROVAL_REQUIRED');N(d?.schemaVersion==='member-admission-approval-v1'&&d.id===ref&&d.active===true&&C.rev(d.revision)&&d.revision>0,'ACCESS_REVOKED');
   N(d.registrationDigest===C.hash({email:registration.email,rga:registration.rga})&&C.id(d.reference)&&C.id(d.approvedBy),'AUTH_BINDING_INVALID');
   C.civilStart(d.approvedOn);N(C.civilStart(d.approvedOn)<=now&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(d.membershipType),'COMMAND_PAYLOAD_INVALID');
   return d;
