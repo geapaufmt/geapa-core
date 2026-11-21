@@ -8,6 +8,7 @@ function f4MemberProfileCorrectionReader_({config,identity,clock=Date.now,auditC
   N(C.id(identity.uid)&&Number.isSafeInteger(identity.expiresAt)&&now<identity.expiresAt,'ACCESS_REVOKED');
   const technical=f4DevAdmin_().profile(get,identity.uid,now),actor=technical?f4DevAdmin_().identify(get,identity.uid,now):f4MemberAuthz_().identify(get,identity.uid,now),settings=f4MemberPortalPrepare_({config,identity,clock}).configuration(get);
   N(settings.commands.includes(self?'members.self.update':'members.profile.correct'),'ACCESS_REVOKED');
+  if(!self){const dev=f4DevAdministrativeAccess_().source(get,identity,now,'MEMBERS_PROFILE_CORRECT');if(dev)return {actor:dev.actor,source:dev.source,mask:dev.mask,persons:dev.source.syntheticPersonIds,expires:dev.validUntil};}
   if(technical)return {actor,source:technical,mask:W.fields,persons:null,expires:Math.min(identity.expiresAt,C.ms(technical.expiresAt))};
   const cap=self?'MEMBERS_SELF_UPDATE':'MEMBERS_PROFILE_CORRECT';
   const source=settings.policyIds.map(id=>get('memberAuthzPolicies/'+id)).find(p=>{

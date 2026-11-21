@@ -47,6 +47,7 @@ function f4InstitutionalDirectoryModel_(){
 function f4InstitutionalPolicies_(get,identity,now,ids,cap,path){
  const C=f4Core_(),K=f4MemberAuthzContracts_(),N=K.need;
  N(now<identity.expiresAt,'ACCESS_REVOKED');
+ const dev=f4DevAdministrativeAccess_().institutional(get,identity,now,cap,path);if(dev)return dev;
  const actor=f4MemberAuthz_().identify(get,identity.uid,now);
  const result=f4InstitutionalRolePolicies_(get,actor,now,ids,cap,path);
  return {...result,validUntil:Math.min(identity.expiresAt,result.validUntil)};
