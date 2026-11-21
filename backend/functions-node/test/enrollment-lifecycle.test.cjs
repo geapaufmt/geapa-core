@@ -25,6 +25,12 @@ function database(docs){
   for(const [p,v] of writes){if(v)docs[p]=v;else delete docs[p];}version++;return result;
  }};
 }
+test('ordinary absence limits follow the effective membership category',()=>{
+ const domain=createDomain(()=>{});
+ const counts=(state,countsAbsence)=>JSON.parse(domain.run('(v)=>f4MemberCountsAbsence_(v.state,v.activity)',{state,activity:{countsAbsence}}));
+ assert.equal(counts('MEMBRO_INGRESSANTE',true),false);assert.equal(counts('MEMBRO_EM_ESPERA',true),false);
+ assert.equal(counts('MEMBRO_EFETIVO',true),true);assert.equal(counts('MEMBRO_EFETIVO',false),false);
+});
 const op=()=>randomUUID().replaceAll('-','');
 async function fixture(category,t){
  const {docs:raw,now}=seed(),docs=Object.fromEntries(Object.entries(raw).map(([key,v])=>[key,decode({mapValue:v})]));
