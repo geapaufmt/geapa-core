@@ -54,7 +54,7 @@ function f4MemberEnrollmentCommands_(){
   const facts=E.ready(get,old,U.revision(r,'memberEnrollments/'+old.id),verified,now,s.session.projectId,today,catalog.norms);
   E.eligibleCourse(get,s.policy,facts.courseId);
   N(facts.normAcknowledgement.termVersion===catalog.configuration.normTermVersion,'REVISION_CONFLICT');
-  const approvalRef='AP_'+C.hash({email:old.registration.email,rga:old.registration.rga}).slice(0,40),approved=f4MemberPreRegistration_().approval(get,approvalRef,old.registration,now);
+  const approvalRef=old.approvalId||f4MemberPreRegistration_().key(old.registration),approved=f4MemberPreRegistration_().approval(get,approvalRef,old.registration,now);
   N(K.equal(old.approval,{reference:approved.reference,approvedBy:approved.approvedBy,approvedOn:approved.approvedOn,membershipType:approved.membershipType}),'REVISION_CONFLICT');
   // The canonical prior approval determines the type. Candidate input cannot
   // promote an incoming member or substitute the institutional decision.

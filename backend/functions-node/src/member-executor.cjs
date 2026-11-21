@@ -61,7 +61,7 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
  const run=(fn,v)=>{const r=domain.run(fn,v);return r===undefined?undefined:JSON.parse(r);};run('(x)=>nodeIdentity(x)',identity);
  // Candidate requests can only enter the invitation family and its owner-bound receipt.
  const candidate=body.action.startsWith('memberEnrollment')||
-  body.request?.commandType==='members.onboarding.complete'&&(body.action!=='memberExecute'||body.request.payload?.operation==='ENROLLMENT');
+  ['memberRecover','memberStatus','memberExecute'].includes(body.action)&&body.request?.commandType==='members.onboarding.complete'&&(body.action!=='memberExecute'||body.request.payload?.operation==='ENROLLMENT');
  store.candidate=candidate;
  store.inEnrollmentScope=(person,refs)=>{
   if(!/^P_[a-f0-9]{32}$/.test(person)||!Array.isArray(refs))return false;

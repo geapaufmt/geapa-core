@@ -14,7 +14,7 @@ function f4MemberEnrollmentAccess_(){
   N(person?.active===true&&person.technicalAccount===false&&head?.id===person.id&&head.paths.includes('memberIdentities/'+person.id)&&head.paths.includes('memberIdentifiers/'+identifier.id)&&C.rev(head.revision)&&head.revision>0,'AUTH_BINDING_INVALID');
   N(!binding||binding.active===true&&binding.uid===uid&&binding.idPessoa===session.personId,'AUTH_BINDING_INVALID');
   const control=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS'));N(control.mode==='CANONICAL'&&control.activeWriterVersion==='M13','ACCESS_REVOKED');
-  const policy=get('memberOperationalConfig/registration');N(policy?.enabled===true&&policy.stagedEnrollment===true&&C.rev(policy.revision)&&policy.revision>0,'ACCESS_REVOKED');const approvalRef='AP_'+C.hash({email:enrollment.registration.email,rga:enrollment.registration.rga}).slice(0,40),approval=f4MemberPreRegistration_().approval(get,approvalRef,enrollment.registration,now);N(approval.reference===enrollment.approval.reference&&approval.membershipType===enrollment.approval.membershipType,'ACCESS_REVOKED');
+  const policy=get('memberOperationalConfig/registration');N(policy?.enabled===true&&policy.stagedEnrollment===true&&C.rev(policy.revision)&&policy.revision>0,'ACCESS_REVOKED');const approvalRef=enrollment.approvalId||f4MemberPreRegistration_().key(enrollment.registration),approval=f4MemberPreRegistration_().approval(get,approvalRef,enrollment.registration,now);N(approval.reference===enrollment.approval.reference&&approval.membershipType===enrollment.approval.membershipType,'ACCESS_REVOKED');
   return {session,enrollment,head,control,policy,approval};
  }
  function establish(tx,verified,now,config){

@@ -16,8 +16,7 @@ function f4MemberExecutor_(){
   if(!/^P_[a-f0-9]{32}$/.test(personId))return false;
   const id=personId.slice(2),e=get('memberEnrollments/'+id);
   if(!e||e.id!==id||e.personId!==personId)return false;
-  const digest=C.hash({email:e.registration.email,rga:e.registration.rga});
-  return refs.includes('AP_'+digest.slice(0,40));
+  return refs.includes(e.approvalId||f4MemberPreRegistration_().key(e.registration));
  }
  function invitationActor(get,r,uid,v){
   if(v.commandType!=='members.onboarding.complete'||r.payload?.operation!=='ENROLLMENT')return false;

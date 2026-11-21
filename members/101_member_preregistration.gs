@@ -15,6 +15,13 @@ function f4MemberPreRegistration_(){
   C.civilStart(d.approvedOn);N(C.civilStart(d.approvedOn)<=now&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(d.membershipType),'COMMAND_PAYLOAD_INVALID');
   return d;
  }
+ function key(registration){return 'AP_'+C.hash({email:registration.email,rga:registration.rga}).slice(0,40);}
+ function locate(get,registration,reference,now){
+  const indexed=key(registration);
+  // Retain the identity index when present, including its revocation.
+  const ref=get('memberAdmissionApprovals/'+indexed)||!C.id(reference)?indexed:reference;
+  return approval(get,ref,registration,now);
+ }
  function proposal(get,r,now){
   validate(r);const p=r.payload,id=r.target.personId,body=f4MemberActContent_().act(get,r,now),facts=body.facts;
   C.exact(facts,['schemaVersion','personId','approvalRef','approvalRevision','policyRevision']);
@@ -33,6 +40,7 @@ function f4MemberPreRegistration_(){
   for(const item of resolution.identifiers){const claim=get('memberIdentifierClaims/'+C.hash(item));N(claim?.active&&claim.idPessoa===id||p.identifiers.filter(v=>v.kind===item.kind&&v.value===item.value).length===1,'COMMAND_PAYLOAD_INVALID');}
   const indexPath='memberEnrollmentIndexes/'+id,index=get(indexPath);N(!index||index.schemaVersion==='member-enrollment-index-v1'&&index.personId===id&&index.activeEnrollmentId===null,'OPERATION_CONFLICT');
   const enrollment=E.create({id:r.operationId,personId:id,registration,approval:{reference:a.reference,approvedBy:a.approvedBy,approvedOn:a.approvedOn,membershipType:a.membershipType},actorUid:r.ownerUid,now,expiresAt:now+policy.invitationLifetimeHours*3600000});
+  if(a.id!==key(registration))enrollment.approvalId=a.id;
   enrollment.profile=E.profile(p.profile,today);
   if(!enrollment.profile.courseId&&policy.courseIds?.length===1)enrollment.profile.courseId=policy.courseIds[0];
   if(enrollment.profile.courseId)E.eligibleCourse(get,policy,enrollment.profile.courseId);N(!get('memberEnrollments/'+r.operationId),'OPERATION_CONFLICT');add('memberEnrollments/'+r.operationId,enrollment);
@@ -49,5 +57,5 @@ function f4MemberPreRegistration_(){
   }else{C.exact(d,['schemaVersion','personId','revision','activeEnrollmentId']);N(c.path==='memberEnrollmentIndexes/'+id&&d.schemaVersion==='member-enrollment-index-v1'&&(d.activeEnrollmentId===null||C.op(d.activeEnrollmentId)),'COMMAND_PAYLOAD_INVALID');}
   return true;
  }
- return {validate,approval,proposal,change};
+ return {validate,approval,key,locate,proposal,change};
 }

@@ -73,7 +73,8 @@ function f4MemberEnrollmentContract_(){
   return {schemaVersion:'member-enrollment-v1',id,personId,revision:1,registration:quick(registration),approval:{...approval},createdBy:actorUid,createdAt:now,updatedAt:now,expiresAt,uid:null,status:'PRE_REGISTERED',invitedAt:null,respondedAt:null,completedAt:null,profile:{},normAcknowledgement:null,imageManifestation:null};
  }
  function validate(v){
-  C.exact(v,['schemaVersion','id','personId','revision','registration','approval','createdBy','createdAt','updatedAt','expiresAt','uid','status','invitedAt','respondedAt','completedAt','profile','normAcknowledgement','imageManifestation',...(Object.hasOwn(v,'review')?['review']:[])]);
+  C.exact(v,['schemaVersion','id','personId','revision','registration','approval','createdBy','createdAt','updatedAt','expiresAt','uid','status','invitedAt','respondedAt','completedAt','profile','normAcknowledgement','imageManifestation',...(Object.hasOwn(v,'review')?['review']:[]),...(Object.hasOwn(v,'approvalId')?['approvalId']:[])]);
+  if(Object.hasOwn(v,'approvalId'))N(C.id(v.approvalId),'SCHEMA_INVALID');
   if(v.review){C.exact(v.review,['state','at','actorUid','note']);N(['ACKNOWLEDGED','CORRECTION_REQUESTED','RESOLVED'].includes(v.review.state)&&C.id(v.review.actorUid)&&Number.isSafeInteger(v.review.at)&&v.review.at>=v.createdAt&&v.review.at<=v.updatedAt,'SCHEMA_INVALID');text(v.review.note,500,false);}
   N(v.schemaVersion==='member-enrollment-v1'&&C.op(v.id)&&C.id(v.personId)&&C.id(v.createdBy)&&C.rev(v.revision)&&v.revision>0&&['PRE_REGISTERED','INVITED','ACCEPTED','DECLINED','CANCELLED','COMPLETED'].includes(v.status),'SCHEMA_INVALID');
   N(K.equal(quick(v.registration),v.registration)&&Number.isSafeInteger(v.createdAt)&&Number.isSafeInteger(v.updatedAt)&&v.createdAt<=v.updatedAt&&Number.isSafeInteger(v.expiresAt)&&v.expiresAt>v.createdAt,'SCHEMA_INVALID');

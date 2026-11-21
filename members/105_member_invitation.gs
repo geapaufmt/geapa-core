@@ -24,7 +24,7 @@ function f4MemberInvitation_(){
   N(facts.schemaVersion==='member-invitation-action-v1'&&facts.personId===id&&facts.enrollmentId===old.id&&facts.enrollmentRevision===old.revision,'M13_ACT_INVALID');
   N(policy?.schemaVersion==='member-registration-policy-v1'&&policy.enabled===true&&policy.stagedEnrollment===true&&facts.policyRevision===policy.revision&&Number.isSafeInteger(policy.invitationLifetimeHours)&&policy.invitationLifetimeHours>=1&&policy.invitationLifetimeHours<=720,'ACCESS_REVOKED');
   N(old.approval.reference===r.decisionRef,'AUTH_BINDING_INVALID');
-  const registration=old.registration,ref='AP_'+C.hash({email:registration.email,rga:registration.rga}).slice(0,40),approval=f4MemberPreRegistration_().approval(get,ref,registration,now);
+  const registration=old.registration,ref=old.approvalId||f4MemberPreRegistration_().key(registration),approval=f4MemberPreRegistration_().approval(get,ref,registration,now);
   N(approval.reference===old.approval.reference&&approval.membershipType===old.approval.membershipType,'ACCESS_REVOKED');
   const reviewing=reviewActions.includes(p.action),resolving=p.action==='RESOLVE_CORRECTION';
   if(reviewing){

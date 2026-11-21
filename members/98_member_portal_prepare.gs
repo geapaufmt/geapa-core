@@ -57,7 +57,7 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
     const selected=Object.hasOwn(p,'categoriaIngresso')||Object.hasOwn(p,'referenciaAprovacao');
     const keys=['nomeCompleto','emailPrincipal','rga','telefone',...(selected?['categoriaIngresso','referenciaAprovacao']:[])];C.exact(p,[...keys,...(Object.hasOwn(p,'dadosComplementares')?['dadosComplementares']:[])]);
     const E=f4MemberEnrollmentContract_(),registration=E.quick({fullName:p.nomeCompleto,email:p.emailPrincipal,rga:p.rga,phone:p.telefone});
-    const approvalRef='AP_'+C.hash({email:registration.email,rga:registration.rga}).slice(0,40),approval=f4MemberPreRegistration_().approval(get,approvalRef,registration,now),policy=get('memberOperationalConfig/registration');
+    const approval=f4MemberPreRegistration_().locate(get,registration,p.referenciaAprovacao,now),approvalRef=approval.id,policy=get('memberOperationalConfig/registration');
     N(policy?.enabled===true&&policy.stagedEnrollment===true,'ACCESS_REVOKED');
     if(selected)N(approval.reference===p.referenciaAprovacao&&approval.membershipType===p.categoriaIngresso,'HUMAN_DECISION_REQUIRED');
     const resolution=f4MemberRegistrationIdentity_().resolve(get,{email:registration.email,rga:registration.rga}),personId=resolution.personId||'P_'+op;
