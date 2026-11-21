@@ -28,7 +28,7 @@ function f4MemberInvitation_(){
    N(prior?.idPessoa===id&&prior.active,'AUTH_BINDING_INVALID');
    return {registration,path,prior,data:{...prior,displayName:registration.fullName,revision:prior.revision+1}};
   }
-  N(old.uid===null&&['PRE_REGISTERED','INVITED'].includes(old.status),'DOMAIN_STATE_INVALID');
+  N(['PRE_REGISTERED','INVITED'].includes(old.status)||field==='rga'&&old.status==='ACCEPTED','DOMAIN_STATE_INVALID');
   const kind=field.toUpperCase(),claim=get('memberIdentifierClaims/'+C.hash({kind,value:old.registration[field]}));
   N(claim?.active&&claim.idPessoa===id&&C.id(claim.identifierId),'AUTH_BINDING_INVALID');
   const path='memberIdentifiers/'+claim.identifierId,prior=get(path),head=get('memberAggregateHeads/'+id);

@@ -124,6 +124,17 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
   }
   const view=(await open()).result.data;
   assert.equal(view.membershipType,type);assert.equal(view.entrySemester.semester,1);assert(!view.profile);
+  if(category==='DECLINE'){
+   const value='202620345',hash=JSON.parse(createDomain(()=>{}).run('(rga)=>f4MemberPreRegistration_().key({email:"convite@example.invalid",rga})',value));
+   const amend=()=>rh('/admin/ingressos-membros/convite',{enrollmentId:id,revision:enrollment().revision,action:'AMEND',field:'rga',value,reason:'Correção documental sintética'});
+   await assert.rejects(amend(),/ADMISSION_APPROVAL_REQUIRED/);
+   const source=Object.values(docs).find(v=>v.schemaVersion==='member-admission-approval-v1'&&v.reference===registration.referenciaAprovacao);
+   const digest=JSON.parse(createDomain(()=>{}).run('(rga)=>f4Core_().hash({email:"convite@example.invalid",rga})',value));
+   await set('memberAdmissionApprovals/'+hash,{...source,id:hash,registrationDigest:digest,membershipType:type});
+   const scope=docs['memberExecutorScopes/SYN_ADMISSION'];
+   await set('memberExecutorScopes/SYN_ADMISSION',{...scope,approvalRefs:[...scope.approvalRefs,hash]});
+   await amend();assert.equal((await open()).result.data.entrySemester.semester,2);
+  }
   const candidate=(action,payload={})=>submit('SYN_INVITEE','memberEnrollmentPrepare',{revision:enrollment().revision,action,payload});
   if(category==='DECLINE'){await candidate('DECLINE');assert.equal(enrollment().status,'DECLINED');assert(!docs['memberAuthBindings/SYN_INVITEE']);return;}
   await candidate('ACCEPT');await candidate('SAVE',{profile:{city:'Sinop'}});

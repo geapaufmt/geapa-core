@@ -28,6 +28,12 @@ function f4MemberExecutor_(){
   // New identity only from a specifically approved synthetic registration.
   const registration=r.commandType==='members.ingress.execute'&&r.payload?.operation==='PRE_REGISTER'&&id==='P_'+r.operationId&&s.approvalRefs.includes(r.payload.approvalRef);
   N(s.personIds.includes(id)||registration||enrollmentScope(get,id,s.approvalRefs)&&['members.ingress.execute','members.onboarding.complete'].includes(r.commandType),'PILOT_RESOURCE_DENIED');
+  if(r.payload?.action==='AMEND'&&['rga','email'].includes(r.payload.field)&&!s.personIds.includes(id)&&!get('commandExecutorOwners/'+r.operationId)){
+   const old=get('memberEnrollments/'+r.payload.enrollmentId);
+   const registration=f4MemberEnrollmentContract_().quick({...old.registration,[r.payload.field]:r.payload.value});
+   const next=f4MemberPreRegistration_().locate(get,registration,old.approval.reference,Date.now());
+   N(s.approvalRefs.includes(next.id),'PILOT_RESOURCE_DENIED');
+  }
   if(registration&&!get('commandExecutorOwners/'+r.operationId))N(!get('memberAggregateHeads/'+id)&&!get('memberIdentities/'+id),'OPERATION_CONFLICT');
  }
  function select(get,r,config){if(!supports(r))return null;const id=key(r.commandType);if(!get('commandExecutorRoutes/'+id))return null;const v=route(get,config,id);const s=scope(get,v);
