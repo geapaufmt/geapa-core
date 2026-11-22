@@ -77,5 +77,18 @@ test('nominal DEV grant exercises protected reads, correction and draft transact
   a.equal((await db.collection('memberLinks').where('idPessoa','==',admission.person).get()).size,1);a.equal((await db.doc('memberCurrentStates/'+admission.person).get()).data().state,'MEMBRO_INGRESSANTE');
   const current=(await db.doc(gp).get()).data();delete current.invitationWindow;await db.doc(gp).set({...current,revision:5});await a.rejects(send('SEND'));a.equal((await call('memberRecover',completed.key)).dto.receipt.state,'COMPLETED');
  });
+ await t.test('explicit synthetic effectivation validates decision, scope and expiry and preserves one same-day link',async()=>{
+  const gp='coreDevAdministrativeGrants/'+uid,e=(await db.collection('memberEnrollments').where('personId','==',admission.person).get()).docs[0].data(),today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Cuiaba'}).format(new Date(now)),reference='TESTE_EFETIVACAO_DEV_20261122';
+  const input={personId:admission.person,recognizedOn:today,reference},prepare=payload=>member('memberPrepare',{operationId:crypto.randomBytes(16).toString('hex'),route:'/admin/membros/efetivar',payload});
+  await a.rejects(prepare(input));
+  const window={personId:admission.person,enrollmentId:e.id,recognizedOn:today,reference,issuedAt:new Date(now-1000),expiresAt:new Date(now+1800000)};await db.doc(gp).update({effectivationWindow:window,revision:6});
+  for(const patch of [{personId:person},{recognizedOn:'2020-01-01'},{reference:'TESTE_OUTRO'}])await a.rejects(prepare({...input,...patch}));
+  await db.doc(gp).update({'effectivationWindow.expiresAt':new Date(now-1)});await a.rejects(prepare(input));await db.doc(gp).update({'effectivationWindow.expiresAt':window.expiresAt});
+  const prepared=await prepare(input);await db.doc(gp).update({active:false});await a.rejects(member('memberExecute',prepared.request));await db.doc(gp).update({active:true});
+  const next=await prepare(input),out=await member('memberExecute',next.request);a.equal(out.dto.receipt.state,'COMPLETED');a.equal((await member('memberRecover',next.key)).dto.receipt.state,'COMPLETED');
+  a.equal((await db.doc('memberCurrentStates/'+admission.person).get()).data().state,'MEMBRO_EFETIVO');a.equal((await db.collection('memberLinks').where('idPessoa','==',admission.person).get()).size,1);a.equal((await db.doc('memberEnrollments/'+e.id).get()).data().status,'COMPLETED');
+  a((await db.doc('memberAudit/'+next.request.operationId).get()).data().authorizationRefs.some(v=>v.kind==='DEV_TECHNICAL'));await a.rejects(prepare(input),/DOMAIN_STATE_INVALID/);
+  const grant=(await db.doc(gp).get()).data();delete grant.effectivationWindow;await db.doc(gp).set({...grant,revision:7});a.equal((await member('memberRecover',next.key)).dto.receipt.state,'COMPLETED');
+ });
  }finally{await db.doc('coreDevAdministrativeGrants/'+uid).delete();await db.terminate();}
 });

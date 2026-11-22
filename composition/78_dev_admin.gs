@@ -55,8 +55,9 @@ function f4DevAdministrativeAccess_(){
   // Check the server destination BEFORE reading any copied DEV grant in PROD.
   if(f4ExecutionEnvironment_().production||!f4DevBoundary_().permit({environment:'DEV',projectId:'geapa-convergencia-dev',database:'(default)'}))return null;
   const g=get(path(identity.uid));if(!g)return null;
-  C.exact(g,['schemaVersion','id','uid','personId','bindingVersion','subjectEpoch','projectId','environment','exportable','active','revision','issuedAt','expiresAt','approvalRef','capabilities','fieldMasks','syntheticPersonIds','sections',...(Object.hasOwn(g,'admissionApprovalIds')?['admissionApprovalIds']:[]),...(Object.hasOwn(g,'invitationWindow')?['invitationWindow']:[])]);
+  C.exact(g,['schemaVersion','id','uid','personId','bindingVersion','subjectEpoch','projectId','environment','exportable','active','revision','issuedAt','expiresAt','approvalRef','capabilities','fieldMasks','syntheticPersonIds','sections',...(Object.hasOwn(g,'admissionApprovalIds')?['admissionApprovalIds']:[]),...(Object.hasOwn(g,'invitationWindow')?['invitationWindow']:[]),...(Object.hasOwn(g,'effectivationWindow')?['effectivationWindow']:[])]);
   if(g.invitationWindow){const w=g.invitationWindow;C.exact(w,['enrollmentId','issuedAt','expiresAt']);N(C.op(w.enrollmentId)&&C.ms(w.issuedAt)<C.ms(w.expiresAt)&&C.ms(w.expiresAt)-C.ms(w.issuedAt)<=2*3600000&&C.ms(w.expiresAt)<=C.ms(g.expiresAt),'AUTHORIZATION_DENIED');}
+  if(g.effectivationWindow){const w=g.effectivationWindow;C.exact(w,['enrollmentId','personId','recognizedOn','reference','issuedAt','expiresAt']);N(C.op(w.enrollmentId)&&C.id(w.personId)&&/^\d{4}-\d{2}-\d{2}$/.test(w.recognizedOn)&&/^TESTE_[A-Z0-9_]{1,120}$/.test(w.reference)&&C.ms(w.issuedAt)<C.ms(w.expiresAt)&&C.ms(w.expiresAt)-C.ms(w.issuedAt)<=2*3600000&&C.ms(w.expiresAt)<=C.ms(g.expiresAt),'AUTHORIZATION_DENIED');}
   if(g.admissionApprovalIds)N(Array.isArray(g.admissionApprovalIds)&&g.admissionApprovalIds.length<=10&&g.admissionApprovalIds.every(C.id)&&new Set(g.admissionApprovalIds).size===g.admissionApprovalIds.length,'AUTHORIZATION_DENIED');
   N(g.schemaVersion==='core-dev-administrative-grant-v1'&&g.id===identity.uid&&g.uid===identity.uid&&g.projectId==='geapa-convergencia-dev'&&g.environment==='DEV'&&g.exportable===false&&typeof g.active==='boolean'&&C.rev(g.revision)&&g.revision>0&&C.id(g.personId)&&C.id(g.approvalRef),'AUTHORIZATION_DENIED');
   N(Array.isArray(g.capabilities)&&g.capabilities.length>0&&new Set(g.capabilities).size===g.capabilities.length&&g.capabilities.every(c=>Object.hasOwn(fields,c)),'AUTHORIZATION_DENIED');
@@ -78,6 +79,14 @@ function f4DevAdministrativeAccess_(){
  }
  function command(get,identity,now,cap,target,r){
   if(cap==='MEMBERS_PROFILE_CORRECT')return correction(get,identity,now,target);
+  if(cap==='MEMBERS_INGRESS_EXECUTE'&&r?.commandType==='members.ingress.execute'&&r.payload.operation==='RECORD_EFFECTIVATION'){
+   const a=source(get,identity,now,cap),w=a?.source.effectivationWindow;
+   N(w&&now>=C.ms(w.issuedAt)&&now<C.ms(w.expiresAt)&&target.personId===w.personId&&a.source.syntheticPersonIds.includes(w.personId),'AUTHORIZATION_DENIED');
+   const e=f4MemberEnrollmentContract_().validate(get('memberEnrollments/'+w.enrollmentId)),approval=get('memberAdmissionApprovals/'+e.approvalId),person=get('memberIdentities/'+e.personId),facts=f4MemberActContent_().act(get,r,now).facts;
+   N(e.status==='COMPLETED'&&e.personId===w.personId&&e.createdBy===identity.uid&&a.source.admissionApprovalIds?.includes(e.approvalId)&&approval?.active&&approval.synthetic===true&&approval.devTechnicalOwnerUid===identity.uid&&approval.devPersonId===w.personId&&person?.origin==='DEV_ADMIN_SYNTHETIC_V1'&&C.hash(approval.devRegistration)===C.hash(e.registration),'AUTHORIZATION_DENIED');
+   N(facts.schemaVersion==='member-effectivation-v1'&&facts.personId===w.personId&&facts.recognizedOn===w.recognizedOn&&facts.reference===w.reference&&r.payload.startDate===w.recognizedOn&&target.effectiveDate===w.recognizedOn&&target.purpose==='ADMINISTRATIVE_INGRESS'&&target.effect==='EFETIVACAO'&&target.fieldMask.length===0,'AUTHORIZATION_DENIED');
+   f4MemberOperationalScope_(get,{kind:'DEV_TECHNICAL',capability:cap,target},{ownPerson:false,allowedPersons:[w.personId],allowedTargetScopes:['ADMINISTRACAO'],allowedBoards:[],allowedRoles:[],allowedResources:[],commandScopes:['ADMINISTRATIVE_INGRESS']},a.actor.binding.idPessoa,r,now);return a;
+  }
   if(cap==='MEMBERS_INGRESS_EXECUTE'&&r?.commandType==='members.ingress.execute'&&r.payload.operation==='MANAGE_INVITATION'){
    const a=source(get,identity,now,cap),e=f4MemberEnrollmentContract_().validate(get('memberEnrollments/'+r.payload.enrollmentId));
    N(a&&r.payload.action==='SEND'&&invitationAllowed(get,a,e,now)&&e.personId===target.personId&&r.decisionRef===e.approval.reference,'AUTHORIZATION_DENIED');
