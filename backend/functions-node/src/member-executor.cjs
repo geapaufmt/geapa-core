@@ -32,6 +32,11 @@ class MemberStore extends Store{
    if(col==='memberEvidenceContents'){if(d.target?.personId!==person)fail('PILOT_WRITE_DENIED');continue;}
    if(col==='memberEvidenceAttestations'){if(id!=='MVE_'+op||d.holderId!==person)fail('PILOT_WRITE_DENIED');continue;}
    if(technical.includes(col)){if(['commandRequests','commandReceipts','commandLedger','commandProvenance','commandLeases','commandExecutorOwners','commandProjectionInvalidations'].includes(col)&&id!==op)fail('PILOT_WRITE_DENIED');if(col==='commandExecutorRoutes'&&id!==this.routeId)fail('PILOT_WRITE_DENIED');continue;}
+   if(w.path==='projectionRecoveryControl/current'&&this.bindingUid&&this.prepared?.commandType==='members.binding.associate'){
+    if(!old||d.revision!==old.revision+1)fail('PILOT_WRITE_DENIED');
+    const expected={...old,revision:old.revision+1,actorUids:[...new Set([...old.actorUids,this.bindingUid])],specializedReaders:{...old.specializedReaders,actorUids:[...new Set([...old.specializedReaders.actorUids,this.bindingUid])]}};
+    if(JSON.stringify(encode(d))!==JSON.stringify(encode(expected)))fail('PILOT_WRITE_DENIED');continue;
+   }
    if(col==='institutionalAccounts'&&id===person)continue;
    if(this.prepared?.commandType==='members.discipline.dismiss'&&!this.preparation){
     const intent=this.hostRead('memberPreparedIntents/'+op),check=intent?.operationalChecks,source=check?.sources?.map(s=>s.path)||[];

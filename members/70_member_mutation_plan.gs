@@ -31,6 +31,17 @@ function renew(get,x){const {id,expected,now,work}=x;if(work){C.exact(work,['ope
   return {validate,mutation,renew};
  }
  function assemble(tx,x,v,control,deadline){
+  // Only a verified administrative first association enrolls its UID in the
+  // technical reader cohort. Canonical policies remain unchanged.
+  for(const c of x.changes||[]){if(!x.accessBootstrap||!c.path.startsWith('memberAuthBindings/')||!c.data.active||c.expectedRevision!==0)continue;
+   const readerPath='projectionRecoveryControl/current',reader=tx.get(readerPath).data();
+   N(reader,'ACCESS_REVOKED');
+   const uid=c.data.uid,limit=f4ExecutionEnvironment_().production?128:16;
+   N(reader.projectId===f4ExecutionEnvironment_().project&&reader.appCheck?.mode==='REQUIRED'&&reader.specializedReaders?.enabled===true,'ACCESS_REVOKED');
+   const actors=[...new Set([...reader.actorUids,uid])],specialized=[...new Set([...reader.specializedReaders.actorUids,uid])];N(actors.length<=limit&&specialized.length<=limit,'SCOPE_TOO_LARGE');
+   if(actors.length!==reader.actorUids.length||specialized.length!==reader.specializedReaders.actorUids.length)v.output[readerPath]={...reader,revision:reader.revision+1,actorUids:actors,specializedReaders:{...reader.specializedReaders,actorUids:specialized}};
+  }
+
   if(control&&Object.keys(v.pending).some(p=>/^member(AttendanceCases|Enrollment|Voluntary|ProfileCorrection|Operational|Course|Identities|Links|Events|Functions)/.test(p))){const path='portalReaderResourceFences/members_operations',old=tx.get(path).data();v.output[path]={schemaVersion:'portal-reader-resource-fence-v1',id:'members_operations',revision:(old?.revision||0)+1,updatedAt:F.Timestamp.fromMillis(x.now)};}
   if(control&&typeof f4CoreDomainInvalidation_==='function'&&(Object.keys(v.output).some(p=>p==='memberCurrentStates/'+x.id)||(x.changes||[]).some(c=>/^member(Identities|Links|Events|Functions|AuthBindings)\//.test(c.path))))f4CoreDomainInvalidation_(p=>tx.get(p).data(),v.pending,x.id,x.now);
   const exit=(x.changes||[]).find(c=>c.path.startsWith('memberEvents/')&&c.data.effect==='DESLIGAMENTO'),rh=(x.changes||[]).find(c=>c.path.startsWith('memberAttendanceCases/')&&c.data.state==='DISMISSED');
@@ -50,7 +61,7 @@ function renew(get,x){const {id,expected,now,work}=x;if(work){C.exact(work,['ope
  function authority(tx,x){const info=F.inspectTransaction(tx);N((info.environment==='SYNTHETIC_LOCAL' || f4OperationalDestination_(info)),'M13_OPERATIONAL_WRITER_OFF');const control=f4MemberAuthority_().validate(tx.get('memberAuthorityControl/MEMBERS').data());N(control.mode==='CANONICAL'&&control.activeWriterVersion==='M13','M13_AUTHORITY_DENIED');return control}
  function planMutation(tx,x){
   N(x&&['LEGACY','M13'].includes(x.mode),'M13_PLAN_INVALID');
-  C.exact(x,x.mode==='LEGACY'?['id','expected','changes','now','boardExpected','mode']:['id','expected','changes','now','boardExpected','mode','authorization','deadline']);
+  C.exact(x,x.mode==='LEGACY'?['id','expected','changes','now','boardExpected','mode']:['id','expected','changes','now','boardExpected','mode','authorization','deadline',...(Object.hasOwn(x,'accessBootstrap')?['accessBootstrap']:[])]);
   const control=x.mode==='M13'?authority(tx,x):null,read=reader(tx),e=engine(control);let deadline=Infinity;
   if(control){
    N(Number.isSafeInteger(x.deadline)&&x.now<x.deadline,'M13_DEADLINE_EXCEEDED');const command=x.authorization.command;C.exact(x.authorization,command?['request','proof','command']:['request','proof']);
@@ -58,7 +69,9 @@ function renew(get,x){const {id,expected,now,work}=x;if(work){C.exact(work,['ope
    const q=x.authorization.request,governance=command?.commandType==='members.governance.boardTerm',proof=f4MemberEnrollmentCommands_().is(command)?f4MemberEnrollmentAccess_().recheck(read.get,q,x.authorization.proof,x.now):governance?f4MemberAuthz_().recheckGovernance(read.get,q,x.authorization.proof,x.now,command):command?f4MemberAuthz_().recheckCommand(read.get,q,x.authorization.proof,x.now,command):f4MemberAuthz_().recheck(read.get,q,x.authorization.proof,x.now);
    N((governance?q.schemaVersion==='member-authz-governance-request-v13'&&q.target.boardId===x.id:q.target.personId===x.id)&&!['MEMBERS_SELF_READ','MEMBERS_CASE_READ','MEMBERS_PRIVATE_AUDIT'].includes(q.capability),'M13_AUTHZ_DENIED');
    if(f4MemberEnrollmentCommands_().is(command)){const exact=f4MemberEnrollmentCommands_().proposal(read.get,command,x.now);N(exact.id===x.id&&exact.expected===x.expected&&f4MemberCommandCatalog_().equal(exact.changes,x.changes),'M13_AUTHZ_DENIED');}
+   if(x.accessBootstrap){N(q.kind==='EXPLICIT'&&q.capability==='MEMBERS_BINDING_MANAGE'&&x.changes.some(c=>c.path.startsWith('memberAuthBindings/')&&c.expectedRevision===0&&c.data.active&&c.data.idPessoa===x.id),'M13_AUTHZ_DENIED');}
    for(const c of x.changes){
+    if(x.accessBootstrap&&c.path==='memberAuthzSubjects/'+x.id){N(!read.get(c.path)&&c.expectedRevision===0&&c.data.active===true&&c.data.authzEpoch===1&&c.data.revision===1&&C.ms(c.data.updatedAt)===x.now,'M13_AUTHZ_DENIED');f4MemberAuthzContracts_().subject(c.data);continue;}
     if(f4MemberEnrollmentCommands_().is(command))continue;
     N(q.target.resources.includes(c.path),'M13_AUTHZ_DENIED');const col=c.path.split('/')[0],allowed={memberAttendanceCases:['MEMBERS_DISCIPLINE_EXECUTE'],memberProfileCorrections:['MEMBERS_SELF_UPDATE','MEMBERS_PROFILE_CORRECT'],memberProfileCorrectionIndexes:['MEMBERS_SELF_UPDATE','MEMBERS_PROFILE_CORRECT'],memberEnrollments:['MEMBERS_INGRESS_EXECUTE'],memberEnrollmentIndexes:['MEMBERS_INGRESS_EXECUTE'],memberVoluntaryRequests:['MEMBERS_VOLUNTARY_REQUEST','MEMBERS_VOLUNTARY_EXIT_EXECUTE','MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'],memberVoluntaryIndexes:['MEMBERS_VOLUNTARY_REQUEST','MEMBERS_VOLUNTARY_EXIT_EXECUTE','MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'],memberPrivateProfiles:['MEMBERS_SELF_UPDATE','MEMBERS_PROFILE_CORRECT'],memberIdentities:['MEMBERS_PROFILE_CORRECT','MEMBERS_INGRESS_EXECUTE'],memberIdentifiers:['MEMBERS_PROFILE_CORRECT'],memberLinks:['MEMBERS_INGRESS_EXECUTE'],memberEvents:['MEMBERS_INGRESS_EXECUTE','MEMBERS_DISCIPLINE_EXECUTE','MEMBERS_VOLUNTARY_EXIT_EXECUTE','MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE','MEMBERS_GOVERNANCE_EXECUTE'],memberFunctions:['MEMBERS_GOVERNANCE_EXECUTE'],memberRoleCatalog:['MEMBERS_GOVERNANCE_EXECUTE'],memberGovernanceBoards:['MEMBERS_GOVERNANCE_EXECUTE'],memberGovernanceTerms:['MEMBERS_GOVERNANCE_EXECUTE'],memberGovernanceBoardTerms:['MEMBERS_GOVERNANCE_EXECUTE'],memberAuthBindings:['MEMBERS_BINDING_MANAGE']};
     N(allowed[col]?.includes(q.capability)||(command&&q.capability==='MEMBERS_INGRESS_EXECUTE'&&col==='memberIdentifiers'),'M13_AUTHZ_DENIED');const old=read.get(c.path);
@@ -106,5 +119,18 @@ function renew(get,x){const {id,expected,now,work}=x;if(work){C.exact(work,['ope
   for(const key of ['evidence','summary','functionId','responsibleFunctionId','documentaryAuthorization']){metadata[key]=x[key];delete x[key];}
   e.validate(x,get);const v=e.mutation(get,x),plan=assemble(tx,x,v,control,Math.min(x.deadline,o.validUntil));return {plan,...metadata};
  }
- return (f4MemberMutationPlan_.value_={planBoardAutomatic,planBoardProcedure,planMutation,planRenew,planTerminal,applyMutationPlan,appendTechnical,assertBudget,limits:Object.freeze(limit)});
+ // Closed documentary rectification; never exposes arbitrary changes or relaxes
+ // the normal profile command's field mask. The resolver checks the existing
+ // administrative capability and exact protected approval inside this transaction.
+ function planImportedInactive(tx,input,now){
+  const control=authority(tx,{}),resolved=f4MemberImportRectification_().resolve(p=>tx.get(p).data(),input,now);
+  if(resolved.replay)return {replay:true,receipt:resolved.receipt,plan:null};
+  const x=resolved.mutation,e=engine(control);e.validate(x,p=>tx.get(p).data());
+  const v=e.mutation(p=>tx.get(p).data(),x);N(v.output['memberCurrentStates/'+x.id]?.blocked===false&&v.output['memberCurrentStates/'+x.id]?.state===resolved.receipt.after.state,'M13_PLAN_INVALID');
+  let plan=assemble(tx,x,v,control,x.deadline);
+  const w={path:resolved.receiptPath,kind:'set',data:resolved.receipt};
+  plan=appendTechnical(tx,plan,[w],value=>hash(value)===hash(w));
+  return {replay:false,receipt:resolved.receipt,plan};
+ }
+ return (f4MemberMutationPlan_.value_={planImportedInactive,planBoardAutomatic,planBoardProcedure,planMutation,planRenew,planTerminal,applyMutationPlan,appendTechnical,assertBudget,limits:Object.freeze(limit)});
 }
