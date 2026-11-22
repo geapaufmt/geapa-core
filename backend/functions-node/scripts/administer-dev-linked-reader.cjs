@@ -6,9 +6,10 @@ async function administer({db,uid,personId,approvalRef,operator,expectedRevision
  const now=clock(),path='coreDevLinkedReaderGrants/'+uid;
  return db.runTransaction(async tx=>{const get=async p=>{const s=await tx.get(db.doc(p));return s.exists?s.data():null;},old=await get(path),b=await get('memberAuthBindings/'+uid),p=await get('memberIdentities/'+personId);a.equal(old?.revision||0,expectedRevision,'STALE_REVISION');a.equal(b?.active,true,'BINDING_REQUIRED');a.equal(b.idPessoa,personId);a(Number.isSafeInteger(b.bindingVersion)&&b.bindingVersion>0);a.equal(p?.origin,'DEV_ADMIN_SYNTHETIC_V1');a.equal(p.active,true);a.equal(p.idPessoa,personId);
  const next={schemaVersion:'core-dev-linked-reader-grant-v1',projectId:'geapa-convergencia-dev',uid,personId,bindingVersion:b.bindingVersion,revision:expectedRevision+1,active:!revoke,startsAt:now,expiresAt:now+hours*3600000,approvalRef};
- const id=createHash('sha256').update(JSON.stringify({uid,revision:next.revision,approvalRef})).digest('hex').slice(0,32),audit='coreDevAdministrativeAudit/'+id;a.equal(await get(audit),null,'AUDIT_EXISTS');
+ const id=createHash('sha256').update(JSON.stringify({kind:'DEV_LINKED_READER',uid,revision:next.revision,approvalRef})).digest('hex').slice(0,32),audit='coreDevAdministrativeAudit/'+id;a.equal(await get(audit),null,'AUDIT_EXISTS');
  if(apply){tx.set(db.doc(path),next);tx.create(db.doc(audit),{schemaVersion:'core-dev-linked-reader-audit-v1',at:now,operator,approvalRef,personId,grantRevision:next.revision,action:revoke?'REVOKE':'ISSUE',expiresAt:next.expiresAt});}
  return {applied:apply,revision:next.revision,active:next.active,expiresAt:next.expiresAt,personId,changedCollections:['coreDevLinkedReaderGrants','coreDevAdministrativeAudit'],institutionalPermissionsChanged:false};
  });
 }
 module.exports={administer};
+
