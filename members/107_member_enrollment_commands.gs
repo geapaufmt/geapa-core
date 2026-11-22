@@ -32,6 +32,8 @@ function f4MemberEnrollmentCommands_(){
   else{
    E.identity(old,verified,now,s.session.projectId);N(old.uid===r.ownerUid&&old.status==='ACCEPTED','ACCESS_REVOKED');
    if(p.action==='SAVE'){
+    if(p.profile.courseId)E.eligibleCourse(get,s.policy,p.profile.courseId);
+    if(s.approval.courseId&&Object.hasOwn(p.profile,'courseId'))N(p.profile.courseId===s.approval.courseId,'COMMAND_PAYLOAD_INVALID');
     for(const id of p.profile.interestAxisIds||[]){const axis=get('presentationPolicyReferences/'+id);N(axis?.id===id&&axis.approved===true&&axis.active===true,'COMMAND_PAYLOAD_INVALID');}
     next=E.save(old,revision,p.profile,verified,now,s.session.projectId,today);
    }
@@ -51,9 +53,10 @@ function f4MemberEnrollmentCommands_(){
  function completion(get,r,now,s,catalog){
   const old=s.enrollment,id=old.personId,today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),verified={uid:r.ownerUid,projectId:s.session.projectId,emailVerified:true,email:old.registration.email,expiresAt:C.ms(s.session.expiresAt)};
   const facts=E.ready(get,old,U.revision(r,'memberEnrollments/'+old.id),verified,now,s.session.projectId,today,catalog.norms);
+  E.eligibleCourse(get,s.policy,facts.courseId);N(!s.approval.courseId||s.approval.courseId===facts.courseId,'REVISION_CONFLICT');
   N(facts.normAcknowledgement.termVersion===catalog.configuration.normTermVersion,'REVISION_CONFLICT');
-  const approvalRef='AP_'+C.hash({email:old.registration.email,rga:old.registration.rga}).slice(0,40),approved=f4MemberPreRegistration_().approval(get,approvalRef,old.registration,now);
-  N(K.equal(old.approval,{reference:approved.reference,approvedBy:approved.approvedBy,approvedOn:approved.approvedOn,membershipType:approved.membershipType}),'REVISION_CONFLICT');
+  const approvalRef=old.approvalId||f4MemberPreRegistration_().key(old.registration),approved=f4MemberPreRegistration_().approval(get,approvalRef,old.registration,now);
+  N(K.equal(old.approval,f4MemberPreRegistration_().snapshot(approved)),'REVISION_CONFLICT');
   // The canonical prior approval determines the type. Candidate input cannot
   // promote an incoming member or substitute the institutional decision.
   N(['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(facts.membershipType),'DOMAIN_STATE_INVALID');
@@ -61,6 +64,7 @@ function f4MemberEnrollmentCommands_(){
   N(['SEM_VINCULO','DESLIGADO','EGRESSO','MEMBRO_EM_ESPERA'].includes(derived.state.state),'DOMAIN_STATE_INVALID');
   function add(path,data){const previous=get(path),revision=U.revision(r,path);N((previous?.revision||0)===revision&&data.revision===revision+1,'REVISION_CONFLICT');changes.push({path,expectedRevision:revision,data});}
   const entity=(col,key,fields)=>({schemaVersion:'m1-'+col+'-v1',id:key,revision:1,origin:'M13_COMMAND',...fields});
+  A.account(id,r.ownerUid);
   const cpfs=M.rows(loaded.d,'memberIdentifiers').filter(v=>v.kind==='CPF'&&v.active);N(cpfs.length<=1&&cpfs.every(v=>v.value===facts.profile.cpf),'RECONCILIATION_REQUIRED');
   if(!cpfs.length){const key='I_CPF_'+r.operationId;N(!get('memberIdentifiers/'+key),'REVISION_CONFLICT');add('memberIdentifiers/'+key,entity('memberIdentifiers',key,{idPessoa:id,kind:'CPF',value:facts.profile.cpf,active:true}));}
   const profilePath='memberPrivateProfiles/'+id,previousProfile=get(profilePath),profile={...(previousProfile||{id,idPessoa:id,origin:'M13_COMMAND',academicReference:''}),schemaVersion:'m1-memberPrivateProfiles-v2',revision:(previousProfile?.revision||0)+1,contactEmail:old.registration.email,phone:old.registration.phone};

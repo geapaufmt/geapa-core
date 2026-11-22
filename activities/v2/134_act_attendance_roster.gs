@@ -1,3 +1,7 @@
+// Ordinary absence limits apply only during effective membership.
+function f4MemberCountsAbsence_(membershipType,activityType){
+ return membershipType==='MEMBRO_EFETIVO'&&activityType.countsAbsence!==false;
+}
 // Core-only roster preparation reads canonical Membros at the activity date.
 // No identity, authorization, email, CPF or display-name copy is persisted by ACT.
 function f4ActivitiesAttendanceRoster_(options){
@@ -25,7 +29,7 @@ function f4ActivitiesAttendanceRoster_(options){
     if(activity.typeSnapshot.participantTypes&&!activity.typeSnapshot.participantTypes.includes(derived.state==='MEMBRO_INGRESSANTE'?'INGRESSANTE':'MEMBRO'))continue;
     const links=memberModel.rows(docs,'memberLinks').filter(l=>{const range=memberModel.interval(l.startDate,l.endDate);return range.a<=at&&at<range.z});N(links.length===1,'UNRESOLVED_DEPENDENCY','MEMBERS_LINK');
     const personRef=M.ref('person',head.id),id='a_'+M.hash({activity:activityRef.id,person:head.id}).slice(0,32),applicable=derived.state!=='SUSPENSO';
-    records[id]={personRef,membershipRef:M.ref('membership',links[0].id),personRevision:head.revision,participantType:'MEMBRO',applicableAtDate:applicable,countsAttendance:applicable&&activity.typeSnapshot.countsAttendance,countsAbsence:applicable&&activity.typeSnapshot.countsAbsence!==false,notApplicableReason:applicable?'':'SITUACAO_NAO_CONTABILIZA_CHAMADA'};
+    records[id]={personRef,membershipRef:M.ref('membership',links[0].id),personRevision:head.revision,participantType:'MEMBRO',applicableAtDate:applicable,countsAttendance:applicable&&activity.typeSnapshot.countsAttendance,countsAbsence:f4MemberCountsAbsence_(derived.state,activity.typeSnapshot),notApplicableReason:applicable?'':'SITUACAO_NAO_CONTABILIZA_CHAMADA'};
    }
    if(rows.length<20){complete=true;break}cursor=new F.DocumentReference('projects/'+options.config.projectId+'/databases/(default)/documents/'+(f4DevBoundary_().root?f4DevBoundary_().root+'/':'')+rows[rows.length-1].path);
   }

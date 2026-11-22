@@ -1,7 +1,34 @@
 // E protected ingress chain. Facts attest evidence; they do not authorize an operator.
 function f4MemberIngressContent_(){
  const C=f4Core_(),K=f4MemberCommandCatalog_(),N=f4MemberModel_(true).need;
+ function incoming(get,id,now){
+  const loaded=f4MemberAuthz_().load(get,id,f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')));
+  const state=loaded.M.derive(loaded.d,id,loaded.h.revision,now).state;
+  N(state.state==='MEMBRO_INGRESSANTE'&&!state.blocked,'DOMAIN_STATE_INVALID');
+  const links=loaded.M.rows(loaded.d,'memberLinks').filter(link=>{
+   const iv=loaded.M.interval(link.startDate,link.endDate);
+   return link.type==='MEMBRO_INGRESSANTE'&&iv.a<=now&&now<iv.z;
+  });
+  N(links.length===1,'RECONCILIATION_REQUIRED');
+  const events=loaded.M.rows(loaded.d,'memberEvents'),superseded=new Set(events.map(e=>e.supersedes));
+  const entries=events.filter(e=>e.idVinculo===links[0].id&&e.effect==='INGRESSO'&&!superseded.has(e.id));
+  N(entries.length===1,'RECONCILIATION_REQUIRED');
+  return {link:links[0],event:entries[0]};
+ }
+ function effectivation(get,r,v,now){
+  C.exact(v,['schemaVersion','personId','ingress','recognizedOn','reference']);
+  C.exact(v.ingress,['eventId']);
+  const today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd');
+  const actor=get('memberAuthBindings/'+r.ownerUid),old=incoming(get,r.target.personId,now);
+  N(actor?.active&&actor.idPessoa!==r.target.personId,'ACCESS_REVOKED');
+  N(r.payload.operation==='RECORD_EFFECTIVATION'&&r.payload.startDate===today&&r.payload.endDate===null&&
+    v.personId===r.target.personId&&old.event.id===v.ingress.eventId&&v.recognizedOn>=old.link.startDate&&
+    C.civilStart(v.recognizedOn)<=C.civilStart(today),'COMMAND_PAYLOAD_INVALID');
+  N(typeof v.reference==='string'&&v.reference.length<=500&&!/[<>\x00-\x1f]/.test(v.reference),'COMMAND_PAYLOAD_INVALID');
+  if(v.recognizedOn!==today)N(v.reference.trim()&&get('memberOperationalConfig/registration')?.retroactiveEffectivation===true,'ADMISSION_APPROVAL_REQUIRED');
+ }
  function validate(get,r,now){const body=f4MemberActContent_().act(get,r,now),v=body.facts;
+  if(v.schemaVersion==='member-effectivation-v1'){effectivation(get,r,v,now);return body;}
   if(v.schemaVersion==='member-administrative-ingress-v1')return f4MemberAdministrativeIngress_().validate(get,r,body,now);
   C.exact(v,['schemaVersion','personId','processRef','cohortRef','approval','invitation','acceptance','integration','ingress']);
   N(v.schemaVersion==='member-ingress-content-v13'&&v.personId===r.target.personId&&C.id(v.processRef)&&C.id(v.cohortRef),'M13_ACT_INVALID');
@@ -24,5 +51,5 @@ function f4MemberIngressContent_(){
   }
   return body;
  }
- return {validate};
+ return {validate,incoming};
 }

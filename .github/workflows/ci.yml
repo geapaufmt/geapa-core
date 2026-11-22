@@ -24,4 +24,13 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify admission against a disposable Firestore Emulator
+        env:
+          GEAPA_ENROLLMENT_EMULATOR_TEST: '1'
+          GEAPA_RH_EMULATOR_TEST: '1'
+        run: npx --no-install firebase emulators:exec --only firestore --project demo-geapa-functions-local --config firebase.emulator.json "node --test --test-concurrency=1 test/enrollment-lifecycle.test.cjs test/rh-executor-emulator.test.cjs"
       - run: npm run release -- --prod
