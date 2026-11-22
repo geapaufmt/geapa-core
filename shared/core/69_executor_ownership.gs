@@ -20,8 +20,8 @@ function f4ExecutorWindow_(){
   (v.mode!=='PROD_SCOPED_OPERATIONAL'||v.projectId==='portal-geapa'&&f4ExecutionEnvironment_().production)&&
   (S.permanent(v)?!!v.mode:Number.isSafeInteger(v.expiresAt)&&v.expiresAt-v.startsAt<=(v.mode?30*86400000:86400000));
  function actorWindow(v,now,uid){const w=v.devActorWindow;if(!w)return true;
-  if(f4ExecutionEnvironment_().production||v.projectId!=='geapa-convergencia-dev'||v.schemaVersion!=='member-executor-route-v1'||!Number.isSafeInteger(w.fallbackExpiresAt)||!w.expiresAtByUid||Object.keys(w.expiresAtByUid).length>16||Object.entries(w.expiresAtByUid).some(([id,end])=>!f4Core_().id(id)||!v.actorUids.includes(id)||!Number.isSafeInteger(end)||end>v.expiresAt))return false;
-  return now<(Object.hasOwn(w.expiresAtByUid,uid)?w.expiresAtByUid[uid]:w.fallbackExpiresAt);
+  if(f4ExecutionEnvironment_().production||v.projectId!=='geapa-convergencia-dev'||v.schemaVersion!=='member-executor-route-v1'||!Number.isSafeInteger(w.fallbackExpiresAt)||!Array.isArray(w.actors)||w.actors.length>16||new Set(w.actors.map(a=>a.uid)).size!==w.actors.length||w.actors.some(a=>!f4Core_().id(a.uid)||!v.actorUids.includes(a.uid)||!Number.isSafeInteger(a.expiresAt)||a.expiresAt>v.expiresAt))return false;
+  return now<(w.actors.find(a=>a.uid===uid)?.expiresAt??w.fallbackExpiresAt);
  }
  return {valid,live:(v,now,uid)=>valid(v)&&S.live(v,now)&&actorWindow(v,now,uid)};
 }

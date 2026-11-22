@@ -49,7 +49,7 @@ async function administer({db,uid,personId,approvalRef,operator,days=30,expected
    const sp='memberExecutorScopes/'+r.scopeId,s=writes[sp]||await get(sp);a(s?.synthetic===true&&s.projectId===PROJECT);a(s.personIds.length<100);
    writes[sp]={...s,revision:s.revision+1,personIds:[...new Set([...s.personIds,admission.person])]};
    const prior=r.devActorWindow||{fallbackExpiresAt:r.expiresAt,expiresAtByUid:{}};
-   writes[rp]={...r,revision:r.revision+1,startsAt:now,expiresAt:Math.max(end,r.expiresAt),devActorWindow:{fallbackExpiresAt:prior.fallbackExpiresAt,expiresAtByUid:{...prior.expiresAtByUid,[uid]:end}}};
+   writes[rp]={...r,revision:r.revision+1,startsAt:now,expiresAt:Math.max(end,r.expiresAt),devActorWindow:{fallbackExpiresAt:prior.fallbackExpiresAt,actors:[...(prior.actors||Object.entries(prior.expiresAtByUid||{}).map(([uid,expiresAt])=>({uid,expiresAt}))).filter(a=>a.uid!==uid),{uid,expiresAt:end}]}};
    const existing=await get('memberAdmissionApprovals/'+admission.id);
    if(existing){a.equal(existing.devTechnicalOwnerUid,uid);a.equal(existing.synthetic,true);a.equal((await get('memberIdentities/'+admission.person))?.origin,ORIGIN);}
    else for(const [p,v]of Object.entries(admission.docs)){a.equal(await get(p),null,'FIXTURE_COLLISION');writes[p]=v;}
