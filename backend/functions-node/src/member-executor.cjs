@@ -121,6 +121,11 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
   return {result,metrics:{...store.metrics,totalMs:performance.now()-started}};
  }
  if(body.action==='memberPrepare'||body.action==='memberEnrollmentPrepare'){
+  if(!PRODUCTION&&body.action==='memberPrepare'&&body.request?.route==='/admin/ingressos-membros/cadastrar'&&commandEnabled('members.ingress.execute')){
+   store.terminalStatus=true;
+   let dto;try{dto=await store.transaction(checked(()=>run('(q)=>f4DevAdministrativeAccess_().registrationStatus(nodeRead,nodeActor,Date.now(),q)',body.request)));}finally{store.terminalStatus=false;}
+   if(dto)return {recoveredExisting:true,dto,metrics:{...store.metrics,totalMs:performance.now()-started}};
+  }
   store.operationId=body.request.operationId;store.preparation=true;
   try{result=await store.transaction(checked(()=>{const r=run(body.action==='memberEnrollmentPrepare'?'(q)=>f4MemberEnrollmentPortal_({config:nodeConfig,identity:nodeActor,clock:Date.now}).prepare(q)':'(q)=>f4MemberPortalPrepare_({config:nodeConfig,identity:nodeActor,clock:Date.now}).prepare(q)',body.request);select(r);return r;}));}finally{store.preparation=false;}
   const key=await store.read(checked(()=>run('(r)=>({operationId:r.operationId,commandType:r.commandType,digest:f4MemberCommandCatalog_().digest(nodeConfig.projectId,{...r,ownerUid:nodeActor.uid,expectedRevisions:nodeRead("devProtectedInputs/"+r.operationId).expectedRevisions})})',result)));return {request:result,key,metrics:{...store.metrics,totalMs:performance.now()-started}};

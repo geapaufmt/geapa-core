@@ -96,5 +96,26 @@ function f4DevAdministrativeAccess_(){
   N(result&&['COMPLETED','FAILED'].includes(result.state),'RECONCILIATION_REQUIRED');
   return {operationId:key.operationId,receipt:{state:result.state,code:result.code}};
  }
- return {source,institutional,correction,command,governanceInput,terminalRegistration,path,fields};
+ // Recover the exact already committed synthetic registration before a new
+ // preparation. This grants no invitation, candidate or activation authority.
+ function registrationStatus(get,identity,now,input){
+  const a=source(get,identity,now,'MEMBERS_INGRESS_EXECUTE');if(!a)return null;
+  C.exact(input,['operationId','route','payload']);N(C.op(input.operationId)&&input.route==='/admin/ingressos-membros/cadastrar','COMMAND_PAYLOAD_INVALID');
+  const p=input.payload;C.exact(p,['nomeCompleto','emailPrincipal','rga','telefone','categoriaIngresso','referenciaAprovacao',...(Object.hasOwn(p,'dadosComplementares')?['dadosComplementares']:[])]);
+  const registration=f4MemberEnrollmentContract_().quick({fullName:p.nomeCompleto,email:p.emailPrincipal,rga:p.rga,phone:p.telefone});
+  const approval=f4MemberPreRegistration_().locate(get,registration,p.referenciaAprovacao,now);
+  N(approval.reference===p.referenciaAprovacao&&approval.membershipType===p.categoriaIngresso,'ADMISSION_APPROVAL_REQUIRED');
+  N(a.mask.includes('preRegister')&&a.source.admissionApprovalIds?.includes(approval.id)&&approval.synthetic===true&&approval.devTechnicalOwnerUid===identity.uid&&a.source.syntheticPersonIds.includes(approval.devPersonId)&&C.hash(approval.devRegistration)===C.hash(registration)&&Object.keys(p.dadosComplementares||{}).length===0,'AUTHORIZATION_DENIED');
+  const resolved=f4MemberRegistrationIdentity_().resolve(get,{email:registration.email,rga:registration.rga});
+  N(resolved.personId===approval.devPersonId,'AUTHORIZATION_DENIED');
+  const index=get('memberEnrollmentIndexes/'+resolved.personId);if(!index?.activeEnrollmentId)return null;
+  N(index.schemaVersion==='member-enrollment-index-v1'&&index.personId===resolved.personId&&C.op(index.activeEnrollmentId),'RECONCILIATION_REQUIRED');
+  const enrollment=f4MemberEnrollmentContract_().validate(get('memberEnrollments/'+index.activeEnrollmentId)),r=get('commandRequests/'+index.activeEnrollmentId);
+  N(enrollment.personId===resolved.personId&&C.hash(enrollment.registration)===C.hash(registration)&&enrollment.approval.reference===approval.reference&&enrollment.approval.membershipType===approval.membershipType,'OPERATION_CONFLICT');
+  N(r?.ownerUid===identity.uid&&r.commandType==='members.ingress.execute'&&r.target.personId===resolved.personId&&r.payload.operation==='PRE_REGISTER'&&r.payload.approvalRef===approval.id&&C.hash(r.payload.registration)===C.hash(registration)&&Object.keys(r.payload.profile).length===0,'OPERATION_CONFLICT');
+  const result=f4MemberLedgerM13_().recover(get,{operationId:r.operationId,commandType:r.commandType,digest:r.digest},identity.uid,now);
+  N(result?.state==='COMPLETED','RECONCILIATION_REQUIRED');
+  return {operationId:r.operationId,receipt:{state:result.state,code:result.code}};
+ }
+ return {source,institutional,correction,command,governanceInput,terminalRegistration,registrationStatus,path,fields};
 }
