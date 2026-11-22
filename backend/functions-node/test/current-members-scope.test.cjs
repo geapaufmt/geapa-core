@@ -1,16 +1,8 @@
 'use strict';
 Object.assign(process.env,{GEAPA_RUNTIME:'EMULATOR',GEAPA_PILOT_MODE:'SHARED_DEV',GCLOUD_PROJECT:'demo-geapa-functions-local',FUNCTIONS_EMULATOR:'true',FIRESTORE_EMULATOR_HOST:'127.0.0.1:8187',FIREBASE_AUTH_EMULATOR_HOST:'127.0.0.1:9197'});
 const {test}=require('node:test'),a=require('node:assert/strict'),{setup}=require('./people-fixture.cjs'),E=require('../src/environment.cjs');
-function fixture(role='DIRETOR_ADMINISTRATIVO'){
- const h=setup(role,5),p=h.policy;p.capabilities=['MEMBERS_PROFILE_CORRECT'];p.fieldMasks={MEMBERS_PROFILE_CORRECT:['displayName']};p.targets={...p.targets,allowedTargetScopes:['ADMINISTRACAO'],allowedPersons:[],allowedResources:[],commandScopes:['PROFILE_CORRECTION','PROFILE_CORRECTION_CURRENT_MEMBERS']};
- h.docs['memberOperationalConfig/portal'].commands=['members.profile.correct'];
- const actor=h.docs['memberAuthBindings/CF_ADMIN'],s=h.docs['memberAuthzSubjects/'+actor.idPessoa];
- h.docs['memberExplicitGrants/SYN_DYNAMIC_BINDING']={schemaVersion:'member-explicit-grant-v13',id:'SYN_DYNAMIC_BINDING',revision:1,active:true,origin:'SYN_TEST',approvalRef:'SYN_APPROVED',issuerRef:'SYN_AUTHORITY',uid:'CF_ADMIN',idPessoa:actor.idPessoa,bindingVersion:actor.bindingVersion,subjectEpoch:s.authzEpoch,issuedAt:p.issuedAt,expiresAt:p.expiresAt,capabilities:['MEMBERS_BINDING_MANAGE'],actorScopes:['ADMINISTRACAO'],targets:{ownPerson:false,allowedTargetScopes:['ADMINISTRACAO'],allowedBoards:[],allowedRoles:[],allowedPersons:[],allowedResources:[],commandScopes:['ACCOUNT_BINDING','ACCOUNT_BINDING_CURRENT_MEMBERS']},fieldMasks:{MEMBERS_BINDING_MANAGE:[]},environment:E.profile.environment,runId:null};
- h.docs['memberBindingAdminControl/current']={schemaVersion:'member-binding-admin-control-v1',projectId:E.PROJECT,revision:1,enabled:true,grantIds:['SYN_DYNAMIC_BINDING']};
- h.docs['memberExecutorScopes/SYN_DYNAMIC']={schemaVersion:'member-executor-scope-v1',id:'SYN_DYNAMIC',projectId:E.PROJECT,synthetic:!E.PRODUCTION,revision:1,personIds:[],approvalRefs:[],profileCorrectionCurrentMembers:true,bindingCurrentMembers:true};
- require('./production-fixture-profile.cjs')(h.docs);
- h.run=(code,input={})=>JSON.parse(h.domain.run('(x)=>{const get=p=>f4Firestore_().connect(nodeConfig).get(p);'+code+'}',{now:h.now,...input}));return h;
-}
+const {fixture}=require('./current-members-scope-fixture.cjs');
+
 test('existing current-member policies validate without poisoning operational context',()=>{
  for(const role of ['DIRETOR_ADMINISTRATIVO','DIRETOR_RECURSOS_HUMANOS']){const h=fixture(role);a.equal(h.run('f4MemberAuthzContracts_().policy(get("memberAuthzPolicies/PEOPLE_POLICY"));return true;'),true);a.equal(h.run('return !!f4MemberOperationalReader_({config:nodeConfig,identity:{uid:"CF_ADMIN",expiresAt:x.now+60000},clock:()=>x.now}).access(get,x.now).own;'),true);}
 });
@@ -36,4 +28,3 @@ test('dynamic binding requires explicit grant AND current administrative functio
 test('executor dynamic opt-in is command specific and cannot become an empty universal scope',()=>{
  const h=fixture(),fields=(id,type)=>h.run('f4MemberExecutor_().fields(get,{commandType:x.type,target:{personId:x.id},payload:{}},{scopeId:"SYN_DYNAMIC",commandType:x.type});return true;',{id,type});a.equal(fields('PERSON_000','members.profile.correct'),true);a.equal(fields('PERSON_000','members.binding.associate'),true);a.throws(()=>fields('PERSON_001','members.profile.correct'),/PILOT_RESOURCE_DENIED|DOMAIN_STATE_INVALID/);a.throws(()=>fields('PERSON_000','members.ingress.execute'),/PILOT_RESOURCE_DENIED|DOMAIN_STATE_INVALID/);const s=h.docs['memberExecutorScopes/SYN_DYNAMIC'];delete s.profileCorrectionCurrentMembers;delete s.bindingCurrentMembers;a.throws(()=>fields('PERSON_000','members.profile.correct'),/ACCESS_REVOKED/);
 });
-module.exports={fixture};
