@@ -150,8 +150,10 @@ function f4MemberNotifications_(){
   return {notification:notif,index:nextIx,replay:false};
  }
  function resolvePersonId(get,identity,now){
+  const binding=get('memberAuthBindings/'+identity.uid);
+  if(binding?.idPessoa)return binding.idPessoa;
   const technical=f4DevAdmin_().profile(get,identity.uid,now);
-  if(technical)return technical.personId||identity.uid;
+  if(technical)return identity.uid;
   const actor=f4MemberAuthz_().identify(get,identity.uid,now);
   return actor.binding.idPessoa;
  }
