@@ -10,6 +10,7 @@ class MemberStore extends Store{
  guard(){const c=control(this.hostRead(CONTROL),this.identity?.uid,this.candidate);if(this.pinned&&JSON.stringify(c)!==this.pinned)fail('ACCESS_REVOKED');this.pinned=JSON.stringify(c);this.control=c;for(const id of c.scopeIds)this.hostRead('memberExecutorScopes/'+id);return c;}
  io(raw){const x=JSON.parse(raw);if(x.kind==='auditClock'){if(!this.active?.native)fail('TRANSACTION_REQUIRED');return JSON.stringify(this.active.preparationAt);}if(x.kind==='pilotConfig')return JSON.stringify({root:'',shared:true,executor:EXECUTOR,settings:{commands:[],policyIds:[],admissionsPerHour:20,jobs:[],activityAgendaDirect:false}});return super.io(raw);}
  validateWrites(s){
+  if(this.terminalStatus){if(s.writes.length)fail('PILOT_WRITE_DENIED');return;}
   const op=this.operationId,person=this.personId;
   if(s.writes.length&&!person)fail('PILOT_RESOURCE_DENIED');
   const scoped=this.control.scopeIds.map(id=>this.hostRead('memberExecutorScopes/'+id));if(s.missing.size)return;
@@ -72,6 +73,7 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
  await store.read(()=>store.guard());await appCheckGate(appCheck,appCheckToken,store.control,origin);store.beforeCommit=async()=>{await authenticate(auth,token);if(bindingAdmin)await bindingAdmin.recheck();};
  if(body.action==='memberLegacyRegistrationStatus'){
   if(PRODUCTION)fail('DESTINATION_INVALID');
+  store.terminalStatus=true;
   const dto=await store.transaction(()=>{store.guard();return run('(key)=>f4DevAdministrativeAccess_().terminalRegistration(nodeRead,nodeActor,Date.now(),key)',body.request);});
   return {dto,metrics:{...store.metrics,totalMs:performance.now()-started}};
  }
