@@ -8,7 +8,9 @@ function f4PeopleDirectory_({config,identity,clock=Date.now}) {
  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
  function access(get,now){
   C.exact(identity,['uid','expiresAt']);N(C.id(identity.uid)&&now<identity.expiresAt,'ACCESS_REVOKED');
-  // Never fall back to DEV_ADMIN or infer a grant from menu visibility.
+  // A separately issued UID grant is synthetic-only; DEV_ADMIN is not a role.
+  const dev=f4DevAdministrativeAccess_().source(get,identity,now,cap);
+  if(dev){N(dev.source.syntheticPersonIds.length>0&&['idPessoa','displayLabel'].every(f=>dev.mask.includes(f)),'ACCESS_REVOKED');return {actor:dev.actor,sources:[dev.source],ids:dev.source.syntheticPersonIds,masks:()=>dev.mask,expiresAt:dev.validUntil};}
   const actor=A.identify(get,identity.uid,now),settings=f4MemberPortalPrepare_({config,identity,clock}).configuration(get);
   const sources=settings.policyIds.map(id=>get('memberAuthzPolicies/'+id)).filter(p=>p?.capabilities?.includes(cap)).filter(p=>{
    K.policy(p);return p.active&&p.proofKind==='ROLE'&&C.ms(p.issuedAt)<=now&&now<C.ms(p.expiresAt)&&actor.derived.currentFunctions.some(f=>f.roleKey===p.actorSelector.roleKey&&f.group===p.actorSelector.group&&f.scopeKey===p.actorSelector.actorScope);

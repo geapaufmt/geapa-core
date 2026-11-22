@@ -10,6 +10,7 @@ class MemberStore extends Store{
  guard(){const c=control(this.hostRead(CONTROL),this.identity?.uid,this.candidate);if(this.pinned&&JSON.stringify(c)!==this.pinned)fail('ACCESS_REVOKED');this.pinned=JSON.stringify(c);this.control=c;for(const id of c.scopeIds)this.hostRead('memberExecutorScopes/'+id);return c;}
  io(raw){const x=JSON.parse(raw);if(x.kind==='auditClock'){if(!this.active?.native)fail('TRANSACTION_REQUIRED');return JSON.stringify(this.active.preparationAt);}if(x.kind==='pilotConfig')return JSON.stringify({root:'',shared:true,executor:EXECUTOR,settings:{commands:[],policyIds:[],admissionsPerHour:20,jobs:[],activityAgendaDirect:false}});return super.io(raw);}
  validateWrites(s){
+  if(this.terminalStatus){if(s.writes.length)fail('PILOT_WRITE_DENIED');return;}
   const op=this.operationId,person=this.personId;
   if(s.writes.length&&!person)fail('PILOT_RESOURCE_DENIED');
   const scoped=this.control.scopeIds.map(id=>this.hostRead('memberExecutorScopes/'+id));if(s.missing.size)return;
@@ -56,7 +57,7 @@ class MemberStore extends Store{
 async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,hooks={},bindingAdmin=null}){
  const acceptedTypes=bindingAdmin?[...types,'members.binding.associate']:types;
  const started=performance.now(),env=fence();if(!env.emulator&&Object.keys(hooks).length)fail('DESTINATION_INVALID');
- if(!body||Object.keys(body).sort().join()!=='action,request'||!['memberPrepare','memberExecute','memberStatus','memberRecover','memberEnrollmentOpen','memberEnrollmentRead','memberEnrollmentPrepare'].includes(body.action))fail('COMMAND_TYPE_INVALID');
+ if(!body||Object.keys(body).sort().join()!=='action,request'||!['memberPrepare','memberExecute','memberStatus','memberRecover','memberEnrollmentOpen','memberEnrollmentRead','memberEnrollmentPrepare','memberLegacyRegistrationStatus'].includes(body.action))fail('COMMAND_TYPE_INVALID');
  const identity=await authenticate(auth,token),store=new MemberStore(db,identity),domain=createDomain(x=>store.io(x));
  const run=(fn,v)=>{const r=domain.run(fn,v);return r===undefined?undefined:JSON.parse(r);};run('(x)=>nodeIdentity(x)',identity);
  // Candidate requests can only enter the invitation family and its owner-bound receipt.
@@ -70,6 +71,12 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
   return !!enrollment&&run('(q)=>f4MemberExecutor_().enrollmentScope(()=>q.enrollment,q.person,q.refs)',{person,refs,enrollment});
  };
  await store.read(()=>store.guard());await appCheckGate(appCheck,appCheckToken,store.control,origin);store.beforeCommit=async()=>{await authenticate(auth,token);if(bindingAdmin)await bindingAdmin.recheck();};
+ if(body.action==='memberLegacyRegistrationStatus'){
+  if(PRODUCTION)fail('DESTINATION_INVALID');
+  store.terminalStatus=true;
+  const dto=await store.transaction(()=>{store.guard();return run('(key)=>f4DevAdministrativeAccess_().terminalRegistration(nodeRead,nodeActor,Date.now(),key)',body.request);});
+  return {dto,metrics:{...store.metrics,totalMs:performance.now()-started}};
+ }
  if(store.control.commandTypes!==undefined&&(!Array.isArray(store.control.commandTypes)||!store.control.commandTypes.length||!store.control.commandTypes.every(t=>[...types,'members.binding.associate'].includes(t))))fail('PILOT_DISABLED');
  const commandEnabled=t=>!store.control.commandTypes||store.control.commandTypes.includes(t);
  if(body.action.startsWith('memberEnrollment')&&!commandEnabled('members.onboarding.complete'))fail('PILOT_DISABLED');
@@ -104,7 +111,7 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
   if(store.preparation&&!commandEnabled(r.commandType))fail('PILOT_RESOURCE_DENIED');
   store.routeId=run('(r)=>{const f=f4MemberExecutor_(),o=nodeRead("commandExecutorOwners/"+r.operationId),id=o?.routeId||f.select(nodeRead,r,nodeConfig);f4Core_().need(id,"PILOT_RESOURCE_DENIED");const v=f.route(nodeRead,nodeConfig,id);f.fields(nodeRead,r,v);return id;}',r);
   if(store.candidate&&(r.commandType!=='members.onboarding.complete'||r.payload?.operation!=='ENROLLMENT'))fail('ACCESS_REVOKED');
-  if(store.preparation)run('(q)=>{const f=f4MemberExecutor_(),v=f.route(nodeRead,nodeConfig,q.id);f4Core_().need(v.state==="ACTIVE"&&f4ExecutorWindow_().live(v,Date.now())&&(v.actorUids.includes(nodeActor.uid)||f.invitationActor(nodeRead,q.r,nodeActor.uid,v)),"ACCESS_REVOKED");}',{id:store.routeId,r});
+  if(store.preparation)run('(q)=>{const f=f4MemberExecutor_(),v=f.route(nodeRead,nodeConfig,q.id);f4Core_().need(v.state==="ACTIVE"&&f4ExecutorWindow_().live(v,Date.now(),nodeActor.uid)&&(v.actorUids.includes(nodeActor.uid)||f.invitationActor(nodeRead,q.r,nodeActor.uid,v)),"ACCESS_REVOKED");}',{id:store.routeId,r});
  };
  let key,result;
  if(['memberEnrollmentOpen','memberEnrollmentRead'].includes(body.action)){

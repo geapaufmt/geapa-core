@@ -19,7 +19,11 @@ function f4ExecutorWindow_(){
   (v.mode!=='DEV_SCOPED_OPERATIONAL'||v.projectId==='geapa-convergencia-dev')&&
   (v.mode!=='PROD_SCOPED_OPERATIONAL'||v.projectId==='portal-geapa'&&f4ExecutionEnvironment_().production)&&
   (S.permanent(v)?!!v.mode:Number.isSafeInteger(v.expiresAt)&&v.expiresAt-v.startsAt<=(v.mode?30*86400000:86400000));
- return {valid,live:(v,now)=>valid(v)&&S.live(v,now)};
+ function actorWindow(v,now,uid){const w=v.devActorWindow;if(!w)return true;
+  if(f4ExecutionEnvironment_().production||v.projectId!=='geapa-convergencia-dev'||v.schemaVersion!=='member-executor-route-v1'||!Number.isSafeInteger(w.fallbackExpiresAt)||!Array.isArray(w.actors)||w.actors.length>16||new Set(w.actors.map(a=>a.uid)).size!==w.actors.length||w.actors.some(a=>!f4Core_().id(a.uid)||!v.actorUids.includes(a.uid)||!Number.isSafeInteger(a.expiresAt)||a.expiresAt>v.expiresAt))return false;
+  return now<(w.actors.find(a=>a.uid===uid)?.expiresAt??w.fallbackExpiresAt);
+ }
+ return {valid,live:(v,now,uid)=>valid(v)&&S.live(v,now)&&actorWindow(v,now,uid)};
 }
 // Bounded pending registry plus atomic hourly budget replaces lifetime caps.
 // Owners, journal and receipts are never deleted or reassigned.
@@ -77,7 +81,7 @@ function f4ExecutorOwnership_(){
   if(!f4ActFlowExecutor_().supports(r)&&!f4MemberExecutor_().supports(r))return [];
   const previous=get('commandExecutorOwners/'+r.operationId),routeId=previous?.routeId||(selected(r)?ID:f4MemberExecutor_().select(get,r,config)||f4ActFlowExecutor_().select(get,r,config)||f4ActivityExecutorRoutes_().select(get,r,config));if(!routeId){N(!f4ExecutionEnvironment_().production,'ACCESS_REVOKED');return [];}const routes=routeId.startsWith('MEMBERS_')?f4MemberExecutor_():routeId.startsWith('ACT_FLOW_')?f4ActFlowExecutor_():f4ActivityExecutorRoutes_();
   const v=route(get,config,routeId),path='commandExecutorOwners/'+r.operationId,old=get(path);
-  N(v.state==='ACTIVE'&&f4ExecutorWindow_().live(v,now)&&(v.actorUids.includes(r.ownerUid)||routeId?.startsWith('MEMBERS_')&&routes.invitationActor(get,r,r.ownerUid,v))&&v.executor===executor(),'ACCESS_REVOKED');if(routeId===ID)fields(get,r);else routes.fields(get,r,v);
+  N(v.state==='ACTIVE'&&f4ExecutorWindow_().live(v,now,r.ownerUid)&&(v.actorUids.includes(r.ownerUid)||routeId?.startsWith('MEMBERS_')&&routes.invitationActor(get,r,r.ownerUid,v))&&v.executor===executor(),'ACCESS_REVOKED');if(routeId===ID)fields(get,r);else routes.fields(get,r,v);
   if(old){N(old.executor===executor()&&old.epoch===v.epoch&&old.digest===r.digest&&old.ownerUid===r.ownerUid&&old.ticketId===r.ticketId&&(v.operationIds.includes(r.operationId)||f4ServiceAvailability_().permanent(v)&&f4ExecutorBudget_().settled(get,r.operationId,v,now)),'OPERATION_CONFLICT');return [];}
   const budget=f4ExecutorBudget_().admit(get,v,r.operationId,now);
   const scoped=routeId.startsWith('ACTIVITY_REAL_')?f4ActivityRealExecutor_().admission(get,r,v,now):[];
@@ -92,7 +96,7 @@ function f4ExecutorOwnership_(){
   N(o?.schemaVersion==='geapa-command-executor-owner-v1'&&o.executor===executor()&&o.ownerUid===uid&&o.digest===key.digest&&o.ticketId===r.ticketId&&o.activityId===(routes.resource?routes.resource(r):r.payload.activityRef.id)&&o.commandType===r.commandType&&key.commandType===r.commandType,'ACCESS_REVOKED');
   // A terminal receipt remains pinned to its executor after rollback. It cannot execute again.
   const l=get('commandLedger/'+key.operationId);if(l)return;
-  N(['ACTIVE','DRAINING'].includes(v.state)&&v.epoch===o.epoch&&v.executor===o.executor&&v.operationIds.includes(key.operationId)&&(v.actorUids.includes(uid)||routeId?.startsWith('MEMBERS_')&&routes.invitationActor(get,r,uid,v))&&f4ExecutorWindow_().live(v,now),'ACCESS_REVOKED');if(routeId===ID)fields(get,r);else routes.fields(get,r,v);
+  N(['ACTIVE','DRAINING'].includes(v.state)&&v.epoch===o.epoch&&v.executor===o.executor&&v.operationIds.includes(key.operationId)&&(v.actorUids.includes(uid)||routeId?.startsWith('MEMBERS_')&&routes.invitationActor(get,r,uid,v))&&f4ExecutorWindow_().live(v,now,uid),'ACCESS_REVOKED');if(routeId===ID)fields(get,r);else routes.fields(get,r,v);
  }
  // Operator uses a CAS transaction: draining first, then settle every admission.
  function switchPlan(get,config,expectedRevision,nextExecutor,now,routeId){
@@ -222,7 +226,7 @@ function f4ActivityRealExecutor_(){
  function preview(get,config,p,uid,now){const scopes=all(get,config),mark=portalHash(p),matches=scopes.flatMap(s=>s.intents.filter(i=>i.portalPayloadHash===mark).map(i=>({s,i})));
   N(matches.length<=1,'ACCESS_REVOKED');if(!matches.length){N(!scopes.some(s=>s.intents.some(i=>i.typeId===p.idConfig&&(!p.atividade?.cycleId||i.cycleId===p.atividade.cycleId))),'ACCESS_REVOKED');return null;}
   const {s,i}=matches[0],v=route(get,config,routeId(s.id,'CREATE'));bound(get,v);
-  N(s.state==='ACTIVE'&&v.state==='ACTIVE'&&s.actorUids.includes(uid)&&f4ExecutorWindow_().live(s,now)&&f4ExecutorWindow_().live(v,now),'ACCESS_REVOKED');return {executor:v.executor,routeId:v.routeId,creationOperationId:i.operationId};
+  N(s.state==='ACTIVE'&&v.state==='ACTIVE'&&s.actorUids.includes(uid)&&f4ExecutorWindow_().live(s,now)&&f4ExecutorWindow_().live(v,now,uid),'ACCESS_REVOKED');return {executor:v.executor,routeId:v.routeId,creationOperationId:i.operationId};
  }
  return Object.freeze({routeId,route,scope,select,fields,admission,preview,portalHash,hash});
 }
