@@ -77,7 +77,7 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
  store.candidate=candidate;
  store.inDraftScope=(person,r)=>{
   if(!r){const index=store.hostRead('memberEnrollmentIndexes/'+person);if(!index?.activeEnrollmentId)return false;r={commandType:'members.onboarding.complete',target:{personId:person,enrollmentId:index.activeEnrollmentId},payload:{operation:'ENROLLMENT'}};}
-  return run('(r)=>f4MemberExecutor_().draftScope(nodeRead,r,{preregistrationDrafts:true})',r);
+  return JSON.parse(createDomain(raw=>{const q=JSON.parse(raw);if(q.kind!=='get')fail('SDK_OPERATION_DENIED');const value=store.hostRead(q.path);return JSON.stringify(value===undefined?null:encode(value));}).run('(r)=>f4MemberExecutor_().draftScope(nodeRead,r,{preregistrationDrafts:true})',r));
  };
  store.inEnrollmentScope=(person,refs)=>{
   if(!/^P_[a-f0-9]{32}$/.test(person)||!Array.isArray(refs))return false;

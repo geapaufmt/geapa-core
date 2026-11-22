@@ -191,3 +191,53 @@ test('RH effectivates a prior incoming link and preserves its interval and event
  assert.equal(docs['memberLinks/'+link].endDate,day(-1));assert.equal(docs['memberLinks/'+link].type,'MEMBRO_INGRESSANTE');
  assert.equal(docs['memberLinks/'+result.request.target.linkId].startDate,day(0));assert.equal(docs['memberCurrentStates/'+id].state,'MEMBRO_EFETIVO');
 });
+
+test('draft without any approval reserves one identity, recovers, invites and waits for a genuine approval before activation',async t=>{
+ const {docs,call,rh,submit,registration,set}=await fixture('MEMBRO_INGRESSANTE',t);
+ const approvals=Object.entries(docs).filter(([p])=>/^memberAdmissionApproval(s|Indexes)\//.test(p));
+ for(const [path]of approvals)await set(path,null);
+ const {categoriaIngresso,referenciaAprovacao,...basic}=registration,route='/admin/ingressos-membros/cadastrar';
+ // The old scope does not silently gain access to unapproved registrations.
+ await assert.rejects(rh(route,basic),/PILOT_RESOURCE_DENIED|DOMAIN_STATE_INVALID/);
+ await set('memberExecutorScopes/SYN_ADMISSION',{...docs['memberExecutorScopes/SYN_ADMISSION'],personIds:[],approvalRefs:[],preregistrationDrafts:true});
+ const policy=docs['memberAuthzPolicies/FAST_MEMBER_ROLE'];
+ await set('memberAuthzPolicies/FAST_MEMBER_ROLE',{...policy,active:false});
+ await assert.rejects(rh(route,basic),/ACCESS_REVOKED|M13_AUTHZ_DENIED/);
+ await set('memberAuthzPolicies/FAST_MEMBER_ROLE',policy);
+ const input={operationId:op(),route,payload:basic},registered=await call('CF_ADMIN','memberPrepare',input),id=registered.request.operationId,person=registered.request.target.personId;
+ assert.equal(registered.request.payload.approvalRef,null);assert.equal(registered.request.decisionRef,null);
+ assert.deepEqual((await call('CF_ADMIN','memberPrepare',input)).key,registered.key);
+ await assert.rejects(call('CF_ADMIN','memberExecute',registered.request,{hooks:{afterCommit(){throw Error('LOST_RESPONSE');}}}),/LOST_RESPONSE/);
+ assert.equal((await call('CF_ADMIN','memberRecover',registered.key)).dto.receipt.state,'COMPLETED');
+ const enrollment=()=>docs['memberEnrollments/'+id];
+ assert.equal(enrollment().approval,null);assert.equal(enrollment().draft,true);
+ assert(!docs['memberLinks/V_'+id]);assert(!docs['memberAuthBindings/SYN_INVITEE']);
+ assert.equal(docs['memberCurrentStates/'+person].state,'SEM_VINCULO');
+ await assert.rejects(rh(route,basic),/OPERATION_CONFLICT/);
+ assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='member-enrollment-v1'&&v.personId===person).length,1);
+ await rh('/admin/ingressos-membros/convite',{enrollmentId:id,revision:enrollment().revision,action:'SEND',reason:'Convite para completar rascunho sintético'});
+ const open=()=>call('SYN_INVITEE','memberEnrollmentOpen',{});
+ const invited=(await open()).result.data;assert.equal(invited.membershipType,null);assert.equal(invited.admissionApprovalPending,true);
+ const candidate=(action,payload={})=>submit('SYN_INVITEE','memberEnrollmentPrepare',{revision:enrollment().revision,action,payload});
+ await candidate('ACCEPT');
+ await candidate('SAVE',{profile:{cpf:'52998224725',birthDate:'2001-05-01',countryCode:'BR',stateCode:'MT',city:'Sinop',courseId:'AGRONOMIA_UFMT_SINOP'}});
+ const terms=(await open()).result.data;
+ await candidate('ACKNOWLEDGE',{accepted:true,termVersion:terms.normTermVersion,documents:terms.norms.map(({id,version})=>({id,version}))});
+ await assert.rejects(candidate('COMPLETE'),/ADMISSION_APPROVAL_REQUIRED/);
+ await assert.rejects(candidate('COMPLETE',{approval:{membershipType:'MEMBRO_EFETIVO'}}),/SCHEMA_INVALID/);
+ assert.equal(enrollment().status,'ACCEPTED');assert.equal(enrollment().approval,null);assert(!docs['memberAuthBindings/SYN_INVITEE']);
+ // This is a separate synthetic institutional decision, never a cadastro side effect.
+ for(const [path,value]of approvals)await set(path,value);
+ assert.equal((await open()).result.data.admissionApprovalPending,false);
+ const ready=await call('SYN_INVITEE','memberEnrollmentPrepare',{operationId:op(),revision:enrollment().revision,action:'COMPLETE',payload:{}});
+ const activeApproval=approvals.find(([path,value])=>path.startsWith('memberAdmissionApprovals/')&&value.registrationDigest===JSON.parse(createDomain(()=>{}).run('(v)=>f4Core_().hash(v)',{email:basic.emailPrincipal,rga:basic.rga})));
+ await set(activeApproval[0],{...activeApproval[1],active:false});
+ await assert.rejects(call('SYN_INVITEE','memberExecute',ready.request),/ADMISSION_APPROVAL_INACTIVE|ACCESS_REVOKED/);
+ assert(!docs['memberAuthBindings/SYN_INVITEE']);
+ await set(activeApproval[0],activeApproval[1]);
+ const completed=await candidate('COMPLETE');
+ assert.equal((await call('SYN_INVITEE','memberRecover',completed.key)).dto.receipt.state,'COMPLETED');
+ assert.equal(enrollment().status,'COMPLETED');assert.equal(enrollment().approval.reference,referenciaAprovacao);
+ assert.equal(docs['memberCurrentStates/'+person].state,'MEMBRO_INGRESSANTE');
+ assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='m1-memberLinks-v1'&&v.idPessoa===person).length,1);
+});
