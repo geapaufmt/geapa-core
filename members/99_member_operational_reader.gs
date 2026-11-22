@@ -232,7 +232,18 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
   const current=access(get,clock());N(current.directory&&current.directory.kind===a.directory.kind&&C.hash(F.encode(current.directory.source))===C.hash(F.encode(a.directory.source))&&current.actor.actor.h.revision===a.actor.actor.h.revision,'ACCESS_REVOKED');N((get('portalReaderResourceFences/members_operations')?.revision||0)===fence,'STALE_REVISION');const pages=Math.max(1,Math.ceil(filtered.length/25)),page=Math.min(filters.pagina,pages);
   return {ok:true,data:{itens:filtered.slice((page-1)*25,page*25),paginacao:{pagina:page,pageSize:25,totalItens:filtered.length,totalPaginas:pages},opcoesFiltros:{tiposVinculo:[...new Set(items.map(v=>v.tipoVinculoAtual))],statusVinculo:['ATIVO','INATIVO'],perfisPortal:[],frequencias:[]},ultimaAtualizacaoResumo:new Date(now).toISOString()}};
  }
- return {read,access,routes};
+ function registrationApproval(params){
+  const pair=f4MemberRegistrationIdentity_().normalize(params);
+  return db.transaction(tx=>{
+   const get=p=>tx.get(p).data(),now=clock(),a=access(get,now),permission=a.ingress;
+   N(permission&&['ROLE','DEV_TECHNICAL'].includes(permission.kind),'AUTHORIZATION_DENIED');
+   const approval=f4MemberPreRegistration_().locate(get,pair,null,now);
+   if(permission.kind==='DEV_TECHNICAL')N(permission.mask.includes('preRegister')&&permission.source.admissionApprovalIds.includes(approval.id)&&approval.synthetic===true&&approval.devTechnicalOwnerUid===identity.uid&&permission.source.syntheticPersonIds.includes(approval.devPersonId),'AUTHORIZATION_DENIED');
+   f4MemberRegistrationIdentity_().resolve(get,pair);
+   return {ok:true,data:{status:'APPROVED',active:true,membershipType:approval.membershipType,approvedOn:approval.approvedOn,revision:approval.revision}};
+  });
+ }
+ return {read,access,routes,registrationApproval};
 }
 
 function f4MemberDirectorySort_(items,order){

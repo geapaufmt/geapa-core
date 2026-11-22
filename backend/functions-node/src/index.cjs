@@ -12,7 +12,7 @@ const actions=[...(process.env.GEAPA_ACT_FLOWS_ENABLED==='true'?['flowRoute','fl
 if(process.env.GEAPA_ACT_READERS_ENABLED==='true')actions.push('actRead');
 if(process.env.GEAPA_ACT_WORKSPACE_ENABLED==='true')actions.push('workspaceDownload');
 if(process.env.GEAPA_ACT_STORAGE_ENABLED==='true')actions.push('storageStart','storageStatus','storageChunk','storageFinalize','storageDownload','storageNotice');
-if(process.env.GEAPA_MEMBERS_ENABLED==='true')actions.push('memberPrepare','memberExecute','memberStatus','memberRecover','memberEnrollmentOpen','memberEnrollmentRead','memberEnrollmentPrepare');
+if(process.env.GEAPA_MEMBERS_ENABLED==='true')actions.push('memberRegistrationApproval','memberPrepare','memberExecute','memberStatus','memberRecover','memberEnrollmentOpen','memberEnrollmentRead','memberEnrollmentPrepare');
 if(process.env.GEAPA_MEMBERS_ENABLED==='true'&&!require('./environment.cjs').PRODUCTION)actions.push('memberLegacyRegistrationStatus');
 // Endpoint may be deployed inert; the canonical control and distinct policy gate every call.
 actions.push('institutionalGovernanceAttachment','institutionalGovernanceDocument','institutionalGovernancePreview','institutionalGovernanceExecute','institutionalGovernanceStatus','institutionalParameterPreview','institutionalParameterExecute','institutionalParameterStatus','institutionalPreview','institutionalExecute','institutionalStatus','institutionalVisibilityPreview','institutionalVisibilityExecute','institutionalVisibilityStatus');

@@ -22,6 +22,8 @@ function admissionFixture(uid,now){
  docs['memberIdentifierClaims/'+hash({kind:'EMAIL',value:registration.email})]={idPessoa:person,identifierId:identifier,active:true};
  docs['memberAggregateHeads/'+person]={schemaVersion:'m11-head-v1',id:person,kind:'PERSON',revision:1,paths:['memberIdentities/'+person,'memberIdentifiers/'+identifier]};
  docs['memberAdmissionApprovals/'+id]={schemaVersion:'member-admission-approval-v1',id,revision:1,active:true,registrationDigest:hash({email:registration.email,rga:registration.rga}),reference:id,approvedBy:'SYNTHETIC_DEV_FIXTURE',approvedOn:'2026-01-01',membershipType:'MEMBRO_INGRESSANTE',synthetic:true,devTechnicalOwnerUid:uid,devPersonId:person,devRegistration:registration};
+ const digest=hash({email:registration.email,rga:registration.rga}),indexId='AP_'+digest.slice(0,40);
+ docs['memberAdmissionApprovalIndexes/'+indexId]={schemaVersion:'member-admission-approval-index-v1',id:indexId,revision:1,registrationDigest:digest,approvalIds:[id]};
  return {person,id,registration,docs};
 }
 async function administer({db,uid,personId,approvalRef,operator,days=30,expectedGrantRevision,expectedRouteRevision,expectedGovernanceRevision,registration=false,expectedIngressRevision,apply=false,revoke=false,clock=Date.now}){

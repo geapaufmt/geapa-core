@@ -46,6 +46,8 @@ async function fixture(category,t){
  const hash=JSON.parse(createDomain(()=>{}).run('(v)=>f4Core_().hash(v)',{email,rga}));
  const ref=category==='MEMBRO_EFETIVO'?'FAST_PREVIOUS_APPROVAL':'AP_'+hash.slice(0,40),approval=Object.values(docs).find(v=>v.schemaVersion==='member-admission-approval-v1');
  docs['memberAdmissionApprovals/'+ref]={...approval,id:ref,membershipType:category,registrationDigest:hash,courseId:'AGRONOMIA_UFMT_SINOP'};
+ const indexId='AP_'+hash.slice(0,40);docs['memberAdmissionApprovalIndexes/'+indexId]={schemaVersion:'member-admission-approval-index-v1',id:indexId,revision:1,registrationDigest:hash,approvalIds:[ref]};
+ if(ref!==indexId)delete docs['memberAdmissionApprovals/'+indexId];
  if(category==='MEMBRO_EFETIVO'){
   docs['memberOperationalConfig/registration'].recognizePastAdmission=true;
   docs['memberAdmissionApprovals/'+ref].recognizedEffects={on:approval.approvedOn,reference:'SYN_PAST_EFFECT',approvedBy:approval.approvedBy};
@@ -87,7 +89,10 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
   const {docs,call,rh,submit,registration,set}=await fixture(type,t);
   const route='/admin/ingressos-membros/cadastrar';
   await assert.rejects(rh(route,{...registration,referenciaAprovacao:'OUTRA'}),/ADMISSION_APPROVAL_REQUIRED/);
-  const registered=await rh(route,registration),id=registered.request.operationId,person=registered.request.target.personId;
+  const confirmation=await call('CF_ADMIN','memberRegistrationApproval',{email:registration.emailPrincipal.toUpperCase(),rga:registration.rga});assert.equal(confirmation.result.data.membershipType,type);assert.equal(confirmation.metrics.writes,0);
+  const {categoriaIngresso,referenciaAprovacao,...basic}=registration;
+  const registered=await rh(route,basic),id=registered.request.operationId,person=registered.request.target.personId;
+  assert.equal(registered.request.decisionRef,registration.referenciaAprovacao);
   const enrollment=()=>docs['memberEnrollments/'+id];
   if(type==='MEMBRO_EFETIVO')assert.equal(enrollment().approval.recognizedEffects.reference,'SYN_PAST_EFFECT');
   assert(!docs['memberLinks/V_'+id]);assert(!docs['memberAuthBindings/SYN_INVITEE']);

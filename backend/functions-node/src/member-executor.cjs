@@ -57,7 +57,7 @@ class MemberStore extends Store{
 async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,hooks={},bindingAdmin=null}){
  const acceptedTypes=bindingAdmin?[...types,'members.binding.associate']:types;
  const started=performance.now(),env=fence();if(!env.emulator&&Object.keys(hooks).length)fail('DESTINATION_INVALID');
- if(!body||Object.keys(body).sort().join()!=='action,request'||!['memberPrepare','memberExecute','memberStatus','memberRecover','memberEnrollmentOpen','memberEnrollmentRead','memberEnrollmentPrepare','memberLegacyRegistrationStatus'].includes(body.action))fail('COMMAND_TYPE_INVALID');
+ if(!body||Object.keys(body).sort().join()!=='action,request'||!['memberPrepare','memberExecute','memberStatus','memberRecover','memberEnrollmentOpen','memberEnrollmentRead','memberEnrollmentPrepare','memberLegacyRegistrationStatus','memberRegistrationApproval'].includes(body.action))fail('COMMAND_TYPE_INVALID');
  const identity=await authenticate(auth,token),store=new MemberStore(db,identity),domain=createDomain(x=>store.io(x));
  const run=(fn,v)=>{const r=domain.run(fn,v);return r===undefined?undefined:JSON.parse(r);};run('(x)=>nodeIdentity(x)',identity);
  // Candidate requests can only enter the invitation family and its owner-bound receipt.
@@ -79,6 +79,12 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
  }
  if(store.control.commandTypes!==undefined&&(!Array.isArray(store.control.commandTypes)||!store.control.commandTypes.length||!store.control.commandTypes.every(t=>[...types,'members.binding.associate'].includes(t))))fail('PILOT_DISABLED');
  const commandEnabled=t=>!store.control.commandTypes||store.control.commandTypes.includes(t);
+ if(body.action==='memberRegistrationApproval'){
+  if(!commandEnabled('members.ingress.execute')||store.control.portalRoutes&&!store.control.portalRoutes.includes('/admin/ingressos-membros/cadastrar'))fail('PILOT_RESOURCE_DENIED');
+  store.terminalStatus=true;
+  const result=await store.transaction(()=>{store.guard();return run('(q)=>f4MemberOperationalReader_({config:nodeConfig,identity:nodeActor,clock:Date.now}).registrationApproval(q)',body.request);});
+  return {result,metrics:{...store.metrics,totalMs:performance.now()-started}};
+ }
  if(body.action.startsWith('memberEnrollment')&&!commandEnabled('members.onboarding.complete'))fail('PILOT_DISABLED');
  if(body.action==='memberPrepare'&&store.control.portalRoutes&&!store.control.portalRoutes.includes(body.request?.route))fail('PILOT_RESOURCE_DENIED');
  let receiptEnrollment;

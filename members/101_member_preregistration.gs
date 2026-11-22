@@ -10,9 +10,9 @@ function f4MemberPreRegistration_(){
   E.quick(r.payload.registration);return true;
  }
  function approval(get,ref,registration,now){
-  const d=get('memberAdmissionApprovals/'+ref);N(d,'ADMISSION_APPROVAL_REQUIRED');N(d?.schemaVersion==='member-admission-approval-v1'&&d.id===ref&&d.active===true&&C.rev(d.revision)&&d.revision>0,'ACCESS_REVOKED');
-  N(d.registrationDigest===C.hash({email:registration.email,rga:registration.rga})&&C.id(d.reference)&&C.id(d.approvedBy),'AUTH_BINDING_INVALID');
-  C.civilStart(d.approvedOn);N(C.civilStart(d.approvedOn)<=now&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(d.membershipType),'COMMAND_PAYLOAD_INVALID');
+  const d=get('memberAdmissionApprovals/'+ref);N(d,'ADMISSION_APPROVAL_REQUIRED');N(d?.schemaVersion==='member-admission-approval-v1'&&d.id===ref&&C.rev(d.revision)&&d.revision>0,'SCHEMA_INVALID');N(d.active===true,'ADMISSION_APPROVAL_INACTIVE');
+  N(d.registrationDigest===C.hash({email:registration.email,rga:registration.rga})&&C.id(d.reference)&&C.id(d.approvedBy),'ADMISSION_APPROVAL_REQUIRED');
+  N(['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(d.membershipType),'ADMISSION_CATEGORY_INVALID');C.civilStart(d.approvedOn);N(C.civilStart(d.approvedOn)<=now,'COMMAND_PAYLOAD_INVALID');
   if(Object.hasOwn(d,'recognizedEffects')){
    const effects=d.recognizedEffects;
    C.exact(effects,['on','reference','approvedBy']);
@@ -26,18 +26,22 @@ function f4MemberPreRegistration_(){
  }
  function key(registration){return 'AP_'+C.hash({email:registration.email,rga:registration.rga}).slice(0,40);}
  function locate(get,registration,reference,now){
-  const indexed=key(registration);
-  // Retain the identity index when present, including its revocation.
-  const ref=get('memberAdmissionApprovals/'+indexed)||!C.id(reference)?indexed:reference;
-  return approval(get,ref,registration,now);
+  const pair=f4MemberRegistrationIdentity_().normalize({email:registration.email,rga:registration.rga}),indexed=key(pair),index=get('memberAdmissionApprovalIndexes/'+indexed),legacy=get('memberAdmissionApprovals/'+indexed);
+  if(index)N(index.schemaVersion==='member-admission-approval-index-v1'&&index.id===indexed&&C.rev(index.revision)&&index.revision>0&&index.registrationDigest===C.hash(pair)&&Array.isArray(index.approvalIds)&&index.approvalIds.length>0&&index.approvalIds.length<=16&&index.approvalIds.every(C.id)&&new Set(index.approvalIds).size===index.approvalIds.length,'ADMISSION_APPROVAL_AMBIGUOUS');
+  const ids=[...new Set([...(index?.approvalIds||[]),...(legacy?[indexed]:[])])];
+  N(ids.length<=1,'ADMISSION_APPROVAL_AMBIGUOUS');
+  // Compatibility for an explicit historical reference. New forms never send
+  // it; historical sources must be indexed through the administrative issuer.
+  const ref=ids[0]||(!index&&C.id(reference)?reference:indexed);
+  return approval(get,ref,pair,now);
  }
  function proposal(get,r,now){
   validate(r);const p=r.payload,id=r.target.personId,body=f4MemberActContent_().act(get,r,now),facts=body.facts;
   C.exact(facts,['schemaVersion','personId','approvalRef','approvalRevision','policyRevision']);
   N(facts.schemaVersion==='member-preregistration-v1'&&facts.personId===id&&facts.approvalRef===p.approvalRef,'M13_ACT_INVALID');
   const policy=get('memberOperationalConfig/registration');N(policy?.schemaVersion==='member-registration-policy-v1'&&policy.enabled===true&&policy.stagedEnrollment===true&&policy.revision===facts.policyRevision&&Number.isSafeInteger(policy.invitationLifetimeHours)&&policy.invitationLifetimeHours>0&&policy.invitationLifetimeHours<=720,'ACCESS_REVOKED');
-  const today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),registration=E.quick(p.registration),a=approval(get,p.approvalRef,registration,now);
-  N(a.revision===facts.approvalRevision&&a.reference===r.decisionRef&&K.equal(registration,p.registration),'REVISION_CONFLICT');
+  const today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),registration=E.quick(p.registration),a=locate(get,registration,p.approvalRef,now);
+  N(a.id===p.approvalRef&&a.revision===facts.approvalRevision&&a.reference===r.decisionRef&&K.equal(registration,p.registration),'REVISION_CONFLICT');
   const resolution=f4MemberRegistrationIdentity_().resolve(get,{email:registration.email,rga:registration.rga});N(resolution.personId===null||resolution.personId===id,'AUTH_BINDING_INVALID');
   const identity=get('memberIdentities/'+id),h=get('memberAggregateHeads/'+id),expected=U.revision(r,'memberAggregateHeads/'+id),control=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS'));
   N((h?.revision||0)===expected,'REVISION_CONFLICT');N(identity?p.identity===null:!h&&p.identity?.displayName===registration.fullName,'COMMAND_PAYLOAD_INVALID');

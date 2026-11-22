@@ -101,10 +101,10 @@ function f4DevAdministrativeAccess_(){
  function registrationStatus(get,identity,now,input){
   const a=source(get,identity,now,'MEMBERS_INGRESS_EXECUTE');if(!a)return null;
   C.exact(input,['operationId','route','payload']);N(C.op(input.operationId)&&input.route==='/admin/ingressos-membros/cadastrar','COMMAND_PAYLOAD_INVALID');
-  const p=input.payload;C.exact(p,['nomeCompleto','emailPrincipal','rga','telefone','categoriaIngresso','referenciaAprovacao',...(Object.hasOwn(p,'dadosComplementares')?['dadosComplementares']:[])]);
+  const p=input.payload,selected=Object.hasOwn(p,'categoriaIngresso')||Object.hasOwn(p,'referenciaAprovacao');C.exact(p,['nomeCompleto','emailPrincipal','rga','telefone',...(selected?['categoriaIngresso','referenciaAprovacao']:[]),...(Object.hasOwn(p,'dadosComplementares')?['dadosComplementares']:[])]);
   const registration=f4MemberEnrollmentContract_().quick({fullName:p.nomeCompleto,email:p.emailPrincipal,rga:p.rga,phone:p.telefone});
   const approval=f4MemberPreRegistration_().locate(get,registration,p.referenciaAprovacao,now);
-  N(approval.reference===p.referenciaAprovacao&&approval.membershipType===p.categoriaIngresso,'ADMISSION_APPROVAL_REQUIRED');
+  if(selected)N(approval.reference===p.referenciaAprovacao&&approval.membershipType===p.categoriaIngresso,'ADMISSION_APPROVAL_REQUIRED');
   N(a.mask.includes('preRegister')&&a.source.admissionApprovalIds?.includes(approval.id)&&approval.synthetic===true&&approval.devTechnicalOwnerUid===identity.uid&&a.source.syntheticPersonIds.includes(approval.devPersonId)&&C.hash(approval.devRegistration)===C.hash(registration)&&Object.keys(p.dadosComplementares||{}).length===0,'AUTHORIZATION_DENIED');
   const resolved=f4MemberRegistrationIdentity_().resolve(get,{email:registration.email,rga:registration.rga});
   N(resolved.personId===approval.devPersonId,'AUTHORIZATION_DENIED');
