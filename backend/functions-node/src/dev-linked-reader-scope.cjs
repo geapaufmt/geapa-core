@@ -1,7 +1,7 @@
 'use strict';
 // Transport admission for a bounded synthetic SELF rehearsal, never a policy.
 // Canonical producers still validate binding, membership and every requested DTO.
-const routes=Object.freeze(['/act/context','/members/own','/members/operational-context','/meu-perfil/correcoes','/meu-vinculo/opcoes','/meu-vinculo/solicitacoes','/v2/minha-frequencia','/v2/minhas-apresentacoes','/v2/justificativas/pendencias','/v2/apresentacoes/pendencias']);
+const routes=Object.freeze(['/act/context','/members/own','/members/operational-context','/meu-perfil/correcoes','/meu-vinculo/opcoes','/meu-vinculo/solicitacoes','/v2/minha-frequencia','/v2/minhas-apresentacoes','/v2/justificativas/pendencias','/v2/apresentacoes/pendencias','/atividades/listar','/atividades/bundle','/atividades/detalhes-preload','/atividades/detalhe']);
 function admitted(read,uid,route,now,production){
  if(production||!routes.includes(route))return false;
  const g=read('coreDevLinkedReaderGrants/'+uid);
