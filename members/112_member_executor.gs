@@ -10,7 +10,7 @@ function f4MemberProtectedInputs_(){
 function f4MemberExecutor_(){
  const C=f4Core_(),N=C.need,types=['members.binding.associate','members.attendance.record','members.discipline.dismiss','members.self.update','members.profile.correct','members.ingress.execute','members.voluntary.submit','members.voluntary.review','members.membership.voluntaryExit','members.onboarding.complete'];
  const supports=r=>types.includes(r?.commandType),key=t=>'MEMBERS_'+t.slice(8).replace(/\./g,'_').toUpperCase();
- function scope(get,v){const s=get('memberExecutorScopes/'+v.scopeId);N(s?.schemaVersion==='member-executor-scope-v1'&&f4ExecutionEnvironment_().scope(s)&&s.id===v.scopeId&&C.rev(s.revision)&&s.revision>0,'ACCESS_REVOKED');for(const k of ['personIds','approvalRefs'])N(Array.isArray(s[k])&&s[k].length<=100&&s[k].every(C.id)&&new Set(s[k]).size===s[k].length,'ACCESS_REVOKED');N(s.personIds.length>0,'ACCESS_REVOKED');return s;}
+ function scope(get,v){const s=get('memberExecutorScopes/'+v.scopeId);N(s?.schemaVersion==='member-executor-scope-v1'&&f4ExecutionEnvironment_().scope(s)&&s.id===v.scopeId&&C.rev(s.revision)&&s.revision>0,'ACCESS_REVOKED');for(const k of ['personIds','approvalRefs'])N(Array.isArray(s[k])&&s[k].length<=100&&s[k].every(C.id)&&new Set(s[k]).size===s[k].length,'ACCESS_REVOKED');N(s.personIds.length>0||s.profileCorrectionCurrentMembers===true||s.bindingCurrentMembers===true,'ACCESS_REVOKED');N(s.profileCorrectionCurrentMembers===undefined||s.profileCorrectionCurrentMembers===true,'ACCESS_REVOKED');N(s.bindingCurrentMembers===undefined||s.bindingCurrentMembers===true,'ACCESS_REVOKED');return s;}
  function route(get,config,id){N(f4ExecutionEnvironment_().destination(config),'DESTINATION_INVALID');const v=get('commandExecutorRoutes/'+id);N(v?.schemaVersion==='member-executor-route-v1'&&v.projectId===config.projectId&&types.includes(v.commandType)&&id===key(v.commandType)&&v.routeId===id&&f4ExecutionEnvironment_().route(v)&&C.id(v.scopeId)&&f4ExecutionEnvironment_().executors.includes(v.executor)&&['ACTIVE','DRAINING','CLOSED'].includes(v.state)&&C.rev(v.revision)&&v.revision>0&&C.rev(v.epoch)&&v.epoch>0&&Array.isArray(v.actorUids)&&v.actorUids.length>0&&v.actorUids.length<=(f4ExecutionEnvironment_().production?128:16)&&v.actorUids.every(C.id)&&new Set(v.actorUids).size===v.actorUids.length&&Array.isArray(v.operationIds)&&v.operationIds.every(C.op)&&new Set(v.operationIds).size===v.operationIds.length&&v.operationIds.length<=100&&f4ExecutorBudget_().valid(v)&&f4ExecutorWindow_().valid(v),'ACCESS_REVOKED');scope(get,v);return v;}
  function enrollmentScope(get,personId,refs){
   if(!/^P_[a-f0-9]{32}$/.test(personId))return false;
@@ -27,7 +27,7 @@ function f4MemberExecutor_(){
   if(s.profileCorrectionRequestsOnly===true&&r.commandType==='members.profile.correct')N(r.payload?.operation==='CORRECTION_REQUEST','PILOT_RESOURCE_DENIED');
   // New identity only from a specifically approved synthetic registration.
   const registration=r.commandType==='members.ingress.execute'&&r.payload?.operation==='PRE_REGISTER'&&id==='P_'+r.operationId&&s.approvalRefs.includes(r.payload.approvalRef);
-  N(s.personIds.includes(id)||registration||enrollmentScope(get,id,s.approvalRefs)&&['members.ingress.execute','members.onboarding.complete'].includes(r.commandType),'PILOT_RESOURCE_DENIED');
+  N(s.personIds.includes(id)||registration||currentProfile(get,r,s)||currentBinding(get,r,s)||enrollmentScope(get,id,s.approvalRefs)&&['members.ingress.execute','members.onboarding.complete'].includes(r.commandType),'PILOT_RESOURCE_DENIED');
   if(r.payload?.action==='AMEND'&&['rga','email'].includes(r.payload.field)&&!s.personIds.includes(id)&&!get('commandExecutorOwners/'+r.operationId)){
    const old=get('memberEnrollments/'+r.payload.enrollmentId);
    const registration=f4MemberEnrollmentContract_().quick({...old.registration,[r.payload.field]:r.payload.value});
@@ -38,6 +38,8 @@ function f4MemberExecutor_(){
  }
  function select(get,r,config){if(!supports(r))return null;const id=key(r.commandType);if(!get('commandExecutorRoutes/'+id))return null;const v=route(get,config,id);const s=scope(get,v);
   // Unselected institutional resources retain their previous executor.
-  if(!s.personIds.includes(r.target?.personId)&&!(['members.ingress.execute','members.onboarding.complete'].includes(r.commandType)&&enrollmentScope(get,r.target?.personId,s.approvalRefs))&&!(r.payload?.operation==='PRE_REGISTER'&&s.approvalRefs.includes(r.payload.approvalRef)))return null;fields(get,r,v);return id;}
- return {types,supports,key,scope,route,fields,select,enrollmentScope,invitationActor,resource:r=>r.target.personId};
+  if(!s.personIds.includes(r.target?.personId)&&!currentProfile(get,r,s)&&!currentBinding(get,r,s)&&!(['members.ingress.execute','members.onboarding.complete'].includes(r.commandType)&&enrollmentScope(get,r.target?.personId,s.approvalRefs))&&!(r.payload?.operation==='PRE_REGISTER'&&s.approvalRefs.includes(r.payload.approvalRef)))return null;fields(get,r,v);return id;}
+ function currentProfile(get,r,s){return s.profileCorrectionCurrentMembers===true&&r.commandType==='members.profile.correct'&&f4MemberProfileTargetEligible_(get,r.target?.personId,Date.now());}
+ function currentBinding(get,r,s){return s.bindingCurrentMembers===true&&r.commandType==='members.binding.associate'&&f4MemberBindingTargetEligible_(get,r.target?.personId,Date.now());}
+ return {types,supports,key,scope,route,fields,select,currentProfile,currentBinding,enrollmentScope,invitationActor,resource:r=>r.target.personId};
 }

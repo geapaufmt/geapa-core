@@ -17,9 +17,9 @@ function f4MemberProfileCorrectionReader_({config,identity,clock=Date.now,auditC
    if(p.proofKind!=='ROLE'||p.targets.ownPerson||!p.targets.commandScopes?.includes('PROFILE_CORRECTION')||!p.targets.allowedTargetScopes.includes('ADMINISTRACAO'))return false;
    return actor.derived.currentFunctions.some(f=>f.roleKey===p.actorSelector.roleKey&&f.group===p.actorSelector.group&&f.scopeKey===p.actorSelector.actorScope);
   });N(source,'ACCESS_REVOKED');
-  // Empty legacy DEV role scopes remain compatible. PROD must name its targets.
-  const persons=self?[actor.binding.idPessoa]:source.targets.allowedPersons.length?source.targets.allowedPersons:f4ExecutionEnvironment_().production?[]:null;
-  return {actor,source,persons,mask:self?W.fields:W.fields.filter(f=>source.fieldMasks[cap].includes(f)),expires:Math.min(identity.expiresAt,C.ms(source.expiresAt),C.ms(actor.state.validUntil))};
+  // Dynamic membership is opt-in; each selected target is rechecked canonically.
+  const dynamic=!self&&source.targets.commandScopes?.includes('PROFILE_CORRECTION_CURRENT_MEMBERS'),persons=self?[actor.binding.idPessoa]:dynamic?null:source.targets.allowedPersons.length?source.targets.allowedPersons:f4ExecutionEnvironment_().production?[]:null;
+  return {actor,source,persons,dynamic,mask:self?W.fields:W.fields.filter(f=>source.fieldMasks[cap].includes(f)),expires:Math.min(identity.expiresAt,C.ms(source.expiresAt),C.ms(actor.state.validUntil))};
  }
  function dto(get,v,reveal){const privateField=['cpf','rga','birthDate'].includes(v.field),mask=x=>x==null?'':privateField?'••••'+String(x).slice(-2):String(x),identity=get('memberIdentities/'+v.personId);N(identity?.idPessoa===v.personId,'RECONCILIATION_REQUIRED');
   return {id:v.id,revision:v.revision,campo:fields[v.field],field:v.field,status:v.status,solicitadoEm:new Date(v.createdAt).toISOString(),valorSolicitadoMascarado:mask(v.proposedValue),pessoa:{nomeExibicao:identity.displayName,rgaMascarado:'',emailMascarado:''},requerRevelacao:true,dadosRevelados:reveal,valorAtual:reveal?W.source(get,v.personId,v.field).value:mask(W.source(get,v.personId,v.field).value),valorSolicitado:reveal?v.proposedValue:mask(v.proposedValue),...(reveal?{valorAnterior:v.previousValue,justificativa:v.history[0].reason,historicoDecisoes:v.history.map(h=>({status:h.action,motivoPublico:h.reason,analisadoEm:new Date(h.at).toISOString()})),canAnalyze:!W.terminal.includes(v.status),canApply:['PENDENTE','EM_ANALISE'].includes(v.status)}:{canAnalyze:false,canApply:false})};
@@ -49,10 +49,10 @@ function f4MemberProfileCorrectionReader_({config,identity,clock=Date.now,auditC
   }else rows=db.query({collection:'memberProfileCorrections',filters,order:[{field:'id',direction:'ASCENDING'}],limit:10});
   return db.transaction(tx=>{
    const get=p=>tx.get(p).data(),a=access(get,clock(),false);N(K.digest(a.source)===K.digest(before.source)&&a.actor.actor.h.revision===before.actor.actor.h.revision&&(get('portalReaderResourceFences/members_operations')?.revision||0)===fence,'ACCESS_REVOKED');
-   const values=rows.map(v=>W.record(v.data||get(v.path))),permitted=v=>a.persons===null||a.persons.includes(v.personId);
+   const values=rows.map(v=>W.record(v.data||get(v.path))),permitted=v=>a.dynamic?f4MemberProfileTargetEligible_(get,v.personId,clock()):a.persons===null||a.persons.includes(v.personId);
    if(detail)N(permitted(values[0])&&a.mask.includes(values[0].field),'ACCESS_REVOKED');
-   else N(values.every(permitted),'ACCESS_REVOKED');
-   const items=values.filter(v=>a.mask.includes(v.field)&&(detail||(!params.status||v.status===params.status)&&(!params.field||v.field===params.field))).map(v=>dto(get,v,detail&&params.revelarDados));
+   else if(!a.dynamic)N(values.every(permitted),'ACCESS_REVOKED');
+   const items=values.filter(v=>permitted(v)&&a.mask.includes(v.field)&&(detail||(!params.status||v.status===params.status)&&(!params.field||v.field===params.field))).map(v=>dto(get,v,detail&&params.revelarDados));
    if(detail){if(params.revelarDados){const id=C.hash({uid:identity.uid,request:values[0].id,at:auditClock(),purpose:'PROFILE_CORRECTION_READ'}).slice(0,32),p='memberAudit/'+id;get(p);tx.set(p,{schemaVersion:'member-profile-correction-read-v1',actorUid:identity.uid,requestId:values[0].id,requestRevision:values[0].revision,createdAt:F.Timestamp.fromMillis(auditClock()),authorizationSource:a.source.id||'DEV_ADMIN',authorizationRevision:a.source.revision});}return {ok:true,data:items[0]};}
    return {ok:true,data:{solicitacoes:items,nextCursor:rows.length===10?paging.next(values.at(-1).id):null,pageSize:10}};
   });

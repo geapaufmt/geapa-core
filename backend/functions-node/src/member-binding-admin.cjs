@@ -12,6 +12,7 @@ async function googleAccount(auth,email){
  return {uid:u.uid,email:u.email.toLowerCase(),emailVerified:true,provider:'google.com'};
 }
 class BindingStore extends MemberStore{
+ constructor(...args){super(...args);this.bindingAdministrative=true;}
  guard(){const c=super.guard(),b=this.hostRead('memberBindingAdminControl/current');if(!b?.enabled||b.projectId!==PROJECT||b.schemaVersion!=='member-binding-admin-control-v1')fail('ACCESS_REVOKED');if(this.bindingPinned&&this.bindingPinned!==JSON.stringify(b))fail('ACCESS_REVOKED');this.bindingPinned=JSON.stringify(b);return c;}
  validateWrites(s){
   const extra=s.writes.filter(w=>w.path.startsWith('memberBindingVerifications/'));
