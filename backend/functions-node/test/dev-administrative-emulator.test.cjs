@@ -58,10 +58,10 @@ test('nominal DEV grant exercises protected reads, correction and draft transact
   const gp='coreDevAdministrativeGrants/'+uid,index=(await db.doc('memberEnrollmentIndexes/'+admission.person).get()).data(),enrollmentId=index.activeEnrollmentId;
   const enrollment=async()=>(await db.doc('memberEnrollments/'+enrollmentId).get()).data();
   const send=action=>member('memberPrepare',{operationId:crypto.randomBytes(16).toString('hex'),route:'/admin/ingressos-membros/convite',payload:{enrollmentId,revision:1,action,reason:'Homologação exclusivamente sintética'}});
-  await db.doc(gp).update({invitationWindow:{enrollmentId,issuedAt:new Date(now-1000),expiresAt:new Date(now+3600000)},revision:4});
+  await db.doc(gp).update({invitationWindow:{enrollmentId,issuedAt:new Date(now-1000),expiresAt:new Date(now+1800000)},revision:4});
   const item=(await read('/admin/ingressos-membros',{})).result.data.items[0];a.equal(item.canSend,true);a.equal(item.canReview,false);a.equal(item.canResend,false);a.equal(item.canCancel,false);a.equal(item.canAmend,false);
   for(const action of ['RESEND','CANCEL','ACKNOWLEDGE','REQUEST_CORRECTION','RESOLVE_CORRECTION'])await a.rejects(send(action));
-  await db.doc(gp).update({'invitationWindow.expiresAt':new Date(now-1)});await a.rejects(send('SEND'));await db.doc(gp).update({'invitationWindow.expiresAt':new Date(now+3600000)});
+  await db.doc(gp).update({'invitationWindow.expiresAt':new Date(now-1)});await a.rejects(send('SEND'));await db.doc(gp).update({'invitationWindow.expiresAt':new Date(now+1800000)});
   const prepared=await send('SEND');a.equal((await member('memberExecute',prepared.request)).dto.receipt.state,'COMPLETED');
   a.equal((await db.doc('jobOutbox/'+prepared.request.operationId).get()).data().mode,'DRY_RUN');
   const route=(await db.doc('commandExecutorRoutes/MEMBERS_INGRESS_EXECUTE').get()).data();await db.doc('commandExecutorRoutes/MEMBERS_ONBOARDING_COMPLETE').set({...route,commandType:'members.onboarding.complete',routeId:'MEMBERS_ONBOARDING_COMPLETE',operationIds:[]});
