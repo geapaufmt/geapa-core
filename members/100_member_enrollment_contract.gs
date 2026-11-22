@@ -74,18 +74,20 @@ function f4MemberEnrollmentContract_(){
  }
  function create({id,personId,registration,approval,actorUid,now,expiresAt}){
   N(C.op(id)&&C.id(personId)&&C.id(actorUid)&&Number.isSafeInteger(now)&&Number.isSafeInteger(expiresAt)&&expiresAt>now,'COMMAND_PAYLOAD_INVALID');
-  validateApprovalShape(approval,now);
+  if(approval!==null){validateApprovalShape(approval,now);
   N(C.id(approval.reference)&&C.id(approval.approvedBy)&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(approval.membershipType),'COMMAND_PAYLOAD_INVALID');
-  C.civilStart(approval.approvedOn);N(C.civilStart(approval.approvedOn)<=now,'COMMAND_PAYLOAD_INVALID');
-  return {schemaVersion:'member-enrollment-v1',id,personId,revision:1,registration:quick(registration),approval:{...approval},createdBy:actorUid,createdAt:now,updatedAt:now,expiresAt,uid:null,status:'PRE_REGISTERED',invitedAt:null,respondedAt:null,completedAt:null,profile:{},normAcknowledgement:null,imageManifestation:null};
+  C.civilStart(approval.approvedOn);N(C.civilStart(approval.approvedOn)<=now,'COMMAND_PAYLOAD_INVALID');}
+  return {schemaVersion:'member-enrollment-v1',id,personId,revision:1,registration:quick(registration),approval:approval===null?null:{...approval},...(approval===null?{draft:true}:{}),createdBy:actorUid,createdAt:now,updatedAt:now,expiresAt,uid:null,status:'PRE_REGISTERED',invitedAt:null,respondedAt:null,completedAt:null,profile:{},normAcknowledgement:null,imageManifestation:null};
  }
  function validate(v){
-  C.exact(v,['schemaVersion','id','personId','revision','registration','approval','createdBy','createdAt','updatedAt','expiresAt','uid','status','invitedAt','respondedAt','completedAt','profile','normAcknowledgement','imageManifestation',...(Object.hasOwn(v,'review')?['review']:[]),...(Object.hasOwn(v,'approvalId')?['approvalId']:[])]);
-  if(Object.hasOwn(v,'approvalId'))N(C.id(v.approvalId),'SCHEMA_INVALID');
+  C.exact(v,['schemaVersion','id','personId','revision','registration','approval','createdBy','createdAt','updatedAt','expiresAt','uid','status','invitedAt','respondedAt','completedAt','profile','normAcknowledgement','imageManifestation',...(Object.hasOwn(v,'review')?['review']:[]),...(Object.hasOwn(v,'approvalId')?['approvalId']:[]),...(Object.hasOwn(v,'draft')?['draft']:[])]);
+  if(Object.hasOwn(v,'draft'))N(v.draft===true,'SCHEMA_INVALID');
+  if(Object.hasOwn(v,'approvalId'))N(v.approval!==null&&C.id(v.approvalId),'SCHEMA_INVALID');
   if(v.review){C.exact(v.review,['state','at','actorUid','note']);N(['ACKNOWLEDGED','CORRECTION_REQUESTED','RESOLVED'].includes(v.review.state)&&C.id(v.review.actorUid)&&Number.isSafeInteger(v.review.at)&&v.review.at>=v.createdAt&&v.review.at<=v.updatedAt,'SCHEMA_INVALID');text(v.review.note,500,false);}
   N(v.schemaVersion==='member-enrollment-v1'&&C.op(v.id)&&C.id(v.personId)&&C.id(v.createdBy)&&C.rev(v.revision)&&v.revision>0&&['PRE_REGISTERED','INVITED','ACCEPTED','DECLINED','CANCELLED','COMPLETED'].includes(v.status),'SCHEMA_INVALID');
   N(K.equal(quick(v.registration),v.registration)&&Number.isSafeInteger(v.createdAt)&&Number.isSafeInteger(v.updatedAt)&&v.createdAt<=v.updatedAt&&Number.isSafeInteger(v.expiresAt)&&v.expiresAt>v.createdAt,'SCHEMA_INVALID');
-  validateApprovalShape(v.approval,v.createdAt);N(C.id(v.approval.reference)&&C.id(v.approval.approvedBy)&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(v.approval.membershipType)&&C.civilStart(v.approval.approvedOn)<=v.createdAt,'SCHEMA_INVALID');
+  if(v.approval!==null){validateApprovalShape(v.approval,v.updatedAt);N(C.id(v.approval.reference)&&C.id(v.approval.approvedBy)&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(v.approval.membershipType)&&C.civilStart(v.approval.approvedOn)<=v.updatedAt,'SCHEMA_INVALID');}
+  else N(v.draft===true&&v.status!=='COMPLETED','SCHEMA_INVALID');
   N(v.uid===null||C.id(v.uid),'SCHEMA_INVALID');for(const k of ['invitedAt','respondedAt','completedAt'])N(v[k]===null||Number.isSafeInteger(v[k])&&v.createdAt<=v[k]&&v[k]<=v.updatedAt,'SCHEMA_INVALID');
   N(!['ACCEPTED','DECLINED','COMPLETED'].includes(v.status)||v.uid!==null&&v.respondedAt!==null&&v.invitedAt!==null,'SCHEMA_INVALID');
   N(v.status!=='PRE_REGISTERED'||v.invitedAt===null&&v.uid===null&&v.respondedAt===null&&v.completedAt===null,'SCHEMA_INVALID');
@@ -119,6 +121,7 @@ function f4MemberEnrollmentContract_(){
   return {schemaVersion:'member-image-manifestation-v1',personId,enrollmentId,uid,at:now,state:choice,termVersion:term.version,text:text(term.text,3000,false),purpose:text(term.purpose,1000,false),previousHash:previous?C.hash(previous):null};
  }
  function ready(get,old,expectedRevision,verified,now,projectId,today,norms){
+  N(old.approval!==null,'ADMISSION_APPROVAL_REQUIRED');
   N(old.revision===expectedRevision,'REVISION_CONFLICT');const uid=identity(old,verified,now,projectId);N(old.uid===uid&&old.status==='ACCEPTED'&&old.respondedAt!==null,'ACCESS_REVOKED');
   const state=completeness(get,old.profile,today);N(state.complete,'COMMAND_PAYLOAD_INVALID');
   const claim=get('memberIdentifierClaims/'+C.hash({kind:'CPF',value:state.profile.cpf}));N(!claim||claim.active===true&&claim.idPessoa===old.personId,'RECONCILIATION_REQUIRED');

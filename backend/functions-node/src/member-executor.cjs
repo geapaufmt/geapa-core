@@ -14,6 +14,7 @@ class MemberStore extends Store{
   const op=this.operationId,person=this.personId;
   if(s.writes.length&&!person)fail('PILOT_RESOURCE_DENIED');
   const scoped=this.control.scopeIds.map(id=>this.hostRead('memberExecutorScopes/'+id));if(s.missing.size)return;
+  const draft=scoped.some(v=>v?.projectId===PROJECT&&v.synthetic===!PRODUCTION&&v.preregistrationDrafts===true)&&this.inDraftScope?.(person,this.prepared);
   const fresh=person==='P_'+op&&this.prepared?.payload.operation==='PRE_REGISTER'&&scoped.some(v=>v?.projectId===PROJECT&&v.synthetic===!PRODUCTION&&v.approvalRefs?.includes(this.prepared.payload.approvalRef));
   const byEnrollment=(this.candidate||this.prepared?.commandType==='members.ingress.execute')&&
    scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&this.inEnrollmentScope(person,v.approvalRefs));
@@ -22,7 +23,7 @@ class MemberStore extends Store{
   const dynamic=this.prepared?.commandType==='members.profile.correct'&&scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.profileCorrectionCurrentMembers===true)&&eligible('f4MemberProfileTargetEligible_');
   const bindingDynamic=(this.bindingAdministrative===true||this.bindingUid&&this.prepared?.commandType==='members.binding.associate')&&scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.bindingCurrentMembers===true)&&eligible('f4MemberBindingTargetEligible_');
   if(s.missing.size)return;
-  if(!scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.personIds?.includes(person))&&!fresh&&!byEnrollment&&!dynamic&&!bindingDynamic)fail('PILOT_RESOURCE_DENIED');
+  if(!scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.personIds?.includes(person))&&!fresh&&!draft&&!byEnrollment&&!dynamic&&!bindingDynamic)fail('PILOT_RESOURCE_DENIED');
   const technical=['memberAdmissionTickets','memberAdmissionCounters','memberAdmissionUses','commandProvenance','commandRequests','commandReceipts','commandLedger','commandTombstones','commandLeases','commandReconciliation','memberAudit','commandProjectionInvalidations','commandExecutorOwners','commandExecutorRoutes'];
   const personCollections=['memberAttendanceCases','memberIdentities','memberIdentifiers','memberIdentifierClaims','memberPrivateProfiles','memberLinks','memberEvents','memberAggregateHeads','memberCurrentStates','memberStatusViews','memberScopeGrants','memberPortalProfiles','memberPublicProfiles','memberCurrentFunctions','memberCurrentDirectors','memberTransitionQueue','memberAuthzSubjects','memberVoluntaryRequests','memberVoluntaryIndexes','memberEnrollments','memberEnrollmentIndexes','memberEnrollmentFacts','memberProfileCorrections','memberProfileCorrectionIndexes'];
   for(const w of s.writes){const [col,id]=w.path.split('/'),d=w.mode==='delete'?null:decode(w.data),old=this.hostRead(w.path);if(s.missing.size)return;if(w.mode==='delete'){if(['memberCurrentFunctions','memberCurrentDirectors','memberFunctionProofs'].includes(col)&&id===person&&w.path.split('/')[2]==='items'&&w.path.split('/').length===4)continue;fail('PILOT_WRITE_DENIED');}
@@ -74,6 +75,10 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
  let candidate=body.action.startsWith('memberEnrollment')||
   ['memberRecover','memberStatus','memberExecute'].includes(body.action)&&body.request?.commandType==='members.onboarding.complete'&&(body.action!=='memberExecute'||body.request.payload?.operation==='ENROLLMENT');
  store.candidate=candidate;
+ store.inDraftScope=(person,r)=>{
+  if(!r){const index=store.hostRead('memberEnrollmentIndexes/'+person);if(!index?.activeEnrollmentId)return false;r={commandType:'members.onboarding.complete',target:{personId:person,enrollmentId:index.activeEnrollmentId},payload:{operation:'ENROLLMENT'}};}
+  return run('(r)=>f4MemberExecutor_().draftScope(nodeRead,r,{preregistrationDrafts:true})',r);
+ };
  store.inEnrollmentScope=(person,refs)=>{
   if(!/^P_[a-f0-9]{32}$/.test(person)||!Array.isArray(refs))return false;
   const enrollment=store.hostRead('memberEnrollments/'+person.slice(2));

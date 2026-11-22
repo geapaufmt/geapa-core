@@ -59,18 +59,20 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
     const selected=Object.hasOwn(p,'categoriaIngresso')||Object.hasOwn(p,'referenciaAprovacao');
     const keys=['nomeCompleto','emailPrincipal','rga','telefone',...(selected?['categoriaIngresso','referenciaAprovacao']:[])];C.exact(p,[...keys,...(Object.hasOwn(p,'dadosComplementares')?['dadosComplementares']:[])]);
     const E=f4MemberEnrollmentContract_(),registration=E.quick({fullName:p.nomeCompleto,email:p.emailPrincipal,rga:p.rga,phone:p.telefone});
-    const approval=f4MemberPreRegistration_().locate(get,registration,p.referenciaAprovacao,now),approvalRef=approval.id,policy=get('memberOperationalConfig/registration');
+    // A plain registration is a draft. Only the explicit historical input
+    // selects a pre-existing institutional approval; none is inferred here.
+    const approval=selected?f4MemberPreRegistration_().locate(get,registration,p.referenciaAprovacao,now):null,approvalRef=approval?.id||null,policy=get('memberOperationalConfig/registration');
     N(policy?.enabled===true&&policy.stagedEnrollment===true,'ACCESS_REVOKED');
     if(selected)N(approval.reference===p.referenciaAprovacao&&approval.membershipType===p.categoriaIngresso,'ADMISSION_APPROVAL_REQUIRED');
     const resolution=f4MemberRegistrationIdentity_().resolve(get,{email:registration.email,rga:registration.rga}),personId=resolution.personId||'P_'+op;
     const identifiers=resolution.identifiers.filter(v=>!get('memberIdentifierClaims/'+C.hash(v))).map((v,i)=>({id:'I'+i+'_'+op,...v}));
-    r.commandType='members.ingress.execute';r.target={personId,linkId:null};r.payload={operation:'PRE_REGISTER',identity:resolution.personId?null:{displayName:registration.fullName},identifiers,registration,profile:p.dadosComplementares||{},approvalRef};r.decisionRef=approval.reference;cap='MEMBERS_INGRESS_EXECUTE';
-    facts={schemaVersion:'member-preregistration-v1',personId,approvalRef,approvalRevision:approval.revision,policyRevision:policy.revision};
+    r.commandType='members.ingress.execute';r.target={personId,linkId:null};r.payload={operation:'PRE_REGISTER',identity:resolution.personId?null:{displayName:registration.fullName},identifiers,registration,profile:p.dadosComplementares||{},approvalRef};r.decisionRef=approval?.reference||null;cap='MEMBERS_INGRESS_EXECUTE';
+    facts={schemaVersion:'member-preregistration-v1',personId,approvalRef,approvalRevision:approval?.revision||0,policyRevision:policy.revision};
     paths=['memberEnrollments/'+op,'memberEnrollmentIndexes/'+personId,...identifiers.map(v=>'memberIdentifiers/'+v.id)];if(!resolution.personId)paths.push('memberIdentities/'+personId);resources=paths.slice();
    }else if(input.route==='/admin/ingressos-membros/convite'){
     C.exact(p,['enrollmentId','revision','action','reason',...(p.action==='AMEND'?['field','value']:[])]);N(C.op(p.enrollmentId)&&C.rev(p.revision),'COMMAND_PAYLOAD_INVALID');
     const old=f4MemberEnrollmentContract_().validate(get('memberEnrollments/'+p.enrollmentId)),policy=get('memberOperationalConfig/registration');N(old.revision===p.revision,'REVISION_CONFLICT');
-    r.commandType='members.ingress.execute';r.target={personId:old.personId,linkId:null};r.payload={operation:'MANAGE_INVITATION',enrollmentId:old.id,action:p.action,reason:p.reason,...(p.action==='AMEND'?{field:p.field,value:p.value}:{})};r.decisionRef=old.approval.reference;cap='MEMBERS_INGRESS_EXECUTE';
+    r.commandType='members.ingress.execute';r.target={personId:old.personId,linkId:null};r.payload={operation:'MANAGE_INVITATION',enrollmentId:old.id,action:p.action,reason:p.reason,...(p.action==='AMEND'?{field:p.field,value:p.value}:{})};r.decisionRef=old.approval?.reference||null;cap='MEMBERS_INGRESS_EXECUTE';
     facts={schemaVersion:'member-invitation-action-v1',personId:old.personId,enrollmentId:old.id,enrollmentRevision:old.revision,policyRevision:policy?.revision};
     const amended=p.action==='AMEND'?f4MemberInvitation_().amendment(get,old,p,now):null;
     paths=['memberEnrollments/'+old.id,...(amended?.path?[amended.path]:[]),...(p.action==='CANCEL'?['memberEnrollmentIndexes/'+old.personId]:[])];resources=paths.slice();
@@ -130,7 +132,7 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
    const browser=Object.fromEntries(['schemaVersion','operationId','commandType','target','payload','evidenceRefs','decisionRef'].map(k=>[k,r[k]]));
    pending[intentPath]={schemaVersion:'member-prepared-intent-v1',operationId:op,ownerUid:identity.uid,inputHash,input:browser,createdAt:T(now),expiresAt:T(end),operationalChecks,...(disciplineContext?{disciplineContext}:{})};
    if(facts!==null){const body={schemaVersion:'member-act-content-v13',...f4MemberActContent_().material(r),facts},hash=C.hash(body),ref=r.evidenceRefs[0];
-    pending['memberEvidenceContents/'+hash]=body;pending['memberEvidenceAttestations/'+ref]={schemaVersion:'member-evidence-attestation-v13',id:ref,revision:1,active:true,kind:cap==='MEMBERS_PROFILE_CORRECT'?'CADASTRAL_EVIDENCE':['MEMBERS_INGRESS_EXECUTE','MEMBERS_DISCIPLINE_EXECUTE'].includes(cap)?'BOARD_DECISION':'VOLUNTARY_REQUEST',holderId:r.target.personId,linkId:r.target.linkId||null,targetResourceIds:resources,effect:q.target.effect,effectiveDate:q.target.effectiveDate,issuerRef:identity.uid,approvalRef:r.decisionRef||'REQUEST_'+requestId,contentHash:hash,verifiedAt:T(now),expiresAt:T(end)};
+    pending['memberEvidenceContents/'+hash]=body;pending['memberEvidenceAttestations/'+ref]={schemaVersion:'member-evidence-attestation-v13',id:ref,revision:1,active:true,kind:cap==='MEMBERS_PROFILE_CORRECT'||cap==='MEMBERS_INGRESS_EXECUTE'&&r.decisionRef===null?'CADASTRAL_EVIDENCE':['MEMBERS_INGRESS_EXECUTE','MEMBERS_DISCIPLINE_EXECUTE'].includes(cap)?'BOARD_DECISION':'VOLUNTARY_REQUEST',holderId:r.target.personId,linkId:r.target.linkId||null,targetResourceIds:resources,effect:q.target.effect,effectiveDate:q.target.effectiveDate,issuerRef:identity.uid,approvalRef:r.decisionRef||(cap==='MEMBERS_INGRESS_EXECUTE'?'DRAFT_'+op:'REQUEST_'+requestId),contentHash:hash,verifiedAt:T(now),expiresAt:T(end)};
    }
    const overlay=path=>Object.hasOwn(pending,path)?pending[path]:get(path),auth=r.commandType==='members.ingress.execute'?f4MemberAuthz_().authorizeCommand(overlay,q,r,now):f4MemberAuthz_().authorize(overlay,q,now);
    const simulated={...r,ticketId:'PREPARE_'+op,digest:K.digest(config.projectId,r),receivedAt:T(now),state:'RECEIVED'};

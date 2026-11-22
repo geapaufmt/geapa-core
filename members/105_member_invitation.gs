@@ -13,7 +13,7 @@ function f4MemberInvitation_(){
   N(C.id(rules.decisionRef),'ADMISSION_APPROVAL_REQUIRED');return true;
  }
  function validate(r){
-  C.exact(r.target,['personId','linkId']);N(C.id(r.target.personId)&&r.target.linkId===null&&C.id(r.decisionRef)&&r.evidenceRefs.length>0,'COMMAND_PAYLOAD_INVALID');
+  C.exact(r.target,['personId','linkId']);N(C.id(r.target.personId)&&r.target.linkId===null&&(r.decisionRef===null||C.id(r.decisionRef))&&r.evidenceRefs.length>0,'COMMAND_PAYLOAD_INVALID');
   C.exact(r.payload,['operation','enrollmentId','action','reason',...(r.payload.action==='AMEND'?['field','value']:[])]);N(r.payload.operation==='MANAGE_INVITATION'&&C.op(r.payload.enrollmentId)&&['SEND','RESEND','CANCEL',...reviewActions,'RESOLVE_CORRECTION','AMEND'].includes(r.payload.action),'COMMAND_PAYLOAD_INVALID');
   N(typeof r.payload.reason==='string'&&r.payload.reason.trim().length>0&&r.payload.reason.length<=500&&!/[\x00-\x1f<>]/.test(r.payload.reason),'COMMAND_PAYLOAD_INVALID');return true;
  }
@@ -35,8 +35,8 @@ function f4MemberInvitation_(){
   N(prior?.active&&prior.kind===kind&&prior.idPessoa===id&&prior.value===old.registration[field]&&head?.paths.includes(path),'AUTH_BINDING_INVALID');
   const target=get('memberIdentifierClaims/'+C.hash({kind,value:registration[field]}));
   N(!target?.active,'OPERATION_CONFLICT');
-  const approval=f4MemberPreRegistration_().locate(get,registration,old.approval.reference,now);
-  N(approval.reference===old.approval.reference&&approval.membershipType===old.approval.membershipType,'ADMISSION_APPROVAL_REQUIRED');
+  const approval=old.approval===null?null:f4MemberPreRegistration_().locate(get,registration,old.approval.reference,now);
+  if(approval)N(approval.reference===old.approval.reference&&approval.membershipType===old.approval.membershipType,'ADMISSION_APPROVAL_REQUIRED');
   return {registration,path,prior,data:{...prior,value:registration[field],revision:prior.revision+1},approval};
  }
  function proposal(get,r,now){
@@ -45,8 +45,8 @@ function f4MemberInvitation_(){
   const facts=f4MemberActContent_().act(get,r,now).facts;C.exact(facts,['schemaVersion','personId','enrollmentId','enrollmentRevision','policyRevision']);
   N(facts.schemaVersion==='member-invitation-action-v1'&&facts.personId===id&&facts.enrollmentId===old.id&&facts.enrollmentRevision===old.revision,'M13_ACT_INVALID');
   N(policy?.schemaVersion==='member-registration-policy-v1'&&policy.enabled===true&&policy.stagedEnrollment===true&&facts.policyRevision===policy.revision&&Number.isSafeInteger(policy.invitationLifetimeHours)&&policy.invitationLifetimeHours>=1&&policy.invitationLifetimeHours<=720,'ACCESS_REVOKED');
-  N(old.approval.reference===r.decisionRef,'AUTH_BINDING_INVALID');
-  if(!(p.action==='AMEND'&&['rga','email'].includes(p.field))){
+  N((old.approval?.reference||null)===r.decisionRef,'AUTH_BINDING_INVALID');
+  if(old.approval!==null&&!(p.action==='AMEND'&&['rga','email'].includes(p.field))){
    const ref=old.approvalId||f4MemberPreRegistration_().key(old.registration);
    const approval=f4MemberPreRegistration_().approval(get,ref,old.registration,now);
    N(approval.reference===old.approval.reference&&approval.membershipType===old.approval.membershipType,'ACCESS_REVOKED');

@@ -5,7 +5,7 @@ function f4MemberEnrollmentAccess_(){
  const C=f4Core_(),N=C.need,F=f4Firestore_(),K=f4MemberCommandCatalog_(),E=f4MemberEnrollmentContract_(),T=F.Timestamp.fromMillis;
  const cap='MEMBERS_ENROLLMENT_SELF',schema='member-enrollment-authz-request-v1';
  function environment(config){C.destination(config);N(f4ExecutionEnvironment_().destination(config),'DESTINATION_INVALID');}
- function source(get,uid,now){
+ function source(get,uid,now,completing=false){
   N(f4ExecutionEnvironment_().destination(f4ExecutionConfig_()),'DESTINATION_INVALID');N(C.id(uid),'AUTH_BINDING_INVALID');const session=get('memberEnrollmentSessions/'+uid);
   C.exact(session,['schemaVersion','uid','personId','enrollmentId','revision','emailClaimId','projectId','environment','issuedAt','expiresAt']);
   N(session.schemaVersion==='member-enrollment-session-v1'&&session.uid===uid&&C.id(session.personId)&&C.op(session.enrollmentId)&&C.rev(session.revision)&&session.revision>0&&K.hex(session.emailClaimId)&&session.projectId===f4ExecutionEnvironment_().project&&session.environment===f4ExecutionEnvironment_().environment&&C.time(session.issuedAt,session.expiresAt,now),'AUTH_BINDING_INVALID');
@@ -14,7 +14,9 @@ function f4MemberEnrollmentAccess_(){
   N(person?.active===true&&person.technicalAccount===false&&head?.id===person.id&&head.paths.includes('memberIdentities/'+person.id)&&head.paths.includes('memberIdentifiers/'+identifier.id)&&C.rev(head.revision)&&head.revision>0,'AUTH_BINDING_INVALID');
   N(!binding||binding.active===true&&binding.uid===uid&&binding.idPessoa===session.personId,'AUTH_BINDING_INVALID');
   const control=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS'));N(control.mode==='CANONICAL'&&control.activeWriterVersion==='M13','ACCESS_REVOKED');
-  const policy=get('memberOperationalConfig/registration');N(policy?.enabled===true&&policy.stagedEnrollment===true&&C.rev(policy.revision)&&policy.revision>0,'ACCESS_REVOKED');const approvalRef=enrollment.approvalId||f4MemberPreRegistration_().key(enrollment.registration),approval=f4MemberPreRegistration_().approval(get,approvalRef,enrollment.registration,now);N(approval.reference===enrollment.approval.reference&&approval.membershipType===enrollment.approval.membershipType,'ACCESS_REVOKED');
+  const policy=get('memberOperationalConfig/registration');N(policy?.enabled===true&&policy.stagedEnrollment===true&&C.rev(policy.revision)&&policy.revision>0,'ACCESS_REVOKED');
+  const approvalRef=enrollment.approvalId||f4MemberPreRegistration_().key(enrollment.registration),approval=enrollment.approval!==null?f4MemberPreRegistration_().approval(get,approvalRef,enrollment.registration,now):completing?f4MemberPreRegistration_().locate(get,enrollment.registration,null,now):null;
+  if(enrollment.approval!==null)N(approval.reference===enrollment.approval.reference&&approval.membershipType===enrollment.approval.membershipType,'ACCESS_REVOKED');
   return {session,enrollment,head,control,policy,approval};
  }
  function account(personId,uid){
@@ -40,17 +42,17 @@ function f4MemberEnrollmentAccess_(){
   tx.set(path,data);return {personId:enrollment.personId,enrollmentId:enrollment.id,revision:enrollment.revision,expiresAt:C.ms(data.expiresAt)};
  }
  function request(get,identity,r,now,deadline){
-  const v=source(get,identity.uid,now);N(r.commandType==='members.onboarding.complete'&&r.payload?.operation==='ENROLLMENT'&&r.target.personId===v.session.personId&&r.target.enrollmentId===v.enrollment.id,'AUTH_BINDING_INVALID');
-  return {schemaVersion:schema,kind:'INVITATION',uid:identity.uid,sourceId:identity.uid,capability:cap,expected:{authorityEpoch:v.control.epoch,policyEpoch:v.control.policyEpoch,enrollmentRevision:v.enrollment.revision,personRevision:v.head.revision,sessionRevision:v.session.revision,registrationRevision:v.policy.revision,approvalRevision:v.approval.revision},tokenExpiresAt:T(identity.expiresAt),admissionExpiresAt:T(deadline),target:{personId:v.session.personId,enrollmentId:v.enrollment.id,action:r.payload.action}};
+  const v=source(get,identity.uid,now,r.payload?.action==='COMPLETE');N(r.commandType==='members.onboarding.complete'&&r.payload?.operation==='ENROLLMENT'&&r.target.personId===v.session.personId&&r.target.enrollmentId===v.enrollment.id,'AUTH_BINDING_INVALID');
+  return {schemaVersion:schema,kind:'INVITATION',uid:identity.uid,sourceId:identity.uid,capability:cap,expected:{authorityEpoch:v.control.epoch,policyEpoch:v.control.policyEpoch,enrollmentRevision:v.enrollment.revision,personRevision:v.head.revision,sessionRevision:v.session.revision,registrationRevision:v.policy.revision,approvalRevision:(v.approval?.revision||0)},tokenExpiresAt:T(identity.expiresAt),admissionExpiresAt:T(deadline),target:{personId:v.session.personId,enrollmentId:v.enrollment.id,action:r.payload.action}};
  }
  function authorize(get,q,now){
   C.exact(q,['schemaVersion','kind','uid','sourceId','capability','expected','tokenExpiresAt','admissionExpiresAt','target']);N(q.schemaVersion===schema&&q.kind==='INVITATION'&&q.capability===cap&&q.sourceId===q.uid,'AUTH_BINDING_INVALID');
   C.exact(q.target,['personId','enrollmentId','action']);N(['ACCEPT','DECLINE','SAVE','ACKNOWLEDGE','IMAGE','COMPLETE'].includes(q.target.action),'COMMAND_PAYLOAD_INVALID');
-  const v=source(get,q.uid,now),e=v.enrollment;N(e.personId===q.target.personId&&e.id===q.target.enrollmentId&&['INVITED','ACCEPTED'].includes(e.status)&&now<e.expiresAt,'ACCESS_REVOKED');
+  const v=source(get,q.uid,now,q.target.action==='COMPLETE'),e=v.enrollment;N(e.personId===q.target.personId&&e.id===q.target.enrollmentId&&['INVITED','ACCEPTED'].includes(e.status)&&now<e.expiresAt,'ACCESS_REVOKED');
   N(get('memberEnrollmentIndexes/'+e.personId)?.activeEnrollmentId===e.id,'ACCESS_REVOKED');
-  const expected={authorityEpoch:v.control.epoch,policyEpoch:v.control.policyEpoch,enrollmentRevision:e.revision,personRevision:v.head.revision,sessionRevision:v.session.revision,registrationRevision:v.policy.revision,approvalRevision:v.approval.revision};N(K.equal(q.expected,expected),'REVISION_CONFLICT');
+  const expected={authorityEpoch:v.control.epoch,policyEpoch:v.control.policyEpoch,enrollmentRevision:e.revision,personRevision:v.head.revision,sessionRevision:v.session.revision,registrationRevision:v.policy.revision,approvalRevision:(v.approval?.revision||0)};N(K.equal(q.expected,expected),'REVISION_CONFLICT');
   const end=Math.min(C.ms(q.tokenExpiresAt),C.ms(q.admissionExpiresAt),C.ms(v.session.expiresAt),e.expiresAt);N(Number.isSafeInteger(end)&&now<end,'ACCESS_REVOKED');
-  return {request:q,proof:{schemaVersion:'member-enrollment-authz-proof-v1',kind:'INVITATION',uid:q.uid,idPessoa:e.personId,capability:cap,authorityEpoch:v.control.epoch,policyEpoch:v.control.policyEpoch,subjectEpoch:0,bindingVersion:0,personRevision:v.head.revision,policyId:'ENROLLMENT_'+e.id,policyRevision:e.revision,sessionRevision:v.session.revision,registrationRevision:v.policy.revision,approvalRevision:v.approval.revision,targetsDigest:C.hash(q.target),issuedAt:T(now),expiresAt:T(end)},...v};
+  return {request:q,proof:{schemaVersion:'member-enrollment-authz-proof-v1',kind:'INVITATION',uid:q.uid,idPessoa:e.personId,capability:cap,authorityEpoch:v.control.epoch,policyEpoch:v.control.policyEpoch,subjectEpoch:0,bindingVersion:0,personRevision:v.head.revision,policyId:'ENROLLMENT_'+e.id,policyRevision:e.revision,sessionRevision:v.session.revision,registrationRevision:v.policy.revision,approvalRevision:(v.approval?.revision||0),targetsDigest:C.hash(q.target),issuedAt:T(now),expiresAt:T(end)},...v};
  }
  function recheck(get,q,proof,now){N(C.time(proof.issuedAt,proof.expiresAt,now),'ACCESS_REVOKED');const next=authorize(get,q,now).proof,stable=p=>Object.fromEntries(Object.entries(p).filter(([k])=>!['issuedAt','expiresAt'].includes(k)));N(K.equal(stable(next),stable(proof))&&C.ms(next.expiresAt)>=C.ms(proof.expiresAt),'ACCESS_REVOKED');return next;}
  function statusAccess(get,identity,key,now){

@@ -62,7 +62,7 @@ async function fixture(category,t){
  if(real){
   const batch=db.batch();for(const [p,value] of Object.entries(docs))batch.set(db.doc(p),value);await batch.commit();
  }
- async function set(path,value){docs[path]=value;if(real)await db.doc(path).set(value);}
+ async function set(path,value){docs[path]=value;if(real){if(value===null)await db.doc(path).delete();else await db.doc(path).set(value);}}
  const appCheck={verifyToken:async()=>({appId:'SYN_APP'})};
  const call=async(uid,action,request,opts={})=>{
   const auth={verifyIdToken:async()=>({uid,sub:uid,aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,exp:Math.floor(now/1000)+3600,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000),email,email_verified:true,...opts.claims})};
@@ -91,7 +91,7 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
   await assert.rejects(rh(route,{...registration,referenciaAprovacao:'OUTRA'}),/ADMISSION_APPROVAL_REQUIRED/);
   const confirmation=await call('CF_ADMIN','memberRegistrationApproval',{email:registration.emailPrincipal.toUpperCase(),rga:registration.rga});assert.equal(confirmation.result.data.membershipType,type);assert.equal(confirmation.metrics.writes,0);
   const {categoriaIngresso,referenciaAprovacao,...basic}=registration;
-  const registered=await rh(route,basic),id=registered.request.operationId,person=registered.request.target.personId;
+  const registered=await rh(route,registration),id=registered.request.operationId,person=registered.request.target.personId;
   assert.equal(registered.request.decisionRef,registration.referenciaAprovacao);
   const enrollment=()=>docs['memberEnrollments/'+id];
   if(type==='MEMBRO_EFETIVO')assert.equal(enrollment().approval.recognizedEffects.reference,'SYN_PAST_EFFECT');

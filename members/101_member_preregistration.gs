@@ -3,8 +3,8 @@
 function f4MemberPreRegistration_(){
  const C=f4Core_(),N=C.need,U=f4MemberFamilyInputs_(),E=f4MemberEnrollmentContract_(),K=f4MemberCommandCatalog_();
  function validate(r){
-  C.exact(r.target,['personId','linkId']);N(C.id(r.target.personId)&&r.target.linkId===null&&r.decisionRef!==null&&r.evidenceRefs.length>0,'COMMAND_PAYLOAD_INVALID');
-  C.exact(r.payload,['operation','identity','identifiers','registration','profile','approvalRef']);N(r.payload.operation==='PRE_REGISTER'&&C.id(r.payload.approvalRef)&&Array.isArray(r.payload.identifiers),'COMMAND_PAYLOAD_INVALID');
+  C.exact(r.target,['personId','linkId']);N(C.id(r.target.personId)&&r.target.linkId===null&&r.evidenceRefs.length>0,'COMMAND_PAYLOAD_INVALID');
+  C.exact(r.payload,['operation','identity','identifiers','registration','profile','approvalRef']);N(r.payload.operation==='PRE_REGISTER'&&(r.payload.approvalRef===null?r.decisionRef===null:C.id(r.payload.approvalRef)&&C.id(r.decisionRef))&&Array.isArray(r.payload.identifiers),'COMMAND_PAYLOAD_INVALID');
   if(r.payload.identity!==null){C.exact(r.payload.identity,['displayName']);N(typeof r.payload.identity.displayName==='string','COMMAND_PAYLOAD_INVALID');}
   for(const v of r.payload.identifiers){C.exact(v,['id','kind','value']);N(C.id(v.id)&&['EMAIL','RGA'].includes(v.kind),'COMMAND_PAYLOAD_INVALID');}
   E.quick(r.payload.registration);return true;
@@ -40,8 +40,8 @@ function f4MemberPreRegistration_(){
   C.exact(facts,['schemaVersion','personId','approvalRef','approvalRevision','policyRevision']);
   N(facts.schemaVersion==='member-preregistration-v1'&&facts.personId===id&&facts.approvalRef===p.approvalRef,'M13_ACT_INVALID');
   const policy=get('memberOperationalConfig/registration');N(policy?.schemaVersion==='member-registration-policy-v1'&&policy.enabled===true&&policy.stagedEnrollment===true&&policy.revision===facts.policyRevision&&Number.isSafeInteger(policy.invitationLifetimeHours)&&policy.invitationLifetimeHours>0&&policy.invitationLifetimeHours<=720,'ACCESS_REVOKED');
-  const today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),registration=E.quick(p.registration),a=locate(get,registration,p.approvalRef,now);
-  N(a.id===p.approvalRef&&a.revision===facts.approvalRevision&&a.reference===r.decisionRef&&K.equal(registration,p.registration),'REVISION_CONFLICT');
+  const today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),registration=E.quick(p.registration),a=p.approvalRef===null?null:locate(get,registration,p.approvalRef,now);
+  N((a?a.id===p.approvalRef&&a.revision===facts.approvalRevision&&a.reference===r.decisionRef:facts.approvalRevision===0&&r.decisionRef===null)&&K.equal(registration,p.registration),'REVISION_CONFLICT');
   const resolution=f4MemberRegistrationIdentity_().resolve(get,{email:registration.email,rga:registration.rga});N(resolution.personId===null||resolution.personId===id,'AUTH_BINDING_INVALID');
   const identity=get('memberIdentities/'+id),h=get('memberAggregateHeads/'+id),expected=U.revision(r,'memberAggregateHeads/'+id),control=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS'));
   N((h?.revision||0)===expected,'REVISION_CONFLICT');N(identity?p.identity===null:!h&&p.identity?.displayName===registration.fullName,'COMMAND_PAYLOAD_INVALID');
@@ -52,11 +52,11 @@ function f4MemberPreRegistration_(){
   for(const item of p.identifiers){N(!get('memberIdentifiers/'+item.id)&&resolution.identifiers.some(v=>v.kind===item.kind&&v.value===item.value),'COMMAND_PAYLOAD_INVALID');add('memberIdentifiers/'+item.id,entity('memberIdentifiers',item.id,{idPessoa:id,kind:item.kind,value:item.value,active:true}));}
   for(const item of resolution.identifiers){const claim=get('memberIdentifierClaims/'+C.hash(item));N(claim?.active&&claim.idPessoa===id||p.identifiers.filter(v=>v.kind===item.kind&&v.value===item.value).length===1,'COMMAND_PAYLOAD_INVALID');}
   const indexPath='memberEnrollmentIndexes/'+id,index=get(indexPath);N(!index||index.schemaVersion==='member-enrollment-index-v1'&&index.personId===id&&index.activeEnrollmentId===null,'OPERATION_CONFLICT');
-  const enrollment=E.create({id:r.operationId,personId:id,registration,approval:snapshot(a),actorUid:r.ownerUid,now,expiresAt:now+policy.invitationLifetimeHours*3600000});
-  if(a.id!==key(registration))enrollment.approvalId=a.id;
+  const enrollment=E.create({id:r.operationId,personId:id,registration,approval:a?snapshot(a):null,actorUid:r.ownerUid,now,expiresAt:now+policy.invitationLifetimeHours*3600000});
+  if(a&&a.id!==key(registration))enrollment.approvalId=a.id;
   enrollment.profile=E.profile(p.profile,today);
-  const knownCourse=a.courseId||get('memberPrivateProfiles/'+id)?.courseId;
-  if(knownCourse&&(!enrollment.profile.courseId||a.courseId))enrollment.profile.courseId=knownCourse;
+  const knownCourse=a?.courseId||get('memberPrivateProfiles/'+id)?.courseId;
+  if(knownCourse&&(!enrollment.profile.courseId||a?.courseId))enrollment.profile.courseId=knownCourse;
   if(enrollment.profile.courseId)E.eligibleCourse(get,policy,enrollment.profile.courseId);N(!get('memberEnrollments/'+r.operationId),'OPERATION_CONFLICT');add('memberEnrollments/'+r.operationId,enrollment);
   add(indexPath,{schemaVersion:'member-enrollment-index-v1',personId:id,revision:(index?.revision||0)+1,activeEnrollmentId:r.operationId});
   const overlay=Object.fromEntries(changes.map(v=>[v.path,v.data])),paths=[...new Set([...(h?.paths||[]),...changes.filter(v=>/^member(Identities|Identifiers)\//.test(v.path)).map(v=>v.path)])].sort();
