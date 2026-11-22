@@ -13,7 +13,9 @@ function f4MemberNotifications_(){
   VOLUNTARY_DECIDED:['Solicitação atualizada','A análise de sua solicitação foi registrada. Consulte a decisão e as datas aplicáveis no Portal.','/app/meu-vinculo'],
   VOLUNTARY_EXIT:['Desligamento voluntário registrado','A decisão humana sobre o desligamento foi registrada. Consulte a data de efeito e o histórico da solicitação no Portal.','/app/meu-vinculo'],
   VOLUNTARY_SUSPENSION:['Suspensão voluntária registrada','A decisão de suspensão temporária foi registrada. Consulte o período e o histórico no Portal.','/app/meu-vinculo'],
-  VOLUNTARY_RETURN:['Retorno de suspensão registrado','O retorno da suspensão foi registrado no seu vínculo.','/app/meu-vinculo']
+  VOLUNTARY_RETURN:['Retorno de suspensão registrado','O retorno da suspensão foi registrado no seu vínculo.','/app/meu-vinculo'],
+  SYNTHETIC_TEST:['Notificação de ensaio sintético','Evento sintético gerado para validação da Central de Notificações.','/app/minha-situacao'],
+  SYSTEM_ANNOUNCEMENT:['Comunicado institucional','Aviso institucional do GEAPA aos membros.','/app/minha-situacao']
  };
  function policy(get){const p=get('memberOperationalConfig/notifications');N(p?.schemaVersion==='member-notification-policy-v1'&&p.enabled===true&&p.mode==='DRY_RUN'&&p.projectId===f4ExecutionEnvironment_().project&&p.environment===f4ExecutionEnvironment_().environment&&C.rev(p.revision)&&p.revision>0&&C.id(p.approvalRef),'ACCESS_REVOKED');return p;}
  function event(r,changes){
@@ -63,13 +65,161 @@ function f4MemberNotifications_(){
  }
  function consumer({config,identity,clock=Date.now}){
   N(config.projectId==='geapa-convergencia-dev'&&f4DevBoundary_().permit(config),'ACCESS_REVOKED');const db=f4Firestore_().connect(config);
-  return {run(id){N(C.op(id),'COMMAND_PAYLOAD_INVALID');return db.transaction(tx=>{
-   const get=p=>tx.get(p).data(),now=clock();N(identity&&now<identity.expiresAt&&f4DevAdmin_().profile(get,identity.uid,now),'ACCESS_REVOKED');
-   const {outbox:o}=source(get,id);policy(get);
-   if(o.state==='COMPLETED'){N(o.notificationReceipt?.mode==='DRY_RUN'&&o.notificationReceipt.sent===false,'RECONCILIATION_REQUIRED');return {...o.notificationReceipt,replay:true};}
-   N(o.state==='PENDING','RECONCILIATION_REQUIRED');const v=render(get,id),receipt={mode:'DRY_RUN',sent:false,operationId:id,event:o.event,policyRevision:v.policyRevision,brandRevision:v.brandRevision||null,contentDigest:v.suppressed?null:C.hash(v.rendered),recipientDigest:C.hash({email:v.recipient}),actorUid:identity.uid,completedAt:now,...(v.suppressed?{suppressed:true,reason:v.reason}:{})};
-   tx.set('jobOutbox/'+id,{...o,state:'COMPLETED',attempts:o.attempts+1,notificationReceipt:receipt});return {...receipt,replay:false};
-  });}};
+  return {
+   preview(id){
+    N(C.op(id),'COMMAND_PAYLOAD_INVALID');
+    return db.transaction(tx=>{
+     const get=p=>tx.get(p).data(),now=clock();
+     N(identity&&now<identity.expiresAt&&f4DevAdmin_().profile(get,identity.uid,now),'ACCESS_REVOKED');
+     const v=render(get,id);
+     return {operationId:id,recipient:v.recipient,rendered:v.rendered,policyRevision:v.policyRevision,brandRevision:v.brandRevision||null,suppressed:v.suppressed||false,mode:'DRY_RUN',isRealMail:false};
+    });
+   },
+   run(id,options={}){
+    N(C.op(id),'COMMAND_PAYLOAD_INVALID');
+    return db.transaction(tx=>{
+     const get=p=>tx.get(p).data(),now=clock();N(identity&&now<identity.expiresAt&&f4DevAdmin_().profile(get,identity.uid,now),'ACCESS_REVOKED');
+     const {outbox:o}=source(get,id);policy(get);
+     if(o.state==='COMPLETED'){N(o.notificationReceipt?.mode==='DRY_RUN'&&o.notificationReceipt.sent===false,'RECONCILIATION_REQUIRED');return {...o.notificationReceipt,replay:true};}
+     N(o.state==='PENDING','RECONCILIATION_REQUIRED');
+     if(options&&options.simulateFailure){
+      const failureReceipt={mode:'DRY_RUN',sent:false,operationId:id,event:o.event,actorUid:identity.uid,failedAt:now,channel:'SIMULATED_EMAIL',error:options.failureCode||'EXTERNAL_CHANNEL_FAILED',errorMessage:options.failureMessage||'Falha simulada no canal de entrega externa.'};
+      tx.set('jobOutbox/'+id,{...o,state:'RECONCILIATION_REQUIRED',attempts:o.attempts+1,lastError:failureReceipt});
+      tx.set('commandReconciliation/'+id,{active:true,reason:'EXTERNAL_CHANNEL_FAILED',idempotencyKey:id,at:now});
+      return {...failureReceipt,state:'RECONCILIATION_REQUIRED',replay:false};
+     }
+     const v=render(get,id),receipt={mode:'DRY_RUN',sent:false,operationId:id,event:o.event,policyRevision:v.policyRevision,brandRevision:v.brandRevision||null,contentDigest:v.suppressed?null:C.hash(v.rendered),recipientDigest:C.hash({email:v.recipient}),actorUid:identity.uid,completedAt:now,channel:'SIMULATED_EMAIL',...(v.suppressed?{suppressed:true,reason:v.reason}:{})};
+     tx.set('jobOutbox/'+id,{...o,state:'COMPLETED',attempts:o.attempts+1,notificationReceipt:receipt});return {...receipt,replay:false};
+    });
+   }
+  };
  }
- return {plan,source,render,consumer};
+ function record(v){
+  C.exact(v,['schemaVersion','id','personId','revision','event','title','body','targetRoute','category','read','readAt','createdAt','operationId','metadata']);
+  N(v.schemaVersion==='member-notification-v1'&&C.op(v.id)&&C.id(v.personId)&&C.rev(v.revision)&&v.revision>0,'SCHEMA_INVALID');
+  N(typeof v.title==='string'&&v.title.length<=200&&typeof v.body==='string'&&v.body.length<=2000,'SCHEMA_INVALID');
+  N(typeof v.read==='boolean'&&(v.readAt===null||Number.isSafeInteger(v.readAt)),'SCHEMA_INVALID');
+  N(Number.isSafeInteger(v.createdAt)&&(v.operationId===null||C.op(v.operationId)),'SCHEMA_INVALID');
+  return v;
+ }
+ function index(v,personId){
+  if(!v)return {schemaVersion:'member-notification-index-v1',id:personId,personId,revision:0,unreadCount:0,notificationIds:[],updatedAt:0};
+  C.exact(v,['schemaVersion','id','personId','revision','unreadCount','notificationIds','updatedAt']);
+  N(v.schemaVersion==='member-notification-index-v1'&&v.id===personId&&v.personId===personId&&C.rev(v.revision)&&Number.isSafeInteger(v.unreadCount)&&v.unreadCount>=0&&Array.isArray(v.notificationIds)&&v.notificationIds.every(C.op),'SCHEMA_INVALID');
+  return v;
+ }
+ function emit(tx,payload,now){
+  const {personId,event:eventKind,title,body,targetRoute,category,operationId,metadata}=payload;
+  N(C.id(personId),'COMMAND_PAYLOAD_INVALID');
+  const get=p=>tx.get(p).data();
+  const ix=index(get('memberNotificationIndexes/'+personId),personId);
+  const notifId=operationId||C.hash({personId,event:eventKind,now,seq:ix.notificationIds.length}).slice(0,32);
+  const old=get('memberNotifications/'+notifId);
+  if(old)return {notification:record(old),index:ix,replay:true};
+  const [defaultTitle,defaultBody,defaultRoute]=messages[eventKind]||['Notificação institucional','Nova mensagem do GEAPA.','/app/minha-situacao'];
+  const notif={
+   schemaVersion:'member-notification-v1',
+   id:notifId,
+   personId,
+   revision:1,
+   event:eventKind||'SYSTEM_ANNOUNCEMENT',
+   title:typeof title==='string'&&title.trim().length?title.trim():defaultTitle,
+   body:typeof body==='string'&&body.trim().length?body.trim():defaultBody,
+   targetRoute:typeof targetRoute==='string'?targetRoute:defaultRoute,
+   category:category||'OPERACIONAL',
+   read:false,
+   readAt:null,
+   createdAt:now,
+   operationId:operationId||null,
+   metadata:metadata||{}
+  };
+  record(notif);
+  const nextIds=[notifId,...ix.notificationIds.filter(x=>x!==notifId)].slice(0,100);
+  const nextIx={
+   schemaVersion:'member-notification-index-v1',
+   id:personId,
+   personId,
+   revision:ix.revision+1,
+   unreadCount:ix.unreadCount+1,
+   notificationIds:nextIds,
+   updatedAt:now
+  };
+  index(nextIx,personId);
+  tx.set('memberNotifications/'+notifId,notif);
+  tx.set('memberNotificationIndexes/'+personId,nextIx);
+  return {notification:notif,index:nextIx,replay:false};
+ }
+ function resolvePersonId(get,identity,now){
+  const technical=f4DevAdmin_().profile(get,identity.uid,now);
+  if(technical)return technical.personId||identity.uid;
+  const actor=f4MemberAuthz_().identify(get,identity.uid,now);
+  return actor.binding.idPessoa;
+ }
+ function readAuthorized(get,identity,now,params={}){
+  C.exact(identity,['uid','expiresAt']);
+  N(C.id(identity.uid)&&Number.isSafeInteger(identity.expiresAt)&&now<identity.expiresAt,'AUTH_BINDING_INVALID');
+  const personId=resolvePersonId(get,identity,now);
+  N(C.id(personId),'AUTH_BINDING_INVALID');
+  if(params.personId){
+   const technical=f4DevAdmin_().profile(get,identity.uid,now);
+   N(params.personId===personId||technical,'ACCESS_REVOKED');
+  }
+  const targetPerson=params.personId||personId;
+  const ix=index(get('memberNotificationIndexes/'+targetPerson),targetPerson);
+  const items=ix.notificationIds.map(id=>get('memberNotifications/'+id)).filter(Boolean).map(record);
+  const unreadCount=items.filter(i=>!i.read).length;
+  return {
+   schemaVersion:'member-notification-view-v1',
+   personId:targetPerson,
+   unreadCount,
+   totalCount:items.length,
+   items,
+   asOf:now
+  };
+ }
+ function markRead(tx,identity,notificationId,now){
+  C.exact(identity,['uid','expiresAt']);
+  N(C.id(identity.uid)&&Number.isSafeInteger(identity.expiresAt)&&now<identity.expiresAt,'AUTH_BINDING_INVALID');
+  N(C.op(notificationId),'COMMAND_PAYLOAD_INVALID');
+  const get=p=>tx.get(p).data(),personId=resolvePersonId(get,identity,now);
+  N(C.id(personId),'AUTH_BINDING_INVALID');
+  const raw=get('memberNotifications/'+notificationId);
+  N(raw,'NOTIFICATION_NOT_FOUND');
+  const notif=record(raw);
+  const technical=f4DevAdmin_().profile(get,identity.uid,now);
+  N(notif.personId===personId||technical,'ACCESS_REVOKED');
+  const targetPerson=notif.personId,ix=index(get('memberNotificationIndexes/'+targetPerson),targetPerson);
+  if(notif.read)return {ok:true,notification:notif,unreadCount:ix.unreadCount,replay:true};
+  const updatedNotif={...notif,revision:notif.revision+1,read:true,readAt:now};
+  record(updatedNotif);
+  const newUnread=Math.max(0,ix.unreadCount-1);
+  const updatedIx={...ix,revision:ix.revision+1,unreadCount:newUnread,updatedAt:now};
+  index(updatedIx,targetPerson);
+  tx.set('memberNotifications/'+notificationId,updatedNotif);
+  tx.set('memberNotificationIndexes/'+targetPerson,updatedIx);
+  return {ok:true,notification:updatedNotif,unreadCount:newUnread,replay:false};
+ }
+ function markAllRead(tx,identity,now){
+  C.exact(identity,['uid','expiresAt']);
+  N(C.id(identity.uid)&&Number.isSafeInteger(identity.expiresAt)&&now<identity.expiresAt,'AUTH_BINDING_INVALID');
+  const get=p=>tx.get(p).data(),personId=resolvePersonId(get,identity,now);
+  N(C.id(personId),'AUTH_BINDING_INVALID');
+  const ix=index(get('memberNotificationIndexes/'+personId),personId);
+  if(ix.unreadCount===0)return {ok:true,personId,unreadCount:0,updated:0,replay:true};
+  let count=0;
+  for(const id of ix.notificationIds){
+   const raw=get('memberNotifications/'+id);
+   if(raw&&!raw.read){
+    const updated={...raw,revision:raw.revision+1,read:true,readAt:now};
+    record(updated);
+    tx.set('memberNotifications/'+id,updated);
+    count++;
+   }
+  }
+  const updatedIx={...ix,revision:ix.revision+1,unreadCount:0,updatedAt:now};
+  index(updatedIx,personId);
+  tx.set('memberNotificationIndexes/'+personId,updatedIx);
+  return {ok:true,personId,unreadCount:0,updated:count,replay:false};
+ }
+ return {plan,source,render,consumer,record,index,emit,readAuthorized,markRead,markAllRead,messages};
 }
