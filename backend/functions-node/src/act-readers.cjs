@@ -7,9 +7,9 @@ const {authenticate,appCheckGate}=require('./auth.cjs');
 const {CONTROL,validateControl}=require('./projection-recovery.cjs');
 const {ROOT,fence,fail}=require('./environment.cjs');
 const {routes:bootstrapRoutes}=require('./member-readers.cjs');
-function control(c,uid,route){
+function control(c,uid,route,linkedSynthetic=false){
  validateControl(c);
- const temporary=require('./dev-institutional-reader-scope.cjs').admitted(c,uid,route,Date.now(),require('./environment.cjs').PRODUCTION);
+ const temporary=linkedSynthetic||require('./dev-institutional-reader-scope.cjs').admitted(c,uid,route,Date.now(),require('./environment.cjs').PRODUCTION);
  if(['DEV_READERS_OPERATIONAL','PROD_READERS_OPERATIONAL'].includes(c.mode)&&!c.actorUids.includes(uid)&&!temporary)fail('PILOT_DISABLED');
  if(['DEV_READERS_OPERATIONAL','PROD_READERS_OPERATIONAL'].includes(c.mode)&&['/admin/apresentacoes/cotas','/admin/apresentacoes/incidencia'].includes(route))fail('CONFIG_CAPABILITY_DISABLED');
  const r=c.specializedReaders;
@@ -20,7 +20,8 @@ function control(c,uid,route){
 class ReaderStore extends Store{
  constructor(db,identity,request,pinned){super(db,identity);this.request=request;this.pinned=pinned;this.specializedReaders=true;this.queryConcurrency=4;this.discoveryDiagnostics=request.route==='/admin/gestao-institucional'&&request.params?.section==='governance';}
  guard(){
-  fence();const c=control(this.hostRead(CONTROL),this.identity.uid,this.request.route);
+  fence();const linked=require('./dev-linked-reader-scope.cjs').admitted(p=>this.hostRead(p),this.identity.uid,this.request.route,Date.now(),require('./environment.cjs').PRODUCTION);
+  const c=control(this.hostRead(CONTROL),this.identity.uid,this.request.route,linked);
   if(this.pinned&&JSON.stringify(c)!==JSON.stringify(this.pinned))fail('ACCESS_REVOKED');
   this.control=c;return c;
  }
