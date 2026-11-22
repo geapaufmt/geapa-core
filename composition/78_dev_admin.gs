@@ -87,5 +87,14 @@ function f4DevAdministrativeAccess_(){
  function governanceInput(auth,input,old){if(!auth.technical)return;
   N(!input.action&&!input.minutes&&!input.documentaryEvidence&&!input.attachments?.length&&input.sourceRecordId===null&&input.references?.length===0&&input.documentaryState==='DRAFT'&&(!old||old.devTechnicalOwnerUid===auth.source.uid&&old.documentaryState==='DRAFT'&&!old.kind),'AUTHORIZATION_DENIED');
  }
- return {source,institutional,correction,command,governanceInput,path,fields};
+ // A stale browser journal may refer to a completed pre-migration command.
+ // Read only its canonical terminal state; never claim it or change executor.
+ function terminalRegistration(get,identity,now,key){
+  const a=source(get,identity,now,'MEMBERS_INGRESS_EXECUTE');N(a&&a.mask.includes('preRegister'),'AUTHORIZATION_DENIED');
+  f4SharedCommandCatalog_().selector(key);N(key.commandType==='members.ingress.execute','AUTHORIZATION_DENIED');
+  const result=f4MemberLedgerM13_().recover(get,key,identity.uid,now);
+  N(result&&['COMPLETED','FAILED'].includes(result.state),'RECONCILIATION_REQUIRED');
+  return {operationId:key.operationId,receipt:{state:result.state,code:result.code}};
+ }
+ return {source,institutional,correction,command,governanceInput,terminalRegistration,path,fields};
 }
