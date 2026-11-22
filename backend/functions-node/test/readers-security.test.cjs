@@ -28,6 +28,14 @@ test('all derived and canonical writes and preparation denied by reader store',(
 const db={projectId:DEMO,collection(){return {where(){return this},orderBy(){return this},limit(){return this},startAfter(){return this}}},doc:p=>p};
 const simple={collection:'activityJustifications',filters:[{field:'state',op:'EQUAL',value:encode('PENDING')}],limit:11,order:[{field:'__name__',direction:'ASCENDING'}]};
 const decode=require('../src/firestore.cjs').decode;
+
+test('own presentation query accepts canonical person IDs without a legacy PES-number restriction',()=>{
+ const plan=id=>({collection:'presentationUnitHeads',filters:[{field:'personRef',op:'EQUAL',value:encode({kind:'person',id})}],limit:11,order:[{field:'__name__',direction:'ASCENDING'}]});
+ const seen=[],capture={collection(name){seen.push(name);return {where(field,op,value){seen.push({field,op,value});return this;},orderBy(){return this;},limit(n){a.equal(n,11);return this;}}}};
+ for(const id of ['PES-000001','PES_canonical_new_42','DEVADM_0123456789ab_1']){readerQuery(capture,plan(id),decode);a.deepEqual(seen.at(-1),{field:'personRef',op:'==',value:{kind:'person',id}});}
+ for(const id of ['../other','', 'x'.repeat(49),'person/private'])a.throws(()=>readerQuery(db,plan(id),decode),/QUERY_NOT_IN_PILOT/);
+ for(const patch of [{limit:21},{filters:[{field:'personRef',op:'NOT_EQUAL',value:encode({kind:'person',id:'PES-000001'})}]}])a.throws(()=>readerQuery(db,{...plan('PES-000001'),...patch},decode),/QUERY_NOT_IN_PILOT/);
+});
 test('attendance case lookup requires one canonical cycle and stays a bounded private reader',()=>{const plan={collection:'memberAttendanceCases',filters:[{field:'cycleId',op:'EQUAL',value:encode('C1')}],limit:20,order:[{field:'__name__',direction:'ASCENDING'}]};a(readerQuery(db,plan,decode));for(const patch of [{filters:[]},{limit:21},{filters:[{...plan.filters[0],value:encode('../ALL')}]},{filters:[{...plan.filters[0],op:'NOT_EQUAL'}]}])a.throws(()=>readerQuery(db,{...plan,...patch},decode),/QUERY_NOT_IN_PILOT/);a.throws(()=>queryPlan(db,plan,decode),/QUERY_NOT_IN_PILOT/);});
 
 test('cycle configuration history permits one bounded child collection and isolated cursors',()=>{
