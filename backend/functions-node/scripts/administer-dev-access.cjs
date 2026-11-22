@@ -10,9 +10,27 @@ function fixtures(uid,now){const suffix=hash(uid).slice(0,12),docs={},persons=[1
   docs['memberPrivateProfiles/'+id]={schemaVersion:'m1-memberPrivateProfiles-v1',id,idPessoa:id,revision:1,origin:ORIGIN,contactEmail:id.toLowerCase()+'@example.invalid',academicReference:'SYNTHETIC'};
   docs['memberLinks/'+link]={schemaVersion:'m1-memberLinks-v1',id:link,idPessoa:id,revision:1,origin:ORIGIN,type:'MEMBRO_EFETIVO',startDate:'2026-01-01',endDate:null,exitDate:null};
   docs['memberAggregateHeads/'+id]={schemaVersion:'m11-head-v1',id,kind:'PERSON',revision:1,paths:['memberIdentities/'+id,'memberPrivateProfiles/'+id,'memberLinks/'+link]};
+  docs['memberAuthzSubjects/'+id]=fixtureSubject(id,ORIGIN,now);
   docs['memberProfileCorrections/'+request]={schemaVersion:'member-profile-correction-v1',id:request,personId:id,revision:1,field:'displayName',previousValue:name,proposedValue:name+' revisada',baseValueHash:hash(name),status:'PENDENTE',createdAt:now,updatedAt:now,history:[{operationId:request,actorUid:uid,action:'SUBMIT',at:now,reason:'Fixture sintética autorizada para homologação DEV'}]};
   docs['memberProfileCorrectionIndexes/'+id]={schemaVersion:'member-profile-corrections-index-v1',id,revision:1,requestIds:[request],activeByField:{displayName:request}};
  }return {persons,docs};
+}
+function fixtureSubject(personId,approvalRef,now){return {schemaVersion:'member-authz-subject-v13',idPessoa:personId,revision:1,authzEpoch:1,active:true,approvalRef,updatedAt:new Date(now)};}
+// Complete only a registered synthetic fixture whose subject was never created.
+// Existing subjects, including revoked ones, are never replaced or reactivated.
+async function repairFixtureSubject({db,ownerUid,personId,linkedUid,expectedPersonRevision,approvalRef,operator,apply=false,clock=Date.now}){
+ a.equal(db.projectId,PROJECT,'DEV_ONLY');for(const v of [ownerUid,personId,linkedUid,approvalRef,operator])a.match(v,/^[A-Za-z0-9_-]{1,48}$/);
+ a(fixtures(ownerUid,0).persons.includes(personId),'FIXTURE_SCOPE');a(Number.isSafeInteger(expectedPersonRevision)&&expectedPersonRevision>0);
+ return db.runTransaction(async tx=>{
+  const read=async p=>(await tx.get(db.doc(p))).data(),registry=await read('coreDevAdministrativeFixtures/'+ownerUid),person=await read('memberIdentities/'+personId),head=await read('memberAggregateHeads/'+personId),binding=await read('memberAuthBindings/'+linkedUid),subjectPath='memberAuthzSubjects/'+personId,subject=await read(subjectPath);
+  a(registry?.uid===ownerUid&&registry.origin===ORIGIN&&registry.personIds.includes(personId),'FIXTURE_REGISTRY');
+  a(person?.origin===ORIGIN&&person.idPessoa===personId&&person.active&&!person.technicalAccount,'FIXTURE_IDENTITY');a.equal(head?.revision,expectedPersonRevision,'PERSON_CHANGED');
+  a(binding?.active&&binding.idPessoa===personId&&binding.uid===linkedUid,'BINDING_REQUIRED');a.equal(subject,undefined,'SUBJECT_EXISTS');
+  const auditPath='coreDevAdministrativeAudit/'+hash({kind:'DEV_FIXTURE_SUBJECT_REPAIR',personId,approvalRef}).slice(0,32);a.equal(await read(auditPath),undefined,'AUDIT_EXISTS');
+  const now=clock(),data=fixtureSubject(personId,approvalRef,now);
+  if(apply){tx.create(db.doc(subjectPath),data);tx.create(db.doc(auditPath),{schemaVersion:'core-dev-fixture-subject-repair-v1',personId,approvalRef,operator,at:new Date(now),personRevision:head.revision,bindingVersion:binding.bindingVersion,subjectRevision:1});}
+  return {projectId:PROJECT,applied:apply,personId,subjectRevision:1,personRevision:head.revision,documents:2,capabilitiesChanged:false};
+ });
 }
 function admissionFixture(uid,now){
  const suffix=hash(uid).slice(0,12),person='DEVADM_'+suffix+'_3',id='DEVADM_'+suffix+'_APPROVAL',identifier=person+'_EMAIL';
@@ -68,4 +86,4 @@ async function main(){const file=process.argv[2];a(file,'INPUT_FILE_REQUIRED');c
  const {OAuth2Client,GoogleAuth}=require('google-auth-library'),{Firestore}=require('@google-cloud/firestore'),client=new OAuth2Client();client.setCredentials({access_token:token});const db=new Firestore({projectId:PROJECT,auth:new GoogleAuth({authClient:client,projectId:PROJECT,quotaProjectId:PROJECT})});
  try{console.log(JSON.stringify(await administer({db,...input,apply:process.argv.includes('--apply'),revoke:process.argv.includes('--revoke')})));}finally{await db.terminate();}
 }
-if(require.main===module)main().catch(e=>{console.error(e.code||e.message);process.exitCode=1});module.exports={administer,fixtures,admissionFixture};
+if(require.main===module)main().catch(e=>{console.error(e.code||e.message);process.exitCode=1});module.exports={administer,fixtures,admissionFixture,repairFixtureSubject};
