@@ -54,5 +54,28 @@ test('nominal DEV grant exercises protected reads, correction and draft transact
   await db.doc('coreDevAdministrativeGrants/'+uid).update({active:false});await a.rejects(member('memberLegacyRegistrationStatus',key),/AUTHORIZATION_DENIED/);await db.doc('coreDevAdministrativeGrants/'+uid).update({active:true});
  });
  await t.test('draft creates and edits own synthetic record, cannot promote or edit real draft',async()=>{let input={id:'',expectedRevision:0,expectedRecordRevision:0,title:'Rascunho sintético de desenvolvimento',meetingDate:null,body:'Ensaio administrativo sem efeito institucional.',documentaryState:'DRAFT',sourceRecordId:null,references:[],reason:''};const p=await gov('Preview',{operationId:crypto.randomBytes(16).toString('hex'),input}),r=await gov('Execute',p.result.request);a.equal(r.result.recordRevision,1);const saved=(await db.doc('institutionalGovernanceDrafts/current').get()).data().records[0];a.equal(saved.devTechnicalOwnerUid,uid);a.equal(saved.formalApproval,null);a.equal(saved.publication,'CLOSED');input={...input,id:saved.id,expectedRevision:1,expectedRecordRevision:1,body:'Revisão sintética preservada com auditoria.'};const p2=await gov('Preview',{operationId:crypto.randomBytes(16).toString('hex'),input});await gov('Execute',p2.result.request);a((await db.doc('institutionalGovernanceAudit/'+p2.result.request.operationId).get()).exists);await a.rejects(gov('Preview',{operationId:crypto.randomBytes(16).toString('hex'),input:{...input,expectedRevision:2,expectedRecordRevision:2,documentaryState:'UNDER_REVIEW'}}),/AUTHORIZATION_DENIED/);});
+ await t.test('temporary nominal invitation authorizes only SEND; independent candidate completes synthetic membership',async()=>{
+  const gp='coreDevAdministrativeGrants/'+uid,index=(await db.doc('memberEnrollmentIndexes/'+admission.person).get()).data(),enrollmentId=index.activeEnrollmentId;
+  const enrollment=async()=>(await db.doc('memberEnrollments/'+enrollmentId).get()).data();
+  const send=action=>member('memberPrepare',{operationId:crypto.randomBytes(16).toString('hex'),route:'/admin/ingressos-membros/convite',payload:{enrollmentId,revision:1,action,reason:'Homologação exclusivamente sintética'}});
+  await db.doc(gp).update({invitationWindow:{enrollmentId,issuedAt:new Date(now-1000),expiresAt:new Date(now+3600000)},revision:4});
+  const item=(await read('/admin/ingressos-membros',{})).result.data.items[0];a.equal(item.canSend,true);a.equal(item.canReview,false);a.equal(item.canResend,false);a.equal(item.canCancel,false);a.equal(item.canAmend,false);
+  for(const action of ['RESEND','CANCEL','ACKNOWLEDGE','REQUEST_CORRECTION','RESOLVE_CORRECTION'])await a.rejects(send(action));
+  await db.doc(gp).update({'invitationWindow.expiresAt':new Date(now-1)});await a.rejects(send('SEND'));await db.doc(gp).update({'invitationWindow.expiresAt':new Date(now+3600000)});
+  const prepared=await send('SEND');a.equal((await member('memberExecute',prepared.request)).dto.receipt.state,'COMPLETED');
+  a.equal((await db.doc('jobOutbox/'+prepared.request.operationId).get()).data().mode,'DRY_RUN');
+  const route=(await db.doc('commandExecutorRoutes/MEMBERS_INGRESS_EXECUTE').get()).data();await db.doc('commandExecutorRoutes/MEMBERS_ONBOARDING_COMPLETE').set({...route,commandType:'members.onboarding.complete',routeId:'MEMBERS_ONBOARDING_COMPLETE',operationIds:[]});
+  const candidate='SYN_NOMINAL_INVITEE',call=(action,request,email=admission.registration.email)=>require('../src/member-executor.cjs').executeMember({...opts,token:candidate,auth:{verifyIdToken:async()=>({uid:candidate,sub:candidate,aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000),exp:Math.floor(now/1000)+3600,email,email_verified:true})},body:{action,request}});
+  await a.rejects(call('memberEnrollmentOpen',{},'different@example.invalid'));a.equal((await call('memberEnrollmentOpen',{})).result.data.status,'INVITED');
+  const candidateAction=async(action,payload={})=>{const p=await call('memberEnrollmentPrepare',{operationId:crypto.randomBytes(16).toString('hex'),revision:(await enrollment()).revision,action,payload});a.equal((await call('memberExecute',p.request)).dto.receipt.state,'COMPLETED');return p;};
+  await candidateAction('ACCEPT');await candidateAction('SAVE',{profile:{cpf:'52998224725',birthDate:'2001-05-01',countryCode:'BR',stateCode:'MT',city:'Sinop',courseId:'AGRONOMIA_UFMT_SINOP'}});
+  const terms=(await call('memberEnrollmentRead',{})).result.data;
+  await candidateAction('ACKNOWLEDGE',{accepted:true,termVersion:terms.normTermVersion,documents:terms.norms.map(({id,version})=>({id,version}))});
+  await candidateAction('IMAGE',{choice:'DECLINED',termVersion:terms.imageTerm.version});
+  const completed=await candidateAction('COMPLETE');a.equal((await call('memberRecover',completed.key)).dto.receipt.state,'COMPLETED');
+  a.equal((await enrollment()).status,'COMPLETED');a.equal((await db.doc('memberAuthBindings/'+candidate).get()).data().idPessoa,admission.person);a.equal((await db.doc('memberAuthBindings/'+uid).get()).data().idPessoa,g.personId);
+  a.equal((await db.collection('memberLinks').where('idPessoa','==',admission.person).get()).size,1);a.equal((await db.doc('memberCurrentStates/'+admission.person).get()).data().state,'MEMBRO_INGRESSANTE');
+  const current=(await db.doc(gp).get()).data();delete current.invitationWindow;await db.doc(gp).set({...current,revision:5});await a.rejects(send('SEND'));a.equal((await call('memberRecover',completed.key)).dto.receipt.state,'COMPLETED');
+ });
  }finally{await db.doc('coreDevAdministrativeGrants/'+uid).delete();await db.terminate();}
 });
