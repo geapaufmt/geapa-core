@@ -10,6 +10,10 @@ O Portal existente consome `canReadPeople`, `canReviewCorrections` e `admin-navi
 
 ## Administração oficial
 
+O cadastro de pessoa aprovada pode ser incluído explicitamente com `registration: true` e `expectedIngressRevision` no JSON administrativo. Emite uma aprovação sintética nominal e uma terceira pessoa sem vínculo. A capability `MEMBERS_INGRESS_EXECUTE`, com máscara `preRegister`, aceita somente `PRE_REGISTER` para essa pessoa e os dados exatos da aprovação. Não autoriza aprovação, efetivação, envio de convite, associação de conta ou registro de ingresso real. A listagem de cadastros usa apenas os índices das fixtures autorizadas.
+
+Quando a rota de ingresso já está compartilhada, seu executor, epoch, atores e recibos são preservados. `devActorWindow` mantém o prazo anterior dos demais atores e estende somente o UID solicitado. Preparação, admissão e recuperação revalidam esse prazo no Core; a extensão é recusada em PROD.
+
 Executar `backend/functions-node/scripts/administer-dev-access.cjs` com identidade IAM autorizada no projeto DEV, usando o Admin SDK oficial. O comando não aceita outro projeto. O JSON nominal deve ficar fora do Git, com `uid`, `personId`, `operator`, `approvalRef`, `days`, `expectedGrantRevision`, `expectedRouteRevision` e `expectedGovernanceRevision`. O token OAuth da sessão administrativa entra somente pela variável `GEAPA_ADMIN_ACCESS_TOKEN`, nunca por arquivo versionado, argumento ou log.
 
 Sem `--apply`, o comando produz apenas o plano. Com `--apply`, uma transação verifica as revisões, o binding, as fixtures, a ausência de operações pendentes na janela compartilhada vencida e a exclusividade da janela reaberta. Cria duas pessoas sintéticas dedicadas e solicitações de correção somente na primeira emissão. Renova apenas o UID solicitado, mantém os dados das fixtures nas renovações, incrementa a geração das projeções e grava `coreDevAdministrativeAudit`. Não reativa o antigo `FUNCTIONAL_ALL`, não altera policies institucionais, Auth, cargos ou mandatos. O plano recusa um controle compartilhado ainda ativo para evitar retirar acesso concorrente.
