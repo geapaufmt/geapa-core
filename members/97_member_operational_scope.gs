@@ -13,7 +13,9 @@ function f4MemberOperationalScope_(get,q,limits,actorPerson,command,now){
   N(K.digest([...t.resources].sort())===K.digest([...roots,...(r.commandType==='members.discipline.dismiss'?['memberEvents/EVT_'+op]:[])].sort()));return true;
  }
  if(scopes.includes('ACCOUNT_BINDING')&&q.capability==='MEMBERS_BINDING_MANAGE'){
-  N(q.kind==='EXPLICIT'&&!limits.ownPerson&&limits.allowedPersons.includes(t.personId)&&limits.allowedTargetScopes.includes('ADMINISTRACAO')&&t.scopeKey==='ADMINISTRACAO'&&t.purpose==='ACCOUNT_BINDING'&&t.fieldMask.length===0);
+  const named=limits.allowedPersons.includes(t.personId),dynamic=scopes.includes('ACCOUNT_BINDING_CURRENT_MEMBERS');
+  if(!named){N(dynamic);const actor=f4MemberAuthz_().identify(get,q.uid,now);N(actor.derived.currentFunctions.some(f=>f.roleKey==='DIRETOR_ADMINISTRATIVO'&&f.group==='DIRETORIA'&&f.scopeKey==='ADMINISTRACAO'));N(f4MemberBindingTargetEligible_(get,t.personId,now));}
+  N(q.kind==='EXPLICIT'&&!limits.ownPerson&&(named||dynamic)&&limits.allowedTargetScopes.includes('ADMINISTRACAO')&&t.scopeKey==='ADMINISTRACAO'&&t.purpose==='ACCOUNT_BINDING'&&t.fieldMask.length===0);
   if(t.resources.length===1&&t.resources[0]==='memberIdentities/'+t.personId)return true;
   const v=get('memberBindingVerifications/'+t.caseId);N(v?.schemaVersion==='member-binding-verification-v1'&&v.ownerUid===q.uid&&v.personId===t.personId);
   N(K.digest([...t.resources].sort())===K.digest(['memberAuthBindings/'+v.account.uid,'portalUsers/'+v.account.uid,'portalAccessStatus/'+v.account.uid].sort()));return true;
@@ -27,7 +29,7 @@ function f4MemberOperationalScope_(get,q,limits,actorPerson,command,now){
   // are still checked by the existing M13 authorization computation.
   return true;
  }
- if(q.capability==='MEMBERS_PROFILE_CORRECT'&&scopes.includes('PROFILE_CORRECTION')){N(limits.allowedPersons.includes(t.personId)||!f4ExecutionEnvironment_().production&&limits.allowedPersons.length===0);N(!limits.ownPerson&&t.scopeKey==='ADMINISTRACAO'&&limits.allowedTargetScopes.includes(t.scopeKey)&&t.purpose==='PROFILE_CORRECTION'&&t.resources.every(p=>p==='memberIdentities/'+t.personId||p==='memberPrivateProfiles/'+t.personId||p==='memberProfileCorrectionIndexes/'+t.personId||p==='memberProfileCorrections/'+t.caseId||p.startsWith('memberIdentifiers/')&&get(p)?.idPessoa===t.personId||/^memberIdentifiers\/I_[a-f0-9]{32}$/.test(p)&&!get(p)));return true;}
+ if(q.capability==='MEMBERS_PROFILE_CORRECT'&&scopes.includes('PROFILE_CORRECTION')){if(scopes.includes('PROFILE_CORRECTION_CURRENT_MEMBERS')){N(q.kind==='ROLE');N(f4MemberProfileTargetEligible_(get,t.personId,now,t.purpose==='IMPORTED_INACTIVITY_RECTIFICATION'));}else N(limits.allowedPersons.includes(t.personId)||!f4ExecutionEnvironment_().production&&limits.allowedPersons.length===0);N(!limits.ownPerson&&t.scopeKey==='ADMINISTRACAO'&&limits.allowedTargetScopes.includes(t.scopeKey)&&(t.purpose==='PROFILE_CORRECTION'||t.purpose==='IMPORTED_INACTIVITY_RECTIFICATION'&&t.fieldMask.length===0&&t.resources.length===1&&t.resources[0]==='memberIdentities/'+t.personId&&get('memberImportRectificationApprovals/'+t.caseId)?.active===true)&&t.resources.every(p=>p==='memberIdentities/'+t.personId||p==='memberPrivateProfiles/'+t.personId||p==='memberProfileCorrectionIndexes/'+t.personId||p==='memberProfileCorrections/'+t.caseId||p.startsWith('memberIdentifiers/')&&get(p)?.idPessoa===t.personId||/^memberIdentifiers\/I_[a-f0-9]{32}$/.test(p)&&!get(p)));return true;}
  if(scopes.includes('ENROLLMENT_SUPERVISION')&&q.capability==='MEMBERS_INGRESS_EXECUTE'&&
     command?.payload?.operation==='MANAGE_INVITATION'&&['ACKNOWLEDGE','REQUEST_CORRECTION'].includes(command.payload.action)){
   N(q.kind==='ROLE'&&!limits.ownPerson&&limits.allowedTargetScopes.includes('ADMINISTRACAO')&&t.scopeKey==='ADMINISTRACAO'&&
@@ -54,3 +56,10 @@ function f4MemberOperationalScope_(get,q,limits,actorPerson,command,now){
  }
  K.match(t,limits,actorPerson);return true;
 }
+
+// Existing production opt-ins use the canonical graph, never a directory projection.
+function f4MemberProfileTargetEligible_(get,id,now,importRectification=false){
+ const control=f4MemberAuthority_().validate(get('memberAuthorityControl/MEMBERS')),v=f4MemberAuthz_().load(get,id,control),person=v.d['memberIdentities/'+id],state=v.M.derive(v.d,id,v.h.revision,now).state;
+ return !person.technicalAccount&&['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(state.state)&&(importRectification||person.active===true&&state.blocked===false);
+}
+function f4MemberBindingTargetEligible_(get,id,now){return f4MemberProfileTargetEligible_(get,id,now);}

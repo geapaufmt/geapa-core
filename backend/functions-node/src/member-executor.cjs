@@ -18,7 +18,11 @@ class MemberStore extends Store{
   const byEnrollment=(this.candidate||this.prepared?.commandType==='members.ingress.execute')&&
    scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&this.inEnrollmentScope(person,v.approvalRefs));
   if(s.missing.size)return;
-  if(!scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.personIds?.includes(person))&&!fresh&&!byEnrollment)fail('PILOT_RESOURCE_DENIED');
+  const eligible=method=>{try{return JSON.parse(createDomain(raw=>{const q=JSON.parse(raw);if(q.kind!=='get')fail('SDK_OPERATION_DENIED');const value=this.hostRead(q.path);return JSON.stringify(value===undefined?null:encode(value));}).run('(x)=>'+method+'(nodeRead,x,Date.now())',person));}catch(e){if(s.missing.size)return false;throw e;}};
+  const dynamic=this.prepared?.commandType==='members.profile.correct'&&scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.profileCorrectionCurrentMembers===true)&&eligible('f4MemberProfileTargetEligible_');
+  const bindingDynamic=(this.bindingAdministrative===true||this.bindingUid&&this.prepared?.commandType==='members.binding.associate')&&scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.bindingCurrentMembers===true)&&eligible('f4MemberBindingTargetEligible_');
+  if(s.missing.size)return;
+  if(!scoped.some(v=>v?.synthetic===!PRODUCTION&&v.projectId===PROJECT&&v.personIds?.includes(person))&&!fresh&&!byEnrollment&&!dynamic&&!bindingDynamic)fail('PILOT_RESOURCE_DENIED');
   const technical=['memberAdmissionTickets','memberAdmissionCounters','memberAdmissionUses','commandProvenance','commandRequests','commandReceipts','commandLedger','commandTombstones','commandLeases','commandReconciliation','memberAudit','commandProjectionInvalidations','commandExecutorOwners','commandExecutorRoutes'];
   const personCollections=['memberAttendanceCases','memberIdentities','memberIdentifiers','memberIdentifierClaims','memberPrivateProfiles','memberLinks','memberEvents','memberAggregateHeads','memberCurrentStates','memberStatusViews','memberScopeGrants','memberPortalProfiles','memberPublicProfiles','memberCurrentFunctions','memberCurrentDirectors','memberTransitionQueue','memberAuthzSubjects','memberVoluntaryRequests','memberVoluntaryIndexes','memberEnrollments','memberEnrollmentIndexes','memberEnrollmentFacts','memberProfileCorrections','memberProfileCorrectionIndexes'];
   for(const w of s.writes){const [col,id]=w.path.split('/'),d=w.mode==='delete'?null:decode(w.data),old=this.hostRead(w.path);if(s.missing.size)return;if(w.mode==='delete'){if(['memberCurrentFunctions','memberCurrentDirectors','memberFunctionProofs'].includes(col)&&id===person&&w.path.split('/')[2]==='items'&&w.path.split('/').length===4)continue;fail('PILOT_WRITE_DENIED');}
@@ -28,6 +32,11 @@ class MemberStore extends Store{
    if(col==='memberEvidenceContents'){if(d.target?.personId!==person)fail('PILOT_WRITE_DENIED');continue;}
    if(col==='memberEvidenceAttestations'){if(id!=='MVE_'+op||d.holderId!==person)fail('PILOT_WRITE_DENIED');continue;}
    if(technical.includes(col)){if(['commandRequests','commandReceipts','commandLedger','commandProvenance','commandLeases','commandExecutorOwners','commandProjectionInvalidations'].includes(col)&&id!==op)fail('PILOT_WRITE_DENIED');if(col==='commandExecutorRoutes'&&id!==this.routeId)fail('PILOT_WRITE_DENIED');continue;}
+   if(w.path==='projectionRecoveryControl/current'&&this.bindingUid&&this.prepared?.commandType==='members.binding.associate'){
+    if(!old||d.revision!==old.revision+1)fail('PILOT_WRITE_DENIED');
+    const expected={...old,revision:old.revision+1,actorUids:[...new Set([...old.actorUids,this.bindingUid])],specializedReaders:{...old.specializedReaders,actorUids:[...new Set([...old.specializedReaders.actorUids,this.bindingUid])]}};
+    if(JSON.stringify(encode(d))!==JSON.stringify(encode(expected)))fail('PILOT_WRITE_DENIED');continue;
+   }
    if(col==='institutionalAccounts'&&id===person)continue;
    if(this.prepared?.commandType==='members.discipline.dismiss'&&!this.preparation){
     const intent=this.hostRead('memberPreparedIntents/'+op),check=intent?.operationalChecks,source=check?.sources?.map(s=>s.path)||[];
