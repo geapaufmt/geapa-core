@@ -22,8 +22,8 @@ return {control,binding:b,actor,person,state,subject,derived};}
   if(['MEMBERS_SELF_READ','MEMBERS_SELF_UPDATE','MEMBERS_VOLUNTARY_REQUEST'].includes(cap))N(target.personId===b.idPessoa);
   if(cap==='MEMBERS_SELF_UPDATE'){const correction=f4MemberProfileCorrections_().selfTarget(get,target,b.idPessoa);if(correction)extra={...extra,...correction};else{const p=actor.d['memberPrivateProfiles/'+b.idPessoa];N(target.resources.length===1&&target.resources[0]==='memberPrivateProfiles/'+b.idPessoa);extra={...extra,profileId:b.idPessoa,profileRevision:p?.revision||0,fields:target.fieldMask};}}
  }else if(r.kind==='DEV_TECHNICAL'){
-  N(!domain&&!governanceCommand&&cap==='MEMBERS_PROFILE_CORRECT'&&r.sourceId===r.uid);
-  const dev=f4DevAdministrativeAccess_().correction(get,{uid:r.uid,expiresAt:K.timestamp(r.tokenExpiresAt)},now,target);source=dev.source;N(r.expected.authorizationRevision===source.revision);deadline=Math.min(deadline,dev.validUntil);extra={grantId:source.id,grantRevision:source.revision,technicalGrantPath:f4DevAdministrativeAccess_().path(r.uid),technicalGrantRevision:source.revision,projectId:source.projectId};
+  N(!domain&&!governanceCommand&&['MEMBERS_PROFILE_CORRECT','MEMBERS_INGRESS_EXECUTE'].includes(cap)&&r.sourceId===r.uid);
+  const dev=f4DevAdministrativeAccess_().command(get,{uid:r.uid,expiresAt:K.timestamp(r.tokenExpiresAt)},now,cap,target,memberCommand);source=dev.source;N(r.expected.authorizationRevision===source.revision);deadline=Math.min(deadline,dev.validUntil);extra={grantId:source.id,grantRevision:source.revision,technicalGrantPath:f4DevAdministrativeAccess_().path(r.uid),technicalGrantRevision:source.revision,projectId:source.projectId};
  }else if(r.kind==='EXPLICIT'){
   source=K.grant(get('memberExplicitGrants/'+r.sourceId));N(source.uid===r.uid&&source.idPessoa===b.idPessoa&&source.bindingVersion===b.bindingVersion&&source.subjectEpoch===subject.authzEpoch&&source.actorScopes.includes(r.actorScope));N(state.state==='MEMBRO_EFETIVO');extra={grantId:source.id,grantRevision:source.revision,issuerRef:source.issuerRef,approvalRef:source.approvalRef,targets:source.targets};
  }else{

@@ -104,7 +104,7 @@ async function executeMember({db,auth,appCheck,token,appCheckToken,origin,body,h
   if(store.preparation&&!commandEnabled(r.commandType))fail('PILOT_RESOURCE_DENIED');
   store.routeId=run('(r)=>{const f=f4MemberExecutor_(),o=nodeRead("commandExecutorOwners/"+r.operationId),id=o?.routeId||f.select(nodeRead,r,nodeConfig);f4Core_().need(id,"PILOT_RESOURCE_DENIED");const v=f.route(nodeRead,nodeConfig,id);f.fields(nodeRead,r,v);return id;}',r);
   if(store.candidate&&(r.commandType!=='members.onboarding.complete'||r.payload?.operation!=='ENROLLMENT'))fail('ACCESS_REVOKED');
-  if(store.preparation)run('(q)=>{const f=f4MemberExecutor_(),v=f.route(nodeRead,nodeConfig,q.id);f4Core_().need(v.state==="ACTIVE"&&f4ExecutorWindow_().live(v,Date.now())&&(v.actorUids.includes(nodeActor.uid)||f.invitationActor(nodeRead,q.r,nodeActor.uid,v)),"ACCESS_REVOKED");}',{id:store.routeId,r});
+  if(store.preparation)run('(q)=>{const f=f4MemberExecutor_(),v=f.route(nodeRead,nodeConfig,q.id);f4Core_().need(v.state==="ACTIVE"&&f4ExecutorWindow_().live(v,Date.now(),nodeActor.uid)&&(v.actorUids.includes(nodeActor.uid)||f.invitationActor(nodeRead,q.r,nodeActor.uid,v)),"ACCESS_REVOKED");}',{id:store.routeId,r});
  };
  let key,result;
  if(['memberEnrollmentOpen','memberEnrollmentRead'].includes(body.action)){

@@ -50,12 +50,13 @@ function f4DevAdmin_(){
 function f4DevAdministrativeAccess_(){
  const C=f4Core_(),K=f4MemberAuthzContracts_(),N=K.need;
  const path=uid=>'coreDevAdministrativeGrants/'+uid;
- const fields={PEOPLE_DIRECTORY_READ:['idPessoa','displayLabel','state','categories','functions','relations','history'],MEMBERS_PROFILE_CORRECT:['displayName','cpf','rga','birthDate','countryCode','courseId'],INSTITUTIONAL_DIRECTORY_READ:['summary','fields','provenance','issues','canonical'],INSTITUTIONAL_GOVERNANCE_DRAFT:['draft']};
+ const fields={PEOPLE_DIRECTORY_READ:['idPessoa','displayLabel','state','categories','functions','relations','history'],MEMBERS_PROFILE_CORRECT:['displayName','cpf','rga','birthDate','countryCode','courseId'],INSTITUTIONAL_DIRECTORY_READ:['summary','fields','provenance','issues','canonical'],INSTITUTIONAL_GOVERNANCE_DRAFT:['draft'],MEMBERS_INGRESS_EXECUTE:['preRegister']};
  function source(get,identity,now,cap){
   // Check the server destination BEFORE reading any copied DEV grant in PROD.
   if(f4ExecutionEnvironment_().production||!f4DevBoundary_().permit({environment:'DEV',projectId:'geapa-convergencia-dev',database:'(default)'}))return null;
   const g=get(path(identity.uid));if(!g)return null;
-  C.exact(g,['schemaVersion','id','uid','personId','bindingVersion','subjectEpoch','projectId','environment','exportable','active','revision','issuedAt','expiresAt','approvalRef','capabilities','fieldMasks','syntheticPersonIds','sections']);
+  C.exact(g,['schemaVersion','id','uid','personId','bindingVersion','subjectEpoch','projectId','environment','exportable','active','revision','issuedAt','expiresAt','approvalRef','capabilities','fieldMasks','syntheticPersonIds','sections',...(Object.hasOwn(g,'admissionApprovalIds')?['admissionApprovalIds']:[])]);
+  if(g.admissionApprovalIds)N(Array.isArray(g.admissionApprovalIds)&&g.admissionApprovalIds.length<=10&&g.admissionApprovalIds.every(C.id)&&new Set(g.admissionApprovalIds).size===g.admissionApprovalIds.length,'AUTHORIZATION_DENIED');
   N(g.schemaVersion==='core-dev-administrative-grant-v1'&&g.id===identity.uid&&g.uid===identity.uid&&g.projectId==='geapa-convergencia-dev'&&g.environment==='DEV'&&g.exportable===false&&typeof g.active==='boolean'&&C.rev(g.revision)&&g.revision>0&&C.id(g.personId)&&C.id(g.approvalRef),'AUTHORIZATION_DENIED');
   N(Array.isArray(g.capabilities)&&g.capabilities.length>0&&new Set(g.capabilities).size===g.capabilities.length&&g.capabilities.every(c=>Object.hasOwn(fields,c)),'AUTHORIZATION_DENIED');
   C.exact(g.fieldMasks,g.capabilities);for(const c of g.capabilities)N(Array.isArray(g.fieldMasks[c])&&g.fieldMasks[c].length>0&&new Set(g.fieldMasks[c]).size===g.fieldMasks[c].length&&g.fieldMasks[c].every(f=>fields[c].includes(f)),'AUTHORIZATION_DENIED');
@@ -74,8 +75,17 @@ function f4DevAdministrativeAccess_(){
   N(target.scopeKey==='ADMINISTRACAO'&&target.purpose==='PROFILE_CORRECTION'&&target.effect==='PROFILE_CORRECTION'&&target.fieldMask.every(f=>a.mask.includes(f)),'AUTHORIZATION_DENIED');
   f4MemberOperationalScope_(get,{capability:'MEMBERS_PROFILE_CORRECT',target},{ownPerson:false,allowedPersons:a.source.syntheticPersonIds,allowedTargetScopes:['ADMINISTRACAO'],allowedBoards:[],allowedRoles:[],allowedResources:[],commandScopes:['PROFILE_CORRECTION']},a.actor.binding.idPessoa);return a;
  }
+ function command(get,identity,now,cap,target,r){
+  if(cap==='MEMBERS_PROFILE_CORRECT')return correction(get,identity,now,target);
+  N(cap==='MEMBERS_INGRESS_EXECUTE'&&r?.commandType==='members.ingress.execute'&&r.payload.operation==='PRE_REGISTER','AUTHORIZATION_DENIED');
+  const a=source(get,identity,now,cap);N(a&&a.mask.includes('preRegister')&&a.source.admissionApprovalIds?.includes(r.payload.approvalRef)&&a.source.syntheticPersonIds.includes(target.personId),'AUTHORIZATION_DENIED');
+  const approval=f4MemberPreRegistration_().approval(get,r.payload.approvalRef,r.payload.registration,now);
+  N(approval.devTechnicalOwnerUid===identity.uid&&approval.synthetic===true&&approval.devPersonId===target.personId&&C.hash(approval.devRegistration)===C.hash(r.payload.registration)&&Object.keys(r.payload.profile).length===0,'AUTHORIZATION_DENIED');
+  N(target.purpose==='ADMINISTRATIVE_INGRESS'&&target.effect==='PRE_REGISTRATION'&&target.fieldMask.length===0,'AUTHORIZATION_DENIED');
+  f4MemberOperationalScope_(get,{kind:'DEV_TECHNICAL',capability:cap,target},{ownPerson:false,allowedPersons:a.source.syntheticPersonIds,allowedTargetScopes:['ADMINISTRACAO'],allowedBoards:[],allowedRoles:[],allowedResources:[],commandScopes:['ADMINISTRATIVE_INGRESS']},a.actor.binding.idPessoa,r,now);return a;
+ }
  function governanceInput(auth,input,old){if(!auth.technical)return;
   N(!input.action&&!input.minutes&&!input.documentaryEvidence&&!input.attachments?.length&&input.sourceRecordId===null&&input.references?.length===0&&input.documentaryState==='DRAFT'&&(!old||old.devTechnicalOwnerUid===auth.source.uid&&old.documentaryState==='DRAFT'&&!old.kind),'AUTHORIZATION_DENIED');
  }
- return {source,institutional,correction,governanceInput,path,fields};
+ return {source,institutional,correction,command,governanceInput,path,fields};
 }
