@@ -70,7 +70,7 @@ async function fixture(category,t){
   const auth={verifyIdToken:async()=>({uid,sub:uid,aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,exp:Math.floor(now/1000)+3600,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000),email,email_verified:true,...opts.claims})};
   try{return await executeMember({db,auth,appCheck,token:'synthetic',appCheckToken:'synthetic',origin:profile.origin,body:{action,request},hooks:opts.hooks});}
   finally{
-   if(real)for(const collection of ['memberEnrollments','memberLinks','memberAuthBindings','memberCurrentStates','portalUsers','jobOutbox']){
+   if(real)for(const collection of ['memberEnrollments','memberLinks','memberAuthBindings','memberCurrentStates','portalUsers','jobOutbox','memberAdmissionApprovals','memberAdmissionApprovalIndexes','memberIdentifiers','memberIdentifierClaims']){
     const snap=await db.collection(collection).get();for(const row of snap.docs)docs[row.ref.path]=row.data();
    }
   }
@@ -217,7 +217,24 @@ test('draft without any approval reserves one identity, recovers, invites and wa
  assert.equal(docs['memberCurrentStates/'+person].state,'SEM_VINCULO');
  await assert.rejects(rh(route,basic),/OPERATION_CONFLICT/);
  assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='member-enrollment-v1'&&v.personId===person).length,1);
- await rh('/admin/ingressos-membros/convite',{enrollmentId:id,revision:enrollment().revision,action:'SEND',reason:'Convite para completar rascunho sintético'});
+ const manage=(action,extra={})=>rh('/admin/ingressos-membros/convite',{enrollmentId:id,revision:enrollment().revision,action,reason:'Decisão humana sintética para homologação',...extra});
+ const approvedOn=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Cuiaba',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const decision={membershipType:'MEMBRO_INGRESSANTE',approvedOn,confirmed:true};
+ await assert.rejects(manage('CONFIRM_ADMISSION',{...decision,confirmed:false}),/COMMAND_PAYLOAD_INVALID/);
+ await assert.rejects(manage('CONFIRM_ADMISSION',{...decision,membershipType:'ADMIN'}),/ADMISSION_CATEGORY_INVALID/);
+ const role=docs['memberRoleCatalog/CARGO-001'],fn=docs['memberFunctions/VIG-001'],pol=docs['memberAuthzPolicies/FAST_MEMBER_ROLE'];
+ await set('memberRoleCatalog/CARGO-001',{...role,roleKey:'DIRETOR_ADMINISTRATIVO'});await set('memberFunctions/VIG-001',{...fn,scopeKey:'ADMINISTRACAO'});await set('memberAuthzPolicies/FAST_MEMBER_ROLE',{...pol,actorSelector:{...pol.actorSelector,roleKey:'DIRETOR_ADMINISTRATIVO',actorScope:'ADMINISTRACAO'}});
+ await assert.rejects(manage('CONFIRM_ADMISSION',decision),/ACCESS_REVOKED/);
+ await set('memberRoleCatalog/CARGO-001',role);await set('memberFunctions/VIG-001',fn);await set('memberAuthzPolicies/FAST_MEMBER_ROLE',pol);
+ const prepareDecision=()=>call('CF_ADMIN','memberPrepare',{operationId:op(),route:'/admin/ingressos-membros/convite',payload:{enrollmentId:id,revision:enrollment().revision,action:'CONFIRM_ADMISSION',reason:'Confirmação humana sintética de admissão',...decision}});
+ const first=await prepareDecision(),concurrent=await prepareDecision();
+ await assert.rejects(call('CF_ADMIN','memberExecute',first.request,{hooks:{afterCommit(){throw Error('LOST_RESPONSE');}}}),/LOST_RESPONSE/);
+ assert.equal((await call('CF_ADMIN','memberRecover',first.key)).dto.receipt.state,'COMPLETED');
+ await assert.rejects(call('CF_ADMIN','memberExecute',concurrent.request),/REVISION_CONFLICT/);
+ const firstApproval=enrollment().approvalId;assert.equal(enrollment().status,'PRE_REGISTERED');assert(!docs['memberLinks/V_'+id]);
+ await manage('AMEND',{field:'email',value:'draft.changed@example.invalid'});assert.equal(enrollment().approval,null);assert.equal(docs['memberAdmissionApprovals/'+firstApproval].active,false);
+ await manage('AMEND',{field:'email',value:basic.emailPrincipal});
+ await manage('SEND');
  const open=()=>call('SYN_INVITEE','memberEnrollmentOpen',{});
  const invited=(await open()).result.data;assert.equal(invited.membershipType,null);assert.equal(invited.admissionApprovalPending,true);
  const candidate=(action,payload={})=>submit('SYN_INVITEE','memberEnrollmentPrepare',{revision:enrollment().revision,action,payload});
@@ -228,11 +245,14 @@ test('draft without any approval reserves one identity, recovers, invites and wa
  await assert.rejects(candidate('COMPLETE'),/ADMISSION_APPROVAL_REQUIRED/);
  await assert.rejects(candidate('COMPLETE',{approval:{membershipType:'MEMBRO_EFETIVO'}}),/SCHEMA_INVALID/);
  assert.equal(enrollment().status,'ACCEPTED');assert.equal(enrollment().approval,null);assert(!docs['memberAuthBindings/SYN_INVITEE']);
- // This is a separate synthetic institutional decision, never a cadastro side effect.
- for(const [path,value]of approvals)await set(path,value);
+ // RH records a separate human decision; changing RGA revokes it atomically.
+ await manage('CONFIRM_ADMISSION',decision);const priorApproval=enrollment().approvalId;
+ await manage('AMEND',{field:'rga',value:'202620999'});assert.equal(enrollment().approval,null);assert.equal(docs['memberAdmissionApprovals/'+priorApproval].active,false);
+ assert.equal((await open()).result.data.admissionApprovalPending,true);await assert.rejects(candidate('COMPLETE'),/ADMISSION_APPROVAL_REQUIRED|ADMISSION_APPROVAL_INACTIVE/);
+ await manage('CONFIRM_ADMISSION',decision);
  assert.equal((await open()).result.data.admissionApprovalPending,false);
  const ready=await call('SYN_INVITEE','memberEnrollmentPrepare',{operationId:op(),revision:enrollment().revision,action:'COMPLETE',payload:{}});
- const activeApproval=approvals.find(([path,value])=>path.startsWith('memberAdmissionApprovals/')&&value.registrationDigest===JSON.parse(createDomain(()=>{}).run('(v)=>f4Core_().hash(v)',{email:basic.emailPrincipal,rga:basic.rga})));
+ const activeApproval=['memberAdmissionApprovals/'+enrollment().approvalId,docs['memberAdmissionApprovals/'+enrollment().approvalId]];
  const invalidated=await call('SYN_INVITEE','memberExecute',ready.request,{hooks:{afterClaim:async()=>set(activeApproval[0],{...activeApproval[1],membershipType:'MEMBRO_EFETIVO'})}});assert.equal(invalidated.dto.receipt.state,'FAILED');
  assert(!docs['memberAuthBindings/SYN_INVITEE']);
  await set(activeApproval[0],{...activeApproval[1],active:false});
@@ -242,7 +262,7 @@ test('draft without any approval reserves one identity, recovers, invites and wa
  assert.equal((await call('SYN_INVITEE','memberRecover',ready.key)).dto.receipt.state,'FAILED');
  const completed=await candidate('COMPLETE');
  assert.equal((await call('SYN_INVITEE','memberRecover',completed.key)).dto.receipt.state,'COMPLETED');
- assert.equal(enrollment().status,'COMPLETED');assert.equal(enrollment().approval.reference,referenciaAprovacao);
+ assert.equal(enrollment().status,'COMPLETED');assert.equal(enrollment().approval.reference,activeApproval[1].reference);
  assert.equal(docs['memberCurrentStates/'+person].state,'MEMBRO_INGRESSANTE');
  assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='m1-memberLinks-v1'&&v.idPessoa===person).length,1);
 });

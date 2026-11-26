@@ -23,7 +23,7 @@ function f4MemberInvitation_(){
   const p=r.payload,actor=f4MemberAuthz_().identify(get,r.ownerUid,now);
   N(rh(actor)&&actor.binding.idPessoa!==old.personId,'ACCESS_REVOKED');
   N(old.draft===true&&old.approval===null&&['PRE_REGISTERED','INVITED','ACCEPTED'].includes(old.status),'DOMAIN_STATE_INVALID');
-  N(p.confirmed===true&&typeof p.reason==='string'&&p.reason.trim().length>=10,'HUMAN_DECISION_REQUIRED');
+  N(p.confirmed===true&&typeof p.reason==='string'&&p.reason.trim().length>=10,'COMMAND_PAYLOAD_INVALID');
   N(['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(p.membershipType),'ADMISSION_CATEGORY_INVALID');
   const day=t=>Utilities.formatDate(new Date(t),'America/Cuiaba','yyyy-MM-dd');C.civilStart(p.approvedOn);N(p.approvedOn>=day(old.createdAt)&&p.approvedOn<=day(now),'COMMAND_PAYLOAD_INVALID');
   const id='AA_'+r.operationId,path='memberAdmissionApprovals/'+id,indexId=f4MemberPreRegistration_().key(old.registration),indexPath='memberAdmissionApprovalIndexes/'+indexId,index=get(indexPath),legacy=get('memberAdmissionApprovals/'+indexId);
