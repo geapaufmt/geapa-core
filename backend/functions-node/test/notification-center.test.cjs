@@ -149,13 +149,15 @@ test('reader and write guard enforce SELF, atomic batch, response contract and s
  const {docs,uid,person,emit,read,writeRoute,route,policy}=notificationFixture();
  const db=require('./fixtures/member-memory-db.cjs').database(docs);
  const first=emit(1).notification;emit(2);emit(3);
- const single={action:'MARK_READ',notificationId:first.id},bulk={action:'MARK_ALL_READ'};
+ const single={action:'MARK_READ',notificationId:first.id},bulk={action:'MARK_ALL_READ',expectedRevision:3};
  a.equal((await read(db)).unreadCount,3);
  await a.rejects(read(db,single,route),/SCHEMA_INVALID/);
  await a.rejects(read(db,{},route,null),/APP_CHECK_REQUIRED/);
  a.equal((await read(db,single,writeRoute)).unreadCount,2);
  const at=docs['memberNotifications/'+first.id].readAt;
  a.equal((await read(db,single,writeRoute)).unreadCount,2);a.equal(docs['memberNotifications/'+first.id].readAt,at);
+ await a.rejects(read(db,bulk,writeRoute),/REVISION_CONFLICT/);
+ bulk.expectedRevision=(await read(db)).revision;
  a.equal((await read(db,bulk,writeRoute)).unreadCount,0);
  a.equal((await read(db,bulk,writeRoute)).unreadCount,0);
  a((await read(db)).items.every(row=>row.read&&row.targetRoute==='minha-situacao'));
@@ -180,5 +182,5 @@ test('concurrent notification receipts in a native Firestore emulator transactio
  const batch=db.batch();for(const [path,value] of Object.entries(docs))batch.set(db.doc(path),value);await batch.commit();
  const mark=()=>read(db,{action:'MARK_READ',notificationId:id},writeRoute);
  await Promise.all([mark(),mark()]);a.equal((await read(db)).unreadCount,1);
- a.equal((await read(db,{action:'MARK_ALL_READ'},writeRoute)).unreadCount,0);
+ a.equal((await read(db,{action:'MARK_ALL_READ',expectedRevision:(await read(db)).revision},writeRoute)).unreadCount,0);
 });

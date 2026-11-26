@@ -168,22 +168,27 @@ function f4MemberNotifications_(){
  function ownPerson(get,identity,now){
   return f4MemberOwnReader_().read(get,identity,{view:'status'},now).data.idPessoa;
  }
- function view(items,personId,now){
-  return {schemaVersion:'member-notification-view-v1',personId,asOf:now,totalCount:items.length,
+ function view(items,personId,now,revision){
+  return {schemaVersion:'member-notification-view-v1',personId,asOf:now,revision,totalCount:items.length,
    unreadCount:items.filter(item=>!item.read).length,items:items.map(({id,title,body,event,read,readAt,createdAt,targetRoute})=>
     ({id,title,body,event,read,readAt,createdAt,targetRoute:destination(targetRoute)}))};
  }
  function readAuthorized(get,identity,now){
   const person=ownPerson(get,identity,now);
-  return view(inbox(get,person).items,person,now);
+  const {items,ix}=inbox(get,person);
+  return view(items,person,now,ix.revision);
  }
  function mark(tx,identity,params,now){
   const get=p=>tx.get(p).data(),person=ownPerson(get,identity,now);
   const all=params?.action==='MARK_ALL_READ';
-  C.exact(params,all?['action']:['action','notificationId']);
+  C.exact(params,all?['action','expectedRevision']:['action','notificationId']);
   N(all||params.action==='MARK_READ'&&C.op(params.notificationId),'COMMAND_PAYLOAD_INVALID');
   const {ix,items,unreadCount}=inbox(get,person);
   N(all||ix.notificationIds.includes(params.notificationId),'RESOURCE_NOT_FOUND');
+  if(all){
+   N(C.rev(params.expectedRevision),'COMMAND_PAYLOAD_INVALID');
+   N(params.expectedRevision===ix.revision||!unreadCount,'REVISION_CONFLICT');
+  }
   let count=0;
   const updated=items.map(item=>{
    if(item.read||!all&&item.id!==params.notificationId)return item;
@@ -191,8 +196,9 @@ function f4MemberNotifications_(){
    tx.set('memberNotifications/'+item.id,next);count++;
    return next;
   });
-  if(count||ix.unreadCount!==unreadCount)tx.set('memberNotificationIndexes/'+person,{...ix,revision:ix.revision+1,updatedAt:now,unreadCount:unreadCount-count});
-  return view(updated,person,now);
+  const changed=count>0||ix.unreadCount!==unreadCount;
+  if(changed)tx.set('memberNotificationIndexes/'+person,{...ix,revision:ix.revision+1,updatedAt:now,unreadCount:unreadCount-count});
+  return view(updated,person,now,ix.revision+(changed?1:0));
  }
  return {plan,source,render,consumer,delivery,emit,readAuthorized,mark};
 }
