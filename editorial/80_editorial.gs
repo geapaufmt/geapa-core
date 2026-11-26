@@ -164,8 +164,10 @@ function f4EditorialCommands_(){
    if(input.action==='TIMELINE_SAVE_DRAFT')N(C.rev(input.expectedIndexRevision)&&idx.revision===input.expectedIndexRevision,'REVISION_CONFLICT');
   }
   const targetId=creating?(operationId?'marco_'+operationId.slice(0,12):'marco_preview'):input.itemId;
-  const oldItem=creating?null:validateTimelineItemCanonical(get(timelineItemPath(targetId)),targetId);
-  if(creating)N(!oldItem,'OPERATION_CONFLICT');else N(oldItem,'RESOURCE_NOT_FOUND');
+  const rawExisting=get(timelineItemPath(targetId));
+  if(creating)N(!rawExisting,'OPERATION_CONFLICT');
+  const oldItem=creating?null:validateTimelineItemCanonical(rawExisting,targetId);
+  if(!creating)N(oldItem,'RESOURCE_NOT_FOUND');
   const currentRev=oldItem?oldItem.revision:0;
   N(currentRev===input.expectedRevision,'REVISION_CONFLICT');
 
@@ -246,7 +248,7 @@ function f4EditorialCommands_(){
     resultPublished=true;resultHasDraft=false;snapshotForHistory=pubSnapshot;
    }else{
     nextDoc={schemaVersion:'canonical-editorial-page-v1',id:q.targetId,revision:nextRev,draftRevision:old.draftRevision||old.revision,publishedRevision:0,hasDraft:true,published:false,draft:old.draft||old.publishedSnapshot,publishedSnapshot:null,updatedAt:now,updatedByPersonId:actorPersonId};
-    deletes.push({path:'publicPages/'+q.targetId,kind:'delete'});
+    deletes.push({path:'publicPages/'+q.targetId,kind:'delete',data:null});
     resultPublished=false;resultHasDraft=true;snapshotForHistory={unpublishedRevision:old.publishedRevision};
    }
    sourceWrites.push({path:pagePath(q.targetId),kind:'set',data:nextDoc});
@@ -289,7 +291,7 @@ function f4EditorialCommands_(){
     resultPublished=true;resultHasDraft=false;snapshotForHistory=pubSnapshot;
    }else{
     nextDoc={schemaVersion:'canonical-editorial-timeline-item-v1',id:q.targetId,revision:nextRev,draftRevision:old.draftRevision||old.revision,publishedRevision:0,hasDraft:true,published:false,draft:old.draft||old.publishedSnapshot,publishedSnapshot:null,updatedAt:now,updatedByPersonId:actorPersonId};
-    deletes.push({path:'publicTimeline/'+q.targetId,kind:'delete'});
+    deletes.push({path:'publicTimeline/'+q.targetId,kind:'delete',data:null});
     resultPublished=false;resultHasDraft=true;snapshotForHistory={unpublishedRevision:old.publishedRevision};
    }
    sourceWrites.push({path:timelineItemPath(q.targetId),kind:'set',data:nextDoc});
