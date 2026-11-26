@@ -1,24 +1,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
-
-const root = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(root, '28a_core_domains_v2_resolver.js'), 'utf8');
-const context = {
-  Object,
-  Array,
-  String,
-  Error,
-  JSON,
-  Logger: { log() {} },
-  core_getCurrentEnv_: () => 'PROD',
-  core_getRegistryRaw_: () => ({}),
-  core_openSpreadsheetById_: () => { throw new Error('OPEN_REAL_FORBIDDEN'); }
-};
-vm.createContext(context);
-vm.runInContext(source, context, { filename: '28a_core_domains_v2_resolver.js' });
-
+const {test} = require('node:test');
+const {isolatedDomain} = require('./canonical-domain.cjs');
+const context = isolatedDomain().context;
+context.core_runId_ = () => 'SYNTHETIC_RESOLVER';
+context.core_logWarn_ = () => {};
 function entry(key, id, sheet, ambiente, extra = {}) {
   return Object.assign({
     key,
@@ -61,9 +48,6 @@ function options(raw, books, environment, counters = {}) {
 function reset() {
   context.core_resetDomainResolverExecutionCache_();
 }
-
-const tests = [];
-function test(name, fn) { tests.push({ name, fn }); }
 
 test('mesma key em DEV e PROD resolve somente o ambiente pedido', () => {
   reset();
@@ -183,24 +167,9 @@ test('Pessoas resolve SOLICITACOES_VINCULO pela aba canonica e key especifica de
 });
 
 test('codigo operacional nao contem IDs reais nem resolvedor antigo', () => {
-  const operational = fs.readdirSync(root)
-    .filter((name) => /\.(?:js|gs)$/.test(name))
-    .map((name) => fs.readFileSync(path.join(root, name), 'utf8'))
-    .join('\n');
+  const {paths} = require('../backend/functions-node/core-sources.json');
+  assert.ok(paths.includes('legacy/28a_core_domains_v2_resolver.gs'));
+  const operational = paths.map(file => fs.readFileSync(path.resolve(__dirname, '..', file), 'utf8')).join('\n');
   assert.doesNotMatch(operational, /1sa1CZTsqdDEWKWLd5uDAiM-Y59ko9FLZfABL0wc0HVM|1M_KPFn7sRjZmQMtfoVOSDuSwlJqq9BLBQ-UYahcDQJw/);
   assert.doesNotMatch(operational, /CORE_DOMAINS_V2_DEV_SPREADSHEETS|CORE_V2_ROTINAS_KEYS|core_v2RotinasGetSheetByKey_/);
 });
-
-let failed = 0;
-for (const { name, fn } of tests) {
-  try {
-    fn();
-    console.log(`ok - ${name}`);
-  } catch (err) {
-    failed += 1;
-    console.error(`not ok - ${name}`);
-    console.error(err.stack || err);
-  }
-}
-console.log(JSON.stringify({ ok: failed === 0, total: tests.length, failed }));
-if (failed) process.exitCode = 1;

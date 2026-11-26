@@ -1,12 +1,9 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-
-const source = fs.readFileSync(path.join(__dirname, '..', '38_core_normative_parameters.js'), 'utf8');
+const {test} = require('node:test');
+const {isolatedDomain} = require('./canonical-domain.cjs');
+const context = isolatedDomain().context;
 const cacheStore = new Map();
-const context = {
-  Object, Array, String, Number, Error, JSON, isFinite,
+Object.assign(context, {
   core_getCurrentEnv_: () => 'PROD',
   core_getRegistryRaw_: () => { throw new Error('REGISTRY_REAL_PROIBIDO'); },
   core_getSheetById_: () => { throw new Error('PLANILHA_REAL_PROIBIDA'); },
@@ -18,9 +15,7 @@ const context = {
       remove: (key) => cacheStore.delete(key)
     })
   }
-};
-vm.createContext(context);
-vm.runInContext(source, context, { filename: '38_core_normative_parameters.js' });
+});
 
 function registry(environment = 'DEV', duplicate = false) {
   return {
@@ -62,9 +57,6 @@ function resolve(id, rows = records(), options = {}) {
     ambiente: 'DEV', registryRaw: registry('DEV'), records: rows, moduloSistema: 'GEAPA_MEMBROS'
   }, options));
 }
-
-const tests = [];
-const test = (name, fn) => tests.push({ name, fn });
 
 test('NUMERO legado sem TIPO_VALOR permanece compativel', () => {
   const result = resolve('SUSPENSAO_MINIMA');
@@ -164,11 +156,3 @@ test('setup dry-run recomenda TIPO_VALOR e nova linha sem escrever', () => {
   assert.equal(result.linhaRecomendada.VALOR, 'SIM');
   assert.equal(result.linhaRecomendada.TIPO_VALOR, 'BOOLEANO');
 });
-
-let failed = 0;
-for (const { name, fn } of tests) {
-  try { fn(); console.log(`ok - ${name}`); }
-  catch (error) { failed += 1; console.error(`not ok - ${name}`); console.error(error.stack || error); }
-}
-console.log(JSON.stringify({ ok: failed === 0, total: tests.length, failed }));
-if (failed) process.exitCode = 1;

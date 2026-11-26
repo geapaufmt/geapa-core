@@ -22,16 +22,33 @@ jobs:
           cache: npm
           cache-dependency-path: backend/functions-node/package-lock.json
       - run: npm ci
-      - run: npm run build
-      - run: npm test
+      - id: bundle
+        run: npm run build
+      - run: node --test ../../tests/*.test.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-      - name: Verify admission against a disposable Firestore Emulator
+      - name: Verify transactional contracts against a disposable Firestore Emulator
         env:
-          GEAPA_ENROLLMENT_EMULATOR_TEST: '1'
-          GEAPA_RH_EMULATOR_TEST: '1'
+          GEAPA_AGENDA_EMULATOR_TEST: '1'
+          GEAPA_ATTENDANCE_EMULATOR_TEST: '1'
+          GEAPA_BINDING_EMULATOR_TEST: '1'
+          GEAPA_CAPACITY_SCANNER_EMULATOR_TEST: '1'
+          GEAPA_CURRENT_MEMBERS_EMULATOR_TEST: '1'
+          GEAPA_CYCLE_PARAMETERS_EMULATOR_TEST: '1'
           GEAPA_DEV_ACCESS_EMULATOR_TEST: '1'
-        run: npx --no-install firebase emulators:exec --only firestore --project demo-geapa-functions-local --config firebase.emulator.json "node --test --test-concurrency=1 test/enrollment-lifecycle.test.cjs test/rh-executor-emulator.test.cjs test/dev-administrative-emulator.test.cjs"
+          GEAPA_ENROLLMENT_EMULATOR_TEST: '1'
+          GEAPA_IMPORT_EXECUTOR_TEST: '1'
+          GEAPA_INSTITUTIONAL_EMULATOR_TEST: '1'
+          GEAPA_LINKED_READER_EMULATOR_TEST: '1'
+          GEAPA_MODEL_FREQUENCY_EMULATOR_TEST: '1'
+          GEAPA_PEOPLE_EMULATOR_TEST: '1'
+          GEAPA_PROJECTION_EMULATOR_TEST: '1'
+          GEAPA_RH_EMULATOR_TEST: '1'
+          GEAPA_THEME_EMULATOR_TEST: '1'
+        run: npx --no-install firebase emulators:exec --only firestore --project demo-geapa-functions-local --config firebase.emulator.json "bash ../../tests/run-firestore-suites.sh"
+      - name: Run the package regression suite
+        if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
+        run: npm test
       - run: npm run release -- --prod

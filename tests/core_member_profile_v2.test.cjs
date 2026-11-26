@@ -1,52 +1,9 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-
-const root = path.join(__dirname, '..');
-const context = {
-  Object, Array, String, Number, Boolean, Error, Date, JSON, Math, RegExp,
-  isNaN, console,
-  core_parseEntrySemesterFromRga_: undefined,
-  core_openDomainSpreadsheet_: () => { throw new Error('PLANILHA_REAL_PROIBIDA'); },
-  core_withLock_: () => { throw new Error('ESCRITA_PROIBIDA_EM_TESTE'); }
-};
-vm.createContext(context);
-[
-  '39a_core_locality_catalog_data.js',
-  '28_core_domains_v2_setup.js',
-  '28a_core_domains_v2_resolver.js',
-  '39_core_member_profile_v2.js'
-].forEach((file) => vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file }));
-
-function sheet(name, headers, records = []) {
-  const rows = [headers, ...records.map((record) => headers.map((header) => record[header] ?? ''))];
-  return {
-    getName: () => name,
-    getLastColumn: () => headers.length,
-    getLastRow: () => rows.length,
-    getRange: (row, column, rowCount, columnCount) => ({
-      getValues: () => rows.slice(row - 1, row - 1 + rowCount)
-        .map((values) => values.slice(column - 1, column - 1 + columnCount))
-    })
-  };
-}
-
-function workbook(overrides = {}) {
-  const defaults = {
-    PESSOAS_BASE: sheet('PESSOAS_BASE', ['ID_PESSOA']),
-    MEMBROS_DETALHES: sheet('MEMBROS_DETALHES', ['ID_PESSOA']),
-    CURSOS_CATALOGO: sheet('CURSOS_CATALOGO', ['CURSO_ID']),
-    INGRESSOS_MEMBROS: null,
-    CONVITES_AVALIACAO_EGRESSOS: null,
-    RESPOSTAS_AVALIACAO_EGRESSOS: null
-  };
-  const sheets = Object.assign(defaults, overrides);
-  return { getId: () => 'fake-dev-spreadsheet', getSheetByName: (name) => sheets[name] || null };
-}
-
-const tests = [];
-const test = (name, fn) => tests.push({ name, fn });
+const {test} = require('node:test');
+const {isolatedDomain, enableCompatibility} = require('./canonical-domain.cjs');
+const domain = isolatedDomain();
+const {context} = domain;
+enableCompatibility(domain);
 
 test('catalogo oficial versionado contem paises, 27 UFs e municipios IBGE', () => {
   assert.equal(context.CORE_LOCALIDADES_CATALOGO_META.fonte, 'IBGE API de Localidades');
@@ -124,33 +81,11 @@ test('completude usa regra deterministica sem inventar percentual', () => {
   assert.equal('percentual' in result, false);
 });
 
-test('setup padrao e dry-run, nao abre planilha real nem escreve', () => {
-  const result = context.core_setupMemberEvolutionV2_({ spreadsheet: workbook(), spreadsheetId: 'fake-dev-spreadsheet' });
-  assert.equal(result.dryRun, true);
-  assert.equal(result.escritaExecutada, false);
-  assert.equal(result.idempotente, true);
-  assert.equal(result.tokenConfirmacao, 'PREPARAR_EVOLUCAO_MEMBROS_V2_DEV');
-});
-
-test('segundo dry-run nao recomenda cabecalhos ou cursos ja existentes', () => {
-  const courseHeaders = Array.from(context.CORE_MEMBER_EVOLUTION_SCHEMAS.CURSOS_CATALOGO);
-  const result = context.core_setupMemberEvolutionV2_({ spreadsheet: workbook({
-    PESSOAS_BASE: sheet('PESSOAS_BASE', Array.from(context.CORE_MEMBER_EVOLUTION_SCHEMAS.PESSOAS_BASE)),
-    MEMBROS_DETALHES: sheet('MEMBROS_DETALHES', Array.from(context.CORE_MEMBER_EVOLUTION_SCHEMAS.MEMBROS_DETALHES)),
-    CURSOS_CATALOGO: sheet('CURSOS_CATALOGO', courseHeaders, [
-      { CURSO_ID: 'AGRONOMIA_UFMT_SINOP' }, { CURSO_ID: 'OUTRO' }
-    ]),
-    INGRESSOS_MEMBROS: sheet('INGRESSOS_MEMBROS', Array.from(context.CORE_MEMBER_EVOLUTION_SCHEMAS.INGRESSOS_MEMBROS)),
-    CONVITES_AVALIACAO_EGRESSOS: sheet('CONVITES_AVALIACAO_EGRESSOS', Array.from(context.CORE_MEMBER_EVOLUTION_SCHEMAS.CONVITES_AVALIACAO_EGRESSOS)),
-    RESPOSTAS_AVALIACAO_EGRESSOS: sheet('RESPOSTAS_AVALIACAO_EGRESSOS', Array.from(context.CORE_MEMBER_EVOLUTION_SCHEMAS.RESPOSTAS_AVALIACAO_EGRESSOS))
-  }) });
-  result.abas.forEach((plan) => assert.equal(plan.cabecalhosAusentes.length, 0));
-  assert.equal(result.abas.find((plan) => plan.aba === 'CURSOS_CATALOGO').linhasRecomendadas.length, 0);
-});
-
-test('setup recusa PROD inclusive em dry-run', () => {
-  assert.throws(() => context.core_setupMemberEvolutionV2_({ ambiente: 'PROD', spreadsheet: workbook() }),
-    (error) => error.code === 'SETUP_EVOLUCAO_MEMBROS_PROD_PROIBIDO');
+test('setup legado de membros permanece fechado em DEV e PROD', () => {
+  const current = isolatedDomain().context;
+  for (const ambiente of ['DEV', 'PROD']) {
+    assert.throws(() => current.core_setupMemberEvolutionV2_({ambiente}), {code:'MEMBERS_LEGACY_FENCED'});
+  }
 });
 
 test('mapa de dominio inclui as quatro fontes novas e schemas aditivos', () => {
@@ -159,10 +94,3 @@ test('mapa de dominio inclui as quatro fontes novas e schemas aditivos', () => {
   const names = context.CORE_DOMAINS_V2_SCHEMAS.PESSOAS.map((item) => item.sheetName);
   assert.ok(names.includes('RESPOSTAS_AVALIACAO_EGRESSOS'));
 });
-
-let failures = 0;
-for (const item of tests) {
-  try { item.fn(); process.stdout.write(`ok - ${item.name}\n`); }
-  catch (error) { failures += 1; process.stderr.write(`not ok - ${item.name}\n${error.stack}\n`); }
-}
-if (failures) process.exitCode = 1;
