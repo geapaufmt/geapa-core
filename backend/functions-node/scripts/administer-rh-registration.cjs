@@ -47,7 +47,7 @@ function plan({docs,uid,projectId,sourcePolicyId,authorizationRef,policyId='RH_P
 function planDevDraft({docs,uid,personId,registration,expectedGrantRevision,close=false,now=Date.now()}){
  a.equal(profile.environment,'DEV','DEV_ONLY');
  const observed=new Map(),get=path=>{const value=docs[path]??null;observed.set(path,{path,exists:value!==null,digest:digest(value)});return value;};
- const domain=createDomain(raw=>{const q=JSON.parse(raw);a.equal(q.kind,'get');return JSON.stringify(encode(get(q.path)));}),gp='coreDevAdministrativeGrants/'+uid,g=get(gp);
+ const domain=createDomain(raw=>{const q=JSON.parse(raw);if(q.kind==='guard')return 'null';a.equal(q.kind,'get');return JSON.stringify(encode(get(q.path)));}),gp='coreDevAdministrativeGrants/'+uid,g=get(gp);
  a.equal(g?.revision,expectedGrantRevision,'GRANT_CHANGED');a.equal(g.uid,uid);a.equal(g.projectId,profile.projectId);a.equal(g.environment,'DEV');a.equal(g.exportable,false);
  a(g.syntheticPersonIds.includes(personId));
  if(close){a.equal(g.preregistrationWindow?.personId,personId,'WINDOW_CHANGED');}

@@ -241,3 +241,25 @@ test('draft without any approval reserves one identity, recovers, invites and wa
  assert.equal(docs['memberCurrentStates/'+person].state,'MEMBRO_INGRESSANTE');
  assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='m1-memberLinks-v1'&&v.idPessoa===person).length,1);
 });
+
+test('DEV technical draft window permits only its exact synthetic fixture and never grants invitation or membership',async t=>{
+ const {docs,set,call}=await fixture('MEMBRO_INGRESSANTE',t),{draftFixture,planDevDraft}=require('../scripts/administer-rh-registration.cjs'),now=Date.now(),f=draftFixture('CF_ADMIN',now);
+ for(const [p,v]of Object.entries(f.docs))await set(p,v);
+ const actor=docs['memberAuthBindings/CF_ADMIN'],subject=docs['memberAuthzSubjects/'+actor.idPessoa],gp='coreDevAdministrativeGrants/CF_ADMIN';
+ await set(gp,{schemaVersion:'core-dev-administrative-grant-v1',id:'CF_ADMIN',uid:'CF_ADMIN',personId:actor.idPessoa,bindingVersion:actor.bindingVersion,subjectEpoch:subject.authzEpoch,projectId:PROJECT,environment:'DEV',exportable:false,active:true,revision:1,issuedAt:new Date(now-1000),expiresAt:new Date(now+3600000),approvalRef:'SYN_DRAFT_REHEARSAL',capabilities:['MEMBERS_INGRESS_EXECUTE'],fieldMasks:{MEMBERS_INGRESS_EXECUTE:['preRegister']},syntheticPersonIds:[f.personId],sections:[]});
+ const head=docs['memberAggregateHeads/'+actor.idPessoa];await set('memberAggregateHeads/'+actor.idPessoa,{...head,paths:head.paths.filter(p=>!p.startsWith('memberFunctions/'))});
+ const scope=docs['memberExecutorScopes/SYN_ADMISSION'];await set('memberExecutorScopes/SYN_ADMISSION',{...scope,personIds:[f.personId],approvalRefs:[],preregistrationDrafts:true});
+ const plan=planDevDraft({docs,uid:'CF_ADMIN',personId:f.personId,registration:f.registration,expectedGrantRevision:1,now});for(const [p,v]of Object.entries(plan.writes))await set(p,v);
+ const payload={nomeCompleto:f.registration.fullName,emailPrincipal:f.registration.email,rga:f.registration.rga,telefone:f.registration.phone},route='/admin/ingressos-membros/cadastrar';
+ const prepare=value=>call('CF_ADMIN','memberPrepare',{operationId:op(),route,payload:value});
+ await assert.rejects(prepare({...payload,telefone:'+5566988880000'}),/AUTHORIZATION_DENIED/);
+ await assert.rejects(prepare({...payload,dadosComplementares:{courseId:'AGRONOMIA_UFMT_SINOP'}}),/AUTHORIZATION_DENIED/);
+ const ready=await prepare(payload),id=ready.request.operationId;
+ assert.equal((await call('CF_ADMIN','memberExecute',ready.request)).dto.receipt.state,'COMPLETED');
+ const repeat=await prepare(payload);assert.equal(repeat.recoveredExisting,true);assert.equal(repeat.dto.operationId,id);
+ const e=docs['memberEnrollments/'+id];assert.equal(e.approval,null);assert.equal(e.personId,f.personId);assert(!docs['memberLinks/V_'+id]);
+ await assert.rejects(call('CF_ADMIN','memberPrepare',{operationId:op(),route:'/admin/ingressos-membros/convite',payload:{enrollmentId:id,revision:e.revision,action:'SEND',reason:'Negativa de janela sem convite'}}),/AUTHORIZATION_DENIED/);
+ const closed=planDevDraft({docs,uid:'CF_ADMIN',personId:f.personId,registration:f.registration,expectedGrantRevision:2,close:true,now});for(const [p,v]of Object.entries(closed.writes))await set(p,v);
+ await assert.rejects(prepare(payload),/ADMISSION_APPROVAL_REQUIRED|AUTHORIZATION_DENIED/);
+ assert.equal(docs[gp].preregistrationWindow,undefined);assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='m1-memberLinks-v1'&&v.idPessoa===f.personId).length,0);
+});
