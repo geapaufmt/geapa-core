@@ -72,5 +72,19 @@ function draftFixture(uid,now=Date.now()){
  docs['memberAuthzSubjects/'+personId]={schemaVersion:'member-authz-subject-v13',idPessoa:personId,revision:1,authzEpoch:1,active:true,approvalRef:origin,updatedAt:new Date(now)};
  return {personId,registration,docs};
 }
+function planDevAdmissionTest({docs,uid,enrollmentId,expectedGrantRevision,close=false,now=Date.now()}){
+ a.equal(profile.environment,'DEV','DEV_ONLY');
+ const observed=new Map(),get=path=>{const value=docs[path]??null;observed.set(path,{path,exists:value!==null,digest:digest(value)});return value;};
+ const gp='coreDevAdministrativeGrants/'+uid,g=get(gp),e=get('memberEnrollments/'+enrollmentId);
+ a.equal(g?.revision,expectedGrantRevision,'GRANT_CHANGED');a.equal(g.uid,uid);a.equal(g.projectId,profile.projectId);a.equal(g.environment,'DEV');a.equal(g.exportable,false);
+ a(e?.createdBy===uid&&e.draft===true&&g.syntheticPersonIds.includes(e.personId),'OUTSIDE_SYNTHETIC_GRANT');
+ const {admissionTestWindow:old,...base}=g,end=Math.min(now+3600000,ms(g.expiresAt));
+ if(close)a.equal(old?.enrollmentId,enrollmentId,'WINDOW_CHANGED');
+ else {a(!old,'WINDOW_ALREADY_EXISTS');a(e.approval===null&&['PRE_REGISTERED','INVITED','ACCEPTED'].includes(e.status));a(end>now);}
+ const approvedOn=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Cuiaba',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now));
+ const next={...base,revision:g.revision+1,...(close?{}:{admissionTestWindow:{enrollmentId,personId:e.personId,registration:e.registration,membershipType:'MEMBRO_INGRESSANTE',approvedOn,reason:'TESTE_DEV: confirmação sintética explícita de admissão',issuedAt:new Date(now),expiresAt:new Date(end)}})};
+ if(!close){const domain=createDomain(raw=>{const q=JSON.parse(raw);if(q.kind==='guard')return 'null';a.equal(q.kind,'get');return JSON.stringify(encode(q.path===gp?next:get(q.path)));});domain.run('(v)=>{const D=f4DevAdministrativeAccess_(),a=D.source(nodeRead,{uid:v.uid,expiresAt:v.now+60000},v.now,"MEMBERS_INGRESS_EXECUTE"),e=f4MemberEnrollmentContract_().validate(nodeRead("memberEnrollments/"+v.enrollmentId));f4Core_().need(a&&D.decisionAllowed(nodeRead,a,e,v.now),"AUTHORIZATION_DENIED");return true;}',{uid,enrollmentId,now});}
+ return {projectId:profile.projectId,environment:'DEV',action:close?'CLOSE':'OPEN',preconditions:[...observed.values()],writes:{[gp]:next},expiresAt:close?now:end,individualApprovalsCreated:false};
+}
 if(require.main===module)throw Error('PURE_PLAN_ONLY_USE_AUTHORIZED_TRANSACTION_WRAPPER');
-module.exports={plan,planDevDraft,draftFixture,digest};
+module.exports={plan,planDevDraft,planDevAdmissionTest,draftFixture,digest};

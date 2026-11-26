@@ -21,7 +21,8 @@ function f4MemberInvitation_(){
  }
  function decision(get,old,r,now){
   const p=r.payload,actor=f4MemberAuthz_().identify(get,r.ownerUid,now);
-  N(rh(actor)&&actor.binding.idPessoa!==old.personId,'ACCESS_REVOKED');
+  const D=f4DevAdministrativeAccess_(),technical=!rh(actor)&&D.source(get,{uid:r.ownerUid,expiresAt:now+60000},now,'MEMBERS_INGRESS_EXECUTE');
+  N((rh(actor)||technical&&D.decisionAllowed(get,technical,old,now,p))&&actor.binding.idPessoa!==old.personId,'ACCESS_REVOKED');
   N(old.draft===true&&old.approval===null&&['PRE_REGISTERED','INVITED','ACCEPTED'].includes(old.status),'DOMAIN_STATE_INVALID');
   N(p.confirmed===true&&typeof p.reason==='string'&&p.reason.trim().length>=10,'COMMAND_PAYLOAD_INVALID');
   N(['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(p.membershipType),'ADMISSION_CATEGORY_INVALID');

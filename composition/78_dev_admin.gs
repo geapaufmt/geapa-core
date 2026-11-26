@@ -55,7 +55,8 @@ function f4DevAdministrativeAccess_(){
   // Check the server destination BEFORE reading any copied DEV grant in PROD.
   if(f4ExecutionEnvironment_().production||!f4DevBoundary_().permit({environment:'DEV',projectId:'geapa-convergencia-dev',database:'(default)'}))return null;
   const g=get(path(identity.uid));if(!g)return null;
-  C.exact(g,['schemaVersion','id','uid','personId','bindingVersion','subjectEpoch','projectId','environment','exportable','active','revision','issuedAt','expiresAt','approvalRef','capabilities','fieldMasks','syntheticPersonIds','sections',...(Object.hasOwn(g,'admissionApprovalIds')?['admissionApprovalIds']:[]),...(Object.hasOwn(g,'invitationWindow')?['invitationWindow']:[]),...(Object.hasOwn(g,'effectivationWindow')?['effectivationWindow']:[]),...(Object.hasOwn(g,'preregistrationWindow')?['preregistrationWindow']:[])]);
+  C.exact(g,['schemaVersion','id','uid','personId','bindingVersion','subjectEpoch','projectId','environment','exportable','active','revision','issuedAt','expiresAt','approvalRef','capabilities','fieldMasks','syntheticPersonIds','sections',...(Object.hasOwn(g,'admissionApprovalIds')?['admissionApprovalIds']:[]),...(Object.hasOwn(g,'invitationWindow')?['invitationWindow']:[]),...(Object.hasOwn(g,'effectivationWindow')?['effectivationWindow']:[]),...(Object.hasOwn(g,'preregistrationWindow')?['preregistrationWindow']:[]),...(Object.hasOwn(g,'admissionTestWindow')?['admissionTestWindow']:[])]);
+  if(g.admissionTestWindow){const w=g.admissionTestWindow;C.exact(w,['enrollmentId','personId','registration','membershipType','approvedOn','reason','issuedAt','expiresAt']);const r=f4MemberEnrollmentContract_().quick(w.registration);N(C.op(w.enrollmentId)&&C.id(w.personId)&&r.email.endsWith('@example.invalid')&&/^999/.test(r.rga)&&C.hash(r)===C.hash(w.registration)&&w.membershipType==='MEMBRO_INGRESSANTE'&&/^TESTE_DEV: .{10,200}$/.test(w.reason)&&C.ms(w.issuedAt)<C.ms(w.expiresAt)&&C.ms(w.expiresAt)-C.ms(w.issuedAt)<=3600000&&C.ms(w.expiresAt)<=C.ms(g.expiresAt),'AUTHORIZATION_DENIED');C.civilStart(w.approvedOn);}
   if(g.preregistrationWindow){const w=g.preregistrationWindow;C.exact(w,['personId','registration','issuedAt','expiresAt']);const r=f4MemberEnrollmentContract_().quick(w.registration);N(C.id(w.personId)&&r.email.endsWith('@example.invalid')&&/^999/.test(r.rga)&&C.hash(r)===C.hash(w.registration)&&C.ms(w.issuedAt)<C.ms(w.expiresAt)&&C.ms(w.expiresAt)-C.ms(w.issuedAt)<=2*3600000&&C.ms(w.expiresAt)<=C.ms(g.expiresAt),'AUTHORIZATION_DENIED');}
   if(g.invitationWindow){const w=g.invitationWindow;C.exact(w,['enrollmentId','issuedAt','expiresAt']);N(C.op(w.enrollmentId)&&C.ms(w.issuedAt)<C.ms(w.expiresAt)&&C.ms(w.expiresAt)-C.ms(w.issuedAt)<=2*3600000&&C.ms(w.expiresAt)<=C.ms(g.expiresAt),'AUTHORIZATION_DENIED');}
   if(g.effectivationWindow){const w=g.effectivationWindow;C.exact(w,['enrollmentId','personId','recognizedOn','reference','issuedAt','expiresAt']);N(C.op(w.enrollmentId)&&C.id(w.personId)&&/^\d{4}-\d{2}-\d{2}$/.test(w.recognizedOn)&&/^TESTE_[A-Z0-9_]{1,120}$/.test(w.reference)&&C.ms(w.issuedAt)<C.ms(w.expiresAt)&&C.ms(w.expiresAt)-C.ms(w.issuedAt)<=2*3600000&&C.ms(w.expiresAt)<=C.ms(g.expiresAt),'AUTHORIZATION_DENIED');}
@@ -90,7 +91,7 @@ function f4DevAdministrativeAccess_(){
   }
   if(cap==='MEMBERS_INGRESS_EXECUTE'&&r?.commandType==='members.ingress.execute'&&r.payload.operation==='MANAGE_INVITATION'){
    const a=source(get,identity,now,cap),e=f4MemberEnrollmentContract_().validate(get('memberEnrollments/'+r.payload.enrollmentId));
-   N(a&&r.payload.action==='SEND'&&invitationAllowed(get,a,e,now)&&e.personId===target.personId&&r.decisionRef===e.approval.reference,'AUTHORIZATION_DENIED');
+   N(a&&e.personId===target.personId&&(r.payload.action==='SEND'&&invitationAllowed(get,a,e,now)&&r.decisionRef===(e.approval?.reference||null)||r.payload.action==='CONFIRM_ADMISSION'&&decisionAllowed(get,a,e,now,r.payload)&&r.decisionRef==='DEC_'+r.operationId),'AUTHORIZATION_DENIED');
    N(target.purpose==='ADMINISTRATIVE_INGRESS'&&target.effect==='INVITATION'&&target.fieldMask.length===0,'AUTHORIZATION_DENIED');
    f4MemberOperationalScope_(get,{kind:'DEV_TECHNICAL',capability:cap,target},{ownPerson:false,allowedPersons:[e.personId],allowedTargetScopes:['ADMINISTRACAO'],allowedBoards:[],allowedRoles:[],allowedResources:[],commandScopes:['ADMINISTRATIVE_INGRESS']},a.actor.binding.idPessoa,r,now);return a;
   }
@@ -149,9 +150,19 @@ function f4DevAdministrativeAccess_(){
   return {operationId:r.operationId,receipt:{state:result.state,code:result.code}};
  }
  function invitationAllowed(get,a,e,now){
+  if(cycleAllowed(get,a,e,now))return true;
   const w=a?.source.invitationWindow;if(!w||w.enrollmentId!==e.id||now<C.ms(w.issuedAt)||now>=C.ms(w.expiresAt)||!a.source.syntheticPersonIds.includes(e.personId)||e.createdBy!==a.source.uid||!a.source.admissionApprovalIds?.includes(e.approvalId))return false;
   const approval=f4MemberPreRegistration_().approval(get,e.approvalId,e.registration,now),person=get('memberIdentities/'+e.personId),notifications=get('memberOperationalConfig/notifications');
   return approval.synthetic===true&&approval.devTechnicalOwnerUid===a.source.uid&&approval.devPersonId===e.personId&&person?.origin==='DEV_ADMIN_SYNTHETIC_V1'&&C.hash(approval.devRegistration)===C.hash(e.registration)&&notifications?.enabled===true&&notifications.mode==='DRY_RUN'&&notifications.projectId==='geapa-convergencia-dev'&&notifications.environment==='DEV';
  }
- return {draftAllowed,source,institutional,correction,command,governanceInput,terminalRegistration,registrationStatus,invitationAllowed,path,fields};
+ function cycleAllowed(get,a,e,now){
+  const w=a?.source.admissionTestWindow;if(!w||e.id!==w.enrollmentId||e.personId!==w.personId||e.createdBy!==a.source.uid||e.draft!==true||!a.source.syntheticPersonIds.includes(w.personId)||now<C.ms(w.issuedAt)||now>=C.ms(w.expiresAt)||C.hash(w.registration)!==C.hash(e.registration))return false;
+  const p=get('memberIdentities/'+e.personId),index=get('memberEnrollmentIndexes/'+e.personId),n=get('memberOperationalConfig/notifications');
+  return p?.origin==='DEV_ADMIN_SYNTHETIC_V1'&&p.active===true&&p.technicalAccount===false&&index?.activeEnrollmentId===e.id&&n?.enabled===true&&n.mode==='DRY_RUN'&&n.projectId==='geapa-convergencia-dev'&&n.environment==='DEV';
+ }
+ function decisionAllowed(get,a,e,now,p){
+  if(!cycleAllowed(get,a,e,now)||e.approval!==null||!['PRE_REGISTERED','INVITED','ACCEPTED'].includes(e.status))return false;
+  const w=a.source.admissionTestWindow;return !p||p.confirmed===true&&p.membershipType===w.membershipType&&p.approvedOn===w.approvedOn&&p.reason===w.reason;
+ }
+ return {draftAllowed,source,institutional,correction,command,governanceInput,terminalRegistration,registrationStatus,invitationAllowed,cycleAllowed,decisionAllowed,path,fields};
 }
