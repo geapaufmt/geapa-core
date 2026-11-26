@@ -339,10 +339,14 @@ test('DEV technical draft window permits only its exact synthetic fixture and ne
  await assert.rejects(confirm(),/ACCESS_REVOKED|AUTHORIZATION_DENIED/);await set(identityPath,identity);
  const decision=await confirm();assert.equal((await call('CF_ADMIN','memberExecute',decision.request)).dto.receipt.state,'COMPLETED');
  assert.equal(docs['memberEnrollments/'+id].status,'PRE_REGISTERED');assert(!docs['memberLinks/V_'+id]);
+ const reader=createDomain(raw=>{const q=JSON.parse(raw);if(q.kind==='get')return JSON.stringify(docs[q.path]?require('../src/firestore.cjs').encode(docs[q.path]):null);if(['guard','inspect','getAll'].includes(q.kind))return 'null';throw Error('UNEXPECTED_READER_IO_'+q.kind);});
+ const read=()=>JSON.parse(reader.run('(now)=>f4MemberOperationalReader_({config:nodeConfig,identity:{uid:"CF_ADMIN",expiresAt:now+60000},clock:()=>now}).read({route:"/admin/ingressos-membros",params:{}})',now));
+ assert.equal(read().data.items[0].enrollmentId,id);assert.equal(read().data.items[0].canSend,true);assert.equal(read().data.items[0].canConfirmAdmission,false);
  const sent=await call('CF_ADMIN','memberPrepare',{operationId:op(),route:'/admin/ingressos-membros/convite',payload:{enrollmentId:id,revision:docs['memberEnrollments/'+id].revision,action:'SEND',reason:'Convite sintético autorizado'}});
  assert.equal((await call('CF_ADMIN','memberExecute',sent.request)).dto.receipt.state,'COMPLETED');
  const closeAdmission=planDevAdmissionTest({docs,uid:'CF_ADMIN',enrollmentId:id,expectedGrantRevision:3,close:true,now});for(const [p,v]of Object.entries(closeAdmission.writes))await set(p,v);
  assert.equal(docs[gp].admissionTestWindow,undefined);
+ assert.equal(read().data.items.length,0);
  const closed=planDevDraft({docs,uid:'CF_ADMIN',personId:f.personId,registration:f.registration,expectedGrantRevision:4,close:true,now});for(const [p,v]of Object.entries(closed.writes))await set(p,v);
  await assert.rejects(prepare(payload),/ADMISSION_APPROVAL_REQUIRED|AUTHORIZATION_DENIED/);
  assert.equal(docs[gp].preregistrationWindow,undefined);assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='m1-memberLinks-v1'&&v.idPessoa===f.personId).length,0);
