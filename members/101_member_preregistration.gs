@@ -12,6 +12,7 @@ function f4MemberPreRegistration_(){
  function approval(get,ref,registration,now){
   const d=get('memberAdmissionApprovals/'+ref);N(d,'ADMISSION_APPROVAL_REQUIRED');N(d?.schemaVersion==='member-admission-approval-v1'&&d.id===ref&&C.rev(d.revision)&&d.revision>0,'SCHEMA_INVALID');N(d.active===true,'ADMISSION_APPROVAL_INACTIVE');
   N(d.registrationDigest===C.hash({email:registration.email,rga:registration.rga})&&C.id(d.reference)&&C.id(d.approvedBy),'ADMISSION_APPROVAL_REQUIRED');
+  if(d.enrollmentId){const e=get('memberEnrollments/'+d.enrollmentId);N(e?.personId===d.personId&&e.approvalId===d.id&&e.approval?.reference===d.reference&&get('memberEnrollmentIndexes/'+d.personId)?.activeEnrollmentId===e.id&&['PRE_REGISTERED','INVITED','ACCEPTED'].includes(e.status),'ADMISSION_APPROVAL_INACTIVE');}
   N(['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(d.membershipType),'ADMISSION_CATEGORY_INVALID');C.civilStart(d.approvedOn);N(C.civilStart(d.approvedOn)<=now,'COMMAND_PAYLOAD_INVALID');
   if(Object.hasOwn(d,'recognizedEffects')){
    const effects=d.recognizedEffects;

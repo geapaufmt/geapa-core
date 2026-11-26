@@ -70,12 +70,13 @@ function f4MemberPortalPrepare_({config,identity,clock=Date.now}){
     facts={schemaVersion:'member-preregistration-v1',personId,approvalRef,approvalRevision:approval?.revision||0,policyRevision:policy.revision};
     paths=['memberEnrollments/'+op,'memberEnrollmentIndexes/'+personId,...identifiers.map(v=>'memberIdentifiers/'+v.id)];if(!resolution.personId)paths.push('memberIdentities/'+personId);resources=paths.slice();
    }else if(input.route==='/admin/ingressos-membros/convite'){
-    C.exact(p,['enrollmentId','revision','action','reason',...(p.action==='AMEND'?['field','value']:[])]);N(C.op(p.enrollmentId)&&C.rev(p.revision),'COMMAND_PAYLOAD_INVALID');
+    C.exact(p,['enrollmentId','revision','action','reason',...(p.action==='AMEND'?['field','value']:p.action==='CONFIRM_ADMISSION'?f4MemberInvitation_().admissionFields:[])]);N(C.op(p.enrollmentId)&&C.rev(p.revision),'COMMAND_PAYLOAD_INVALID');
     const old=f4MemberEnrollmentContract_().validate(get('memberEnrollments/'+p.enrollmentId)),policy=get('memberOperationalConfig/registration');N(old.revision===p.revision,'REVISION_CONFLICT');
-    r.commandType='members.ingress.execute';r.target={personId:old.personId,linkId:null};r.payload={operation:'MANAGE_INVITATION',enrollmentId:old.id,action:p.action,reason:p.reason,...(p.action==='AMEND'?{field:p.field,value:p.value}:{})};r.decisionRef=old.approval?.reference||null;cap='MEMBERS_INGRESS_EXECUTE';
+    r.commandType='members.ingress.execute';r.target={personId:old.personId,linkId:null};r.payload={operation:'MANAGE_INVITATION',enrollmentId:old.id,action:p.action,reason:p.reason,...(p.action==='AMEND'?{field:p.field,value:p.value}:p.action==='CONFIRM_ADMISSION'?{membershipType:p.membershipType,approvedOn:p.approvedOn,confirmed:p.confirmed}:{})};r.decisionRef=p.action==='CONFIRM_ADMISSION'?'DEC_'+op:old.approval?.reference||null;cap='MEMBERS_INGRESS_EXECUTE';
     facts={schemaVersion:'member-invitation-action-v1',personId:old.personId,enrollmentId:old.id,enrollmentRevision:old.revision,policyRevision:policy?.revision};
     const amended=p.action==='AMEND'?f4MemberInvitation_().amendment(get,old,p,now):null;
-    paths=['memberEnrollments/'+old.id,...(amended?.path?[amended.path]:[]),...(p.action==='CANCEL'?['memberEnrollmentIndexes/'+old.personId]:[])];resources=paths.slice();
+    const decisions=p.action==='CONFIRM_ADMISSION'?f4MemberInvitation_().decision(get,old,r,now):[];
+    paths=['memberEnrollments/'+old.id,...decisions.map(c=>c.path),...(amended?.revokedApproval?['memberAdmissionApprovals/'+amended.revokedApproval.id]:[]),...(amended?.path?[amended.path]:[]),...(p.action==='CANCEL'?['memberEnrollmentIndexes/'+old.personId]:[])];resources=paths.slice();
    }else if(input.route==='/admin/membros/efetivar'){
     C.exact(p,['personId','recognizedOn','reference']);
     N(C.id(p.personId)&&p.personId!==binding.idPessoa,'ACCESS_REVOKED');
