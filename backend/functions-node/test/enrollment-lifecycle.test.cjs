@@ -267,6 +267,49 @@ test('draft without any approval reserves one identity, recovers, invites and wa
  assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='m1-memberLinks-v1'&&v.idPessoa===person).length,1);
 });
 
+for(const terminal of ['CANCELLED','DECLINED'])test('terminal '+terminal+' admission preserves history and permits a separately confirmed new enrollment',async t=>{
+ const {docs,call,rh,submit,registration,set}=await fixture('MEMBRO_INGRESSANTE',t);
+ for(const path of Object.keys(docs).filter(p=>/^memberAdmissionApproval(s|Indexes)\//.test(p)))await set(path,null);
+ await set('memberExecutorScopes/SYN_ADMISSION',{...docs['memberExecutorScopes/SYN_ADMISSION'],personIds:[],approvalRefs:[],preregistrationDrafts:true});
+ const {categoriaIngresso,referenciaAprovacao,...basic}=registration,route='/admin/ingressos-membros/cadastrar';
+ const approvedOn=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Cuiaba',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const decision={membershipType:'MEMBRO_INGRESSANTE',approvedOn,confirmed:true};
+ const first=await rh(route,basic),oldId=first.request.operationId,person=first.request.target.personId;
+ let id=oldId;
+ const enrollment=()=>docs['memberEnrollments/'+id];
+ const manage=(action,extra={})=>rh('/admin/ingressos-membros/convite',{enrollmentId:id,revision:enrollment().revision,action,reason:'Decisão sintética explícita para novo ingresso',...extra});
+ const candidate=(action,payload={})=>submit('SYN_INVITEE','memberEnrollmentPrepare',{revision:enrollment().revision,action,payload});
+ await manage('CONFIRM_ADMISSION',decision);await manage('SEND');
+ if(terminal==='CANCELLED')await manage('CANCEL');
+ else {await call('SYN_INVITEE','memberEnrollmentOpen',{});await candidate('DECLINE');}
+ const previous=structuredClone(enrollment()),approvalPath='memberAdmissionApprovals/'+previous.approvalId,oldApproval=structuredClone(docs[approvalPath]);
+ assert.equal(previous.status,terminal);assert.equal(oldApproval.active,true);
+ const second=await rh(route,basic);id=second.request.operationId;
+ assert.equal(second.request.target.personId,person);assert.equal(enrollment().approval,null);
+ // A stale approval index must never authorize replacing a still-open enrollment.
+ await set('memberEnrollments/'+oldId,{...previous,status:terminal==='CANCELLED'?'INVITED':'ACCEPTED'});
+ await assert.rejects(manage('CONFIRM_ADMISSION',decision),/OPERATION_CONFLICT/);
+ assert.deepEqual(docs[approvalPath],oldApproval);assert.equal(enrollment().approval,null);
+ await set('memberEnrollments/'+oldId,previous);
+ const ready=await call('CF_ADMIN','memberPrepare',{operationId:op(),route:'/admin/ingressos-membros/convite',payload:{enrollmentId:id,revision:enrollment().revision,action:'CONFIRM_ADMISSION',reason:'Confirmação sintética posterior ao encerramento',...decision}});
+ await assert.rejects(call('CF_ADMIN','memberExecute',ready.request,{hooks:{afterCommit(){throw Error('LOST_RESPONSE');}}}),/LOST_RESPONSE/);
+ assert.equal((await call('CF_ADMIN','memberRecover',ready.key)).dto.receipt.state,'COMPLETED');
+ assert.deepEqual(docs[approvalPath],{...oldApproval,revision:oldApproval.revision+1,active:false});
+ assert.deepEqual(docs['memberEnrollments/'+oldId],previous);
+ const index=Object.values(docs).find(v=>v?.schemaVersion==='member-admission-approval-index-v1'&&v.personId===person);
+ assert.equal(index.enrollmentId,id);assert.deepEqual(index.approvalIds,[enrollment().approvalId]);
+ assert.equal(docs['memberAdmissionApprovals/'+enrollment().approvalId].active,true);
+ await manage('SEND');await call('SYN_INVITEE','memberEnrollmentOpen',{});await candidate('ACCEPT');
+ await candidate('SAVE',{profile:{cpf:'52998224725',birthDate:'2001-05-01',countryCode:'BR',stateCode:'MT',city:'Sinop',courseId:'AGRONOMIA_UFMT_SINOP'}});
+ const terms=(await call('SYN_INVITEE','memberEnrollmentRead',{})).result.data;
+ await candidate('ACKNOWLEDGE',{accepted:true,termVersion:terms.normTermVersion,documents:terms.norms.map(({id,version})=>({id,version}))});
+ await candidate('COMPLETE');assert.equal(enrollment().status,'COMPLETED');
+ assert.equal((await call('CF_ADMIN','memberRecover',first.key)).dto.receipt.state,'COMPLETED');
+ assert.deepEqual(docs['memberEnrollments/'+oldId],previous);
+ assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='m1-memberLinks-v1'&&v.idPessoa===person).length,1);
+ assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='member-enrollment-v1'&&v.personId===person).length,2);
+});
+
 test('DEV technical draft window permits only its exact synthetic fixture and never grants invitation or membership',{skip:PRODUCTION},async t=>{
  const {docs,set,call}=await fixture('MEMBRO_INGRESSANTE',t),{draftFixture,planDevDraft}=require('../scripts/administer-rh-registration.cjs'),now=Date.now(),f=draftFixture('CF_ADMIN',now);
  for(const [p,v]of Object.entries(f.docs))await set(p,v);

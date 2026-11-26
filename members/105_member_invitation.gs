@@ -28,9 +28,20 @@ function f4MemberInvitation_(){
   const day=t=>Utilities.formatDate(new Date(t),'America/Cuiaba','yyyy-MM-dd');C.civilStart(p.approvedOn);N(p.approvedOn>=day(old.createdAt)&&p.approvedOn<=day(now),'COMMAND_PAYLOAD_INVALID');
   const id='AA_'+r.operationId,path='memberAdmissionApprovals/'+id,indexId=f4MemberPreRegistration_().key(old.registration),indexPath='memberAdmissionApprovalIndexes/'+indexId,index=get(indexPath),legacy=get('memberAdmissionApprovals/'+indexId);
   N(!get(path)&&!legacy,'OPERATION_CONFLICT');
-  if(index){N(index.schemaVersion==='member-admission-approval-index-v1'&&index.personId===old.personId&&index.enrollmentId===old.id&&Array.isArray(index.approvalIds)&&index.approvalIds.length===1,'ADMISSION_APPROVAL_AMBIGUOUS');const prior=get('memberAdmissionApprovals/'+index.approvalIds[0]);N(prior?.active===false&&prior.personId===old.personId&&prior.enrollmentId===old.id,'ADMISSION_APPROVAL_AMBIGUOUS');}
+  const retire=[];
+  if(index){
+   N(index.schemaVersion==='member-admission-approval-index-v1'&&index.id===indexId&&index.registrationDigest===C.hash({email:old.registration.email,rga:old.registration.rga})&&C.rev(index.revision)&&index.revision>0&&index.personId===old.personId&&Array.isArray(index.approvalIds)&&index.approvalIds.length===1,'ADMISSION_APPROVAL_AMBIGUOUS');
+   const prior=get('memberAdmissionApprovals/'+index.approvalIds[0]);N(prior&&typeof prior.active==='boolean'&&prior.id===index.approvalIds[0]&&prior.personId===old.personId&&prior.enrollmentId===index.enrollmentId&&prior.registrationDigest===index.registrationDigest,'ADMISSION_APPROVAL_AMBIGUOUS');
+   if(index.enrollmentId!==old.id){
+    // Terminal enrollments retain their history. Only their exact decision is
+    // retired, atomically with the new decision/index, under its prior revision.
+    const previous=E.validate(get('memberEnrollments/'+index.enrollmentId));
+    N(previous.personId===old.personId&&['CANCELLED','DECLINED'].includes(previous.status),'OPERATION_CONFLICT');
+    if(prior.active){N(previous.approvalId===prior.id&&f4MemberCommandCatalog_().equal(previous.approval,f4MemberPreRegistration_().snapshot(prior)),'ADMISSION_APPROVAL_AMBIGUOUS');retire.push({path:'memberAdmissionApprovals/'+prior.id,expectedRevision:prior.revision,data:{...prior,revision:prior.revision+1,active:false}});}
+   }else N(prior.active===false,'ADMISSION_APPROVAL_AMBIGUOUS');
+  }
   const registrationDigest=C.hash({email:old.registration.email,rga:old.registration.rga}),approval={schemaVersion:'member-admission-approval-v1',id,personId:old.personId,enrollmentId:old.id,revision:1,active:true,registrationDigest,reference:'DEC_'+r.operationId,approvedBy:actor.binding.idPessoa,approvedOn:p.approvedOn,membershipType:p.membershipType,decisionOperationId:r.operationId,reason:p.reason};
-  return [{path,expectedRevision:0,data:approval},{path:indexPath,expectedRevision:index?.revision||0,data:{schemaVersion:'member-admission-approval-index-v1',id:indexId,personId:old.personId,enrollmentId:old.id,revision:(index?.revision||0)+1,registrationDigest,approvalIds:[id]}}];
+  return [{path,expectedRevision:0,data:approval},{path:indexPath,expectedRevision:index?.revision||0,data:{schemaVersion:'member-admission-approval-index-v1',id:indexId,personId:old.personId,enrollmentId:old.id,revision:(index?.revision||0)+1,registrationDigest,approvalIds:[id]}},...retire];
  }
  function approvalChange(c,id,prior){
   const d=c.data;N(d.personId===id&&C.op(d.enrollmentId)&&C.rev(c.expectedRevision)&&d.revision===c.expectedRevision+1&&/^[a-f0-9]{64}$/.test(d.registrationDigest),'COMMAND_PAYLOAD_INVALID');
