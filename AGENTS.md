@@ -11,3 +11,14 @@
 - Push/PR/merge não autorizam deploy. Exigir autorização de ambiente, manifesto e rollback antes de efeitos remotos.
 - Preservar worktrees e checkpoints. Não fazer force-push ou downgrade de executor com operações recuperáveis.
 - docs/history e arquivos antigos são referência de compatibilidade; suas descrições Apps Script/Sheets não definem a arquitetura operacional atual.
+- 
+## Eficiência de contexto e tratamento de legado
+
+- `geapa-core` e `geapa-portal` são os únicos repositórios operacionais do GEAPA.
+- Consultar prioritariamente os arquivos diretamente relacionados à tarefa.
+- Evitar leituras integrais dos repositórios, auditorias abrangentes e investigações repetitivas sem necessidade concreta.
+- Consultar repositórios arquivados, documentação histórica e checkpoints somente quando houver necessidade específica.
+- Não utilizar implementações legadas como autoridade operacional ou normativa.
+- Priorizar simplicidade, reutilização, eliminação de redundâncias e manutenção de uma única fonte de autoridade.
+- Carregar contexto complementar progressivamente, conforme a necessidade da tarefa.
+- Preservar os controles de segurança, integridade, autorização, testes e rastreabilidade existentes.
