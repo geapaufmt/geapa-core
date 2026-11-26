@@ -59,5 +59,18 @@ function planDevDraft({docs,uid,personId,registration,expectedGrantRevision,clos
  const next={...base,revision:g.revision+1,...(close?{}:{preregistrationWindow:{personId,registration,issuedAt:new Date(now),expiresAt:new Date(end)}})};
  return {projectId:profile.projectId,environment:'DEV',action:close?'CLOSE':'OPEN',preconditions:[...observed.values()],writes:{[gp]:next},expiresAt:close?now:end,individualApprovalsCreated:false};
 }
+function draftFixture(uid,now=Date.now()){
+ a.equal(profile.environment,'DEV','DEV_ONLY');a.match(uid,/^[A-Za-z0-9_-]{1,48}$/);a(Number.isSafeInteger(now));
+ const hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex'),suffix=hash(uid).slice(0,12),personId='DEVADM_'+suffix+'_4',origin='DEV_ADMIN_SYNTHETIC_V1';
+ const registration={fullName:'Pessoa sintética de pré-cadastro independente',email:'devadm.draft.'+suffix+'@example.invalid',rga:'9994'+BigInt('0x'+suffix).toString(),phone:'+5566999990000'};
+ const identity='memberIdentities/'+personId,docs={[identity]:{schemaVersion:'m1-memberIdentities-v1',id:personId,idPessoa:personId,revision:1,origin,displayName:registration.fullName,technicalAccount:false,active:true}},paths=[identity];
+ for(const kind of ['EMAIL','RGA']){const value=registration[kind.toLowerCase()],id=personId+'_'+kind,path='memberIdentifiers/'+id;
+  docs[path]={schemaVersion:'m1-memberIdentifiers-v1',id,idPessoa:personId,revision:1,origin,kind,value,active:true};paths.push(path);
+  docs['memberIdentifierClaims/'+hash({kind,value})]={idPessoa:personId,identifierId:id,active:true};
+ }
+ docs['memberAggregateHeads/'+personId]={schemaVersion:'m11-head-v1',id:personId,kind:'PERSON',revision:1,paths};
+ docs['memberAuthzSubjects/'+personId]={schemaVersion:'member-authz-subject-v13',idPessoa:personId,revision:1,authzEpoch:1,active:true,approvalRef:origin,updatedAt:new Date(now)};
+ return {personId,registration,docs};
+}
 if(require.main===module)throw Error('PURE_PLAN_ONLY_USE_AUTHORIZED_TRANSACTION_WRAPPER');
-module.exports={plan,planDevDraft,digest};
+module.exports={plan,planDevDraft,draftFixture,digest};
