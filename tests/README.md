@@ -20,4 +20,4 @@ O índice abaixo usa a numeração dos casos na [base 7019032](https://github.co
 | core_portal_session_environment, inspeções do Registry e da chave de cache | Compara as chaves reais e exige recusa nos dois sentidos se a configuração existir apenas no outro ambiente. |
 | core_portal_session_environment, inspeções de paginação e de RESUMO | A leitura de situação solicita exclusivamente RESUMO. A expressão textual de slice da listagem antiga foi substituída pela paginação do leitor atual em `backend/functions-node/test/people-directory.test.cjs`, que verifica limite, ordenação, páginas disjuntas e mudança de snapshot. |
 
-A CI executa a suíte raiz após gerar o domínio. As suítes transacionais usam o projeto descartável do emulador, em série. A suíte do pacote preserva seu resultado independente.
+A CI executa a suíte raiz após gerar o domínio. As suítes transacionais usam o projeto descartável do emulador, em série, com limpeza do banco padrão do emulador local entre arquivos para evitar contaminação de coleções. A suíte do pacote preserva seu resultado independente.
