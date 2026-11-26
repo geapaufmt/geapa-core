@@ -248,6 +248,13 @@ function f4AdministrativeNavigationHints_({get,identity,now,board,probe}){
   if(control?.schemaVersion!=='institutional-directory-control-v1'||control.enabled!==true)continue;
   try{const auth=f4InstitutionalPolicies_(get,identity,now,control.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/'+section);routes['institutional-'+section]=auth.mask.includes('summary');validUntil=Math.min(validUntil,auth.validUntil);}catch{}
  }
+ const edControl=get('editorialControl/current');
+ if(edControl?.schemaVersion==='editorial-control-v1'&&edControl.enabled===true&&edControl.actorUids?.includes(identity.uid)){
+  routes['admin-conteudo-publico']=false;
+  for(const resPath of ['canonicalEditorial/pages','canonicalEditorial/timeline']){
+   try{const auth=f4InstitutionalPolicies_(get,identity,now,edControl.policyIds,'PUBLIC_CONTENT_MANAGE',resPath);if(auth.mask.includes(resPath==='canonicalEditorial/timeline'?'timeline':'pages')){routes['admin-conteudo-publico']=true;validUntil=Math.min(validUntil,auth.validUntil);}}catch{}
+  }
+ }
  return {schemaVersion:'admin-navigation-hints-v1',director,validUntil,routes};
 }
 

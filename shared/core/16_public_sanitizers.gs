@@ -37,7 +37,30 @@ const SCHEMA='geapa-public-v2.1';
       subtitle: text(p.subtitle, 600), sections: sections, sourceHash: text(p.sourceHash, 100),
       sourceUpdatedAt: text(p.sourceUpdatedAt, 40), updatedAt: text(p.updatedAt, 40), revision: Number(p.revision || 0) };
   }
-return {page};
+  function civilDate(value) {
+    var s = String(value || '').trim();
+    if (!s) return '';
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) {
+      var br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
+      if (br) m = [s, br[3], br[2], br[1]];
+    }
+    if (!m) return '';
+    var iso = m[1] + '-' + m[2] + '-' + m[3], d = new Date(iso + 'T12:00:00Z');
+    return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso ? iso : '';
+  }
+  function timelineItem(value, id) {
+    var t = value || {}, year = Number(t.year), order = Number(t.order);
+    if (t.id !== id || t.published !== true || t.sanitized !== true || t.schemaVersion !== SCHEMA || !Number.isInteger(year) || year < 1900 || year > 2200 || !Number.isInteger(order)) {
+      throw new Error('PUBLIC_V2_INVALID_TIMELINE_ITEM');
+    }
+    var title = text(t.title, 240);
+    if (!title) throw new Error('PUBLIC_V2_INVALID_TIMELINE_ITEM');
+    return { id: id, schemaVersion: SCHEMA, published: true, sanitized: true, year: year, date: civilDate(t.date),
+      title: title, description: text(t.description, 8000), imageUrl: url(t.imageUrl, true), order: order,
+      sourceHash: text(t.sourceHash, 100), updatedAt: text(t.updatedAt, 40), revision: Number(t.revision || 0) };
+  }
+return {page,timelineItem,text,url,civilDate,section};
 
   })());
 }
