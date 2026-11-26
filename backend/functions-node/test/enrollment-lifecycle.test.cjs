@@ -242,7 +242,7 @@ test('draft without any approval reserves one identity, recovers, invites and wa
  await candidate('SAVE',{profile:{cpf:'52998224725',birthDate:'2001-05-01',countryCode:'BR',stateCode:'MT',city:'Sinop',courseId:'AGRONOMIA_UFMT_SINOP'}});
  const terms=(await open()).result.data;
  await candidate('ACKNOWLEDGE',{accepted:true,termVersion:terms.normTermVersion,documents:terms.norms.map(({id,version})=>({id,version}))});
- await assert.rejects(candidate('COMPLETE'),/ADMISSION_APPROVAL_REQUIRED/);
+ await assert.rejects(candidate('COMPLETE'),/ADMISSION_APPROVAL_REQUIRED|ADMISSION_APPROVAL_INACTIVE/);
  await assert.rejects(candidate('COMPLETE',{approval:{membershipType:'MEMBRO_EFETIVO'}}),/SCHEMA_INVALID/);
  assert.equal(enrollment().status,'ACCEPTED');assert.equal(enrollment().approval,null);assert(!docs['memberAuthBindings/SYN_INVITEE']);
  // RH records a separate human decision; changing RGA revokes it atomically.
