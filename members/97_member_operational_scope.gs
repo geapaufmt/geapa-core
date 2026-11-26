@@ -43,7 +43,7 @@ function f4MemberOperationalScope_(get,q,limits,actorPerson,command,now){
   N(body.facts.schemaVersion==='member-effectivation-v1'&&command.payload.operation==='RECORD_EFFECTIVATION'||body.facts.schemaVersion==='member-administrative-ingress-v1'&&command.payload.operation==='RECORD_INGRESS'||body.facts.schemaVersion==='member-preregistration-v1'&&command.payload.operation==='PRE_REGISTER'||body.facts.schemaVersion==='member-invitation-action-v1'&&command.payload.operation==='MANAGE_INVITATION');
   // authorizeCommand already compared resources with the exact prospective
   // canonical changes; no arbitrary path prefix becomes a write capability.
-  N(t.resources.every(p=>/^member(Identities|Identifiers|Links|Events|Enrollments|EnrollmentIndexes)\/[A-Za-z0-9_-]{1,48}$/.test(p)));
+  N(t.resources.every(p=>/^member(Identities|Identifiers|Links|Events|Enrollments|EnrollmentIndexes|AdmissionApprovals|AdmissionApprovalIndexes)\/[A-Za-z0-9_-]{1,48}$/.test(p)));
   return true;
  }
  if(['MEMBERS_VOLUNTARY_EXIT_EXECUTE','MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'].includes(q.capability)&&scopes.includes('VOLUNTARY_REVIEW')){

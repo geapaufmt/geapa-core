@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '..', '38_core_normative_parameters.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'legacy', 'legacy.js', '38_core_normative_parameters.js'), 'utf8');
 const cacheStore = new Map();
 const context = {
   Object, Array, String, Number, Error, JSON, isFinite,

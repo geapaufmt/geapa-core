@@ -24,7 +24,7 @@ function f4MemberEnrollmentCommands_(){
   return {configuration:c,norms};
  }
  function proposal(get,r,now){
-  validate(r);const s=A.source(get,r.ownerUid,now),old=s.enrollment,p=r.payload,id=old.personId,path='memberEnrollments/'+old.id,expected=U.revision(r,'memberAggregateHeads/'+id),revision=U.revision(r,path);
+  validate(r);const s=A.source(get,r.ownerUid,now,r.payload.action==='COMPLETE'),old=s.enrollment,p=r.payload,id=old.personId,path='memberEnrollments/'+old.id,expected=U.revision(r,'memberAggregateHeads/'+id),revision=U.revision(r,path);
   N(r.target.personId===id&&r.target.enrollmentId===old.id&&expected===s.head.revision&&revision===old.revision,'REVISION_CONFLICT');
   const verified={uid:r.ownerUid,projectId:s.session.projectId,emailVerified:true,email:old.registration.email,expiresAt:C.ms(s.session.expiresAt)},today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd');
   let next,receipt=null;
@@ -33,7 +33,7 @@ function f4MemberEnrollmentCommands_(){
    E.identity(old,verified,now,s.session.projectId);N(old.uid===r.ownerUid&&old.status==='ACCEPTED','ACCESS_REVOKED');
    if(p.action==='SAVE'){
     if(p.profile.courseId)E.eligibleCourse(get,s.policy,p.profile.courseId);
-    if(s.approval.courseId&&Object.hasOwn(p.profile,'courseId'))N(p.profile.courseId===s.approval.courseId,'COMMAND_PAYLOAD_INVALID');
+    if(s.approval?.courseId&&Object.hasOwn(p.profile,'courseId'))N(p.profile.courseId===s.approval.courseId,'COMMAND_PAYLOAD_INVALID');
     for(const id of p.profile.interestAxisIds||[]){const axis=get('presentationPolicyReferences/'+id);N(axis?.id===id&&axis.approved===true&&axis.active===true,'COMMAND_PAYLOAD_INVALID');}
     next=E.save(old,revision,p.profile,verified,now,s.session.projectId,today);
    }
@@ -52,11 +52,14 @@ function f4MemberEnrollmentCommands_(){
  }
  function completion(get,r,now,s,catalog){
   const old=s.enrollment,id=old.personId,today=Utilities.formatDate(new Date(now),'America/Cuiaba','yyyy-MM-dd'),verified={uid:r.ownerUid,projectId:s.session.projectId,emailVerified:true,email:old.registration.email,expiresAt:C.ms(s.session.expiresAt)};
-  const facts=E.ready(get,old,U.revision(r,'memberEnrollments/'+old.id),verified,now,s.session.projectId,today,catalog.norms);
+  // Completing an unapproved draft resolves a real, current approval here.
+  // Saving, inviting and accepting never create or infer that decision.
+  const approved=s.approval;N(approved,'ADMISSION_APPROVAL_REQUIRED');
+  const approval=f4MemberPreRegistration_().snapshot(approved);
+  if(old.approval!==null)N(K.equal(old.approval,approval),'REVISION_CONFLICT');
+  const facts=E.ready(get,{...old,approval},U.revision(r,'memberEnrollments/'+old.id),verified,now,s.session.projectId,today,catalog.norms);
   E.eligibleCourse(get,s.policy,facts.courseId);N(!s.approval.courseId||s.approval.courseId===facts.courseId,'REVISION_CONFLICT');
   N(facts.normAcknowledgement.termVersion===catalog.configuration.normTermVersion,'REVISION_CONFLICT');
-  const approvalRef=old.approvalId||f4MemberPreRegistration_().key(old.registration),approved=f4MemberPreRegistration_().approval(get,approvalRef,old.registration,now);
-  N(K.equal(old.approval,f4MemberPreRegistration_().snapshot(approved)),'REVISION_CONFLICT');
   // The canonical prior approval determines the type. Candidate input cannot
   // promote an incoming member or substitute the institutional decision.
   N(['MEMBRO_INGRESSANTE','MEMBRO_EFETIVO'].includes(facts.membershipType),'DOMAIN_STATE_INVALID');
@@ -85,8 +88,8 @@ function f4MemberEnrollmentCommands_(){
   N(!binding||binding.active===true&&binding.idPessoa===id&&binding.uid===r.ownerUid,'AUTH_BINDING_INVALID');
   if(!binding)add(bindingPath,{schemaVersion:'binding-v1',id:r.ownerUid,revision:1,origin:'M13_COMMAND',uid:r.ownerUid,idPessoa:id,active:true,bindingVersion:1,policyVersion:1,sourceRevision:1,createdAt:now,updatedAt:now,domainVersion:'m11'});
   const subjectPath='memberAuthzSubjects/'+id,subject=get(subjectPath);N(!subject||subject.active===true&&subject.idPessoa===id,'ACCESS_REVOKED');
-  if(!subject)add(subjectPath,{schemaVersion:'member-authz-subject-v13',idPessoa:id,revision:1,authzEpoch:1,active:true,approvalRef:old.approval.reference,updatedAt:F.Timestamp.fromMillis(now)});
-  const next={...old,status:'COMPLETED',completedAt:now,updatedAt:now,revision:old.revision+1};E.validate(next);add('memberEnrollments/'+old.id,next);
+  if(!subject)add(subjectPath,{schemaVersion:'member-authz-subject-v13',idPessoa:id,revision:1,authzEpoch:1,active:true,approvalRef:approval.reference,updatedAt:F.Timestamp.fromMillis(now)});
+  const next={...old,approval,approvalId:approved.id,status:'COMPLETED',completedAt:now,updatedAt:now,revision:old.revision+1};E.validate(next);add('memberEnrollments/'+old.id,next);
   const ip='memberEnrollmentIndexes/'+id,index=get(ip);N(index?.personId===id&&index.activeEnrollmentId===old.id,'AUTH_BINDING_INVALID');add(ip,{...index,revision:index.revision+1,activeEnrollmentId:null});
   return {id,expected:s.head.revision,changes};
  }
