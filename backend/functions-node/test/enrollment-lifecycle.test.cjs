@@ -70,7 +70,7 @@ async function fixture(category,t){
   const auth={verifyIdToken:async()=>({uid,sub:uid,aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,exp:Math.floor(now/1000)+3600,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000),email,email_verified:true,...opts.claims})};
   try{return await executeMember({db,auth,appCheck,token:'synthetic',appCheckToken:'synthetic',origin:profile.origin,body:{action,request},hooks:opts.hooks});}
   finally{
-   if(real)for(const collection of ['memberEnrollments','memberLinks','memberAuthBindings','memberCurrentStates','portalUsers','jobOutbox','memberAdmissionApprovals','memberAdmissionApprovalIndexes','memberIdentifiers','memberIdentifierClaims']){
+   if(real)for(const collection of ['memberEnrollments','memberEnrollmentIndexes','memberLinks','memberAuthBindings','memberCurrentStates','portalUsers','jobOutbox','memberAdmissionApprovals','memberAdmissionApprovalIndexes','memberIdentifiers','memberIdentifierClaims']){
     const snap=await db.collection(collection).get();for(const row of snap.docs)docs[row.ref.path]=row.data();
    }
   }
