@@ -28,8 +28,37 @@ test('composition changes suspend approval and never replace electorate',()=>{co
 test('approval leaves normative gate, term exception and member executor closed',()=>{const h=harness();const r=JSON.parse(h.domain.run('()=>f4BoardProcedures_().readiness({type:"EXTRAORDINARY_EXTENSION",state:"APPROVED"})',{}));a.equal(r.state,'NOT_ENACTED');a(r.blocks.includes('ART33_SPECIFIC_EXCEPTION_REQUIRED'));a(r.blocks.includes('ELECTRONIC_PROCEDURE_NORMATIVE_ENABLEMENT_REQUIRED'));a(r.blocks.includes('CANONICAL_EFFECT_PREVIEW_REQUIRED'));});
 test('stale aggregate/record revisions and material edits are rejected',()=>{const h=harness(),r={...h.create(),id:'GOV_'+'1'.repeat(32),revision:1},v={revision:1,records:[r]};a.throws(()=>h.transition({action:'BP_CANCEL',id:r.id,expectedRevision:0,expectedRecordRevision:1,reason:'Cancelamento sintético autorizado'},v),/REVISION_CONFLICT/);a.throws(()=>h.transition({action:'BP_CANCEL',id:r.id,expectedRevision:1,expectedRecordRevision:0,reason:'Cancelamento sintético autorizado'},v),/REVISION_CONFLICT/);a.throws(()=>h.transition({action:'BP_CANCEL',id:r.id,expectedRevision:1,expectedRecordRevision:1,reason:'Cancelamento sintético autorizado',target:{personId:'OTHER'}},v));});
 test('cancellation preserves evidence and is immutable after final decision',()=>{const h=harness(),r={...h.create(),id:'GOV_'+'1'.repeat(32),revision:1},v={revision:1,records:[r]},q={action:'BP_CANCEL',id:r.id,expectedRevision:1,expectedRecordRevision:1,reason:'Cancelamento sintético autorizado'};const out=h.transition(q,v);a.equal(out.next.procedure.state,'CANCELLED');a.deepEqual(out.next.procedure.target,r.procedure.target);r.procedure.state='APPROVED';a.throws(()=>h.transition(q,v),/PROCEDURE_IMMUTABLE/);});
-test('voluntary exit is SELF with seven-day notice and does not end membership',()=>{const h=harness(),target={personId:'PES-000001',functionId:'VIG-001',endDate:'2026-12-01'};const r=h.create({type:'VOLUNTARY_EXIT',target});a.equal(r.procedure.state,'RECORDED');a.throws(()=>h.create({type:'VOLUNTARY_EXIT',target:{...target,endDate:new Date(h.now).toISOString().slice(0,10)}}),/NOTICE_PERIOD_REQUIRED/);a.throws(()=>h.create({type:'VOLUNTARY_EXIT',target:{...target,personId:'PES-000002'}}),/SELF_REQUIRED/);});
-test('clearance records outstanding duties without vetoing resignation',()=>{const h=harness(),r={...h.create({type:'VOLUNTARY_EXIT',target:{personId:'PES-000001',functionId:'VIG-001',endDate:'2026-12-01'}}),id:'GOV_'+'1'.repeat(32),revision:1};const out=h.transition({action:'BP_CLEARANCE',id:r.id,expectedRevision:1,expectedRecordRevision:1,reason:'Quitação sintética com pendências',pendingDuties:'Entregar documento sintético'},{revision:1,records:[r]});a.equal(out.next.procedure.state,'RECORDED');a.equal(out.next.procedure.clearance.meaning,'DUTIES_RECORD_NOT_RESIGNATION_VETO');});
+// Midnight in Cuiabá on 1 December is 04:00 UTC. Mock only this test's Date.
+const noticeBoundary = Date.parse('2026-11-24T04:00:00.000Z');
+const exitTarget = {personId:'PES-000001',functionId:'VIG-001',endDate:'2026-12-01'};
+
+for (const offset of [-1, 0, 1]) {
+ test('voluntary exit notice at seven days, request offset '+offset+' ms', t => {
+  t.mock.timers.enable({apis:['Date'], now:noticeBoundary + offset});
+  const h=harness(), proposal={type:'VOLUNTARY_EXIT',target:exitTarget};
+  if (offset === 1) {
+   a.throws(()=>h.create(proposal), /NOTICE_PERIOD_REQUIRED/);
+   return;
+  }
+  const before=JSON.stringify(h.docs);
+  a.equal(h.create(proposal).procedure.state,'RECORDED');
+  a.equal(JSON.stringify(h.docs),before);
+ });
+}
+
+test('voluntary exit requires the target to be the authenticated person', t => {
+ t.mock.timers.enable({apis:['Date'], now:noticeBoundary});
+ const h=harness();
+ a.throws(()=>h.create({type:'VOLUNTARY_EXIT',target:{...exitTarget,personId:'PES-000002'}}), /SELF_REQUIRED/);
+});
+
+test('clearance records outstanding duties without vetoing resignation', t => {
+ t.mock.timers.enable({apis:['Date'], now:noticeBoundary});
+ const h=harness(), r={...h.create({type:'VOLUNTARY_EXIT',target:exitTarget}),id:'GOV_'+'1'.repeat(32),revision:1};
+ const out=h.transition({action:'BP_CLEARANCE',id:r.id,expectedRevision:1,expectedRecordRevision:1,reason:'Registro sintético de pendências',pendingDuties:'Entregar documento sintético'},{revision:1,records:[r]});
+ a.equal(out.next.procedure.state,'RECORDED');
+ a.equal(out.next.procedure.clearance.meaning,'DUTIES_RECORD_NOT_RESIGNATION_VETO');
+});
 test('enacted administrative records cannot be cancelled or mutated',()=>{const h=harness(),r={...h.create(),id:'GOV_'+'1'.repeat(32),revision:1};r.procedure.state='RECORDED';r.procedure.enactment={state:'ENACTED'};a.throws(()=>h.transition({action:'BP_CANCEL',id:r.id,expectedRevision:1,expectedRecordRevision:1,reason:'Do not erase a canonical effect'},{revision:1,records:[r]}),/PROCEDURE_IMMUTABLE/);});
 
 test('availability and authenticated access never imply receipt, agreement or waiver',()=>{
