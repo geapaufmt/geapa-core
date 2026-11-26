@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const root = path.join(__dirname, '..');
+const root = path.join(__dirname, '..', 'legacy', 'legacy.js');
 const context = {
   Object, Array, String, Number, Boolean, Error, Date, JSON, Math, RegExp,
   isNaN, console,

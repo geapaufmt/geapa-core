@@ -1,10 +1,11 @@
 'use strict';
 Object.assign(process.env,{GEAPA_RUNTIME:'EMULATOR',GEAPA_PILOT_MODE:'SHARED_DEV',GCLOUD_PROJECT:'demo-geapa-functions-local',FUNCTIONS_EMULATOR:'true',FIRESTORE_EMULATOR_HOST:'127.0.0.1:8187',FIREBASE_AUTH_EMULATOR_HOST:'127.0.0.1:9197'});
+if(process.env.GEAPA_TARGET_ENVIRONMENT==='PROD')delete process.env.GEAPA_PILOT_MODE;
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {randomUUID}=require('node:crypto'),{Timestamp}=require('firebase-admin/firestore');
 const {seed}=require('./fixtures.cjs'),{decode}=require('../src/firestore.cjs');
 const {createDomain}=require('../src/domain.cjs'),{executeMember}=require('../src/member-executor.cjs');
-const {PROJECT,DEMO,EXECUTOR}=require('../src/environment.cjs');
+const {PROJECT,DEMO,EXECUTOR,PRODUCTION,profile}=require('../src/environment.cjs');
 
 // Snapshot and atomic commit port for offline regression. No external recipient or database.
 function database(docs){
@@ -52,12 +53,13 @@ async function fixture(category,t){
   docs['memberOperationalConfig/registration'].recognizePastAdmission=true;
   docs['memberAdmissionApprovals/'+ref].recognizedEffects={on:approval.approvedOn,reference:'SYN_PAST_EFFECT',approvedBy:approval.approvedBy};
  }
+ docs['memberOperationalConfig/notifications']={...docs['memberOperationalConfig/notifications'],projectId:PROJECT,environment:profile.environment};
  const control={schemaVersion:'member-executor-control-v1',projectId:PROJECT,revision:1,enabled:true,actorUids:['CF_ADMIN'],scopeIds:['SYN_ADMISSION'],startsAt:now-1000,expiresAt:now+3600000,browserEnabled:true,appCheck:{mode:'REQUIRED',appIds:['SYN_APP']}};
  docs['memberExecutorControl/current']=control;
- docs['memberExecutorScopes/SYN_ADMISSION']={schemaVersion:'member-executor-scope-v1',id:'SYN_ADMISSION',projectId:PROJECT,synthetic:true,revision:1,personIds:['PES-000001'],approvalRefs:[ref]};
+ docs['memberExecutorScopes/SYN_ADMISSION']={schemaVersion:'member-executor-scope-v1',id:'SYN_ADMISSION',projectId:PROJECT,synthetic:!PRODUCTION,revision:1,personIds:['PES-000001'],approvalRefs:[ref]};
  for(const type of ['ingress.execute','onboarding.complete']){
   const id='MEMBERS_'+type.toUpperCase().replace('.','_');
-  docs['commandExecutorRoutes/'+id]={schemaVersion:'member-executor-route-v1',projectId:PROJECT,routeId:id,commandType:'members.'+type,scopeId:'SYN_ADMISSION',syntheticOnly:true,executor:EXECUTOR,state:'ACTIVE',epoch:1,revision:1,actorUids:['CF_ADMIN'],operationIds:[],maxOperations:50,startsAt:now-1000,expiresAt:now+3600000};
+  docs['commandExecutorRoutes/'+id]={schemaVersion:'member-executor-route-v1',projectId:PROJECT,routeId:id,commandType:'members.'+type,scopeId:'SYN_ADMISSION',syntheticOnly:!PRODUCTION,executor:EXECUTOR,state:'ACTIVE',epoch:1,revision:1,actorUids:['CF_ADMIN'],operationIds:[],maxOperations:50,startsAt:now-1000,expiresAt:now+3600000};
  }
  if(real){
   const batch=db.batch();for(const [p,value] of Object.entries(docs))batch.set(db.doc(p),value);await batch.commit();
@@ -66,7 +68,7 @@ async function fixture(category,t){
  const appCheck={verifyToken:async()=>({appId:'SYN_APP'})};
  const call=async(uid,action,request,opts={})=>{
   const auth={verifyIdToken:async()=>({uid,sub:uid,aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,exp:Math.floor(now/1000)+3600,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000),email,email_verified:true,...opts.claims})};
-  try{return await executeMember({db,auth,appCheck,token:'synthetic',appCheckToken:'synthetic',origin:'https://geapa-convergencia-dev.web.app',body:{action,request},hooks:opts.hooks});}
+  try{return await executeMember({db,auth,appCheck,token:'synthetic',appCheckToken:'synthetic',origin:profile.origin,body:{action,request},hooks:opts.hooks});}
   finally{
    if(real)for(const collection of ['memberEnrollments','memberLinks','memberAuthBindings','memberCurrentStates','portalUsers','jobOutbox']){
     const snap=await db.collection(collection).get();for(const row of snap.docs)docs[row.ref.path]=row.data();
@@ -231,10 +233,13 @@ test('draft without any approval reserves one identity, recovers, invites and wa
  assert.equal((await open()).result.data.admissionApprovalPending,false);
  const ready=await call('SYN_INVITEE','memberEnrollmentPrepare',{operationId:op(),revision:enrollment().revision,action:'COMPLETE',payload:{}});
  const activeApproval=approvals.find(([path,value])=>path.startsWith('memberAdmissionApprovals/')&&value.registrationDigest===JSON.parse(createDomain(()=>{}).run('(v)=>f4Core_().hash(v)',{email:basic.emailPrincipal,rga:basic.rga})));
+ const invalidated=await call('SYN_INVITEE','memberExecute',ready.request,{hooks:{afterClaim:async()=>set(activeApproval[0],{...activeApproval[1],membershipType:'MEMBRO_EFETIVO'})}});assert.equal(invalidated.dto.receipt.state,'FAILED');
+ assert(!docs['memberAuthBindings/SYN_INVITEE']);
  await set(activeApproval[0],{...activeApproval[1],active:false});
- await assert.rejects(call('SYN_INVITEE','memberExecute',ready.request),/ADMISSION_APPROVAL_INACTIVE|ACCESS_REVOKED/);
+ await assert.rejects(candidate('COMPLETE'),/ADMISSION_APPROVAL_INACTIVE|ACCESS_REVOKED/);
  assert(!docs['memberAuthBindings/SYN_INVITEE']);
  await set(activeApproval[0],activeApproval[1]);
+ assert.equal((await call('SYN_INVITEE','memberRecover',ready.key)).dto.receipt.state,'FAILED');
  const completed=await candidate('COMPLETE');
  assert.equal((await call('SYN_INVITEE','memberRecover',completed.key)).dto.receipt.state,'COMPLETED');
  assert.equal(enrollment().status,'COMPLETED');assert.equal(enrollment().approval.reference,referenciaAprovacao);
@@ -242,7 +247,7 @@ test('draft without any approval reserves one identity, recovers, invites and wa
  assert.equal(Object.values(docs).filter(v=>v?.schemaVersion==='m1-memberLinks-v1'&&v.idPessoa===person).length,1);
 });
 
-test('DEV technical draft window permits only its exact synthetic fixture and never grants invitation or membership',async t=>{
+test('DEV technical draft window permits only its exact synthetic fixture and never grants invitation or membership',{skip:PRODUCTION},async t=>{
  const {docs,set,call}=await fixture('MEMBRO_INGRESSANTE',t),{draftFixture,planDevDraft}=require('../scripts/administer-rh-registration.cjs'),now=Date.now(),f=draftFixture('CF_ADMIN',now);
  for(const [p,v]of Object.entries(f.docs))await set(p,v);
  const actor=docs['memberAuthBindings/CF_ADMIN'],subject=docs['memberAuthzSubjects/'+actor.idPessoa],gp='coreDevAdministrativeGrants/CF_ADMIN';
