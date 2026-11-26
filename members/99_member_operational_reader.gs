@@ -2,7 +2,7 @@
 // fenced direct projections. Private decision dossiers stay in the Core.
 function f4MemberOperationalReader_({config,identity,clock=Date.now}){
  const C=f4Core_(),N=C.need,F=f4Firestore_(),A=f4MemberAuthz_(),K=f4MemberAuthzContracts_(),W=f4MemberVoluntaryWorkflow_(),db=F.connect(config);
- const routes=['/admin/frequencia-rh/providencias','/members/operational-context','/admin/membros','/admin/ingressos-membros','/admin/ingressos-membros/catalogos','/meu-vinculo/acompanhamento','/meu-vinculo/opcoes','/meu-vinculo/solicitacoes','/admin/solicitacoes-vinculo','/admin/solicitacoes-vinculo/detalhe','/meu-vinculo/notificacoes'];
+ const routes=['/admin/frequencia-rh/providencias','/members/operational-context','/admin/membros','/admin/ingressos-membros','/admin/ingressos-membros/catalogos','/meu-vinculo/acompanhamento','/meu-vinculo/opcoes','/meu-vinculo/solicitacoes','/admin/solicitacoes-vinculo','/admin/solicitacoes-vinculo/detalhe','/meu-vinculo/notificacoes','/meu-vinculo/notificacoes/leitura'];
  const iso=v=>new Date(C.ms(v)).toISOString(),today=n=>Utilities.formatDate(new Date(n),'America/Cuiaba','yyyy-MM-dd');
  function access(get,now){
   C.exact(identity,['uid','expiresAt']);
@@ -95,27 +95,16 @@ function f4MemberOperationalReader_({config,identity,clock=Date.now}){
   if(f4MemberProfileCorrectionReader_({config,identity,clock}).routes.includes(input?.route))return f4MemberProfileCorrectionReader_({config,identity,clock}).read(input);
   C.exact(input,['route','params']);N(routes.includes(input.route),'COMMAND_TYPE_INVALID');const {route,params}=input;
   if(route==='/meu-vinculo/acompanhamento')return tracking(params);
-  if(route==='/meu-vinculo/notificacoes')return notifications(params);
+  if(route==='/meu-vinculo/notificacoes'){
+   C.exact(params,[]);
+   return db.transaction(tx=>({ok:true,data:f4MemberNotifications_().readAuthorized(p=>tx.get(p).data(),identity,clock())}));
+  }
+  if(route==='/meu-vinculo/notificacoes/leitura')return db.transaction(tx=>({ok:true,data:f4MemberNotifications_().mark(tx,identity,params,clock())}));
   if(route==='/admin/membros')return directory(params);
   if(route==='/admin/ingressos-membros')return enrollments(params);
   if(!route.startsWith('/admin/solicitacoes-vinculo')){C.exact(params,[]);const view=route==='/members/operational-context'?'members_context':route==='/admin/ingressos-membros/catalogos'?'members_catalog':'members_self';const v=db.transaction(tx=>project(tx,view,clock()));return view==='members_self'?route.endsWith('/opcoes')?v.options:v.requests:view==='members_context'?{ok:true,data:v}:v;}
   if(route.endsWith('/detalhe')){C.exact(params,['payload']);let p;try{p=JSON.parse(params.payload);}catch{N(false,'COMMAND_PAYLOAD_INVALID');}C.exact(p,['idSolicitacao']);return db.transaction(tx=>{const get=p=>tx.get(p).data();return dossier(get,p.idSolicitacao,access(get,clock()),clock());});}
   return requestPage(params);
- }
- function notifications(params){
-  C.exact(params,[...('notificationId'in params?['notificationId']:[]),...('action'in params?['action']:[]),...('personId'in params?['personId']:[])]);
-  return db.transaction(tx=>{
-   const get=p=>tx.get(p).data(),now=clock(),M=f4MemberNotifications_();
-   if(params.action==='MARK_READ'){
-    N(params.notificationId,'COMMAND_PAYLOAD_INVALID');
-    return M.markRead(tx,identity,params.notificationId,now);
-   }
-   if(params.action==='MARK_ALL_READ'){
-    return M.markAllRead(tx,identity,now);
-   }
-   const view=M.readAuthorized(get,identity,now,params);
-   return {ok:true,data:view};
-  });
  }
  function attendanceCases(params){
   C.exact(params,['cycleId',...('personId'in params?['personId']:[]),...('cursor'in params?['cursor']:[])]);N(C.id(params.cycleId)&&(!params.personId||C.id(params.personId)),'COMMAND_PAYLOAD_INVALID');

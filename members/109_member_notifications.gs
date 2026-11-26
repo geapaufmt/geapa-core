@@ -80,6 +80,7 @@ function f4MemberNotifications_(){
     return db.transaction(tx=>{
      const get=p=>tx.get(p).data(),now=clock();N(identity&&now<identity.expiresAt&&f4DevAdmin_().profile(get,identity.uid,now),'ACCESS_REVOKED');
      const {outbox:o}=source(get,id);policy(get);
+     if(o.state==='COMPLETED'&&o.resolution==='LOCAL_SIMULATION_CONFIRMED_NO_RESEND'&&o.lastError?.mode==='DRY_RUN'&&o.lastError.sent===false){return {...o.lastError,state:'COMPLETED',resolution:o.resolution,replay:true};}
      if(o.state==='COMPLETED'){N(o.notificationReceipt?.mode==='DRY_RUN'&&o.notificationReceipt.sent===false,'RECONCILIATION_REQUIRED');return {...o.notificationReceipt,replay:true};}
      N(o.state==='PENDING','RECONCILIATION_REQUIRED');
      if(options&&options.simulateFailure){
@@ -105,123 +106,93 @@ function f4MemberNotifications_(){
  function index(v,personId){
   if(!v)return {schemaVersion:'member-notification-index-v1',id:personId,personId,revision:0,unreadCount:0,notificationIds:[],updatedAt:0};
   C.exact(v,['schemaVersion','id','personId','revision','unreadCount','notificationIds','updatedAt']);
-  N(v.schemaVersion==='member-notification-index-v1'&&v.id===personId&&v.personId===personId&&C.rev(v.revision)&&Number.isSafeInteger(v.unreadCount)&&v.unreadCount>=0&&Array.isArray(v.notificationIds)&&v.notificationIds.every(C.op),'SCHEMA_INVALID');
+  N(['member-notification-index-v1','member-notification-index-v2'].includes(v.schemaVersion)&&v.id===personId&&v.personId===personId&&C.rev(v.revision)&&Number.isSafeInteger(v.unreadCount)&&v.unreadCount>=0&&Array.isArray(v.notificationIds)&&v.notificationIds.every(C.op),'SCHEMA_INVALID');
   return v;
  }
- function emit(tx,payload,now){
-  const {personId,event:eventKind,title,body,targetRoute,category,operationId,metadata}=payload;
-  N(C.id(personId),'COMMAND_PAYLOAD_INVALID');
-  const get=p=>tx.get(p).data();
+ const capacity=100;
+ const routes={'/app/minha-situacao':'minha-situacao','/app/meu-vinculo':'minha-situacao','/ingresso':'ingresso','/admin/membros':'admin-membros'};
+ function destination(value){const target=Object.hasOwn(routes,value)?routes[value]:value;return Object.values(routes).includes(target)?target:null;}
+ function inbox(get,personId){
   const ix=index(get('memberNotificationIndexes/'+personId),personId);
-  const notifId=operationId||C.hash({personId,event:eventKind,now,seq:ix.notificationIds.length}).slice(0,32);
-  const old=get('memberNotifications/'+notifId);
-  if(old)return {notification:record(old),index:ix,replay:true};
-  const [defaultTitle,defaultBody,defaultRoute]=messages[eventKind]||['Notificação institucional','Nova mensagem do GEAPA.','/app/minha-situacao'];
-  const notif={
-   schemaVersion:'member-notification-v1',
-   id:notifId,
-   personId,
-   revision:1,
-   event:eventKind||'SYSTEM_ANNOUNCEMENT',
-   title:typeof title==='string'&&title.trim().length?title.trim():defaultTitle,
-   body:typeof body==='string'&&body.trim().length?body.trim():defaultBody,
-   targetRoute:typeof targetRoute==='string'?targetRoute:defaultRoute,
-   category:category||'OPERACIONAL',
-   read:false,
-   readAt:null,
-   createdAt:now,
-   operationId:operationId||null,
-   metadata:metadata||{}
-  };
-  record(notif);
-  const nextIds=[notifId,...ix.notificationIds.filter(x=>x!==notifId)].slice(0,100);
-  const nextIx={
-   schemaVersion:'member-notification-index-v1',
-   id:personId,
-   personId,
-   revision:ix.revision+1,
-   unreadCount:ix.unreadCount+1,
-   notificationIds:nextIds,
-   updatedAt:now
-  };
-  index(nextIx,personId);
-  tx.set('memberNotifications/'+notifId,notif);
-  tx.set('memberNotificationIndexes/'+personId,nextIx);
-  return {notification:notif,index:nextIx,replay:false};
+  N(ix.notificationIds.length<=capacity&&new Set(ix.notificationIds).size===ix.notificationIds.length,'SCHEMA_INVALID');
+  const records=ix.notificationIds.map(id=>get('memberNotifications/'+id));
+  const items=records.map((item,i)=>{
+   const id=ix.notificationIds[i];
+   N(item?.personId===personId&&item.id===id,'RECONCILIATION_REQUIRED');
+   return record(item);
+  });
+  return {ix,items,unreadCount:items.filter(item=>!item.read).length};
  }
- function resolvePersonId(get,identity,now){
-  const binding=get('memberAuthBindings/'+identity.uid);
-  if(binding?.idPessoa)return binding.idPessoa;
-  const technical=f4DevAdmin_().profile(get,identity.uid,now);
-  if(technical)return identity.uid;
-  const actor=f4MemberAuthz_().identify(get,identity.uid,now);
-  return actor.binding.idPessoa;
- }
- function readAuthorized(get,identity,now,params={}){
-  C.exact(identity,['uid','expiresAt']);
-  N(C.id(identity.uid)&&Number.isSafeInteger(identity.expiresAt)&&now<identity.expiresAt,'AUTH_BINDING_INVALID');
-  const personId=resolvePersonId(get,identity,now);
-  N(C.id(personId),'AUTH_BINDING_INVALID');
-  if(params.personId){
-   const technical=f4DevAdmin_().profile(get,identity.uid,now);
-   N(params.personId===personId||technical,'ACCESS_REVOKED');
+ function delivery(get,payload,now){
+  const {personId,operationId,event}=payload;
+  N(C.id(personId)&&C.op(operationId)&&Object.hasOwn(messages,event),'COMMAND_PAYLOAD_INVALID');
+  const [title,body,route]=messages[event],targetRoute=destination(payload.targetRoute??route);
+  N(targetRoute,'COMMAND_PAYLOAD_INVALID');
+  const id=C.hash({personId,operationId}).slice(0,32);
+  const content={event,title:payload.title?.trim()||title,body:payload.body?.trim()||body,targetRoute,category:payload.category||'OPERACIONAL',metadata:payload.metadata||{}};
+  const notification=record({schemaVersion:'member-notification-v1',id,personId,operationId,revision:1,...content,createdAt:now,read:false,readAt:null});
+  const ix=index(get('memberNotificationIndexes/'+personId),personId);
+  const legacy=get('memberNotifications/'+operationId);
+  const previous=get('memberNotifications/'+id) || (legacy?.personId===personId?legacy:null);
+  if(previous){
+   record(previous);
+   N(previous.personId===personId&&previous.operationId===operationId&&
+    Object.keys(content).every(key=>C.hash(key==='targetRoute'?destination(previous[key]):previous[key])===C.hash(content[key])),'OPERATION_CONFLICT');
+   return {notification:previous,index:ix,replay:true,writes:[]};
   }
-  const targetPerson=params.personId||personId;
-  const ix=index(get('memberNotificationIndexes/'+targetPerson),targetPerson);
-  const items=ix.notificationIds.map(id=>get('memberNotifications/'+id)).filter(Boolean).map(record);
-  const unreadCount=items.filter(i=>!i.read).length;
-  return {
-   schemaVersion:'member-notification-view-v1',
-   personId:targetPerson,
-   unreadCount,
-   totalCount:items.length,
-   items,
-   asOf:now
-  };
- }
- function markRead(tx,identity,notificationId,now){
-  C.exact(identity,['uid','expiresAt']);
-  N(C.id(identity.uid)&&Number.isSafeInteger(identity.expiresAt)&&now<identity.expiresAt,'AUTH_BINDING_INVALID');
-  N(C.op(notificationId),'COMMAND_PAYLOAD_INVALID');
-  const get=p=>tx.get(p).data(),personId=resolvePersonId(get,identity,now);
-  N(C.id(personId),'AUTH_BINDING_INVALID');
-  const raw=get('memberNotifications/'+notificationId);
-  N(raw,'NOTIFICATION_NOT_FOUND');
-  const notif=record(raw);
-  const technical=f4DevAdmin_().profile(get,identity.uid,now);
-  N(notif.personId===personId||technical,'ACCESS_REVOKED');
-  const targetPerson=notif.personId,ix=index(get('memberNotificationIndexes/'+targetPerson),targetPerson);
-  if(notif.read)return {ok:true,notification:notif,unreadCount:ix.unreadCount,replay:true};
-  const updatedNotif={...notif,revision:notif.revision+1,read:true,readAt:now};
-  record(updatedNotif);
-  const newUnread=Math.max(0,ix.unreadCount-1);
-  const updatedIx={...ix,revision:ix.revision+1,unreadCount:newUnread,updatedAt:now};
-  index(updatedIx,targetPerson);
-  tx.set('memberNotifications/'+notificationId,updatedNotif);
-  tx.set('memberNotificationIndexes/'+targetPerson,updatedIx);
-  return {ok:true,notification:updatedNotif,unreadCount:newUnread,replay:false};
- }
- function markAllRead(tx,identity,now){
-  C.exact(identity,['uid','expiresAt']);
-  N(C.id(identity.uid)&&Number.isSafeInteger(identity.expiresAt)&&now<identity.expiresAt,'AUTH_BINDING_INVALID');
-  const get=p=>tx.get(p).data(),personId=resolvePersonId(get,identity,now);
-  N(C.id(personId),'AUTH_BINDING_INVALID');
-  const ix=index(get('memberNotificationIndexes/'+personId),personId);
-  if(ix.unreadCount===0)return {ok:true,personId,unreadCount:0,updated:0,replay:true};
-  let count=0;
-  for(const id of ix.notificationIds){
-   const raw=get('memberNotifications/'+id);
-   if(raw&&!raw.read){
-    const updated={...raw,revision:raw.revision+1,read:true,readAt:now};
-    record(updated);
-    tx.set('memberNotifications/'+id,updated);
-    count++;
+  N(ix.notificationIds.length<=capacity&&new Set(ix.notificationIds).size===ix.notificationIds.length&&!ix.notificationIds.includes(id),'RECONCILIATION_REQUIRED');
+  // V1 counts cover the visible window. Recount full legacy indexes before eviction.
+  const retained=ix.notificationIds.slice(0,capacity-1);
+  let unread=ix.unreadCount;
+  if(ix.schemaVersion==='member-notification-index-v2'){
+   N(unread<=ix.notificationIds.length,'SCHEMA_INVALID');
+   if(ix.notificationIds.length===capacity){
+    const last=ix.notificationIds[capacity-1],evicted=get('memberNotifications/'+last);
+    N(evicted?.personId===personId&&evicted.id===last,'RECONCILIATION_REQUIRED');
+    if(!record(evicted).read)unread--;
+    N(unread>=0,'SCHEMA_INVALID');
    }
+  }else{
+   const box=inbox(get,personId);
+   unread=box.items.slice(0,capacity-1).filter(item=>!item.read).length;
   }
-  const updatedIx={...ix,revision:ix.revision+1,unreadCount:0,updatedAt:now};
-  index(updatedIx,personId);
-  tx.set('memberNotificationIndexes/'+personId,updatedIx);
-  return {ok:true,personId,unreadCount:0,updated:count,replay:false};
+  const next={...ix,schemaVersion:'member-notification-index-v2',notificationIds:[id,...retained],revision:ix.revision+1,updatedAt:now,unreadCount:unread+1};
+  const writes=[{kind:'set',path:'memberNotifications/'+id,data:notification},{kind:'set',path:'memberNotificationIndexes/'+personId,data:next}];
+  return {notification,index:next,replay:false,writes};
  }
- return {plan,source,render,consumer,record,index,emit,readAuthorized,markRead,markAllRead,messages};
+ function emit(tx,payload,now){
+  const {writes,...result}=delivery(p=>tx.get(p).data(),payload,now);
+  for(const w of writes)tx.set(w.path,w.data);
+  return result;
+ }
+ function ownPerson(get,identity,now){
+  return f4MemberOwnReader_().read(get,identity,{view:'status'},now).data.idPessoa;
+ }
+ function view(items,personId,now){
+  return {schemaVersion:'member-notification-view-v1',personId,asOf:now,totalCount:items.length,
+   unreadCount:items.filter(item=>!item.read).length,items:items.map(({id,title,body,event,read,readAt,createdAt,targetRoute})=>
+    ({id,title,body,event,read,readAt,createdAt,targetRoute:destination(targetRoute)}))};
+ }
+ function readAuthorized(get,identity,now){
+  const person=ownPerson(get,identity,now);
+  return view(inbox(get,person).items,person,now);
+ }
+ function mark(tx,identity,params,now){
+  const get=p=>tx.get(p).data(),person=ownPerson(get,identity,now);
+  const all=params?.action==='MARK_ALL_READ';
+  C.exact(params,all?['action']:['action','notificationId']);
+  N(all||params.action==='MARK_READ'&&C.op(params.notificationId),'COMMAND_PAYLOAD_INVALID');
+  const {ix,items,unreadCount}=inbox(get,person);
+  N(all||ix.notificationIds.includes(params.notificationId),'RESOURCE_NOT_FOUND');
+  let count=0;
+  const updated=items.map(item=>{
+   if(item.read||!all&&item.id!==params.notificationId)return item;
+   const next={...item,read:true,readAt:now,revision:item.revision+1};
+   tx.set('memberNotifications/'+item.id,next);count++;
+   return next;
+  });
+  if(count||ix.unreadCount!==unreadCount)tx.set('memberNotificationIndexes/'+person,{...ix,revision:ix.revision+1,updatedAt:now,unreadCount:unreadCount-count});
+  return view(updated,person,now);
+ }
+ return {plan,source,render,consumer,delivery,emit,readAuthorized,mark};
 }

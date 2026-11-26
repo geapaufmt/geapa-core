@@ -1,4 +1,5 @@
 'use strict';
+Object.assign(process.env,{GEAPA_RUNTIME:'EMULATOR',GEAPA_PILOT_MODE:'SHARED_DEV',GCLOUD_PROJECT:'demo-geapa-functions-local',FUNCTIONS_EMULATOR:'true',FIRESTORE_EMULATOR_HOST:'127.0.0.1:8187',FIREBASE_AUTH_EMULATOR_HOST:'127.0.0.1:9197'});
 const {test}=require('node:test'),a=require('node:assert/strict'),crypto=require('node:crypto');
 const {Timestamp}=require('firebase-admin/firestore');
 const {createDomain}=require('../src/domain.cjs');
@@ -26,149 +27,6 @@ function setupTestDomain(initialDocs = {}){
  });
  return {domain,docs,reads,writes};
 }
-
-test('Central de Notificações - emissão sintética e persistência de notificação interna',()=>{
- const {domain,docs}=setupTestDomain();
- const now=1700000000000;
- const personId='PES-ALICE-001';
- const opId='a'.repeat(32);
-
- const emitResult=JSON.parse(domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();const res=M.emit(tx,{personId:input.personId,event:"SYNTHETIC_TEST",title:"Teste Local",body:"Mensagem sintética de teste local.",targetRoute:"/app/minha-situacao",category:"OPERACIONAL",operationId:input.opId},input.now);return res;}',{personId,opId,now}));
-
- a.equal(emitResult.replay,false);
- a.equal(emitResult.notification.id,opId);
- a.equal(emitResult.notification.personId,personId);
- a.equal(emitResult.notification.read,false);
- a.equal(emitResult.notification.readAt,null);
- a.equal(emitResult.notification.title,'Teste Local');
- a.equal(emitResult.notification.body,'Mensagem sintética de teste local.');
- a.equal(emitResult.notification.targetRoute,'/app/minha-situacao');
- a.equal(emitResult.notification.category,'OPERACIONAL');
- a.equal(emitResult.index.unreadCount,1);
- a.deepEqual(emitResult.index.notificationIds,[opId]);
-
- // Persisted documents in docs
- a(docs['memberNotifications/'+opId]);
- a(docs['memberNotificationIndexes/'+personId]);
- a.equal(docs['memberNotifications/'+opId].read,false);
- a.equal(docs['memberNotificationIndexes/'+personId].unreadCount,1);
-});
-
-test('Central de Notificações - isolamento rigoroso entre usuários (Alice vs Bob)',()=>{
- const now=1700000000000;
- const alice='PES-ALICE-001',bob='PES-BOB-002';
- const notifAlice='a'.repeat(32);
- const notifBob='b'.repeat(32);
-
- const initialDocs={
-  'memberAuthBindings/UID_ALICE':{idPessoa:alice,active:true},
-  'memberAuthBindings/UID_BOB':{idPessoa:bob,active:true}
- };
-
- const {domain,docs}=setupTestDomain(initialDocs);
-
- // Emit notification for Alice and for Bob
- domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();M.emit(tx,{personId:input.alice,event:"SYNTHETIC_TEST",title:"Alice Notif",body:"Para Alice",operationId:input.notifAlice},input.now);M.emit(tx,{personId:input.bob,event:"SYNTHETIC_TEST",title:"Bob Notif",body:"Para Bob",operationId:input.notifBob},input.now);}',{alice,bob,notifAlice,notifBob,now});
-
- // Alice reads own notifications
- const aliceRead=JSON.parse(domain.run('(input)=>{const get=p=>nodeDb.get(p);const M=f4MemberNotifications_();return M.readAuthorized(get,{uid:"UID_ALICE",expiresAt:input.now+60000},input.now);}',{now}));
- a.equal(aliceRead.personId,alice);
- a.equal(aliceRead.unreadCount,1);
- a.equal(aliceRead.items.length,1);
- a.equal(aliceRead.items[0].id,notifAlice);
- a.equal(aliceRead.items[0].title,'Alice Notif');
-
- // Bob reads own notifications
- const bobRead=JSON.parse(domain.run('(input)=>{const get=p=>nodeDb.get(p);const M=f4MemberNotifications_();return M.readAuthorized(get,{uid:"UID_BOB",expiresAt:input.now+60000},input.now);}',{now}));
- a.equal(bobRead.personId,bob);
- a.equal(bobRead.unreadCount,1);
- a.equal(bobRead.items.length,1);
- a.equal(bobRead.items[0].id,notifBob);
- a.equal(bobRead.items[0].title,'Bob Notif');
-
- // Regular user trying to read Alice's notifications throws ACCESS_REVOKED
- a.throws(()=>{
-  domain.run('(input)=>{const get=p=>nodeDb.get(p);const M=f4MemberNotifications_();return M.readAuthorized(get,{uid:"UID_BOB",expiresAt:input.now+60000},input.now,{personId:input.alice});}',{now,alice});
- },/ACCESS_REVOKED/);
-});
-
-test('Central de Notificações - marcação de leitura individual e idempotência',()=>{
- const now=1700000000000;
- const person='PES-TEST-001';
- const notifId='c'.repeat(32);
- const initialDocs={
-  'memberAuthBindings/UID_USER':{idPessoa:person,active:true}
- };
-
- const {domain,docs}=setupTestDomain(initialDocs);
-
- // 1. Emit notification
- domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();M.emit(tx,{personId:input.person,event:"SYNTHETIC_TEST",title:"Leitura",body:"Corpo",operationId:input.notifId},input.now);}',{person,notifId,now});
- a.equal(docs['memberNotificationIndexes/'+person].unreadCount,1);
- a.equal(docs['memberNotifications/'+notifId].read,false);
-
- // 2. First markRead: updates read to true, sets readAt, decrements unreadCount to 0
- const mark1=JSON.parse(domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();return M.markRead(tx,{uid:"UID_USER",expiresAt:input.now+60000},input.notifId,input.now+500);}',{notifId,now}));
-
- a.equal(mark1.ok,true);
- a.equal(mark1.replay,false);
- a.equal(mark1.unreadCount,0);
- a.equal(mark1.notification.read,true);
- a.equal(mark1.notification.readAt,now+500);
- a.equal(docs['memberNotificationIndexes/'+person].unreadCount,0);
- a.equal(docs['memberNotifications/'+notifId].read,true);
-
- // 3. Second markRead on same notification: IDEMPOTENT (replay: true, unreadCount stays 0)
- const mark2=JSON.parse(domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();return M.markRead(tx,{uid:"UID_USER",expiresAt:input.now+60000},input.notifId,input.now+1000);}',{notifId,now}));
-
- a.equal(mark2.ok,true);
- a.equal(mark2.replay,true);
- a.equal(mark2.unreadCount,0);
- a.equal(mark2.notification.read,true);
- a.equal(mark2.notification.readAt,now+500); // preserves original readAt
- a.equal(docs['memberNotificationIndexes/'+person].unreadCount,0);
-
- // 4. Attempt to mark other person's notification throws ACCESS_REVOKED
- docs['memberAuthBindings/UID_INTRUDER']={idPessoa:'PES-OTHER',active:true};
- a.throws(()=>{
-  domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();return M.markRead(tx,{uid:"UID_INTRUDER",expiresAt:input.now+60000},input.notifId,input.now+2000);}',{notifId,now});
- },/ACCESS_REVOKED/);
-});
-
-test('Central de Notificações - marcação em lote (markAllRead) e zera contador',()=>{
- const now=1700000000000;
- const person='PES-TEST-002';
- const initialDocs={
-  'memberAuthBindings/UID_USER2':{idPessoa:person,active:true}
- };
-
- const {domain,docs}=setupTestDomain(initialDocs);
-
- const id1='1'.repeat(32);
- const id2='2'.repeat(32);
- const id3='3'.repeat(32);
-
- domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();M.emit(tx,{personId:input.person,event:"SYNTHETIC_TEST",title:"N1",operationId:input.id1},input.now);M.emit(tx,{personId:input.person,event:"SYNTHETIC_TEST",title:"N2",operationId:input.id2},input.now);M.emit(tx,{personId:input.person,event:"SYNTHETIC_TEST",title:"N3",operationId:input.id3},input.now);}',{person,id1,id2,id3,now});
-
- a.equal(docs['memberNotificationIndexes/'+person].unreadCount,3);
-
- // Mark all read
- const markAllResult=JSON.parse(domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();return M.markAllRead(tx,{uid:"UID_USER2",expiresAt:input.now+60000},input.now+100);}',{now}));
-
- a.equal(markAllResult.ok,true);
- a.equal(markAllResult.unreadCount,0);
- a.equal(markAllResult.updated,3);
- a.equal(docs['memberNotificationIndexes/'+person].unreadCount,0);
- a.equal(docs['memberNotifications/'+id1].read,true);
- a.equal(docs['memberNotifications/'+id2].read,true);
- a.equal(docs['memberNotifications/'+id3].read,true);
-
- // Idempotency of markAllRead: calling again returns replay: true
- const markAllAgain=JSON.parse(domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();return M.markAllRead(tx,{uid:"UID_USER2",expiresAt:input.now+60000},input.now+200);}',{now}));
- a.equal(markAllAgain.replay,true);
- a.equal(markAllAgain.unreadCount,0);
- a.equal(markAllAgain.updated,0);
-});
 
 test('Central de Notificações - e-mail simulado: prévia institucional e recibo DRY_RUN sem envio real',()=>{
  const now=1700000000000;
@@ -249,41 +107,78 @@ test('Central de Notificações - simulação controlada de falha do canal exter
  a.equal(failureResult.errorMessage,'Queda temporária simulada no gateway de e-mail.');
  a.equal(failureResult.mode,'DRY_RUN');
  a.equal(failureResult.sent,false);
+ const resolution='LOCAL_SIMULATION_CONFIRMED_NO_RESEND';
+ Object.assign(docs['jobOutbox/'+opId],{state:'COMPLETED',resolution});
+ const replay=JSON.parse(domain.run('x=>f4MemberNotifications_().consumer({config:nodeConfig,identity:{uid:"CF_ADMIN",expiresAt:x.now+60000},clock:()=>x.now}).run(x.opId)',{now,opId}));
+ a.equal(replay.resolution,resolution);a.equal(replay.sent,false);a.equal(replay.replay,true);
 });
 
-test('Central de Notificações - rota operacional /meu-vinculo/notificacoes do Portal',()=>{
- const now=1700000000000;
- const person='PES-TEST-005';
- const notifId='d'.repeat(32);
- const initialDocs={
-  'memberAuthBindings/UID_PORTAL_USER':{idPessoa:person,active:true}
- };
+function notificationFixture(){
+ const {seed}=require('./fixtures.cjs'),{now,docs:raw}=seed();
+ const initial=Object.fromEntries(Object.entries(raw).map(([key,v])=>[key,decode({mapValue:v})]));
+ const uid='CF_ADMIN',person=initial['memberAuthBindings/'+uid].idPessoa;
+ delete initial['coreDevAdmins/'+uid];
+ const policy=initial['memberAuthorityControl/MEMBERS'].selfReadPolicy;
+ initial['memberAuthzPolicies/'+policy.policyId]={schemaVersion:'member-authz-policy-v13',id:policy.policyId,revision:policy.policyRevision,active:true,origin:'F4_M621_INSTITUTIONAL',approvalRef:'SYN_SELF',issuedAt:policy.issuedAt,expiresAt:policy.expiresAt,proofKind:'SELF',capabilities:['MEMBERS_SELF_READ'],actorSelector:{kind:'SELF'},targets:{ownPerson:true,allowedTargetScopes:[],allowedBoards:[],allowedRoles:[],allowedPersons:[],allowedResources:['memberCurrentStates/'+person],commandScopes:['OWN_MEMBER_RESOURCES']},fieldMasks:policy.fieldMasks};
+ const {PROJECT,DEMO}=require('../src/environment.cjs'),route='/meu-vinculo/notificacoes',writeRoute=route+'/leitura';
+ initial['projectionRecoveryControl/current']={schemaVersion:'activity-projection-recovery-v1',projectId:PROJECT,namespace:'',mode:'DEV_READERS_OPERATIONAL',enabled:true,revision:1,startsAt:now-1000,expiresAt:now+3600000,actorUids:[uid],policyIds:[policy.policyId],readModelCommands:[],browserEnabled:true,appCheck:{mode:'REQUIRED',appIds:['SYN_APP']},specializedReaders:{enabled:true,actorUids:[uid],routes:[route,writeRoute]}};
+ const {domain,docs}=setupTestDomain(initial);
+ const emit=(n,to=person,title='Teste')=>JSON.parse(domain.run('x=>f4MemberNotifications_().emit(nodeTx,x.payload,x.now)',{payload:{personId:to,title,event:'SYNTHETIC_TEST',operationId:n.toString(16).padStart(32,'0')},now}));
+ const seconds=Math.floor(now/1000);
+ const auth={verifyIdToken:async(token,revoked)=>{a.equal(revoked,true);return {uid,sub:uid,aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,iat:seconds,exp:seconds+3600,auth_time:seconds}}};
+ const appCheck={verifyToken:async()=>({appId:'SYN_APP'})};
+ const read=async(db,params={},target=route,appCheckToken='synthetic')=>(await require('../src/act-readers.cjs').readAct({db,auth,appCheck,token:'synthetic',appCheckToken,origin:'https://geapa-convergencia-dev.web.app',body:{action:'actRead',request:{route:target,params}}})).result.data;
+ return {docs,person,uid,policy,emit,read,route,writeRoute};
+}
 
- const {domain,docs}=setupTestDomain(initialDocs);
-
- // 1. Emit notification
- domain.run('(input)=>{const tx={get:p=>({data:()=>nodeDb.get(p)}),set:(p,v)=>{nodeTx.set(p,v);}};const M=f4MemberNotifications_();M.emit(tx,{personId:input.person,event:"SYNTHETIC_TEST",title:"Portal Route Test",body:"Testando rota do portal",operationId:input.notifId},input.now);}',{person,notifId,now});
-
- // 2. Read via operational reader /meu-vinculo/notificacoes
- const readResult=JSON.parse(domain.run('(input)=>{const nodeConfig={projectId:"geapa-convergencia-dev",environment:"DEV",database:"(default)",host:"firestore.googleapis.com",port:443};const reader=f4MemberOperationalReader_({config:nodeConfig,identity:{uid:"UID_PORTAL_USER",expiresAt:input.now+60000},clock:()=>input.now});return reader.read({route:"/meu-vinculo/notificacoes",params:{}});}',{now}));
-
- a.equal(readResult.ok,true);
- a.equal(readResult.data.personId,person);
- a.equal(readResult.data.unreadCount,1);
- a.equal(readResult.data.items.length,1);
- a.equal(readResult.data.items[0].id,notifId);
- a.equal(readResult.data.items[0].read,false);
-
- // 3. Mark read via operational reader /meu-vinculo/notificacoes
- const markResult=JSON.parse(domain.run('(input)=>{const nodeConfig={projectId:"geapa-convergencia-dev",environment:"DEV",database:"(default)",host:"firestore.googleapis.com",port:443};const reader=f4MemberOperationalReader_({config:nodeConfig,identity:{uid:"UID_PORTAL_USER",expiresAt:input.now+60000},clock:()=>input.now});return reader.read({route:"/meu-vinculo/notificacoes",params:{action:"MARK_READ",notificationId:input.notifId}});}',{notifId,now}));
-
- a.equal(markResult.ok,true);
- a.equal(markResult.unreadCount,0);
- a.equal(markResult.notification.read,true);
-
- // 4. Read again: verified unreadCount is 0
- const readAfter=JSON.parse(domain.run('(input)=>{const nodeConfig={projectId:"geapa-convergencia-dev",environment:"DEV",database:"(default)",host:"firestore.googleapis.com",port:443};const reader=f4MemberOperationalReader_({config:nodeConfig,identity:{uid:"UID_PORTAL_USER",expiresAt:input.now+60000},clock:()=>input.now});return reader.read({route:"/meu-vinculo/notificacoes",params:{}});}',{now}));
- a.equal(readAfter.data.unreadCount,0);
- a.equal(readAfter.data.items[0].read,true);
+test('recipient-scoped delivery, stable replay, retention and legacy counter repair',()=>{
+ const {emit,person,docs}=notificationFixture();
+ const first=emit(1);
+ a.equal(emit(1).replay,true);
+ a.throws(()=>emit(1,person,'Conteúdo alterado'),/OPERATION_CONFLICT/);
+ a.notEqual(emit(1,'SYN_OTHER').notification.id,first.notification.id);
+ for(let n=2;n<=100;n++)emit(n);
+ const ix=docs['memberNotificationIndexes/'+person];
+ ix.schemaVersion='member-notification-index-v1';ix.unreadCount=124;
+ const last=emit(101);
+ a.equal(last.index.unreadCount,100);a.equal(last.index.notificationIds.length,100);
+ a(!last.index.notificationIds.includes(first.notification.id));a.equal(emit(1).replay,true);
 });
 
+test('reader and write guard enforce SELF, atomic batch, response contract and stable individual replay',async()=>{
+ const {docs,uid,person,emit,read,writeRoute,route,policy}=notificationFixture();
+ const db=require('./fixtures/member-memory-db.cjs').database(docs);
+ const first=emit(1).notification;emit(2);emit(3);
+ const single={action:'MARK_READ',notificationId:first.id},bulk={action:'MARK_ALL_READ'};
+ a.equal((await read(db)).unreadCount,3);
+ await a.rejects(read(db,single,route),/SCHEMA_INVALID/);
+ await a.rejects(read(db,{},route,null),/APP_CHECK_REQUIRED/);
+ a.equal((await read(db,single,writeRoute)).unreadCount,2);
+ const at=docs['memberNotifications/'+first.id].readAt;
+ a.equal((await read(db,single,writeRoute)).unreadCount,2);a.equal(docs['memberNotifications/'+first.id].readAt,at);
+ a.equal((await read(db,bulk,writeRoute)).unreadCount,0);
+ a.equal((await read(db,bulk,writeRoute)).unreadCount,0);
+ a((await read(db)).items.every(row=>row.read&&row.targetRoute==='minha-situacao'));
+ const foreign=emit(1,'SYN_OTHER').notification;
+ await a.rejects(read(db,{action:'MARK_READ',notificationId:foreign.id},writeRoute),/RESOURCE_NOT_FOUND/);
+ docs['memberNotificationIndexes/'+person].notificationIds.push(foreign.id);
+ await a.rejects(read(db,bulk,writeRoute),/RECONCILIATION_REQUIRED/);
+ a.equal(docs['memberNotifications/'+foreign.id].read,false);
+ docs['memberNotificationIndexes/'+person].notificationIds.pop();
+ docs['memberAuthzPolicies/'+policy.policyId].active=false;
+ await a.rejects(read(db));
+ docs['memberAuthzPolicies/'+policy.policyId].active=true;
+ docs['memberAuthBindings/'+uid].active=false;
+ await a.rejects(read(db));await a.rejects(read(db,bulk,writeRoute));
+});
+
+test('concurrent notification receipts in a native Firestore emulator transaction',{skip:process.env.GEAPA_NOTIFICATION_EMULATOR_TEST!=='1'},async t=>{
+ const {docs,emit,read,writeRoute}=notificationFixture(),id=emit(1).notification.id;emit(2);
+ const {Firestore}=require('@google-cloud/firestore'),{DEMO}=require('../src/environment.cjs');
+ const db=new Firestore({projectId:DEMO,databaseId:'notice-'+crypto.randomUUID().slice(0,8)});
+ t.after(()=>db.terminate());
+ const batch=db.batch();for(const [path,value] of Object.entries(docs))batch.set(db.doc(path),value);await batch.commit();
+ const mark=()=>read(db,{action:'MARK_READ',notificationId:id},writeRoute);
+ await Promise.all([mark(),mark()]);a.equal((await read(db)).unreadCount,1);
+ a.equal((await read(db,{action:'MARK_ALL_READ'},writeRoute)).unreadCount,0);
+});
