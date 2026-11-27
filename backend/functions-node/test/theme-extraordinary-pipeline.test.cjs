@@ -3,7 +3,7 @@ const {encode,decode}=require('../src/firestore.cjs'),clone=v=>decode(encode(v))
 const ref=(kind,id)=>({kind,id}),commands=['THEME_EXTRAORDINARY_AUTHORIZE','THEME_EXTRAORDINARY_REVOKE','THEME_REGULARIZE','THEME_REGULARIZE_ADMIN','THEME_VALIDATE','THEME_COMPLEMENT'];
 function fixture(realized=false){
  const s=scenario(),self=clone(s.docs['memberAuthzPolicies/CF_DEV_ACT_POLICY']);let serial=10;
- const board={...clone(self),proofKind:'ROLE',actorSelector:{kind:'ROLE',roleKey:'DIRETOR_ADMINISTRATIVO',group:'DIRETORIA',actorScope:'ADMINISTRACAO'},capabilities:['PRESENTATION_BOARD_READ','PRESENTATION_THEME_REVIEW'],fieldMasks:{PRESENTATION_BOARD_READ:[],PRESENTATION_THEME_REVIEW:[]},targets:{...self.targets,ownPerson:false,allowedPersons:['PES-000001'],allowedTargetScopes:['PRESC_SYN_THEME_CYCLE'],allowedResources:[],resourceScope:{kind:'PRESENTATIONS'}}};
+ const board={...clone(self),proofKind:'ROLE',actorSelector:{kind:'ROLE',roleKey:'DIRETOR_ADMINISTRATIVO',group:'DIRETORIA',actorScope:'ADMINISTRACAO'},capabilities:['PRESENTATION_BOARD_READ','PRESENTATION_THEME_REVIEW'],fieldMasks:{PRESENTATION_BOARD_READ:[],PRESENTATION_THEME_REVIEW:[]},targets:{...self.targets,ownPerson:false,allowedPersons:['PES-000001','PES-000002'],allowedTargetScopes:['PRESC_SYN_THEME_CYCLE'],allowedResources:[],resourceScope:{kind:'PRESENTATIONS'}}};
  const unit=()=>s.docs['presentationUnitHeads/SYN_THEME_UNIT'];
  // No ordinary deadline exception: extraordinary command must stand on its own.
  s.docs['presentationPolicyReferences/SYN_THEME_POLICY'].items[0].deadlineDecisions=[];
@@ -61,3 +61,49 @@ test('future institutional receipt date or missing explicit confirmation never c
  }
 });
 module.exports={fixture};
+
+test('director registers directly after the deadline, and only once against the displayed revisions',()=>{
+ const s=fixture(),p={...s.content,motivo:'Falha de registro',confirmed:true};
+ const first=s.prepare('registrar',p),concurrent=s.prepare('registrar',p);
+ const out=s.plan(first,true);
+ a.equal(out.response.result.state,'ANALYSIS',JSON.stringify(out.response));
+ const log=out.writes.find(w=>w.path.startsWith('presentationFlowCases/')).data;
+ a.equal(log.reason,p.motivo);a.equal(log.registeredBy.id,'PES-000001');a.equal(log.submissionChannel,'ADMIN_INSTITUTIONAL');
+ a(!log.authorizationRef);a(!s.unit().extraordinaryTheme);a.throws(()=>s.plan(concurrent),/STALE_REVISION/);
+});
+test('direct registration refuses open deadlines, missing reasons, revoked access, and an approved scheduled theme',()=>{
+ const p={...fixture().content,confirmed:true,motivo:'Motivo sintético'};
+ for(const scenario of ['in-time','missing-reason','approved','revoked']){
+  const s=fixture();
+  if(scenario==='in-time')s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'].parameters.thematicMinimumDays=1;
+  if(scenario==='approved'){s.unit().thematicRequestRef=ref('thematic','SYN_APPROVED');s.docs['presentationThematicRequests/SYN_APPROVED']={id:'SYN_APPROVED',revision:2,workflowState:'APPROVED',unitRef:ref('unit',s.unit().id),cycleRef:s.unit().cycleRef,personRef:s.unit().personRef};}
+  const r=s.prepare('registrar',{...p,...(scenario==='missing-reason'?{motivo:'   '}:{})});
+  if(scenario==='revoked'){s.policy(false);a.throws(()=>s.plan(r),/AUTHORIZATION|AUTHZ|STALE/);continue;}
+  const out=s.plan(r);a.equal(out.response.businessState,'REJECTED',scenario);a.equal(out.writes.length,0);
+ }
+});
+function fileFixture(section){
+ const s=fixture(true),pr=s.docs['canonicalPresentations/SYN_PR'],photo=section==='PHOTO';
+ const speaker=ref('person','PES-000002');s.unit().personRef=speaker;pr.personRef=speaker;
+ pr.materialRequirementRef=ref('requirement','SYN_M');pr.photoPolicyRef=ref('policy','SYN_PHOTO');
+ const rq=s.docs['presentationMaterialRequirements/SYN_M']={id:'SYN_M',revision:1,presentationRef:s.unit().presentationRef,personRef:speaker,cycleRef:s.unit().cycleRef,currentRevisionRef:{kind:'requirementRevision',id:'SYN_M',number:1},uploadPolicyRef:ref('policy','SYN_FILE'),openCorrectionCount:0,reviewEpoch:0,opportunitiesEpoch:0,materialStateRevision:1};
+ const desc={name:photo?'foto.png':'slides.pdf',mime:photo?'image/png':'application/pdf',size:10,sha256:'a'.repeat(64)};
+ s.docs['presentationPolicyReferences/'+(photo?'SYN_PHOTO':'SYN_FILE')]={id:photo?'SYN_PHOTO':'SYN_FILE',revision:1,approved:true,active:true,usage:photo?'PRESENTATION_PHOTO':'MATERIAL',allowBoardUpload:true,cycleRef:s.unit().cycleRef,workspace:{enabled:true,maximumBytes:2048,mimeTypes:[desc.mime]}};
+ const p={section,fileRevision:photo?0:1,motivo:'Arquivo recebido pela secretaria',confirmed:true,institutionalEvidence:{reference:'Protocolo sintético',receivedAt:s.now-3600000}};
+ return {s,rq,pr,desc,p};
+}
+for(const section of ['PHOTO','MATERIAL'])test(section+' uses a confirmed canonical artifact and records the actual director and presenter separately',()=>{
+ const {s,desc,p}=fileFixture(section);
+ const initial=s.apply('registrar',{...p,fileDescriptor:desc}),effectRef=initial.out.response.result.effectRef,out=s.docs['jobOutbox/'+effectRef.id];
+ a.equal(out.actor.personId,'PES-000001');a.equal(initial.out.response.result.provider,'GOOGLE_DRIVE_V3');
+ const pending=s.plan(s.prepare('registrar',{...p,effectRef}));a.equal(pending.response.businessState,'REJECTED');a.equal(pending.writes.length,0);
+ // Provider confirmation is a synthetic fixture for this domain-level test.
+ Object.assign(out,{status:'CONFIRMED',revision:2,artifactRef:ref('artifact','SYN_FILE_VER'),workspaceReservation:{fileId:'SYN_OBJECT'}});
+ s.docs['presentationArtifacts/SYN_FILE_VER']={id:'SYN_FILE_VER',revision:1,provider:'GOOGLE_DRIVE_V3',accessClass:'PRIVATE',presentationRef:out.targetRef,objectId:'SYN_OBJECT',targetKind:'FILE',versionId:'42',sha256:desc.sha256};
+ const changed=s.plan(s.prepare('registrar',{...p,effectRef,motivo:'Outra justificativa'}));a.equal(changed.response.businessState,'REJECTED');a.equal(changed.writes.length,0);
+ const {out:final}=s.apply('registrar',{...p,effectRef});
+ const record=section==='PHOTO'?s.docs['canonicalPresentations/SYN_PR'].photo:final.writes.find(w=>w.path.startsWith('presentationMaterialSubmissions/')).data;
+ a.equal(record.administrativeRegistration.registeredBy.id,'PES-000001');a.equal(record.administrativeRegistration.presenterRef.id,'PES-000002');a.equal(record.administrativeRegistration.institutionalEvidence.receivedAt.toMillis(),p.institutionalEvidence.receivedAt);
+ a(!final.writes.some(w=>/^presentation(Realizations|MaterialReceipts|Obligations|QuotaOccupancies)/.test(w.path)));
+ const repeat=s.plan(s.prepare('registrar',{...p,effectRef}));a.equal(repeat.response.businessState,'REJECTED');a.equal(repeat.writes.length,0);
+});

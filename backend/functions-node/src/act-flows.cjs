@@ -89,7 +89,10 @@ class FlowStore extends ActivityStore{
     continue;
    }
    if(!this.validPath(w.path)||/^(member|migration)/.test(col))fail('PILOT_WRITE_DENIED');
-   const extension=extensions.includes(this.routeId?.slice(9)),proofAssociation=col==='jobOutbox'&&this.routeId==='ACT_FLOW_ATTENDANCE_JUSTIFICATION_REQUEST';
+   const administrativeFile=this.routeId==='ACT_FLOW_THEME_REGULARIZE_ADMIN'&&(
+    col==='jobOutbox'&&['MATERIAL','PHOTO'].includes(d.details?.administrativeRegistration?.section)&&d.actor?.uid===this.identity.uid||
+    col==='presentationPolicyReferences'&&d.kind==='UPLOAD_ARTIFACT_MANIFEST'&&d.state==='SEALED'&&d.complete===true&&d.effectRef?.kind==='outbox'&&id==='upl_'+d.effectRef.id&&!this.hostRead(root));
+   const extension=extensions.includes(this.routeId?.slice(9))||administrativeFile,proofAssociation=col==='jobOutbox'&&this.routeId==='ACT_FLOW_ATTENDANCE_JUSTIFICATION_REQUEST';
    if(['jobOutbox','presentationPolicyReferences','activityTypes','activityPolicies'].includes(col)&&(!(extension||proofAssociation)||process.env.GEAPA_ACT_EXTENSIONS_ENABLED!=='true'&&!this.hostRead('commandExecutorOwners/'+this.operationId)))fail('PILOT_WRITE_DENIED');
    if(col==='jobOutbox'){
     const prior=this.hostRead(root);if(s.missing.size)return;
@@ -97,9 +100,9 @@ class FlowStore extends ActivityStore{
     if(!prior){if(proofAssociation||d.status!=='PENDING'||d.createdByOperation!==this.operationId)fail('PILOT_WRITE_DENIED');}
     else{const command=this.routeId.slice(9),mutableFields=['submissionRef','photoSubmitted','revision','createdAt','updatedAt','operationId','originRef','schemaVersion','recordMode'];
      if(proofAssociation)mutableFields.push('justificationRef');
-     if(!(boundary?allowed(root):roots.has(root))||!['MATERIAL_SUBMIT','MATERIAL_CORRECTION_SUBMIT','PHOTO_SUBMIT','ATTENDANCE_JUSTIFICATION_REQUEST'].includes(command)||prior.status!=='CONFIRMED'||d.status!=='CONFIRMED')fail('PILOT_WRITE_DENIED');
+     if(!(boundary?allowed(root):roots.has(root))||!administrativeFile&&!['MATERIAL_SUBMIT','MATERIAL_CORRECTION_SUBMIT','PHOTO_SUBMIT','ATTENDANCE_JUSTIFICATION_REQUEST'].includes(command)||prior.status!=='CONFIRMED'||d.status!=='CONFIRMED')fail('PILOT_WRITE_DENIED');
      if(proofAssociation){if(prior.justificationRef||d.justificationRef?.kind!=='justification'||prior.details?.purpose!=='ATTENDANCE_PROOF'||d.submissionRef!==prior.submissionRef||d.photoSubmitted!==prior.photoSubmitted)fail('PILOT_WRITE_DENIED');}
-     else if(command==='PHOTO_SUBMIT'?(prior.photoSubmitted||d.photoSubmitted!==true||prior.details?.purpose!=='PRESENTATION_PHOTO'||d.submissionRef!==prior.submissionRef):(prior.submissionRef||!d.submissionRef||d.submissionRef.kind!=='submission'||d.photoSubmitted!==prior.photoSubmitted))fail('PILOT_WRITE_DENIED');
+     else if((command==='PHOTO_SUBMIT'||administrativeFile&&prior.details.administrativeRegistration.section==='PHOTO')?(prior.photoSubmitted||d.photoSubmitted!==true||prior.details?.purpose!=='PRESENTATION_PHOTO'||d.submissionRef!==prior.submissionRef):(prior.submissionRef||!d.submissionRef||d.submissionRef.kind!=='submission'||d.photoSubmitted!==prior.photoSubmitted))fail('PILOT_WRITE_DENIED');
      if(d.schemaVersion!=='act-v2-candidate'||d.recordMode!=='NEW_V2'||d.revision!==prior.revision+1||d.operationId!==this.operationId||prior.createdAt&&JSON.stringify(encode(prior.createdAt))!==JSON.stringify(encode(d.createdAt)))fail('PILOT_WRITE_DENIED');
      for(const k of new Set([...Object.keys(prior),...Object.keys(d)]))if(!mutableFields.includes(k)&&JSON.stringify(encode(prior[k]??null))!==JSON.stringify(encode(d[k]??null)))fail('PILOT_WRITE_DENIED');
     }
@@ -153,7 +156,9 @@ class FlowStore extends ActivityStore{
 }
 function commandInput(r){if(!types.includes(r?.commandType)||!/^[a-f0-9]{32}$/.test(r.operationId))fail('COMMAND_TYPE_INVALID');}
 function select(store,run,r,admit=false){
- commandInput(r);store.operationId=r.operationId;
+ commandInput(r);
+ if(admit&&r.commandType==='ACT.THEME_EXTRAORDINARY_AUTHORIZE'&&!store.hostRead('commandExecutorOwners/'+r.operationId))fail('COMMAND_TYPE_INVALID');
+ store.operationId=r.operationId;
  if(extensions.includes(r.commandType.slice(4))&&process.env.GEAPA_ACT_EXTENSIONS_ENABLED!=='true'&&!store.hostRead('commandExecutorOwners/'+r.operationId))fail('COMMAND_TYPE_INVALID');
  store.routeId=run('(r)=>{const f=f4ActFlowExecutor_(),o=nodeRead("commandExecutorOwners/"+r.operationId),id=o?.routeId||f.select(nodeRead,r,nodeConfig);f4Core_().need(id,"ACCESS_REVOKED");return id;}',r);
  store.validPath=p=>run('(p)=>f4ActivitiesModel_().validPath(p)',p);
@@ -161,6 +166,7 @@ function select(store,run,r,admit=false){
 }
 function preparation(store,run,input,portal){
  const type=portal?run('(x)=>nodeFlowPortalType(x)',input):input.commandType;
+ if(type==='ACT.THEME_EXTRAORDINARY_AUTHORIZE')fail('COMMAND_TYPE_INVALID');
  commandInput({commandType:type,operationId:input.operationId});if(extensions.includes(type.slice(4))&&process.env.GEAPA_ACT_EXTENSIONS_ENABLED!=='true')fail('COMMAND_TYPE_INVALID');store.operationId=input.operationId;store.routeId='ACT_FLOW_'+type.slice(4);store.validPath=p=>run('(p)=>f4ActivitiesModel_().validPath(p)',p);
  run('(id)=>{const f=f4ActFlowExecutor_(),v=f.route(nodeRead,nodeConfig,id),n=Date.now();f4Core_().need(v.state==="ACTIVE"&&v.executor===f4CommandExecutorId_()&&v.actorUids.includes(nodeActor.uid)&&f4ExecutorWindow_().live(v,n),"ACCESS_REVOKED");}',store.routeId);
 }
