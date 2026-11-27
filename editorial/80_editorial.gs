@@ -142,6 +142,7 @@ function f4EditorialCommands_(){
    N(C.rev(input.expectedIndexRevision)&&Array.isArray(input.items)&&input.items.length===idx.itemIds.length&&idx.itemIds.length>0,'COMMAND_PAYLOAD_INVALID');
    N(idx.revision===input.expectedIndexRevision,'REVISION_CONFLICT');
    const seen=new Set(),items=[];
+   if(typeof tx.getAll==='function')tx.getAll(idx.itemIds.map(timelineItemPath));
    for(const entry of input.items){
     C.exact(entry,['id','expectedRevision']);N(C.id(entry.id)&&C.rev(entry.expectedRevision)&&!seen.has(entry.id)&&idx.itemIds.includes(entry.id),'COMMAND_PAYLOAD_INVALID');
     seen.add(entry.id);
@@ -207,10 +208,20 @@ function f4EditorialCommands_(){
  }
 
  function appendHistory(get,targetKey,event){
+  const versionPath=id=>historyPath('version_'+id);
   const h=get(historyPath(targetKey))||{schemaVersion:'canonical-editorial-history-v1',targetId:targetKey,events:[]};
   N(h.schemaVersion==='canonical-editorial-history-v1'&&Array.isArray(h.events),'SCHEMA_INVALID');
-  const nextEvents=[...h.events,event].slice(-100);
-  return {path:historyPath(targetKey),kind:'set',data:{schemaVersion:'canonical-editorial-history-v1',targetId:targetKey,events:nextEvents}};
+  const events=[...h.events,event];
+  const inline=events.filter(e=>Object.hasOwn(e,'snapshot'));
+  const writes=inline.map(e=>{
+   N(C.op(e.operationId)&&hash(e.snapshot)===e.snapshotHash,'SCHEMA_INVALID');
+   const path=versionPath(e.operationId);
+   N(!get(path),'OPERATION_CONFLICT');
+   return {path,kind:'set',data:{schemaVersion:'canonical-editorial-version-v1',historyTarget:targetKey,event:e}};
+  });
+  const summaries=events.slice(-100).map(({snapshot,...summary})=>summary);
+  writes.push({path:historyPath(targetKey),kind:'set',data:{schemaVersion:'canonical-editorial-history-v1',targetId:targetKey,events:summaries}});
+  return writes;
  }
 
  function execute(tx,o,r){
@@ -252,7 +263,7 @@ function f4EditorialCommands_(){
     resultPublished=false;resultHasDraft=true;snapshotForHistory={unpublishedRevision:old.publishedRevision};
    }
    sourceWrites.push({path:pagePath(q.targetId),kind:'set',data:nextDoc});
-   sourceWrites.push(appendHistory(get,q.targetId,{operationId:r.operationId,action:q.action,targetId:q.targetId,revisionBefore:old.revision,revisionAfter:nextRev,actorPersonId,actorUid:o.identity.uid,at:now,summary:q.summary,snapshotHash:hash(snapshotForHistory),snapshot:snapshotForHistory}));
+   sourceWrites.push(...appendHistory(get,q.targetId,{operationId:r.operationId,action:q.action,targetId:q.targetId,revisionBefore:old.revision,revisionAfter:nextRev,actorPersonId,actorUid:o.identity.uid,at:now,summary:q.summary,snapshotHash:hash(snapshotForHistory),snapshot:snapshotForHistory}));
   }else if(q.action==='TIMELINE_REORDER'){
    const idx=validateTimelineIndex(get(timelineIndexPath)),nextIdxRev=idx.revision+1;
    q.itemIds.forEach((id,position)=>{
@@ -268,7 +279,7 @@ function f4EditorialCommands_(){
    });
    sourceWrites.push({path:timelineIndexPath,kind:'set',data:{schemaVersion:'canonical-editorial-timeline-index-v1',revision:nextIdxRev,itemIds:q.itemIds,updatedAt:now,updatedByPersonId:actorPersonId}});
    snapshotForHistory={itemIds:q.itemIds};
-   sourceWrites.push(appendHistory(get,'timeline',{operationId:r.operationId,action:q.action,targetId:'timeline',revisionBefore:idx.revision,revisionAfter:nextIdxRev,actorPersonId,actorUid:o.identity.uid,at:now,summary:q.summary,snapshotHash:hash(snapshotForHistory),snapshot:snapshotForHistory}));
+   sourceWrites.push(...appendHistory(get,'timeline',{operationId:r.operationId,action:q.action,targetId:'timeline',revisionBefore:idx.revision,revisionAfter:nextIdxRev,actorPersonId,actorUid:o.identity.uid,at:now,summary:q.summary,snapshotHash:hash(snapshotForHistory),snapshot:snapshotForHistory}));
   }else{
    const idx=validateTimelineIndex(get(timelineIndexPath));
    const old=q.creating?null:validateTimelineItemCanonical(get(timelineItemPath(q.targetId)),q.targetId);
@@ -295,7 +306,7 @@ function f4EditorialCommands_(){
     resultPublished=false;resultHasDraft=true;snapshotForHistory={unpublishedRevision:old.publishedRevision};
    }
    sourceWrites.push({path:timelineItemPath(q.targetId),kind:'set',data:nextDoc});
-   sourceWrites.push(appendHistory(get,'timeline',{operationId:r.operationId,action:q.action,targetId:q.targetId,revisionBefore:oldRev,revisionAfter:nextRev,actorPersonId,actorUid:o.identity.uid,at:now,summary:q.summary,snapshotHash:hash(snapshotForHistory),snapshot:snapshotForHistory}));
+   sourceWrites.push(...appendHistory(get,'timeline',{operationId:r.operationId,action:q.action,targetId:q.targetId,revisionBefore:oldRev,revisionAfter:nextRev,actorPersonId,actorUid:o.identity.uid,at:now,summary:q.summary,snapshotHash:hash(snapshotForHistory),snapshot:snapshotForHistory}));
   }
 
   const receipt={schemaVersion:'editorial-receipt-v1',projectId:o.config.projectId,operationId:r.operationId,ownerUid:o.identity.uid,actorPersonId,executor:c.executor,epoch:c.epoch,commandType:TYPE,action:q.action,resourcePath:q.resourcePath,targetId:q.targetId,digest:r.digest,revisionBefore:q.beforeRevision,revisionAfter:q.afterRevision,published:resultPublished,hasDraft:resultHasDraft,publicUpdate:q.publicUpdate,state:'COMPLETED',at:now};
@@ -312,15 +323,25 @@ function f4EditorialCommands_(){
 
  function readView(options,params){
   N(params&&typeof params==='object'&&!Array.isArray(params),'COMMAND_PAYLOAD_INVALID');
-  C.exact(params,[]);
+  const version=Object.hasOwn(params,'operationId');
+  C.exact(params,version?['operationId','historyTarget']:[]);
+  if(version)N(C.op(params.operationId)&&['home','about','timeline'].includes(params.historyTarget),'COMMAND_PAYLOAD_INVALID');
   return F.connect(options.config).transaction(tx=>{
    const get=p=>tx.get(p).data(),now=(options.clock||Date.now)();
+   if(version){
+    const target=params.historyTarget,resource=target==='timeline'?'timeline':'pages';
+    control(get,options.config,options.identity,now,true,'canonicalEditorial/'+resource,true);
+    const saved=get(historyPath('version_'+params.operationId));
+    const event=saved?.historyTarget===target?saved.event:get(historyPath(target))?.events.find(e=>e.operationId===params.operationId);
+    N(event?.operationId===params.operationId&&Object.hasOwn(event,'snapshot'),'RESOURCE_NOT_FOUND');
+    return {ok:true,data:{snapshot:event.snapshot}};
+   }
    let authPages=null,authTimeline=null,c=null;
    try{const r=control(get,options.config,options.identity,now,true,'canonicalEditorial/pages',true);authPages=r.auth;c=r.c;}catch(e){if(!['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
    try{const r=control(get,options.config,options.identity,now,true,'canonicalEditorial/timeline',true);authTimeline=r.auth;c=c||r.c;}catch(e){if(!['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
    N(authPages||authTimeline,'AUTHORIZATION_DENIED');
    const canManagePages=!!authPages,canManageTimeline=!!authTimeline;
-   const validUntil=Math.min(now+60000,options.identity.expiresAt,authPages?.validUntil??Infinity,authTimeline?.validUntil??Infinity);
+   const validUntil=Math.min(f4ServiceAvailability_().bound(c,now+60000),options.identity.expiresAt,authPages?.validUntil??Infinity,authTimeline?.validUntil??Infinity);
    const pages={};
    if(canManagePages){
     for(const id of PAGE_IDS)pages[id]=validatePageCanonical(get(pagePath(id)),id);

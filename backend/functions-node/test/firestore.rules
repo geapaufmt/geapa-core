@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Local contract for the shared public projections. No client writes.
+    function publicProjection(schema) {
+      return database == '(default)' && resource.data.schemaVersion == schema
+        && resource.data.published == true && resource.data.sanitized == true;
+    }
+    match /publicPages/{id} {
+      allow get: if database == '(default)' &&
+        (id in ['home', 'about', 'eixos-tematicos'] || id.matches('EIXOS_[0-9]{8}_EIXO_0[1-8]')) &&
+        (resource == null || (resource.data.id == id && publicProjection('geapa-public-v2.1')));
+    }
+    match /publicTimeline/{id} {
+      allow get: if publicProjection('geapa-public-v2.1');
+      allow list: if request.query.limit <= 101 && publicProjection('geapa-public-v2.1');
+    }
+    match /publicDocuments/{id} {
+      allow get: if publicProjection('geapa-public-document-v1') && resource.data.status == 'VIGENTE';
+      allow list: if request.query.limit <= 101 && publicProjection('geapa-public-document-v1')
+        && resource.data.status == 'VIGENTE';
+    }
+  }
+}

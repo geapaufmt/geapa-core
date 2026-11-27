@@ -25,7 +25,9 @@ class EditorialStore extends Store{
    const isPublicDelete=w.mode==='delete'&&(/^(publicPages\/(home|about)|publicTimeline\/[A-Za-z0-9_-]{1,48})$/.test(w.path));
    if(!isPublicDelete&&w.mode!=='set')fail('PILOT_WRITE_DENIED');
    const isCanonical=/^canonicalEditorial\/(home|about|timeline|timeline_[A-Za-z0-9_-]{1,48})$/.test(w.path);
-   const isHistory=/^canonicalEditorialHistory\/(home|about|timeline)$/.test(w.path);
+   const isVersion=/^canonicalEditorialHistory\/version_[a-f0-9]{32}$/.test(w.path);
+   if(isVersion&&this.hostRead(w.path))fail('OPERATION_CONFLICT');
+   const isHistory=isVersion||/^canonicalEditorialHistory\/(home|about|timeline)$/.test(w.path);
    const isPublic=/^(publicPages\/(home|about)|publicTimeline\/[A-Za-z0-9_-]{1,48})$/.test(w.path);
    if(!isCanonical&&!isHistory&&!isPublic&&!fixed.has(w.path))fail('PILOT_WRITE_DENIED');
    if(isPublicDelete)continue;

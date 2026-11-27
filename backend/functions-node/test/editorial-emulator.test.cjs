@@ -126,7 +126,9 @@ test('editorial CMS end-to-end on Firestore Emulator: authz, drafts, preview, pu
    const hist=(await ref('canonicalEditorialHistory/about').get()).data();
    a.equal(hist.events.length,4);
    a.equal(hist.events[1].revisionAfter,2);
-   a.equal(hist.events[1].snapshot.title,'Sobre o GEAPA');
+   a.equal(hist.events[1].snapshot,undefined);
+   const version=await readAct({db,auth,appCheck,token:'synthetic-emulator-only',appCheckToken:'synthetic',origin:'https://geapa-convergencia-dev.web.app',body:{action:'actRead',request:{route:'/admin/conteudo-publico',params:{historyTarget:'about',operationId:hist.events[1].operationId}}}});
+   a.equal(version.result.data.snapshot.title,'Sobre o GEAPA');
    a.equal(hist.events[3].revisionAfter,4);
 
    // Unpublish removes publicPages/about completely while retaining draft & history!
