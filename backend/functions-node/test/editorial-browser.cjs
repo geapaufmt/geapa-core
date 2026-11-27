@@ -21,6 +21,9 @@ async function browserAcceptance(db, seed) {
   const chrome = process.env.GEAPA_EDITORIAL_CHROME;
   assert.ok(dist && fs.existsSync(path.join(dist, 'assets/act-ui/public-admin-editor.mjs')), 'Build Portal DEV first');
   assert.ok(chrome && fs.existsSync(chrome), 'GEAPA_EDITORIAL_CHROME must name the local Chromium executable');
+  const cssLinks = [...fs.readFileSync(path.join(dist,'index.html'),'utf8').matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="([^"]+\.css)"[^>]*>/gi)]
+    .map(match=>'/'+match[1].replace(/^\//,''));
+  assert.ok(cssLinks.length && cssLinks.every(url=>/^\/[\w./-]+\.css$/.test(url) && !url.includes('..')));
   const demoApp = initializeApp({projectId:DEMO},'editorial-browser-test');
   const auth = getAuth(demoApp);
   const password = crypto.randomBytes(24).toString('hex');
@@ -44,6 +47,7 @@ async function browserAcceptance(db, seed) {
         if (req.headers.host !== new URL(base).host || (req.method === 'POST' && req.headers.origin !== base)) return res.sendStatus(403);
         res.set('Cache-Control','no-store'); next();
       });
+      for(const url of cssLinks) app.get(url,(_req,res)=>res.sendFile(path.join(dist,url)));
       app.use('/assets/act-ui',express.static(path.join(dist,'assets/act-ui'),{index:false}));
       app.get(port,(_req,res)=>res.type('html').send('<!DOCTYPE html><style>*{margin:0;border:0}iframe{display:block}</style><iframe width="'+width+'" height="810" src="'+port+'/frame"></iframe>'));
       app.get('/assets/act-command/public-pages.mjs',(_req,res)=>res.type('application/javascript').send(`
@@ -61,7 +65,7 @@ async function browserAcceptance(db, seed) {
           return decode({mapValue:await r.json()});
         }
       `));
-      app.get(port+'/frame',(_req,res)=>res.type('html').send('<!DOCTYPE html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/assets/act-ui/design-system.css"><link rel="stylesheet" href="/assets/act-ui/portal-design.css"><link rel="stylesheet" href="/assets/act-ui/institutional-directory.css"><main id="public-admin-content"></main><div id="home-editorial-content" hidden></div><script type="module" src="'+port+'/test.mjs"></script></html>'));
+      app.get(port+'/frame',(_req,res)=>res.type('html').send('<!DOCTYPE html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+cssLinks.map(url=>'<link rel="stylesheet" href="'+url+'">').join('')+'<main id="public-admin-content"></main><div id="home-editorial-content" hidden></div><script type="module" src="'+port+'/test.mjs"></script></html>'));
       app.get(port+'/test.mjs',(_req,res)=>res.type('application/javascript').send(
         'const fixture='+JSON.stringify({email,password,port,width,project:DEMO})+';\n'+fs.readFileSync(path.join(__dirname,'editorial-browser.mjs'),'utf8')
       ));
