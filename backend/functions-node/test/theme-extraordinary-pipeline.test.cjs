@@ -62,6 +62,14 @@ test('future institutional receipt date or missing explicit confirmation never c
 });
 module.exports={fixture};
 
+test('direct scheduled registration respects the approved canonical analysis clock',()=>{
+ const s=fixture(),cfg=s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'];
+ cfg.parameters.clockPolicyRef=ref('policy','SYN_CLOCK');s.docs['presentationPolicyReferences/SYN_CLOCK']={id:'SYN_CLOCK',revision:1,approved:true,active:true,analysisHours:48};
+ const {out}=s.apply('registrar',{...s.content,motivo:'Registro sintético',confirmed:true});
+ const t=s.docs['presentationThematicRequests/'+out.response.result.requestRef.id];
+ a.equal(t.analysisClock.state,'RUNNING');a.equal(t.analysisClock.dueAt.toMillis(),s.now+48*3600000);a(!t.extraordinarySubmission);
+});
+
 test('director registers directly after the deadline, and only once against the displayed revisions',()=>{
  const s=fixture(),p={...s.content,motivo:'Falha de registro',confirmed:true};
  const first=s.prepare('registrar',p),concurrent=s.prepare('registrar',p);
@@ -76,7 +84,7 @@ test('direct registration refuses open deadlines, missing reasons, revoked acces
  for(const scenario of ['in-time','missing-reason','approved','revoked']){
   const s=fixture();
   if(scenario==='in-time')s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'].parameters.thematicMinimumDays=1;
-  if(scenario==='approved'){s.unit().thematicRequestRef=ref('thematic','SYN_APPROVED');s.docs['presentationThematicRequests/SYN_APPROVED']={id:'SYN_APPROVED',revision:2,workflowState:'APPROVED',unitRef:ref('unit',s.unit().id),cycleRef:s.unit().cycleRef,personRef:s.unit().personRef};}
+  if(scenario==='approved'){s.unit().thematicRequestRef=ref('thematic','SYN_APPROVED');s.docs['presentationThematicRequests/SYN_APPROVED']={id:'SYN_APPROVED',revision:2,workflowState:'APPROVED',candidate:{titleOrObject:'T?tulo aprovado'},unitRef:ref('unit',s.unit().id),cycleRef:s.unit().cycleRef,personRef:s.unit().personRef};}
   const r=s.prepare('registrar',{...p,...(scenario==='missing-reason'?{motivo:'   '}:{})});
   if(scenario==='revoked'){s.policy(false);a.throws(()=>s.plan(r),/AUTHORIZATION|AUTHZ|STALE/);continue;}
   const out=s.plan(r);a.equal(out.response.businessState,'REJECTED',scenario);a.equal(out.writes.length,0);
@@ -111,7 +119,7 @@ for(const section of ['PHOTO','MATERIAL'])test(section+' uses a confirmed canoni
 test('effective extension restores direct registration only within the canonical function period',()=>{
  const s=fixture(true),f=s.docs['memberFunctions/VIG-001'],end=f.endDatePlanned;
  f.endDatePlanned=new Date(s.now-2*86400000).toISOString().slice(0,10);
- const p={...s.content,motivo:'Registro em mandato prorrogado',confirmed:true};
+ const p={observacoes:s.content.observacoes,motivo:'Registro em mandato prorrogado',confirmed:true};
  a.throws(()=>s.prepare('registrar',p),/AUTHORIZATION|AUTHZ/);
  const updates=JSON.parse(s.domain.run(x=>f4MemberOccupations_().extend(nodeRead,[x.f],x.f,x.end),{f,end}));
  for(const row of updates)s.docs['memberFunctions/'+row.id]=row;
@@ -138,6 +146,39 @@ test('recognized presentation accepts a documentary addendum after the assignmen
  delete u.assignmentRef;u.membershipExit={recorded:true};
  const paths=['canonicalPresentations/SYN_PR','presentationRealizations/SYN_RZ','presentationQuotaOccupancies/SYN_QUOTA','presentationObligations/SYN_OB'];
  const before=paths.map(path=>clone(s.docs[path]));
- const {out}=s.apply('registrar',{...s.content,motivo:'Arquivo histórico conferido',confirmed:true});
+ const {out}=s.apply('registrar',{observacoes:s.content.observacoes,motivo:'Arquivo histórico conferido',confirmed:true});
  a.equal(out.response.result.state,'RECORDED_NOT_APPROVED');paths.forEach((path,i)=>a.deepEqual(s.docs[path],before[i]));
+});
+
+
+test('partial documentary fields accumulate, remain readable, and reject material replacement',()=>{
+ const s=fixture(true),pr=clone(s.docs['canonicalPresentations/SYN_PR']);
+ const first=s.apply('registrar',{observacoes:'Resumo hist?rico',motivo:'Complemento parcial',confirmed:true});
+ a.equal(first.out.response.result.state,'RECORDED_NOT_APPROVED');
+ s.apply('registrar',{eixoTematicoPrincipal:'SYN_AXIS',motivo:'Eixo ausente',confirmed:true});
+ const u=s.unit(),content=JSON.parse(s.domain.run(x=>f4ActivitiesDocumentaryTheme_(x.u,null,x.pr),{u,pr}));
+ a.equal(content.titleOrObject,pr.title);a.equal(content.summary,'Resumo hist?rico');a.equal(content.principalAxisRef.id,'SYN_AXIS');
+ a.deepEqual(s.docs['canonicalPresentations/SYN_PR'],pr);
+ for(const p of [{observacoes:'Substitui??o silenciosa'},{tituloApresentacao:'T?tulo diferente'},{eixoTematicoPrincipal:'SYN_AXIS_2'}]){
+  const result=s.plan(s.prepare('registrar',{...p,motivo:'Tentativa de substituir',confirmed:true}));
+  a.equal(result.response.error.reasonCode,'EXISTING_THEME_REQUIRES_CHANGE_PROCEDURE');a.equal(result.writes.length,0);
+ }
+ const log=s.docs['presentationFlowCases/'+u.lastThemeRegularizationRef.id];a.equal(log.predecessorRef.id,first.out.response.result.recordRef.id);
+});
+
+test('scheduled partial theme enters the canonical initial flow only when complete',()=>{
+ const s=fixture();
+ s.apply('registrar',{tituloApresentacao:'Tema parcial',motivo:'T?tulo recebido',confirmed:true});
+ a(!s.unit().thematicRequestRef);
+ const out=s.apply('registrar',{observacoes:'Resumo complementado',eixoTematicoPrincipal:'SYN_AXIS',motivo:'Conclus?o dos campos',confirmed:true}).out;
+ const t=s.docs['presentationThematicRequests/'+out.response.result.requestRef.id];
+ a.equal(t.candidate.titleOrObject,'Tema parcial');a.equal(t.candidate.summary,'Resumo complementado');a.equal(t.analysisClock.state,'UNRESOLVED');a(!t.extraordinarySubmission);
+});
+
+test('approved scheduled content accepts absent summary without a second approval',()=>{
+ const s=fixture(),u=s.unit();u.thematicRequestRef=ref('thematic','APPROVED');
+ const t={id:'APPROVED',revision:3,workflowState:'APPROVED',unitRef:ref('unit',u.id),personRef:u.personRef,cycleRef:u.cycleRef,principalAxisRef:ref('policy','SYN_AXIS'),candidate:{titleOrObject:'Tema aprovado',principalAxisRef:ref('policy','SYN_AXIS')},acceptedRevisionRef:{kind:'thematicRevision',id:'APPROVED',number:3}};
+ s.docs['presentationThematicRequests/APPROVED']=clone(t);
+ const {out}=s.apply('registrar',{observacoes:'Resumo ausente',motivo:'Complementa??o',confirmed:true});
+ a.equal(out.response.result.state,'RECORDED_NOT_APPROVED');a.deepEqual(s.docs['presentationThematicRequests/APPROVED'],clone(t));
 });
