@@ -35,3 +35,36 @@ jobs:
           GEAPA_DEV_ACCESS_EMULATOR_TEST: '1'
         run: npx --no-install firebase emulators:exec --only firestore --project demo-geapa-functions-local --config firebase.emulator.json "node --test --test-concurrency=1 test/enrollment-lifecycle.test.cjs test/rh-executor-emulator.test.cjs test/dev-administrative-emulator.test.cjs"
       - run: npm run release -- --prod
+      - name: Verify governance transactions in disposable Firestore
+        env:
+          GEAPA_INSTITUTIONAL_EMULATOR_TEST: '1'
+          GEAPA_TEST_DATABASE: test-governanca-release
+        run: npx --no-install firebase emulators:exec --only firestore --project demo-geapa-functions-local --config firebase.emulator.json "node --test test/board-procedures-emulator.test.cjs"
+  hosting-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare the six public governance modules with the recorded release
+        shell: bash
+        run: |
+          node <<'NODE'
+          const {createHash} = require('node:crypto');
+          const expected = {
+            "/assets/act-ui/board-procedures.mjs": "396380bc6424d1567cfc837d88feab88761c187f8b2f9b17966ff2942567c3dd",
+            "/assets/act-ui/institutional-directory.mjs": "7aa779ea707d1f5d0a9ba8fcab0011ce4213401d8b3f14c87d8216708c1514b4",
+            "/assets/act-ui/institutional-governance-search.mjs": "645ad6618a8d80b552f0a5ff2181cc29de53bbc766b56ceb0f220414457a6bdb",
+            "/assets/act-ui/institutional-governance.mjs": "1bc51c08630012156a6ea980150bc3becf15871fdd33ac7284522f10068b8905",
+            "/assets/act-ui/institutional-minutes.mjs": "f126abac40478e80266bd5a6b4e0fd94861d0ff778cffd8c0414e449f17541d0",
+            "/assets/act-ui/institutional-norms.mjs": "7cf9fb9b31ac943744b57c6ad8c178444b6d598e2c360e138eef0b1107e8cd11"
+          };
+          (async () => {
+            for (const project of ['geapa-convergencia-dev', 'portal-geapa']) {
+              for (const [path, hash] of Object.entries(expected)) {
+                const response = await fetch('https://' + project + '.web.app' + path, {cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(20000)});
+                if (!response.ok) throw Error(project + ' ' + path + ' HTTP ' + response.status);
+                const actual = createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex');
+                console.log(project, path, actual);
+                if (actual !== hash) process.exitCode = 1;
+              }
+            }
+          })().catch(error => {console.error(error.message); process.exitCode = 1;});
+          NODE
