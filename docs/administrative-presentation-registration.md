@@ -22,9 +22,13 @@ A fotografia permanece privada e sujeita à política de upload e leitura. O reg
 
 ## Regime institucional
 
-As minutas de Regimento, NC02 e revisão da NC01 são propostas, não novas políticas operacionais. A conferência por exceção proposta na NC02 não foi ativada por esta alteração. Preservam-se as políticas canônicas aprovadas e o regime operacional existente; a conferência temática não deve ser apresentada como avaliação de mérito acadêmico.
+O [Regimento oficial vigente desde 26/11/2026](https://drive.google.com/file/d/1NbHkM255VXvkbPKwwIabId88xwUgmRJ5/view), identificado pelo responsável institucional, é a referência desta revisão. Seus arts. 19–20 atribuem ao Diretor Administrativo a gestão documental e dos sistemas; os arts. 35 e 37 permitem formalizar atos diretamente no sistema, preservando autoria, data, efeitos e decisões exigidas. Os arts. 16–18 distinguem conferência administrativa, realização, materiais e preservação histórica. O art. 34 exige finalidade, acesso autorizado e os fundamentos/autorização de imagem aplicáveis, inclusive revogação.
 
-A existência e competência institucional do cargo, os limites de exercício ordinário, prorrogações e disposições transitórias devem ser sustentados por instrumentos e decisões vigentes. Esta alteração não aprova minutas, cria cargos, amplia mandatos ou muda permissões reais.
+O art. 24 fixa 18 meses ordinários acumulados; o art. 25 disciplina prorrogação deliberada, prévia, única e cumulativa de até seis meses, limitada ao mandato. O art. 43 prevê a transição específica de 18 a 31/05/2027. Esses dispositivos não autorizam inventar períodos, prorrogações ou permissões: o comando continua revalidando os registros canônicos efetivos. Sua formalização pertence aos contratos existentes de Governança e Vigências.
+
+As minutas da NC02 e da revisão da NC01 continuam propostas. A conferência por exceção proposta na NC02 não foi ativada por esta alteração. Preservam-se as políticas canônicas aprovadas; a conferência temática não deve ser apresentada como avaliação de mérito acadêmico. O PDF local de 14/05/2026 e o cadastro `CURRENT` dessa versão observado no Core estão desatualizados frente ao regimento oficial indicado. Essa divergência de catálogo não torna a minuta autoridade nem autoriza editar diretamente registros normativos no Firestore.
+
+A competência institucional do cargo decorre do Regimento vigente; a investidura individual e eventual prorrogação dependem dos atos e registros correspondentes. Esta alteração não aprova minutas, amplia mandatos ou muda permissões reais. A atualização documental do catálogo normativo deve usar o procedimento institucional canônico, preservando a versão anterior e sua história.
 
 ## Compatibilidade e retirada futura do legado
 
