@@ -21,7 +21,9 @@ function f4MemberEnrollmentPortal_({config,identity,clock=Date.now}){
   return db.transaction(tx=>{
    const get=p=>tx.get(p).data(),now=clock(),s=A.source(get,identity.uid,now),v=s.enrollment;
    N(['INVITED','ACCEPTED'].includes(v.status)&&now<v.expiresAt&&get('memberEnrollmentIndexes/'+v.personId)?.activeEnrollmentId===v.id,'ACCESS_REVOKED');
-   if(v.status==='INVITED')return {ok:true,data:{enrollmentId:v.id,revision:v.revision,status:v.status,registration:v.registration,membershipType:v.approval.membershipType,entrySemester:core_parseEntrySemesterFromRga_(v.registration.rga),expiresAt:v.expiresAt}};
+   let admissionApprovalPending=false;
+   if(v.approval===null){try{f4MemberPreRegistration_().locate(get,v.registration,null,now);}catch(error){if(!['ADMISSION_APPROVAL_REQUIRED','ADMISSION_APPROVAL_INACTIVE','ADMISSION_APPROVAL_AMBIGUOUS','ADMISSION_CATEGORY_INVALID'].includes(error.code))throw error;admissionApprovalPending=true;}}
+   if(v.status==='INVITED')return {ok:true,data:{enrollmentId:v.id,revision:v.revision,status:v.status,admissionApprovalPending,registration:v.registration,membershipType:v.approval?.membershipType||null,entrySemester:core_parseEntrySemesterFromRga_(v.registration.rga),expiresAt:v.expiresAt}};
    let c;
    try{c=D.catalog(get,now);}catch(error){
     if(error.code!=='ACCESS_REVOKED')throw error;
@@ -34,7 +36,7 @@ function f4MemberEnrollmentPortal_({config,identity,clock=Date.now}){
    const axisIds=s.policy.interestAxisIds||[];N(Array.isArray(axisIds)&&axisIds.length<=100&&axisIds.every(C.id),'SCHEMA_INVALID');
    const interestAxes=axisIds.map(id=>get('presentationPolicyReferences/'+id)).filter(v=>v?.active===true&&v.approved===true).map(v=>({id:v.id,name:v.label||v.name||v.id}));
    // Identity, CPF and draft data are returned only to the verified invitee.
-   return {ok:true,data:{enrollmentId:v.id,revision:v.revision,status:v.status,registration:v.registration,membershipType:v.approval.membershipType,entrySemester:core_parseEntrySemesterFromRga_(v.registration.rga),profile:v.profile,expiresAt:v.expiresAt,missing:complete.missing,courseConfirmed:s.approval.courseId===v.profile.courseId&&!!v.profile.courseId,courses,interestAxes,norms:c.norms.map(n=>({id:n.id,version:n.version,label:n.label||n.title||n.id,pdfUrl:n.pdfUrl})),termsUnavailable:!c.norms.length,normTermVersion:c.configuration.normTermVersion,acknowledgement:E.acknowledgement,normAcknowledgement:v.normAcknowledgement,imageTerm:c.configuration.imageTerm||null,imageManifestation:v.imageManifestation}};
+   return {ok:true,data:{enrollmentId:v.id,revision:v.revision,status:v.status,admissionApprovalPending,registration:v.registration,membershipType:v.approval?.membershipType||null,entrySemester:core_parseEntrySemesterFromRga_(v.registration.rga),profile:v.profile,expiresAt:v.expiresAt,missing:complete.missing,courseConfirmed:s.approval?.courseId===v.profile.courseId&&!!v.profile.courseId,courses,interestAxes,norms:c.norms.map(n=>({id:n.id,version:n.version,label:n.label||n.title||n.id,pdfUrl:n.pdfUrl})),termsUnavailable:!c.norms.length,normTermVersion:c.configuration.normTermVersion,acknowledgement:E.acknowledgement,normAcknowledgement:v.normAcknowledgement,imageTerm:c.configuration.imageTerm||null,imageManifestation:v.imageManifestation}};
   });
  }
  function prepare(input){

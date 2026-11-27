@@ -118,7 +118,7 @@ function f4MemberAuthzContracts_() {
  const own=['MEMBERS_SELF_READ','MEMBERS_SELF_UPDATE','MEMBERS_VOLUNTARY_REQUEST'].includes(cap);if(own)need(t.scopeKey===null&&t.boardId===null&&t.roleKey===null&&t.caseId===null&&t.purpose===null&&t.linkId===null&&t.effect===null&&t.effectiveDate===null);
  else{need(id(t.caseId)&&id(t.purpose));need(scopes.includes(t.scopeKey)||(cap==='MEMBERS_GOVERNANCE_EXECUTE'&&t.roleKey==='CONSELHEIRO_CONSULTIVO'&&id(t.boardId)));}
  if(cap==='MEMBERS_GOVERNANCE_EXECUTE')need(id(t.boardId)&&id(t.roleKey));
- if(cap==='MEMBERS_INGRESS_EXECUTE'&&t.effect==='INVITATION')need(t.linkId===null&&t.effectiveDate!==null&&t.resources.some(p=>/^memberEnrollments\/[a-f0-9]{32}$/.test(p))&&t.resources.every(p=>/^member(Enrollments|EnrollmentIndexes|Identities|Identifiers)\//.test(p)));
+ if(cap==='MEMBERS_INGRESS_EXECUTE'&&t.effect==='INVITATION')need(t.linkId===null&&t.effectiveDate!==null&&t.resources.some(p=>/^memberEnrollments\/[a-f0-9]{32}$/.test(p))&&t.resources.every(p=>/^member(Enrollments|EnrollmentIndexes|Identities|Identifiers|AdmissionApprovals|AdmissionApprovalIndexes)\//.test(p)));
  else if(cap==='MEMBERS_INGRESS_EXECUTE'&&t.effect==='PRE_REGISTRATION')need(t.linkId===null&&t.effectiveDate!==null&&t.resources.includes('memberEnrollmentIndexes/'+t.personId)&&t.resources.some(p=>/^memberEnrollments\/[a-f0-9]{32}$/.test(p))&&t.resources.every(p=>/^member(Identities|Identifiers|Enrollments|EnrollmentIndexes)\//.test(p)));
  else if(['MEMBERS_INGRESS_EXECUTE','MEMBERS_DISCIPLINE_EXECUTE','MEMBERS_VOLUNTARY_EXIT_EXECUTE','MEMBERS_VOLUNTARY_SUSPENSION_EXECUTE'].includes(cap))need(id(t.linkId)&&id(t.effect)&&t.effectiveDate!==null&&t.resources.includes('memberLinks/'+t.linkId));
  return t;

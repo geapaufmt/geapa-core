@@ -5,7 +5,7 @@ function f4MemberNotifications_(){
  const C=f4Core_(),N=C.need,K=f4MemberCommandCatalog_();
  const messages={
   ENROLLMENT_REGISTERED:['Novo pré-cadastro de membro','Um pré-cadastro está disponível para conferência da Presidência.','/admin/membros'],
-  ENROLLMENT_INVITATION:['Convite de ingresso no GEAPA','Seu ingresso foi previamente aprovado. Acesse o Portal para aceitar ou recusar o convite e completar seu cadastro.','/ingresso'],
+  ENROLLMENT_INVITATION:['Convite de ingresso no GEAPA','Há um convite para completar seu cadastro no GEAPA. Acesse o Portal para aceitar ou recusar. O convite não ativa seu vínculo.','/ingresso'],
   ENROLLMENT_ACCEPTED:['Convite aceito — cadastro pendente','Seu aceite foi registrado. Complete os dados obrigatórios e registre a ciência das normas para confirmar o ingresso.','/ingresso'],
   ENROLLMENT_DECLINED:['Recusa de convite registrada','Sua decisão foi registrada. Nenhum vínculo foi ativado.','/ingresso'],
   ENROLLMENT_COMPLETED:['Ingresso confirmado','Seu cadastro foi concluído e o vínculo foi ativado. Consulte sua situação no Portal.','/app/minha-situacao'],
