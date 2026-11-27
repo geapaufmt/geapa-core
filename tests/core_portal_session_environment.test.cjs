@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(__dirname, '..', 'legacy', 'legacy.js');
 const counters = { open: 0, read: 0 };
 const sheets = {};
 
