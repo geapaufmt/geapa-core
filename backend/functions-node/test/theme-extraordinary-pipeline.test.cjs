@@ -132,3 +132,12 @@ test('upload rechecks the live function after reservation',()=>{
  s.docs['memberAuthzPolicies/CF_DEV_ACT_POLICY'].active=false;
  a.throws(check,/AUTHORIZATION|AUTHZ|ACCESS_REVOKED/);
 });
+
+test('recognized presentation accepts a documentary addendum after the assignment and membership end',()=>{
+ const s=fixture(true),u=s.unit();
+ delete u.assignmentRef;u.membershipExit={recorded:true};
+ const paths=['canonicalPresentations/SYN_PR','presentationRealizations/SYN_RZ','presentationQuotaOccupancies/SYN_QUOTA','presentationObligations/SYN_OB'];
+ const before=paths.map(path=>clone(s.docs[path]));
+ const {out}=s.apply('registrar',{...s.content,motivo:'Arquivo histórico conferido',confirmed:true});
+ a.equal(out.response.result.state,'RECORDED_NOT_APPROVED');paths.forEach((path,i)=>a.deepEqual(s.docs[path],before[i]));
+});

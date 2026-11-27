@@ -140,7 +140,8 @@ function f4ActivitiesFunctionalPorts_(options){
    const access=f4ActivitiesPipeline_().statusAccess(reader,identity,{operationId:out.createdByOperation,commandType:r.commandType,digest:provenance.digest},clock());
    N(access.proof.kind==='ROLE'&&reader('memberRoleCatalog/'+access.proof.roleId)?.roleKey==='DIRETOR_ADMINISTRATIVO'&&access.proof.functionId===out.authorityBasis.functionBasis.functionId,'AUTHORIZATION_DENIED');
    const u=reader(M.path(registration.unitRef)),pr=u?.presentationRef&&reader(M.path(u.presentationRef));
-   N(pr&&pr.id===out.targetRef.id&&pr.personRef?.id===u.personRef.id&&!u.membershipExit,'STALE_REVISION');
+   const realization=pr?.realizationRef&&reader(M.path(pr.realizationRef));
+   N(pr&&pr.id===out.targetRef.id&&pr.personRef?.id===u.personRef.id&&(!u.membershipExit||realization?.recognized===true&&realization.occurred===true&&realization.presentationRef?.id===pr.id),'STALE_REVISION');
    if(registration.section==='PHOTO'){
     const {ref,policy}=f4ActivitiesPhotoPolicy_(reader,pr);
     N(ref?.id===out.policyRef.id&&policy?.allowBoardUpload===true&&(!pr.photo||out.photoSubmitted&&out.status==='CONFIRMED'),'STALE_REVISION');
