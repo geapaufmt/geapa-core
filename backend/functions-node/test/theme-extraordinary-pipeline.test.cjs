@@ -194,3 +194,15 @@ test('approved scheduled content accepts absent summary without a second approva
  const {out}=s.apply('registrar',{observacoes:'Resumo ausente',motivo:'Complementa??o',confirmed:true});
  a.equal(out.response.result.state,'RECORDED_NOT_APPROVED');a.deepEqual(s.docs['presentationThematicRequests/APPROVED'],clone(t));
 });
+
+test('completing a partial theme uses its stored axis for canonical quota admission',()=>{
+ const s=fixture(),cfg=s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'];cfg.parameters.quota=true;
+ const hash=x=>JSON.parse(s.domain.run(x=>f4ActivitiesModel_().hash(x),x)),id=hash({cycle:'SYN_THEME_CYCLE',axis:'SYN_AXIS'}).slice(0,32);
+ const bucketPath=JSON.parse(s.domain.run(id=>f4ActivitiesModel_().path({kind:'bucket',id}),id));
+ s.docs[bucketPath]={id,revision:1,cycleRef:s.unit().cycleRef,axisRef:ref('policy','SYN_AXIS'),heldCount:0,confirmedCount:0,realizedCount:0,limit:2,pendingQueueEpoch:1,epoch:1,reconciliationState:'CLEAN',queueManifestRef:ref('assessment','SYN_QUEUE')};
+ s.docs['presentationCapacityAssessments/SYN_QUEUE']={id:'SYN_QUEUE',revision:1,state:'SEALED',complete:true,queueEpoch:1,axisRef:ref('policy','SYN_AXIS'),items:[],digest:hash([]),minimumPriorityAt:null,unresolvedPriority:false};
+ s.docs['presentationCapacityHeads/SYN_THEME_CYCLE'].capacityEpoch=1;
+ s.apply('registrar',{eixoTematicoPrincipal:'SYN_AXIS',motivo:'Eixo recebido',confirmed:true});
+ const {out}=s.apply('registrar',{tituloApresentacao:'Tema parcial',observacoes:'Resumo',motivo:'Completar tema',confirmed:true});
+ a.equal(out.response.result.state,'ANALYSIS');a.equal(s.docs[bucketPath].heldCount,1);a(s.unit().quotaOccupancyRef);
+});
