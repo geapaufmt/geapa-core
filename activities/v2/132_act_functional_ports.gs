@@ -314,13 +314,13 @@ function f4JustificationWorkflowDependencies_(command,kind,d){
 // historic capacity assessment, material policy or frequency-planning evidence.
 // The normal handler still reads/validates authority, deadlines and revisions.
 function f4ThemeSubmissionDependencies_(command,kind,d){
- if(command.startsWith('THEME_EXTRAORDINARY_')||command.startsWith('THEME_REGULARIZE')){if(kind==='cycle')return [d.currentConfigRef,d.scheduledConfigRef,f4ActivitiesModel_().ref('capacity',d.id)].filter(Boolean);if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.preAgendaPolicyRef].filter(Boolean);if(command==='THEME_REGULARIZE_ADMIN'){
+ if(command.startsWith('THEME_EXTRAORDINARY_')||command.startsWith('THEME_REGULARIZE')){if(kind==='cycle')return [d.currentConfigRef,d.scheduledConfigRef,f4ActivitiesModel_().ref('capacity',d.id)].filter(Boolean);if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.clockPolicyRef,d.parameters?.preAgendaPolicyRef].filter(Boolean);if(command==='THEME_REGULARIZE_ADMIN'){
    if(kind==='presentation')return [d.unitRef,d.cycleRef,d.realizationRef,d.materialRequirementRef,d.photoPolicyRef].filter(Boolean);
    if(kind==='requirement')return [d.uploadPolicyRef].filter(Boolean);
    if(kind==='outbox')return [d.artifactRef,d.policyRef].filter(Boolean);
    if(kind==='artifact')return [];
   }
-  const fields={unit:['cycleRef','assignmentRef','presentationRef','thematicRequestRef','obligationRef','preAgendaBasisRef'],cycle:['currentConfigRef','scheduledConfigRef'],config:['parameters'],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef'],presentation:['unitRef','cycleRef','realizationRef'],thematic:['principalAxisRef'],capacity:[],bucket:[],realization:[],flow:['policyRef'],policy:[],obligation:[],evidence:[]}[kind];return fields?fields.map(k=>d[k]).filter(Boolean):null;}
+  const fields={unit:['cycleRef','assignmentRef','presentationRef','thematicRequestRef','quotaOccupancyRef','obligationRef','preAgendaBasisRef'],cycle:['currentConfigRef','scheduledConfigRef'],config:['parameters'],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef'],presentation:['unitRef','cycleRef','realizationRef'],thematic:['principalAxisRef','candidate','analysisClock'],quota:['axisRef'],capacity:[],bucket:[],realization:[],flow:['policyRef'],policy:[],obligation:[],evidence:[]}[kind];return fields?fields.map(k=>d[k]).filter(Boolean):null;}
  if(!['THEME_SUBMIT','THEME_COMPLEMENT','THEME_VALIDATE'].includes(command))return null;
  const review=command==='THEME_VALIDATE';
  const M=f4ActivitiesModel_();

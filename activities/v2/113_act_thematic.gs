@@ -24,7 +24,7 @@ function f4ActivitiesThematic_(x){
   t.lastValidationRef=vr;t.clockState=t.workflowState==='PAUSED'?'PAUSED':'STOPPED';revision(p.requestRef,t);if(choice==='APPROVE')D.materialize(t.unitRef);queue(t,priorAxis);return {state:t.workflowState,validationRef:vr};
  }
  return {
- THEME_SUBMIT(){const cfg=config().parameters,u=x.own(p.unitRef);D.eligible(u);f4CycleParameters_().axes(cfg,p.principalAxisRef,p.secondaryAxisRef,x.get);N(!p.secondaryAxisRef||p.secondaryAxisRef.id!==p.principalAxisRef.id,'VALIDATION_ERROR','AXIS_DUPLICATE');N(typeof p.titleOrObject==='string'&&p.titleOrObject.trim()&&p.summary.trim(),'INCOMPLETE_REQUEST');N(['INITIAL','CHANGE_PROPOSAL'].includes(p.submissionKind));N(u.assignmentRef||cfg.early,'CONFIG_CAPABILITY_DISABLED','EARLY_OFF');if(u.assignmentRef)D.date(load(load(u.assignmentRef,true).sessionRef,true),undefined,undefined,'THEME',u);const rr=u.thematicRequestRef||M.ref('thematic',M.hash({unit:p.unitRef.id,cycle:x.cycleRef.id}).slice(0,32)),old=load(rr,true,true);N(p.submissionKind==='INITIAL'?!old:!!old,'INVALID_STATE_TRANSITION');const nextRev=(old?.revision||0)+1,submitted={kind:'thematicRevision',id:rr.id,number:nextRev};const priority={completeAt:M.stamp(now),operationId:x.operationId};const t={...old,unitRef:p.unitRef,personRef:u.personRef,cycleRef:x.cycleRef,principalAxisRef:old?.principalAxisRef||p.principalAxisRef,submittedRevisionRef:submitted,workflowState:'ANALYSIS',completeness:'COMPLETE',priorityBasis:old?.priorityBasis||priority,candidate:{titleOrObject:p.titleOrObject,summary:p.summary,principalAxisRef:p.principalAxisRef,...(p.secondaryAxisRef?{secondaryAxisRef:p.secondaryAxisRef}:{}),completeAt:M.stamp(now),materiality:old?'UNDECIDED':'INITIAL'},manualDecisionEpoch:old?.manualDecisionEpoch||0};
+ THEME_SUBMIT(){const cfg=config().parameters,u=x.own(p.unitRef);D.eligible(u);f4CycleParameters_().axes(cfg,p.principalAxisRef,p.secondaryAxisRef,x.get);N(!p.secondaryAxisRef||p.secondaryAxisRef.id!==p.principalAxisRef.id,'VALIDATION_ERROR','AXIS_DUPLICATE');N(typeof p.titleOrObject==='string'&&p.titleOrObject.trim()&&p.summary.trim(),'INCOMPLETE_REQUEST');N(['INITIAL','CHANGE_PROPOSAL'].includes(p.submissionKind));N(u.assignmentRef||cfg.early,'CONFIG_CAPABILITY_DISABLED','EARLY_OFF');if(u.assignmentRef&&!x.administrativeRecord)D.date(load(load(u.assignmentRef,true).sessionRef,true),undefined,undefined,'THEME',u);const rr=u.thematicRequestRef||M.ref('thematic',M.hash({unit:p.unitRef.id,cycle:x.cycleRef.id}).slice(0,32)),old=load(rr,true,true);N(p.submissionKind==='INITIAL'?!old:!!old,'INVALID_STATE_TRANSITION');const nextRev=(old?.revision||0)+1,submitted={kind:'thematicRevision',id:rr.id,number:nextRev};const priority={completeAt:M.stamp(now),operationId:x.operationId};const t={...old,unitRef:p.unitRef,personRef:u.personRef,cycleRef:x.cycleRef,principalAxisRef:old?.principalAxisRef||p.principalAxisRef,submittedRevisionRef:submitted,workflowState:'ANALYSIS',completeness:'COMPLETE',priorityBasis:old?.priorityBasis||priority,candidate:{titleOrObject:p.titleOrObject,summary:p.summary,principalAxisRef:p.principalAxisRef,...(p.secondaryAxisRef?{secondaryAxisRef:p.secondaryAxisRef}:{}),completeAt:M.stamp(now),materiality:old?'UNDECIDED':'INITIAL'},manualDecisionEpoch:old?.manualDecisionEpoch||0};
   if(cfg.clockPolicyRef){const clock=load(cfg.clockPolicyRef);t.analysisClock={...f4ActivitiesClock_().start(clock,now),policyRef:cfg.clockPolicyRef,manualDecisionEpoch:t.manualDecisionEpoch};}else t.analysisClock={state:'UNRESOLVED'};t.clockState=t.analysisClock.state;if(t.analysisClock.dueAt)t.nextEvaluationAt=t.analysisClock.dueAt;t.priorityCompleteAt=t.priorityBasis.completeAt;
   t.id=rr.id;
   if(cfg.quota){const b=load(D.bucketRef(p.principalAxisRef),true),oc=u.quotaOccupancyRef&&load(u.quotaOccupancyRef),same=oc&&oc.phase!=='RELEASED'&&oc.axisRef.id===p.principalAxisRef.id;if(!same&&b.heldCount+b.confirmedCount+b.realizedCount>=b.limit)t.workflowState='WAITING';else if(!old)try{D.allocate(t,p.unitRef,'H');}catch(e){if(e.code==='THEMATIC_QUOTA_EXHAUSTED'||['PRIORITY_TIE','PRIORITY_UNRESOLVED'].includes(e.reasonCode)){t.workflowState='WAITING';t.waitReason=e.reasonCode||e.code;}else throw e;}}
@@ -95,6 +95,31 @@ function f4ActivitiesThemeExtraordinary_(x){
    if(v.mode==='REALIZED')N(g.realizationRef?.id===v.pr.realizationRef.id,'STALE_REVISION');
   }
   const consumes=g?.status==='ACTIVE',grantRef=consumes?{authorizationRef:g.authorizationRef}:{};
+  if(direct){
+   const rr=u.thematicRequestRef||M.ref('thematic',M.hash({unit:u.id,cycle:u.cycleRef.id}).slice(0,32)),old=load(rr,true,true);
+   const before=f4ActivitiesDocumentaryTheme_(u,old,v.pr),content={...before},patch={};
+   for(const key of ['titleOrObject','summary','principalAxisRef','secondaryAxisRef']){
+    if(p[key]===undefined||p[key]===''||p[key]?.kind==='NONE')continue;
+    const value=key.endsWith('Ref')?p[key]:text(p[key],4000);
+    N(!before[key]||(key.endsWith('Ref')?before[key].id===value.id:before[key]===value),'HUMAN_DECISION_REQUIRED','EXISTING_THEME_REQUIRES_CHANGE_PROCEDURE');
+    if(!before[key]){content[key]=value;patch[key]=value;}
+   }
+   N(Object.keys(patch).length,'INCOMPLETE_REQUEST','NO_MISSING_THEME_FIELD');
+   const cfg=x.config().parameters;
+   if(content.principalAxisRef)f4CycleParameters_().axes(cfg,content.principalAxisRef,content.secondaryAxisRef,x.get);
+   else if(content.secondaryAxisRef)f4CycleParameters_().axes({...cfg,principalAxisRequired:false},{kind:'NONE',id:'NOT_APPLICABLE'},content.secondaryAxisRef,x.get);
+   N(!content.secondaryAxisRef||content.secondaryAxisRef.id!==content.principalAxisRef?.id,'VALIDATION_ERROR','AXIS_DUPLICATE');
+   const recorded=audit('THEME_EXTRAORDINARY_SUBMITTED',u,{...grantRef,...details,mode:v.mode,...documentation(content,false),content,patch,predecessorRef:u.lastThemeRegularizationRef||null});
+   const closed=consumes?{extraordinaryTheme:{...g,status:'CONSUMED',endedAt:M.stamp(now),endOperationId:x.operationId,submissionRef:recorded}}:{};
+   save(p.unitRef,{...u,documentaryTheme:{...(u.documentaryTheme||{}),...patch},lastThemeRegularizationRef:recorded,...closed});
+   // A complete initial scheduled record uses the same clock, queue and quota
+   // admission as an ordinary submission. Existing decisions remain immutable.
+   if(v.mode==='SCHEDULED'&&!old&&content.titleOrObject&&content.summary&&(content.principalAxisRef||cfg.principalAxisRequired===false)){
+    const result=f4ActivitiesThematic_({...x,administrativeRecord:details,p:{unitRef:p.unitRef,...content,principalAxisRef:content.principalAxisRef||{kind:'NONE',id:'NOT_APPLICABLE'},submissionKind:'INITIAL'}}).THEME_SUBMIT();
+    return {...result,recordRef:recorded,...(consumes?{authorizationState:'CONSUMED'}:{})};
+   }
+   return {recordRef:recorded,state:'RECORDED_NOT_APPROVED',...(consumes?{authorizationState:'CONSUMED'}:{})};
+  }
   N(p.principalAxisRef&&typeof p.titleOrObject==='string'&&typeof p.summary==='string','INCOMPLETE_REQUEST');
   const cfg=x.config().parameters;f4CycleParameters_().axes(cfg,p.principalAxisRef,p.secondaryAxisRef,x.get);N(!p.secondaryAxisRef||p.secondaryAxisRef.id!==p.principalAxisRef.id,'VALIDATION_ERROR','AXIS_DUPLICATE');const content={titleOrObject:text(p.titleOrObject,4000),summary:text(p.summary,4000),principalAxisRef:p.principalAxisRef,...(p.secondaryAxisRef?{secondaryAxisRef:p.secondaryAxisRef}:{})};
   if(admin)N(p.confirmed===true,'HUMAN_DECISION_REQUIRED');
@@ -109,6 +134,14 @@ function f4ActivitiesThemeExtraordinary_(x){
   const t={...old,id:rr.id,unitRef:p.unitRef,personRef:u.personRef,cycleRef:u.cycleRef,principalAxisRef:old?.principalAxisRef||p.principalAxisRef,submittedRevisionRef:{kind:'thematicRevision',id:rr.id,number:(old?.revision||0)+1},workflowState:'ANALYSIS',completeness:'COMPLETE',candidate:{...content,completeAt:M.stamp(now),materiality:old?'UNDECIDED':'INITIAL'},priorityBasis:old?.priorityBasis||{completeAt:M.stamp(now),operationId:x.operationId},priorityCompleteAt:old?.priorityBasis?.completeAt||M.stamp(now),manualDecisionEpoch:(old?.manualDecisionEpoch||0)+1,analysisClock:{state:'MANUAL_ONLY'},clockState:'MANUAL_ONLY',extraordinarySubmission:{mode:v.mode,recordedAt:M.stamp(now),recordRef:recorded,...grantRef}};delete t.nextEvaluationAt;revision(rr,t);save(p.unitRef,{...u,thematicRequestRef:rr,...closed});x.themeQueue?.(t);return {requestRef:rr,state:'ANALYSIS',...grantResult};
  }
  return {THEME_EXTRAORDINARY_AUTHORIZE:authorize,THEME_EXTRAORDINARY_REVOKE:revoke,THEME_REGULARIZE:()=>submit(false),THEME_REGULARIZE_ADMIN:()=>submit(true)};
+}
+
+// Documentary complements fill gaps only; accepted/presented content wins.
+function f4ActivitiesDocumentaryTheme_(unit,theme,presentation){
+ const candidate=theme?.candidate||{},extra=unit?.documentaryTheme||{},out={};
+ const values={titleOrObject:candidate.titleOrObject||presentation?.title||extra.titleOrObject,summary:candidate.summary||extra.summary,principalAxisRef:theme?.principalAxisRef||candidate.principalAxisRef||extra.principalAxisRef,secondaryAxisRef:candidate.secondaryAxisRef||theme?.secondaryAxisRef||extra.secondaryAxisRef};
+ for(const [key,value] of Object.entries(values))if(value&&value.kind!=='NONE')out[key]=value;
+ return out;
 }
 
 function f4ActivitiesAdministrativeFile_(x,v,record,documentation){
