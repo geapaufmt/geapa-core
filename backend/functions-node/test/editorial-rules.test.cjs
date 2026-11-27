@@ -15,7 +15,13 @@ test('editorial public queries and client isolation under Firestore rules', {
   const root = 'http://127.0.0.1:8187/v1/projects/' + project + '/databases/(default)/documents';
   const timeline = {schemaVersion:'geapa-public-v2.1', published:true, sanitized:true};
   const norm = {schemaVersion:'geapa-public-document-v1', published:true, sanitized:true, status:'VIGENTE'};
+  const axisId = 'EIXOS_CICLO_B7_EIXO_SOLO_2';
+  const historicalAxisId = 'EIXOS_20260101_EIXO_08';
+  const unpublishedAxisId = 'EIXOS_B7_EIXO_RESTRITO';
   const records = {
+    ['publicPages/'+axisId]: {...timeline,id:axisId},
+    ['publicPages/'+historicalAxisId]: {...timeline,id:historicalAxisId},
+    ['publicPages/'+unpublishedAxisId]: {...timeline,id:unpublishedAxisId,published:false},
     ['publicTimeline/' + id]: timeline,
     ['publicTimeline/' + id + '_private']: {...timeline, published:false},
     ['publicDocuments/' + id]: norm,
@@ -36,12 +42,15 @@ test('editorial public queries and client isolation under Firestore rules', {
       const headers = {'Content-Type':'application/json'};
       if (token) headers.Authorization = 'Bearer ' + token;
       for (const [path,status] of [
+        ['publicPages/'+axisId,200], ['publicPages/'+historicalAxisId,200],
+        ['publicPages/'+unpublishedAxisId,403], ['publicPages/EIXOS_DRAFT',403],
+        ['canonicalEditorial/EIXOS_CURRENT',403], ['canonicalEditorial/EIXOS_DRAFT',403],
         ['publicTimeline/'+id,200], ['publicDocuments/'+id,200], ['publicTimeline/'+id+'_private',403],
         ['publicDocuments/'+id+'_old',403], ['coreDevValidation/CF_DEV_EDIT_PILOT_V1/publicTimeline/'+id,403],
         ['publicPages/unknown',403], ...['canonicalEditorial','canonicalEditorialHistory','editorialReceipts',
           'editorialAudit','editorialRate','commandExecutorOwners','editorialControl'].map(c=>[c+'/'+id,403])
       ]) assert.equal((await fetch(root+'/'+path,{headers})).status,status,path);
-      for (const path of ['publicPages/home','publicTimeline/'+id,'publicDocuments/'+id,'canonicalEditorial/home','editorialControl/current']) {
+      for (const path of ['publicPages/home','publicPages/'+axisId,'publicTimeline/'+id,'publicDocuments/'+id,'canonicalEditorial/home','editorialControl/current']) {
         const response = await fetch(root+'/'+path,{method:'PATCH',headers,body:JSON.stringify({fields:{}})});
         assert.equal(response.status,403,path);
       }

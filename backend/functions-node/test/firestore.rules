@@ -8,7 +8,7 @@ service cloud.firestore {
     }
     match /publicPages/{id} {
       allow get: if database == '(default)' &&
-        (id in ['home', 'about', 'eixos-tematicos'] || id.matches('EIXOS_[0-9]{8}_EIXO_0[1-8]')) &&
+        (id in ['home', 'about', 'eixos-tematicos'] || id.matches('EIXOS_[0-9A-Za-z_-]{1,32}_EIXO_[A-Z0-9_]{1,27}')) &&
         (resource == null || (resource.data.id == id && publicProjection('geapa-public-v2.1')));
     }
     match /publicTimeline/{id} {
