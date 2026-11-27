@@ -91,7 +91,7 @@ function f4ActivitiesFunctionalPorts_(options){
   for(const [path,d] of documents){if(!d)continue;
    if(path===M.path(input.payload.unitRef||M.ref('unit','NONE'))&&['THEME_SUBMIT','THEME_REGULARIZE','THEME_REGULARIZE_ADMIN'].includes(cmd))addExpected(d.thematicRequestRef||M.ref('thematic',M.hash({unit:d.id,cycle:d.cycleRef.id}).slice(0,32)));
    if(cmd==='DYNAMIC_DECIDE'&&path.startsWith('presentationUnitHeads/')&&d.cycleRef)addExpected(d.dynamicOccupancyRef||M.ref('dynamic',M.hash({unit:d.id,cycle:d.cycleRef.id}).slice(0,32)));
-   if(d.cycleRef?.kind&&d.cycleRef?.id){const cycle=documents.get(M.path(d.cycleRef)),cfg=cycle?.currentConfigRef&&documents.get(M.path(cycle.currentConfigRef));if(cfg?.parameters.quota)for(const axis of [d.principalAxisRef,d.candidate?.principalAxisRef,path.startsWith('presentationQuotaOccupancies/')?d.axisRef:null,['THEME_SUBMIT','THEME_REGULARIZE','THEME_REGULARIZE_ADMIN'].includes(cmd)&&path.startsWith('presentationUnitHeads/')?input.payload.principalAxisRef:null,cmd==='THEME_VALIDATE'&&path.startsWith('presentationThematicRequests/')?input.payload.reviewedContent?.principalAxisRef:null].filter(Boolean))addExpected(M.ref('bucket',M.hash({cycle:d.cycleRef.id,axis:axis.id}).slice(0,32)));}
+   if(d.cycleRef?.kind&&d.cycleRef?.id){const cycle=documents.get(M.path(d.cycleRef)),cfg=cycle?.currentConfigRef&&documents.get(M.path(cycle.currentConfigRef));if(cfg?.parameters.quota)for(const axis of [d.principalAxisRef,d.candidate?.principalAxisRef,cmd==='THEME_REGULARIZE_ADMIN'&&path.startsWith('presentationUnitHeads/')?d.documentaryTheme?.principalAxisRef:null,path.startsWith('presentationQuotaOccupancies/')?d.axisRef:null,['THEME_SUBMIT','THEME_REGULARIZE','THEME_REGULARIZE_ADMIN'].includes(cmd)&&path.startsWith('presentationUnitHeads/')?input.payload.principalAxisRef:null,cmd==='THEME_VALIDATE'&&path.startsWith('presentationThematicRequests/')?input.payload.reviewedContent?.principalAxisRef:null].filter(Boolean))addExpected(M.ref('bucket',M.hash({cycle:d.cycleRef.id,axis:axis.id}).slice(0,32)));}
   }
   const expected=[...expectedRefs].map(([path,ref])=>({...ref,...(documents.get(path)?{revision:documents.get(path).revision}:{exists:false})}));
   const direct=[...selected.values()],primary=direct.filter(r=>!['policy','artifact','config','assessment','receipt','review','realization','reconciliation'].includes(r.kind)),targetRefs=(primary.length?primary:direct).filter(r=>cmd!=='ATTENDANCE_EXCEPTIONAL_WINDOW_OPEN'||r.kind!=='person');N(targetRefs.length>0&&targetRefs.length<=32,'SCOPE_TOO_LARGE');
@@ -132,6 +132,25 @@ function f4ActivitiesFunctionalPorts_(options){
   });
  }
  function authorizeUpload(reader,out){
+  const registration=out?.details?.administrativeRegistration;
+  if(registration){
+   N(settings.commands.includes('THEME_REGULARIZE_ADMIN')&&out.actor?.uid===identity.uid&&f4ActivitiesFileStorage_().isCreate(out),'AUTHORIZATION_DENIED');
+   const provenance=reader('commandProvenance/'+out.createdByOperation),ticket=provenance&&reader('memberAdmissionTickets/'+provenance.ticketId),r=ticket?.requestEnvelope;
+   N(r?.commandType==='ACT.THEME_REGULARIZE_ADMIN'&&r.payload.section===registration.section&&r.payload.unitRef.id===registration.unitRef.id&&r.payload.fileDescriptor&&provenance.ownerUid===identity.uid,'AUTHORIZATION_DENIED');
+   const access=f4ActivitiesPipeline_().statusAccess(reader,identity,{operationId:out.createdByOperation,commandType:r.commandType,digest:provenance.digest},clock());
+   N(access.proof.kind==='ROLE'&&reader('memberRoleCatalog/'+access.proof.roleId)?.roleKey==='DIRETOR_ADMINISTRATIVO'&&access.proof.functionId===out.authorityBasis.functionBasis.functionId,'AUTHORIZATION_DENIED');
+   const u=reader(M.path(registration.unitRef)),pr=u?.presentationRef&&reader(M.path(u.presentationRef));
+   const realization=pr?.realizationRef&&reader(M.path(pr.realizationRef));
+   N(pr&&pr.id===out.targetRef.id&&pr.personRef?.id===u.personRef.id&&(!u.membershipExit||realization?.recognized===true&&realization.occurred===true&&realization.presentationRef?.id===pr.id),'STALE_REVISION');
+   if(registration.section==='PHOTO'){
+    const {ref,policy}=f4ActivitiesPhotoPolicy_(reader,pr);
+    N(ref?.id===out.policyRef.id&&policy?.allowBoardUpload===true&&(!pr.photo||out.photoSubmitted&&out.status==='CONFIRMED'),'STALE_REVISION');
+   }else{
+    const rq=pr.materialRequirementRef&&reader(M.path(pr.materialRequirementRef));
+    N(rq?.uploadPolicyRef?.id===out.policyRef.id&&(rq.revision===registration.fileRevision&&!rq.currentSubmissionRef&&!rq.currentRegularizationRef||out.submissionRef&&out.status==='CONFIRMED'),'STALE_REVISION');
+   }
+   return;
+  }
   if(out?.details?.purpose==='PRESENTATION_PHOTO')return f4ActivitiesPhotoAuthorizeUpload_(reader,out,{identity,settings,clock});
   if(out?.details?.purpose==='ATTENDANCE_PROOF')return f4AttendanceProofAuthorizeUpload_(reader,out,{identity,settings,clock});
   N(settings.commands.includes('ARTIFACT_UPLOAD_REQUEST')&&f4ActivitiesFileStorage_().isCreate(out)&&out.actor?.uid===identity.uid&&C.op(out.createdByOperation),'AUTHORIZATION_DENIED');
@@ -295,7 +314,13 @@ function f4JustificationWorkflowDependencies_(command,kind,d){
 // historic capacity assessment, material policy or frequency-planning evidence.
 // The normal handler still reads/validates authority, deadlines and revisions.
 function f4ThemeSubmissionDependencies_(command,kind,d){
- if(command.startsWith('THEME_EXTRAORDINARY_')||command.startsWith('THEME_REGULARIZE')){if(kind==='cycle')return [d.currentConfigRef,d.scheduledConfigRef,f4ActivitiesModel_().ref('capacity',d.id)].filter(Boolean);if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.preAgendaPolicyRef].filter(Boolean);const fields={unit:['cycleRef','assignmentRef','presentationRef','thematicRequestRef','obligationRef','preAgendaBasisRef'],cycle:['currentConfigRef','scheduledConfigRef'],config:['parameters'],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef'],presentation:['unitRef','cycleRef','realizationRef'],thematic:['principalAxisRef'],capacity:[],bucket:[],realization:[],flow:['policyRef'],policy:[],obligation:[],evidence:[]}[kind];return fields?fields.map(k=>d[k]).filter(Boolean):null;}
+ if(command.startsWith('THEME_EXTRAORDINARY_')||command.startsWith('THEME_REGULARIZE')){if(kind==='cycle')return [d.currentConfigRef,d.scheduledConfigRef,f4ActivitiesModel_().ref('capacity',d.id)].filter(Boolean);if(kind==='config')return [d.parameters?.axisRefs,d.parameters?.clockPolicyRef,d.parameters?.preAgendaPolicyRef].filter(Boolean);if(command==='THEME_REGULARIZE_ADMIN'){
+   if(kind==='presentation')return [d.unitRef,d.cycleRef,d.realizationRef,d.materialRequirementRef,d.photoPolicyRef].filter(Boolean);
+   if(kind==='requirement')return [d.uploadPolicyRef].filter(Boolean);
+   if(kind==='outbox')return [d.artifactRef,d.policyRef].filter(Boolean);
+   if(kind==='artifact')return [];
+  }
+  const fields={unit:['cycleRef','assignmentRef','presentationRef','thematicRequestRef','quotaOccupancyRef','obligationRef','preAgendaBasisRef','documentaryTheme'],cycle:['currentConfigRef','scheduledConfigRef'],config:['parameters'],assignment:['unitRef','cycleRef','sessionRef'],session:['cycleRef'],presentation:['unitRef','cycleRef','realizationRef'],thematic:['principalAxisRef','candidate','analysisClock'],quota:['axisRef'],capacity:[],bucket:[],realization:[],flow:['policyRef'],policy:[],obligation:[],evidence:[]}[kind];return fields?fields.map(k=>d[k]).filter(Boolean):null;}
  if(!['THEME_SUBMIT','THEME_COMPLEMENT','THEME_VALIDATE'].includes(command))return null;
  const review=command==='THEME_VALIDATE';
  const M=f4ActivitiesModel_();

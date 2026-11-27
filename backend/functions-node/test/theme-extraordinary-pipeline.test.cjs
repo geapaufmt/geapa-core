@@ -3,7 +3,7 @@ const {encode,decode}=require('../src/firestore.cjs'),clone=v=>decode(encode(v))
 const ref=(kind,id)=>({kind,id}),commands=['THEME_EXTRAORDINARY_AUTHORIZE','THEME_EXTRAORDINARY_REVOKE','THEME_REGULARIZE','THEME_REGULARIZE_ADMIN','THEME_VALIDATE','THEME_COMPLEMENT'];
 function fixture(realized=false){
  const s=scenario(),self=clone(s.docs['memberAuthzPolicies/CF_DEV_ACT_POLICY']);let serial=10;
- const board={...clone(self),proofKind:'ROLE',actorSelector:{kind:'ROLE',roleKey:'DIRETOR_ADMINISTRATIVO',group:'DIRETORIA',actorScope:'ADMINISTRACAO'},capabilities:['PRESENTATION_BOARD_READ','PRESENTATION_THEME_REVIEW'],fieldMasks:{PRESENTATION_BOARD_READ:[],PRESENTATION_THEME_REVIEW:[]},targets:{...self.targets,ownPerson:false,allowedPersons:['PES-000001'],allowedTargetScopes:['PRESC_SYN_THEME_CYCLE'],allowedResources:[],resourceScope:{kind:'PRESENTATIONS'}}};
+ const board={...clone(self),proofKind:'ROLE',actorSelector:{kind:'ROLE',roleKey:'DIRETOR_ADMINISTRATIVO',group:'DIRETORIA',actorScope:'ADMINISTRACAO'},capabilities:['PRESENTATION_BOARD_READ','PRESENTATION_THEME_REVIEW'],fieldMasks:{PRESENTATION_BOARD_READ:[],PRESENTATION_THEME_REVIEW:[]},targets:{...self.targets,ownPerson:false,allowedPersons:['PES-000001','PES-000002'],allowedTargetScopes:['PRESC_SYN_THEME_CYCLE'],allowedResources:[],resourceScope:{kind:'PRESENTATIONS'}}};
  const unit=()=>s.docs['presentationUnitHeads/SYN_THEME_UNIT'];
  // No ordinary deadline exception: extraordinary command must stand on its own.
  s.docs['presentationPolicyReferences/SYN_THEME_POLICY'].items[0].deadlineDecisions=[];
@@ -61,3 +61,148 @@ test('future institutional receipt date or missing explicit confirmation never c
  }
 });
 module.exports={fixture};
+
+test('direct scheduled registration respects the approved canonical analysis clock',()=>{
+ const s=fixture(),cfg=s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'];
+ cfg.parameters.clockPolicyRef=ref('policy','SYN_CLOCK');s.docs['presentationPolicyReferences/SYN_CLOCK']={id:'SYN_CLOCK',revision:1,approved:true,active:true,analysisHours:48};
+ const {out}=s.apply('registrar',{...s.content,motivo:'Registro sintético',confirmed:true});
+ const t=s.docs['presentationThematicRequests/'+out.response.result.requestRef.id];
+ a.equal(t.analysisClock.state,'RUNNING');a.equal(t.analysisClock.dueAt.toMillis(),s.now+48*3600000);a(!t.extraordinarySubmission);
+});
+
+test('director registers directly after the deadline, and only once against the displayed revisions',()=>{
+ const s=fixture(),p={...s.content,motivo:'Falha de registro',confirmed:true};
+ const first=s.prepare('registrar',p),concurrent=s.prepare('registrar',p);
+ const out=s.plan(first,true);
+ a.equal(out.response.result.state,'ANALYSIS',JSON.stringify(out.response));
+ const log=out.writes.find(w=>w.path.startsWith('presentationFlowCases/')).data;
+ a.equal(log.reason,p.motivo);a.equal(log.registeredBy.id,'PES-000001');a.equal(log.submissionChannel,'ADMIN_INSTITUTIONAL');
+ a(!log.authorizationRef);a(!s.unit().extraordinaryTheme);a.throws(()=>s.plan(concurrent),/STALE_REVISION/);
+});
+test('direct registration refuses open deadlines, missing reasons, revoked access, and an approved scheduled theme',()=>{
+ const p={...fixture().content,confirmed:true,motivo:'Motivo sintético'};
+ for(const scenario of ['in-time','missing-reason','approved','revoked']){
+  const s=fixture();
+  if(scenario==='in-time')s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'].parameters.thematicMinimumDays=1;
+  if(scenario==='approved'){s.unit().thematicRequestRef=ref('thematic','SYN_APPROVED');s.docs['presentationThematicRequests/SYN_APPROVED']={id:'SYN_APPROVED',revision:2,workflowState:'APPROVED',candidate:{titleOrObject:'T?tulo aprovado'},unitRef:ref('unit',s.unit().id),cycleRef:s.unit().cycleRef,personRef:s.unit().personRef};}
+  const r=s.prepare('registrar',{...p,...(scenario==='missing-reason'?{motivo:'   '}:{})});
+  if(scenario==='revoked'){s.policy(false);a.throws(()=>s.plan(r),/AUTHORIZATION|AUTHZ|STALE/);continue;}
+  const out=s.plan(r);a.equal(out.response.businessState,'REJECTED',scenario);a.equal(out.writes.length,0);
+ }
+});
+function fileFixture(section){
+ const s=fixture(true),pr=s.docs['canonicalPresentations/SYN_PR'],photo=section==='PHOTO';
+ const speaker=ref('person','PES-000002');s.unit().personRef=speaker;pr.personRef=speaker;
+ pr.materialRequirementRef=ref('requirement','SYN_M');pr.photoPolicyRef=ref('policy','SYN_PHOTO');
+ const rq=s.docs['presentationMaterialRequirements/SYN_M']={id:'SYN_M',revision:1,presentationRef:s.unit().presentationRef,personRef:speaker,cycleRef:s.unit().cycleRef,currentRevisionRef:{kind:'requirementRevision',id:'SYN_M',number:1},uploadPolicyRef:ref('policy','SYN_FILE'),openCorrectionCount:0,reviewEpoch:0,opportunitiesEpoch:0,materialStateRevision:1};
+ const desc={name:photo?'foto.png':'slides.pdf',mime:photo?'image/png':'application/pdf',size:10,sha256:'a'.repeat(64)};
+ s.docs['presentationPolicyReferences/'+(photo?'SYN_PHOTO':'SYN_FILE')]={id:photo?'SYN_PHOTO':'SYN_FILE',revision:1,approved:true,active:true,usage:photo?'PRESENTATION_PHOTO':'MATERIAL',allowBoardUpload:true,cycleRef:s.unit().cycleRef,workspace:{enabled:true,maximumBytes:2048,mimeTypes:[desc.mime]}};
+ const p={section,fileRevision:photo?0:1,motivo:'Arquivo recebido pela secretaria',confirmed:true,institutionalEvidence:{reference:'Protocolo sintético',receivedAt:s.now-3600000}};
+ return {s,rq,pr,desc,p};
+}
+test('file registration does not inherit the separate thematic deadline',()=>{
+ const {s,pr,desc,p}=fileFixture('MATERIAL');delete pr.realizationRef;delete s.unit().obligationRef;delete s.unit().quotaOccupancyRef;
+ s.unit().personRef=ref('person','PES-000001');pr.personRef=s.unit().personRef;s.docs['presentationMaterialRequirements/SYN_M'].personRef=s.unit().personRef;
+ s.docs['presentationSessions/SYN_THEME_SESSION'].civilDate=new Date(s.now+5*86400000).toISOString().slice(0,10);
+ s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'].parameters.thematicMinimumDays=1;
+ const {out}=s.apply('registrar',{...p,fileDescriptor:desc});a(out.response.result.effectRef);
+});
+for(const section of ['PHOTO','MATERIAL'])test(section+' uses a confirmed canonical artifact and records the actual director and presenter separately',()=>{
+ const {s,desc,p}=fileFixture(section);
+ const initial=s.apply('registrar',{...p,fileDescriptor:desc}),effectRef=initial.out.response.result.effectRef,out=s.docs['jobOutbox/'+effectRef.id];
+ a.equal(out.actor.personId,'PES-000001');a.equal(initial.out.response.result.provider,'GOOGLE_DRIVE_V3');
+ const pending=s.plan(s.prepare('registrar',{...p,effectRef}));a.equal(pending.response.businessState,'REJECTED');a.equal(pending.writes.length,0);
+ // Provider confirmation is a synthetic fixture for this domain-level test.
+ Object.assign(out,{status:'CONFIRMED',revision:2,artifactRef:ref('artifact','SYN_FILE_VER'),workspaceReservation:{fileId:'SYN_OBJECT'}});
+ s.docs['presentationArtifacts/SYN_FILE_VER']={id:'SYN_FILE_VER',revision:1,provider:'GOOGLE_DRIVE_V3',accessClass:'PRIVATE',presentationRef:out.targetRef,objectId:'SYN_OBJECT',targetKind:'FILE',versionId:'42',sha256:desc.sha256};
+ const changed=s.plan(s.prepare('registrar',{...p,effectRef,motivo:'Outra justificativa'}));a.equal(changed.response.businessState,'REJECTED');a.equal(changed.writes.length,0);
+ const {out:final}=s.apply('registrar',{...p,effectRef});
+ const record=section==='PHOTO'?s.docs['canonicalPresentations/SYN_PR'].photo:final.writes.find(w=>w.path.startsWith('presentationMaterialSubmissions/')).data;
+ a.equal(record.administrativeRegistration.registeredBy.id,'PES-000001');a.equal(record.administrativeRegistration.presenterRef.id,'PES-000002');a.equal(record.administrativeRegistration.institutionalEvidence.receivedAt.toMillis(),p.institutionalEvidence.receivedAt);
+ a(!final.writes.some(w=>/^presentation(Realizations|MaterialReceipts|Obligations|QuotaOccupancies)/.test(w.path)));
+ const repeat=s.plan(s.prepare('registrar',{...p,effectRef}));a.equal(repeat.response.businessState,'REJECTED');a.equal(repeat.writes.length,0);
+});
+
+test('effective extension restores direct registration only within the canonical function period',()=>{
+ const s=fixture(true),f=s.docs['memberFunctions/VIG-001'],end=f.endDatePlanned;
+ f.endDatePlanned=new Date(s.now-2*86400000).toISOString().slice(0,10);
+ const p={observacoes:s.content.observacoes,motivo:'Registro em mandato prorrogado',confirmed:true};
+ a.throws(()=>s.prepare('registrar',p),/AUTHORIZATION|AUTHZ/);
+ const updates=JSON.parse(s.domain.run(x=>f4MemberOccupations_().extend(nodeRead,[x.f],x.f,x.end),{f,end}));
+ for(const row of updates)s.docs['memberFunctions/'+row.id]=row;
+ const before=clone(s.docs['canonicalPresentations/SYN_PR']);
+ const {out}=s.apply('registrar',p);
+ a.equal(out.response.result.state,'RECORDED_NOT_APPROVED');a.deepEqual(s.docs['canonicalPresentations/SYN_PR'],before);
+});
+test('upload rechecks the live function after reservation',()=>{
+ const {s,p,desc}=fileFixture('PHOTO'),{r,out}=s.apply('registrar',{...p,fileDescriptor:desc});
+ const effect=s.docs['jobOutbox/'+out.response.result.effectRef.id],uid=effect.actor.uid;
+ const authRequest=JSON.parse(s.domain.run(x=>f4ActivitiesPipeline_().authorization(nodeRead,x.r,{uid:x.uid,expiresAt:x.now+60000},x.now,x.now+60000)[0],{r,uid,now:s.now}));
+ const digest='a'.repeat(64);
+ s.docs['commandProvenance/'+r.operationId]={operationId:r.operationId,ownerUid:uid,digest,ticketId:'SYN_ADMIN_TICKET',authRequests:[authRequest]};
+ s.docs['memberAdmissionTickets/SYN_ADMIN_TICKET']={requestEnvelope:r};
+ s.docs['commandRequests/'+r.operationId]={...r,ownerUid:uid,digest};
+ const check=()=>s.domain.run(x=>{const ports=f4ActivitiesFunctionalPorts_({config:nodeConfig,identity:{uid:x.uid,expiresAt:x.now+60000},settings:{commands:['THEME_REGULARIZE_ADMIN'],policyIds:['CF_DEV_ACT_POLICY']},clock:()=>x.now});ports.authorizeUpload(nodeRead,nodeRead('jobOutbox/'+x.id));return true;},{uid,now:s.now,id:effect.id});
+ a.equal(JSON.parse(check()),true);
+ s.docs['memberAuthzPolicies/CF_DEV_ACT_POLICY'].active=false;
+ a.throws(check,/AUTHORIZATION|AUTHZ|ACCESS_REVOKED/);
+});
+
+test('recognized presentation accepts a documentary addendum after the assignment and membership end',()=>{
+ const s=fixture(true),u=s.unit();
+ delete u.assignmentRef;u.membershipExit={recorded:true};
+ const paths=['canonicalPresentations/SYN_PR','presentationRealizations/SYN_RZ','presentationQuotaOccupancies/SYN_QUOTA','presentationObligations/SYN_OB'];
+ const before=paths.map(path=>clone(s.docs[path]));
+ const {out}=s.apply('registrar',{observacoes:s.content.observacoes,motivo:'Arquivo histórico conferido',confirmed:true});
+ a.equal(out.response.result.state,'RECORDED_NOT_APPROVED');paths.forEach((path,i)=>a.deepEqual(s.docs[path],before[i]));
+});
+
+
+test('partial documentary fields accumulate, remain readable, and reject material replacement',()=>{
+ const s=fixture(true),pr=clone(s.docs['canonicalPresentations/SYN_PR']);
+ const first=s.apply('registrar',{observacoes:'Resumo hist?rico',motivo:'Complemento parcial',confirmed:true});
+ a.equal(first.out.response.result.state,'RECORDED_NOT_APPROVED');
+ s.apply('registrar',{eixoTematicoPrincipal:'SYN_AXIS',motivo:'Eixo ausente',confirmed:true});
+ const u=s.unit(),content=JSON.parse(s.domain.run(x=>f4ActivitiesDocumentaryTheme_(x.u,null,x.pr),{u,pr}));
+ a.equal(content.titleOrObject,pr.title);a.equal(content.summary,'Resumo hist?rico');a.equal(content.principalAxisRef.id,'SYN_AXIS');
+ a.deepEqual(s.docs['canonicalPresentations/SYN_PR'],pr);
+ for(const p of [{observacoes:'Substitui??o silenciosa'},{tituloApresentacao:'T?tulo diferente'},{eixoTematicoPrincipal:'SYN_AXIS_2'}]){
+  const result=s.plan(s.prepare('registrar',{...p,motivo:'Tentativa de substituir',confirmed:true}));
+  a.equal(result.response.error.reasonCode,'EXISTING_THEME_REQUIRES_CHANGE_PROCEDURE');a.equal(result.writes.length,0);
+ }
+ const log=s.docs['presentationFlowCases/'+u.lastThemeRegularizationRef.id];a.equal(log.predecessorRef.id,first.out.response.result.recordRef.id);
+ const projection=JSON.parse(s.domain.run(x=>f4ActivitiesViews_().member(x.pr,{kind:'presentation',id:'SYN_PR'},{generationRef:{id:'GEN'},viewEpoch:1,sourceMemberRevision:1,digest:'SYNTHETIC'},x.u.personRef.id,x.now,r=>nodeRead(f4ActivitiesModel_().path(r))),{u,pr,now:s.now}));
+ a.equal(projection.documentaryTheme.summary,content.summary);a.equal(projection.documentaryRecordRef.id,u.lastThemeRegularizationRef.id);
+ s.docs['memberAuthzPolicies/CF_DEV_ACT_POLICY'].targets.allowedTargetScopes.push('PRESENTATIONS_PLAN');
+ const read=JSON.parse(s.domain.run(x=>{const o={config:nodeConfig,identity:{uid:'CF_ADMIN',expiresAt:x.now+60000},settings:{commands:['THEME_REGULARIZE_ADMIN'],policyIds:['CF_DEV_ACT_POLICY']},clock:()=>x.now};o.ports=f4ActivitiesFunctionalPorts_(o);return f4ActivitiesPresentationCompat_(o).read('/v2/apresentacoes/pendencias',{incluirSemPendencias:true});},{now:s.now}));
+ a.equal(read.data.pendencias[0].resumoTema,content.summary);a.equal(read.data.pendencias[0].eixoTematicoPrincipal,'SYN_AXIS');
+});
+
+test('scheduled partial theme enters the canonical initial flow only when complete',()=>{
+ const s=fixture();
+ s.apply('registrar',{tituloApresentacao:'Tema parcial',motivo:'T?tulo recebido',confirmed:true});
+ a(!s.unit().thematicRequestRef);
+ const out=s.apply('registrar',{observacoes:'Resumo complementado',eixoTematicoPrincipal:'SYN_AXIS',motivo:'Conclus?o dos campos',confirmed:true}).out;
+ const t=s.docs['presentationThematicRequests/'+out.response.result.requestRef.id];
+ a.equal(t.candidate.titleOrObject,'Tema parcial');a.equal(t.candidate.summary,'Resumo complementado');a.equal(t.analysisClock.state,'UNRESOLVED');a(!t.extraordinarySubmission);
+});
+
+test('approved scheduled content accepts absent summary without a second approval',()=>{
+ const s=fixture(),u=s.unit();u.thematicRequestRef=ref('thematic','APPROVED');
+ const t={id:'APPROVED',revision:3,workflowState:'APPROVED',unitRef:ref('unit',u.id),personRef:u.personRef,cycleRef:u.cycleRef,principalAxisRef:ref('policy','SYN_AXIS'),candidate:{titleOrObject:'Tema aprovado',principalAxisRef:ref('policy','SYN_AXIS')},acceptedRevisionRef:{kind:'thematicRevision',id:'APPROVED',number:3}};
+ s.docs['presentationThematicRequests/APPROVED']=clone(t);
+ const {out}=s.apply('registrar',{observacoes:'Resumo ausente',motivo:'Complementa??o',confirmed:true});
+ a.equal(out.response.result.state,'RECORDED_NOT_APPROVED');a.deepEqual(s.docs['presentationThematicRequests/APPROVED'],clone(t));
+});
+
+test('completing a partial theme uses its stored axis for canonical quota admission',()=>{
+ const s=fixture(),cfg=s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'];cfg.parameters.quota=true;
+ const hash=x=>JSON.parse(s.domain.run(x=>f4ActivitiesModel_().hash(x),x)),id=hash({cycle:'SYN_THEME_CYCLE',axis:'SYN_AXIS'}).slice(0,32);
+ const bucketPath=JSON.parse(s.domain.run(id=>f4ActivitiesModel_().path({kind:'bucket',id}),id));
+ s.docs[bucketPath]={id,revision:1,cycleRef:s.unit().cycleRef,axisRef:ref('policy','SYN_AXIS'),heldCount:0,confirmedCount:0,realizedCount:0,limit:2,pendingQueueEpoch:1,epoch:1,reconciliationState:'CLEAN',queueManifestRef:ref('assessment','SYN_QUEUE')};
+ s.docs['presentationCapacityAssessments/SYN_QUEUE']={id:'SYN_QUEUE',revision:1,state:'SEALED',complete:true,queueEpoch:1,axisRef:ref('policy','SYN_AXIS'),items:[],digest:hash([]),minimumPriorityAt:null,unresolvedPriority:false};
+ s.docs['presentationCapacityHeads/SYN_THEME_CYCLE'].capacityEpoch=1;
+ s.apply('registrar',{eixoTematicoPrincipal:'SYN_AXIS',motivo:'Eixo recebido',confirmed:true});
+ const {out}=s.apply('registrar',{tituloApresentacao:'Tema parcial',observacoes:'Resumo',motivo:'Completar tema',confirmed:true});
+ a.equal(out.response.result.state,'ANALYSIS');a.equal(s.docs[bucketPath].heldCount,1);a(s.unit().quotaOccupancyRef);
+});

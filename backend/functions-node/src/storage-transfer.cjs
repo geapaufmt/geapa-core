@@ -14,7 +14,7 @@ class StorageStore extends ActivityStore{
   const selected=S.effect(p=>this.hostRead(p),s,this.effectId,this.identity.uid,true,this.cycleBoundary||(this.cycleBoundary=require('./act-cycle-scope.cjs').createContains()));
   Object.assign(this,selected);return c;
  }
- io(raw){if(JSON.parse(raw).kind==='pilotConfig')return JSON.stringify({root:'',shared:true,executor:EXECUTOR,settings:{commands:['ARTIFACT_UPLOAD_REQUEST','PHOTO_UPLOAD_REQUEST','ATTENDANCE_PROOF_UPLOAD_REQUEST','OUTBOX_CLAIM','OUTBOX_OBSERVE','OUTBOX_RECONCILE'],policyIds:this.control.policyIds,admissionsPerHour:20,jobs:[],activityAgendaDirect:false}});return super.io(raw);}
+ io(raw){if(JSON.parse(raw).kind==='pilotConfig')return JSON.stringify({root:'',shared:true,executor:EXECUTOR,settings:{commands:['THEME_REGULARIZE_ADMIN','ARTIFACT_UPLOAD_REQUEST','PHOTO_UPLOAD_REQUEST','ATTENDANCE_PROOF_UPLOAD_REQUEST','OUTBOX_CLAIM','OUTBOX_OBSERVE','OUTBOX_RECONCILE'],policyIds:this.control.policyIds,admissionsPerHour:20,jobs:[],activityAgendaDirect:false}});return super.io(raw);}
  validateWrites(s){
   const technical=['commandRequests','commandProvenance','commandReceipts','commandLedger','commandTombstones','commandLeases','memberAudit','commandProjectionInvalidations'],added=[];
   for(const w of s.writes){
