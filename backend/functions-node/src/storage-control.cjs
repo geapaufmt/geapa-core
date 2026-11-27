@@ -9,6 +9,7 @@ function effect(get,s,id,uid,write,contains=require('./act-cycle-scope.cjs').con
  const out=get('jobOutbox/'+id),owner=out&&get('commandExecutorOwners/'+out.createdByOperation),receipt=out&&get('commandReceipts/'+out.createdByOperation),route=owner?.routeId&&get('commandExecutorRoutes/'+owner.routeId),scope=route&&get('actFlowExecutorScopes/'+route.scopeId);
  const at=out?.createdAt?.toMillis?.();
  if(!out||!s.actorUids.includes(out.actor?.uid)||owner?.ownerUid!==out.actor.uid||write&&out.actor.uid!==uid||owner?.executor!==EXECUTOR||receipt?.state!=='COMPLETED'||out.effectKind!=='FILE_CREATE'||scope?.synthetic!==!require('./environment.cjs').PRODUCTION||scope.projectId!==PROJECT||!contains(get,scope,'jobOutbox/'+id)||!(s.effectIds.includes(id)||(s.scopeIds||[]).includes(route.scopeId)&&Number.isFinite(at)&&at>=s.startsAt))fail('AUTHORIZATION_DENIED');
+ if(write&&out.details?.administrativeRegistration&&(route?.state!=='ACTIVE'||!route.actorUids?.includes(uid)||!require('./execution-window.cjs').windowLive(route,Date.now())))fail('ACCESS_REVOKED');
  return {out,scope,scopePath:'actFlowExecutorScopes/'+route.scopeId};
 }
 module.exports={CONTROL,check,effect};

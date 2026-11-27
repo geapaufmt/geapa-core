@@ -11,11 +11,17 @@ test('extraordinary theme: actual executor admission, transactions, lost respons
   const records={...s.docs,'activityExecutorControl/current':{schemaVersion:'activity-executor-control-v1',projectId:PROJECT,enabled:true,revision:1,actorUids:['CF_ADMIN'],policyIds:['CF_DEV_ACT_POLICY'],startsAt:now-1000,expiresAt:now+3600000,browserEnabled:true,appCheck:{mode:'REQUIRED',appIds:['SYN_APP']}},'actFlowExecutorScopes/SYN_THEME_EXTRA':{id:'SYN_THEME_EXTRA',projectId:PROJECT,synthetic:true,revision:1,resourcePaths:resources}};
   for(const command of commands)records['commandExecutorRoutes/ACT_FLOW_'+command]={schemaVersion:'geapa-act-flow-route-v1',projectId:PROJECT,routeId:'ACT_FLOW_'+command,commandType:'ACT.'+command,scopeId:'SYN_THEME_EXTRA',syntheticOnly:true,executor:EXECUTOR,state:'ACTIVE',epoch:1,revision:1,actorUids:['CF_ADMIN'],operationIds:[],maxOperations:30,availabilityMode:'TIMEBOXED',startsAt:now-1000,expiresAt:now+3600000};
   const batch=db.batch();for(const [p,v]of Object.entries(records))batch.set(db.doc(p),v);await batch.commit();
-  await t.test('Auth and App Check still gate preparation',async()=>{invalidAuth=true;await a.rejects(prepare('autorizar',{confirmed:true,motivo:'Synthetic'}));invalidAuth=false;invalidApp=true;await a.rejects(prepare('autorizar',{confirmed:true,motivo:'Synthetic'}));invalidApp=false;});
-  const grant=await prepare('autorizar',{confirmed:true,motivo:'Exceção sintética pelo diretor autorizado'});
-  await t.test('concurrent grant is one authorization; original receipt recovers',async()=>{const other=await prepare('autorizar',{confirmed:true,motivo:'Segundo envio concorrente'});await call('execute',grant);await call('execute',other).catch(()=>{});a.equal((await db.doc('presentationUnitHeads/SYN_THEME_UNIT').get()).data().revision,2);a.equal((await db.doc('commandReceipts/'+grant.operationId).get()).data().state,'COMPLETED');});
-  await policy(false);const submission=await prepare('regularizar',s.content);
-  await t.test('lost response after commit and repeated submit preserve a single effect',async()=>{await a.rejects(call('execute',submission,{afterCommit(){throw Error('LOST_RESPONSE')}}),/LOST_RESPONSE/);const u=(await db.doc('presentationUnitHeads/SYN_THEME_UNIT').get()).data();a.equal(u.extraordinaryTheme.status,'CONSUMED');const receipt=(await db.doc('commandReceipts/'+submission.operationId).get()).data();a.equal(receipt.state,'COMPLETED');await call('execute',submission);a.equal((await db.doc('presentationUnitHeads/SYN_THEME_UNIT').get()).data().revision,u.revision);a.equal((await db.doc('commandLedger/'+submission.operationId).get()).data().state,'COMPLETED');a.equal((await db.doc('commandExecutorOwners/'+submission.operationId).get()).data().executor,EXECUTOR);});
-  await t.test('non-admin SELF cannot authorize another regularization',async()=>{await a.rejects(prepare('autorizar',{confirmed:true,motivo:'Forbidden'}),/AUTHORIZATION|AUTHZ/);});
+  const payload={...s.content,confirmed:true,motivo:'Registro direto sintético'};
+  await t.test('Auth and App Check gate direct preparation',async()=>{invalidAuth=true;await a.rejects(prepare('registrar',payload));invalidAuth=false;invalidApp=true;await a.rejects(prepare('registrar',payload));invalidApp=false;});
+  await a.rejects(prepare('autorizar',{confirmed:true,motivo:'Retired'}));
+  const submission=await prepare('registrar',payload),other=await prepare('registrar',payload);
+  await t.test('lost response and competing command retain one business event and the original receipt',async()=>{
+   await a.rejects(call('execute',submission,{afterCommit(){throw Error('LOST_RESPONSE')}}),/LOST_RESPONSE/);
+   await call('execute',other).catch(()=>{});await call('execute',submission);
+   const u=(await db.doc('presentationUnitHeads/SYN_THEME_UNIT').get()).data();a.equal(u.revision,2);a(!u.extraordinaryTheme);
+   a.equal((await db.doc('commandReceipts/'+submission.operationId).get()).data().state,'COMPLETED');
+   a.equal((await db.doc('presentationThematicRequests/'+u.thematicRequestRef.id).get()).data().workflowState,'ANALYSIS');
+  });
+  await policy(false);await a.rejects(prepare('registrar',payload),/AUTHORIZATION|AUTHZ/);
  }finally{await db.terminate();}
 });
