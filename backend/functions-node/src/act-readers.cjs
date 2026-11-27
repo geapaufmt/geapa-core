@@ -14,7 +14,7 @@ function control(c,uid,route,linkedSynthetic=false){
  if(['DEV_READERS_OPERATIONAL','PROD_READERS_OPERATIONAL'].includes(c.mode)&&['/admin/apresentacoes/cotas','/admin/apresentacoes/incidencia'].includes(route))fail('CONFIG_CAPABILITY_DISABLED');
  const r=c.specializedReaders;
  if(r?.enabled!==true||!Array.isArray(r.actorUids)||!r.actorUids.length||r.actorUids.length>(require('./environment.cjs').PRODUCTION?128:16)||!r.actorUids.includes(uid)&&!temporary||
- !Array.isArray(r.routes)||!r.routes.length||r.routes.length>((r.routes.includes('/admin/gestao-institucional')?49:48)+(r.routes.includes('/admin/ciclos-semestres/parametros')?1:0)+(r.routes.includes('/admin/frequencia-rh')?1:0)+(r.routes.includes('/admin/frequencia-rh/providencias')?1:0))||new Set(r.routes).size!==r.routes.length||!r.routes.includes(route))fail('PILOT_DISABLED');
+ !Array.isArray(r.routes)||!r.routes.length||r.routes.length>((r.routes.includes('/admin/gestao-institucional')?49:48)+(r.routes.includes('/admin/ciclos-semestres/parametros')?1:0)+(r.routes.includes('/admin/frequencia-rh')?1:0)+(r.routes.includes('/admin/frequencia-rh/providencias')?1:0)+['/meu-vinculo/notificacoes','/meu-vinculo/notificacoes/leitura'].filter(route=>r.routes.includes(route)).length)||new Set(r.routes).size!==r.routes.length||!r.routes.includes(route))fail('PILOT_DISABLED');
  return c;
 }
 class ReaderStore extends Store{
@@ -45,7 +45,7 @@ class ReaderStore extends Store{
  }
  async transaction(fn){
   this.metrics.transactions++;const started=performance.now();
-  const derivedWriter=bootstrapRoutes.includes(this.request.route)&&!['/admin/pessoas','/admin/pessoas/detalhe'].includes(this.request.route);
+  const derivedWriter=bootstrapRoutes.includes(this.request.route)&&!['/admin/pessoas','/admin/pessoas/detalhe','/meu-vinculo/notificacoes'].includes(this.request.route);
   try{return await this.db.runTransaction(async native=>{this.metrics.transactionAttempts++;return this.evaluate(fn,native);},derivedWriter?{}:{readOnly:true});}
   finally{this.metrics.transactionWallMs=(this.metrics.transactionWallMs||0)+performance.now()-started;}
  }

@@ -118,6 +118,11 @@ function f4MemberCommandRecovery_(){
    const l=L.make(x.r,d,n),r=L.toReceipt(l),t=d.state==='RECONCILIATION_REQUIRED'?null:L.toTombstone(l),audit={schemaVersion:'member-audit-v13',operationId:key.operationId,ownerUid:a.uid,actorPersonId:x.t.idPessoa,capabilities:K.capabilities(x.r),proofDigest:C.hash(F.encode(proofs)),authorizationRefs:proofs.map(p=>({kind:p.kind,capability:p.capability,sourceId:p.kind==='DEV_ADMIN'?p.profilePath:p.grantId||p.policyId,sourceRevision:p.kind==='DEV_ADMIN'?(p.devProfileRevision||p.profileRevision):p.grantRevision||p.policyRevision,authorityEpoch:p.authorityEpoch,policyEpoch:p.policyEpoch,subjectEpoch:p.subjectEpoch,bindingVersion:p.bindingVersion,personRevision:p.personRevision})),targetDigest:C.hash(x.r.target),evidenceRefs:x.r.evidenceRefs,decisionRef:x.r.decisionRef,digest:key.digest,revisionBefore:d.revisionBefore,revisionAfter:d.revisionAfter,resultCode:d.code,createdAt:T(n)};
    const data={'commandLedger':l,'commandReceipts':r,'memberAudit':audit,'commandLeases':x.h.schemaVersion==='member-command-lease-v13-g1'?f4MemberClaim_().finish(x.h,n):{...x.h,deadline:T(n)}};if(t)data.commandTombstones=t;if(outbox&&d.state==='COMPLETED')data.jobOutbox=outbox;if(saga?.terminal)data.memberOnboardingRuns=saga.run;
    const writes=Object.entries(data).map(([col,value])=>({path:col+'/'+key.operationId,data:value,kind:'set'}));
+   // Registration targets the Presidency mailbox. It is not a personal delivery to the applicant.
+   if(data.jobOutbox?.kind==='MEMBERS_NOTIFICATION'&&outbox.event!=='ENROLLMENT_REGISTERED'){
+    const delivery=f4MemberNotifications_().delivery(get,{personId:outbox.personId,operationId:key.operationId,event:outbox.event},n);
+    writes.push(...delivery.writes);
+   }
    if(saga?.changed)writes.push(saga.stageAudit);if(!K.act(x.r.commandType)&&!saga&&d.state==='COMPLETED'&&typeof f4MemberFamilyAudit_==='function'){const familyAudit=f4MemberFamilyAudit_(x.r,x.t.idPessoa,n);N(!get(familyAudit.path),'OPERATION_CONFLICT');writes.push(familyAudit);}const allowed=new Map(writes.map(w=>[w.path,C.hash(F.encode(w))]));
    const full=P.appendTechnical(tx,plan,writes,w=>allowed.get(w.path)===C.hash(F.encode(w)));N(now()<deadline,'LEASE_LOST');P.applyMutationPlan(tx,full,now());return clone(d);
   }
