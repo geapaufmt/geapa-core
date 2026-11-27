@@ -215,6 +215,11 @@ test('editorial CMS end-to-end on Firestore Emulator: authz, drafts, preview, pu
    currentUid='CF_ADMIN';
   });
 
+  if(process.env.GEAPA_EDITORIAL_BROWSER_TEST==='1'){
+   await t.test('browser on desktop and mobile with real HTTP, emulated Auth and Firestore',async()=>{
+    await require('./editorial-browser.cjs').browserAcceptance(db,seed);
+   });
+  }
   console.log(JSON.stringify({emulatorOnly:true,metrics}));
  }finally{await db.terminate();}
 });
