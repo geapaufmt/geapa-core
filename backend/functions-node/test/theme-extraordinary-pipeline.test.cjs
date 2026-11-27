@@ -101,7 +101,8 @@ function fileFixture(section){
  return {s,rq,pr,desc,p};
 }
 test('file registration does not inherit the separate thematic deadline',()=>{
- const {s,pr,desc,p}=fileFixture('MATERIAL');delete pr.realizationRef;
+ const {s,pr,desc,p}=fileFixture('MATERIAL');delete pr.realizationRef;delete s.unit().obligationRef;delete s.unit().quotaOccupancyRef;
+ s.unit().personRef=ref('person','PES-000001');pr.personRef=s.unit().personRef;s.docs['presentationMaterialRequirements/SYN_M'].personRef=s.unit().personRef;
  s.docs['presentationSessions/SYN_THEME_SESSION'].civilDate=new Date(s.now+5*86400000).toISOString().slice(0,10);
  s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'].parameters.thematicMinimumDays=1;
  const {out}=s.apply('registrar',{...p,fileDescriptor:desc});a(out.response.result.effectRef);
