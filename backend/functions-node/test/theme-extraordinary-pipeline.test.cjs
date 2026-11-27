@@ -107,3 +107,28 @@ for(const section of ['PHOTO','MATERIAL'])test(section+' uses a confirmed canoni
  a(!final.writes.some(w=>/^presentation(Realizations|MaterialReceipts|Obligations|QuotaOccupancies)/.test(w.path)));
  const repeat=s.plan(s.prepare('registrar',{...p,effectRef}));a.equal(repeat.response.businessState,'REJECTED');a.equal(repeat.writes.length,0);
 });
+
+test('effective extension restores direct registration only within the canonical function period',()=>{
+ const s=fixture(true),f=s.docs['memberFunctions/VIG-001'],end=f.endDatePlanned;
+ f.endDatePlanned=new Date(s.now-2*86400000).toISOString().slice(0,10);
+ const p={...s.content,motivo:'Registro em mandato prorrogado',confirmed:true};
+ a.throws(()=>s.prepare('registrar',p),/AUTHORIZATION|AUTHZ/);
+ const updates=JSON.parse(s.domain.run(x=>f4MemberOccupations_().extend(nodeRead,[x.f],x.f,x.end),{f,end}));
+ for(const row of updates)s.docs['memberFunctions/'+row.id]=row;
+ const before=clone(s.docs['canonicalPresentations/SYN_PR']);
+ const {out}=s.apply('registrar',p);
+ a.equal(out.response.result.state,'RECORDED_NOT_APPROVED');a.deepEqual(s.docs['canonicalPresentations/SYN_PR'],before);
+});
+test('upload rechecks the live function after reservation',()=>{
+ const {s,p,desc}=fileFixture('PHOTO'),{r,out}=s.apply('registrar',{...p,fileDescriptor:desc});
+ const effect=s.docs['jobOutbox/'+out.response.result.effectRef.id],uid=effect.actor.uid;
+ const authRequest=JSON.parse(s.domain.run(x=>f4ActivitiesPipeline_().authorization(nodeRead,x.r,{uid:x.uid,expiresAt:x.now+60000},x.now,x.now+60000)[0],{r,uid,now:s.now}));
+ const digest='a'.repeat(64);
+ s.docs['commandProvenance/'+r.operationId]={operationId:r.operationId,ownerUid:uid,digest,ticketId:'SYN_ADMIN_TICKET',authRequests:[authRequest]};
+ s.docs['memberAdmissionTickets/SYN_ADMIN_TICKET']={requestEnvelope:r};
+ s.docs['commandRequests/'+r.operationId]={...r,ownerUid:uid,digest};
+ const check=()=>s.domain.run(x=>{const ports=f4ActivitiesFunctionalPorts_({config:nodeConfig,identity:{uid:x.uid,expiresAt:x.now+60000},settings:{commands:['THEME_REGULARIZE_ADMIN'],policyIds:['CF_DEV_ACT_POLICY']},clock:()=>x.now});ports.authorizeUpload(nodeRead,nodeRead('jobOutbox/'+x.id));return true;},{uid,now:s.now,id:effect.id});
+ a.equal(JSON.parse(check()),true);
+ s.docs['memberAuthzPolicies/CF_DEV_ACT_POLICY'].active=false;
+ a.throws(check,/AUTHORIZATION|AUTHZ|ACCESS_REVOKED/);
+});

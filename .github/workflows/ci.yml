@@ -34,4 +34,8 @@ jobs:
           GEAPA_RH_EMULATOR_TEST: '1'
           GEAPA_DEV_ACCESS_EMULATOR_TEST: '1'
         run: npx --no-install firebase emulators:exec --only firestore --project demo-geapa-functions-local --config firebase.emulator.json "node --test --test-concurrency=1 test/enrollment-lifecycle.test.cjs test/rh-executor-emulator.test.cjs test/dev-administrative-emulator.test.cjs"
+      - name: Verify administrative presentation registration and receipt recovery
+        env:
+          GEAPA_THEME_EMULATOR_TEST: '1'
+        run: npx --no-install firebase emulators:exec --only firestore --project demo-geapa-functions-local --config firebase.emulator.json "node --test test/theme-extraordinary-emulator.test.cjs"
       - run: npm run release -- --prod
