@@ -74,7 +74,7 @@ function f4ActivitiesThemeExtraordinary_(x){
  function directContext(v){
   N(p.confirmed===true,'HUMAN_DECISION_REQUIRED');
   const reason=text(p.reason);
-  if(v.mode==='SCHEDULED'){
+  if(v.mode==='SCHEDULED'&&!p.section){
    const cfg=x.config().parameters;
    N(!f4CycleParameters_().dateAvailable(cfg,'thematicMinimumDays',M.day(now),v.s.civilDate)&&!f4ActivitiesPreagenda_().availableDeadline(x,v.s,'THEME',v.u),'INVALID_STATE_TRANSITION','ORDINARY_PERIOD_OPEN');
   }
@@ -139,7 +139,7 @@ function f4ActivitiesThemeExtraordinary_(x){
 // Documentary complements fill gaps only; accepted/presented content wins.
 function f4ActivitiesDocumentaryTheme_(unit,theme,presentation){
  const candidate=theme?.candidate||{},extra=unit?.documentaryTheme||{},out={};
- const values={titleOrObject:candidate.titleOrObject||presentation?.title||extra.titleOrObject,summary:candidate.summary||extra.summary,principalAxisRef:theme?.principalAxisRef||candidate.principalAxisRef||extra.principalAxisRef,secondaryAxisRef:candidate.secondaryAxisRef||theme?.secondaryAxisRef||extra.secondaryAxisRef};
+ const values={titleOrObject:candidate.titleOrObject||presentation?.title||extra.titleOrObject,summary:candidate.summary||extra.summary,principalAxisRef:candidate.principalAxisRef||theme?.principalAxisRef||extra.principalAxisRef,secondaryAxisRef:candidate.secondaryAxisRef||theme?.secondaryAxisRef||extra.secondaryAxisRef};
  for(const [key,value] of Object.entries(values))if(value&&value.kind!=='NONE')out[key]=value;
  return out;
 }

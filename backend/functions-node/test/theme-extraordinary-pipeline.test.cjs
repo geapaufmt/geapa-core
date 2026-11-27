@@ -100,6 +100,12 @@ function fileFixture(section){
  const p={section,fileRevision:photo?0:1,motivo:'Arquivo recebido pela secretaria',confirmed:true,institutionalEvidence:{reference:'Protocolo sintético',receivedAt:s.now-3600000}};
  return {s,rq,pr,desc,p};
 }
+test('file registration does not inherit the separate thematic deadline',()=>{
+ const {s,pr,desc,p}=fileFixture('MATERIAL');delete pr.realizationRef;
+ s.docs['presentationSessions/SYN_THEME_SESSION'].civilDate=new Date(s.now+5*86400000).toISOString().slice(0,10);
+ s.docs['presentationCycles/SYN_THEME_CYCLE/configRevisions/CFG'].parameters.thematicMinimumDays=1;
+ const {out}=s.apply('registrar',{...p,fileDescriptor:desc});a(out.response.result.effectRef);
+});
 for(const section of ['PHOTO','MATERIAL'])test(section+' uses a confirmed canonical artifact and records the actual director and presenter separately',()=>{
  const {s,desc,p}=fileFixture(section);
  const initial=s.apply('registrar',{...p,fileDescriptor:desc}),effectRef=initial.out.response.result.effectRef,out=s.docs['jobOutbox/'+effectRef.id];
@@ -164,6 +170,11 @@ test('partial documentary fields accumulate, remain readable, and reject materia
   a.equal(result.response.error.reasonCode,'EXISTING_THEME_REQUIRES_CHANGE_PROCEDURE');a.equal(result.writes.length,0);
  }
  const log=s.docs['presentationFlowCases/'+u.lastThemeRegularizationRef.id];a.equal(log.predecessorRef.id,first.out.response.result.recordRef.id);
+ const projection=JSON.parse(s.domain.run(x=>f4ActivitiesViews_().member(x.pr,{kind:'presentation',id:'SYN_PR'},{generationRef:{id:'GEN'},viewEpoch:1,sourceMemberRevision:1,digest:'SYNTHETIC'},x.u.personRef.id,x.now,r=>nodeRead(f4ActivitiesModel_().path(r))),{u,pr,now:s.now}));
+ a.equal(projection.documentaryTheme.summary,content.summary);a.equal(projection.documentaryRecordRef.id,u.lastThemeRegularizationRef.id);
+ s.docs['memberAuthzPolicies/CF_DEV_ACT_POLICY'].targets.allowedTargetScopes.push('PRESENTATIONS_PLAN');
+ const read=JSON.parse(s.domain.run(x=>{const o={config:nodeConfig,identity:{uid:'CF_ADMIN',expiresAt:x.now+60000},settings:{commands:['THEME_REGULARIZE_ADMIN'],policyIds:['CF_DEV_ACT_POLICY']},clock:()=>x.now};o.ports=f4ActivitiesFunctionalPorts_(o);return f4ActivitiesPresentationCompat_(o).read('/v2/apresentacoes/pendencias',{incluirSemPendencias:true});},{now:s.now}));
+ a.equal(read.data.pendencias[0].resumoTema,content.summary);a.equal(read.data.pendencias[0].eixoTematicoPrincipal,'SYN_AXIS');
 });
 
 test('scheduled partial theme enters the canonical initial flow only when complete',()=>{
