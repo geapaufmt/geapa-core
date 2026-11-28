@@ -7,25 +7,7 @@ const {seed}=require('./fixtures.cjs'),{decode}=require('../src/firestore.cjs');
 const {createDomain}=require('../src/domain.cjs'),{executeMember}=require('../src/member-executor.cjs');
 const {PROJECT,DEMO,EXECUTOR,PRODUCTION,profile}=require('../src/environment.cjs');
 
-// Snapshot and atomic commit port for offline regression. No external recipient or database.
-function database(docs){
- let version=Date.now();
- const doc=path=>({path});
- const snap=ref=>({exists:!!docs[ref.path],ref,data:()=>docs[ref.path],updateTime:Timestamp.fromMillis(version)});
- const getAll=async(...refs)=>refs.map(snap);
- function collection(name){
-  assert.equal(name,'memberAuthBindings');
-  let person;
-  return {where(field,op,value){assert.equal(field,'idPessoa');assert.equal(op,'==');person=value;return this;},
-   orderBy(){return this;},limit(n){assert.equal(n,2);return this;},
-   async get(){const rows=Object.keys(docs).filter(p=>p.startsWith(name+'/')&&docs[p].idPessoa===person).sort().slice(0,2).map(p=>snap(doc(p)));return {docs:rows,size:rows.length,empty:!rows.length};}};
- }
- return {projectId:DEMO,doc,getAll,collection,async runTransaction(fn){
-  const writes=[];
-  const result=await fn({getAll,get:async ref=>ref.get?ref.get():snap(ref),set:(r,v)=>writes.push([r.path,v]),update:(r,v)=>writes.push([r.path,v]),delete:r=>writes.push([r.path,null])});
-  for(const [p,v] of writes){if(v)docs[p]=v;else delete docs[p];}version++;return result;
- }};
-}
+const {database}=require('./fixtures/member-memory-db.cjs');
 test('ordinary absence limits follow the effective membership category',()=>{
  const domain=createDomain(()=>{});
  const counts=(state,countsAbsence)=>JSON.parse(domain.run('(v)=>f4MemberCountsAbsence_(v.state,v.activity)',{state,activity:{countsAbsence}}));
@@ -70,7 +52,7 @@ async function fixture(category,t){
   const auth={verifyIdToken:async()=>({uid,sub:uid,aud:DEMO,iss:'https://securetoken.google.com/'+DEMO,exp:Math.floor(now/1000)+3600,iat:Math.floor(now/1000),auth_time:Math.floor(now/1000),email,email_verified:true,...opts.claims})};
   try{return await executeMember({db,auth,appCheck,token:'synthetic',appCheckToken:'synthetic',origin:profile.origin,body:{action,request},hooks:opts.hooks});}
   finally{
-   if(real)for(const collection of ['memberEnrollments','memberEnrollmentIndexes','memberLinks','memberAuthBindings','memberCurrentStates','portalUsers','jobOutbox','memberAdmissionApprovals','memberAdmissionApprovalIndexes','memberIdentifiers','memberIdentifierClaims']){
+   if(real)for(const collection of ['memberEnrollments','memberEnrollmentIndexes','memberLinks','memberAuthBindings','memberCurrentStates','portalUsers','jobOutbox','memberAdmissionApprovals','memberAdmissionApprovalIndexes','memberIdentifiers','memberIdentifierClaims','memberNotificationIndexes','memberNotifications']){
     const snap=await db.collection(collection).get();for(const row of snap.docs)docs[row.ref.path]=row.data();
    }
   }
@@ -119,7 +101,11 @@ for(const category of ['MEMBRO_EFETIVO','MEMBRO_INGRESSANTE','DECLINE']){
    assert.equal(enrollment().registration.phone,'+5566988880000');
    await presidency(true);await manage('ACKNOWLEDGE','Conferido pela Presidência');await presidency(false);
   }
+  assert.equal(docs['memberNotificationIndexes/'+person],undefined);
   await manage('SEND','Convite sintético');
+  const inbox=docs['memberNotificationIndexes/'+person];
+  assert.equal(inbox.unreadCount,1);
+  assert.equal(docs['memberNotifications/'+inbox.notificationIds[0]].event,'ENROLLMENT_INVITATION');
   const open=(opts)=>call('SYN_INVITEE','memberEnrollmentOpen',{},opts);
   await assert.rejects(open({claims:{email_verified:false}}),/AUTH_BINDING_INVALID/);
   await assert.rejects(open({claims:{email:'diferente@example.invalid'}}),/AUTH_BINDING_INVALID/);
