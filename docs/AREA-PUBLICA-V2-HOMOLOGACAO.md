@@ -1,6 +1,6 @@
 # Área Pública V2 — preparação da homologação
 
-Status: plano técnico local; não autoriza PR, publicação, política, concessão ou migração. A autorização desta etapa limita-se às worktrees da Área Pública. Nenhuma competência nova é atribuída por este documento.
+Status atualizado: o solicitante autorizou a homologação controlada exclusivamente em DEV, com políticas e identidades sintéticas temporárias. A composição live, o impedimento atual de App Check e a sequência de retomada estão no [checkpoint de composição DEV](AREA-PUBLICA-V2-COMPOSICAO-DEV.md). Não há autorização de merge na main, PROD, competências permanentes ou migração definitiva. Este documento não concede competência por si só; as referências à autorização posterior abaixo descrevem os gates do plano original, agora sujeitos aos limites expressos dessa autorização DEV.
 
 ## Reconciliação e configuração candidata
 
