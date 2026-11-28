@@ -20,7 +20,7 @@ function f4TransactionPlans_(){
   const immutable=clone(p);seals.set(immutable,{tx,hash:hash(immutable),result:clone(result),now,deadline});return immutable;
  }
  function appendTechnical(tx,p,writes,validate){const s=seals.get(p);N(s&&s.tx===tx&&s.hash===hash(p)&&typeof validate==='function','M13_PLAN_INVALID');F.inspectTransaction(tx);N(Array.isArray(writes),'M13_PLAN_INVALID');
-  for(const w of writes){C.exact(w,['path','data','kind']);N(w.kind==='set'&&/^((commandLedger|commandReceipts|commandTombstones|commandLeases|jobOutbox|memberAudit|memberOnboardingRuns)\/[a-f0-9]{32})$/.test(w.path),'M13_TECHNICAL_PATH_INVALID');N(validate(w)===true,'M13_TECHNICAL_INVALID');}
+  for(const w of writes){C.exact(w,['path','data','kind']);N(w.kind==='set'&&/^((commandLedger|commandReceipts|commandTombstones|commandLeases|jobOutbox|memberAudit|memberOnboardingRuns|memberNotifications)\/[a-f0-9]{32}|memberNotificationIndexes\/[A-Za-z0-9_-]{1,48})$/.test(w.path),'M13_TECHNICAL_PATH_INVALID');N(validate(w)===true,'M13_TECHNICAL_INVALID');}
   const next=clone(p);next.technicalWrites.push(...clone(writes));const result=finalize(tx,next,s.result,s.now,s.deadline);seals.delete(p);return result;
  }
  function applyMutationPlan(tx,p,now){const s=seals.get(p);N(s&&s.tx===tx&&s.hash===hash(p),'M13_PLAN_INVALID');N(Number.isSafeInteger(now)&&now>=s.now&&now<s.deadline,'M13_DEADLINE_EXCEEDED');

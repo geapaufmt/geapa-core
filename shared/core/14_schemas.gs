@@ -298,6 +298,69 @@ function f4Schemas_() { return {
         "revision"
       ],
       "additionalProperties": false
+    },
+    "publicTimeline": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "geapa-public-v2.1"
+        },
+        "published": {
+          "const": true
+        },
+        "sanitized": {
+          "const": true
+        },
+        "year": {
+          "type": "integer"
+        },
+        "date": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 8000
+        },
+        "imageUrl": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "sourceHash": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revision": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "schemaVersion",
+        "published",
+        "sanitized",
+        "year",
+        "date",
+        "title",
+        "description",
+        "imageUrl",
+        "order",
+        "sourceHash",
+        "updatedAt",
+        "revision"
+      ],
+      "additionalProperties": false
     }
   }
 }; }

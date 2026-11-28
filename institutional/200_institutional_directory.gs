@@ -65,15 +65,27 @@ function f4InstitutionalRolePolicies_(get,actor,now,ids,cap,path){
 
 // Minimal shell context, not ACT authority. No private directory or ACT facts.
 function f4InstitutionalBootstrapContext_({get,identity,now}){
- const N=f4MemberAuthzContracts_().need,control=get('institutionalDirectoryControl/current');
- N(control?.schemaVersion==='institutional-directory-control-v1'&&control.enabled===true,'AUTHORIZATION_DENIED');
+ const N=f4MemberAuthzContracts_().need,control=get('institutionalDirectoryControl/current'),edControl=get('editorialControl/current');
+ const dirEnabled=control?.schemaVersion==='institutional-directory-control-v1'&&control.enabled===true;
+ const edEnabled=edControl?.schemaVersion==='editorial-control-v1'&&edControl.enabled===true&&edControl.actorUids?.includes(identity.uid);
+ N(dirEnabled||edEnabled,'AUTHORIZATION_DENIED');
  const routes={'admin-atividades':false,'admin-justificativas':false,'admin-eixos-tematicos':false,'diretoria-competencias':false,'perfis-permissoes':false,'admin-apresentacoes':false};
  let authority=null,validUntil=Math.min(identity.expiresAt,now+60000);
- for(const section of ['identity','parameters','norms','governance']){
-  routes['institutional-'+section]=false;
-  try{const auth=f4InstitutionalPolicies_(get,identity,now,control.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/'+section);
-   if(auth.mask.includes('summary')){authority=auth;routes['institutional-'+section]=true;validUntil=Math.min(validUntil,auth.validUntil);}
-  }catch(e){if(!['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
+ if(dirEnabled){
+  for(const section of ['identity','parameters','norms','governance']){
+   routes['institutional-'+section]=false;
+   try{const auth=f4InstitutionalPolicies_(get,identity,now,control.policyIds,'INSTITUTIONAL_DIRECTORY_READ','institutionalDirectory/'+section);
+    if(auth.mask.includes('summary')){authority=authority||auth;routes['institutional-'+section]=true;validUntil=Math.min(validUntil,auth.validUntil);}
+   }catch(e){if(!['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
+  }
+ }
+ if(edEnabled){
+  routes['admin-conteudo-publico']=false;
+  for(const resPath of ['canonicalEditorial/pages','canonicalEditorial/timeline']){
+   try{const auth=f4InstitutionalPolicies_(get,identity,now,edControl.policyIds,'PUBLIC_CONTENT_MANAGE',resPath);
+    if(auth.mask.includes(resPath==='canonicalEditorial/timeline'?'timeline':'pages')){authority=authority||auth;routes['admin-conteudo-publico']=true;validUntil=Math.min(validUntil,auth.validUntil);}
+   }catch(e){if(!['AUTHORIZATION_DENIED','M13_AUTHZ_DENIED'].includes(e.code))throw e;}
+  }
  }
  N(authority,'AUTHORIZATION_DENIED');const actor=authority.actor,personId=actor.actor.h.id,person=get('memberIdentities/'+personId);N(person,'UNRESOLVED_DEPENDENCY');
  return {schemaVersion:'act-portal-context-v1',idPessoa:personId,nome:person.displayName||'',accessProfile:null,board:false,materialOnly:false,institutionalOnly:true,
