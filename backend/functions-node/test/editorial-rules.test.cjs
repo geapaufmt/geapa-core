@@ -19,13 +19,16 @@ test('editorial public queries and client isolation under Firestore rules', {
   const historicalAxisId = 'EIXOS_20260101_EIXO_08';
   const unpublishedAxisId = 'EIXOS_B7_EIXO_RESTRITO';
   const records = {
-    ['publicPages/'+axisId]: {...timeline,id:axisId},
-    ['publicPages/'+historicalAxisId]: {...timeline,id:historicalAxisId},
-    ['publicPages/'+unpublishedAxisId]: {...timeline,id:unpublishedAxisId,published:false},
-    ['publicTimeline/' + id]: timeline,
-    ['publicTimeline/' + id + '_private']: {...timeline, published:false},
-    ['publicDocuments/' + id]: norm,
-    ['publicDocuments/' + id + '_old']: {...norm, status:'REVOGADA'},
+    ['publicPages/'+axisId]: {...timeline,id:axisId,title:'Synthetic axis',sections:[{type:'TEXT'}]},
+    ['publicPages/'+historicalAxisId]: {...timeline,id:historicalAxisId,title:'Synthetic historical axis',sections:[{type:'TEXT'}]},
+    ['publicPages/'+unpublishedAxisId]: {...timeline,id:unpublishedAxisId,title:'Private',sections:[{type:'TEXT'}],published:false},
+    ['publicPages/EIXOS_TEST_EIXO_UNSANITIZED']: {...timeline,id:'EIXOS_TEST_EIXO_UNSANITIZED',title:'Invalid',sections:[{type:'TEXT'}],sanitized:false},
+    ['publicPages/EIXOS_TEST_EIXO_SCHEMA']: {...timeline,id:'EIXOS_TEST_EIXO_SCHEMA',title:'Invalid',sections:[{type:'TEXT'}],schemaVersion:'invalid'},
+    ['publicPages/EIXOS_TEST_EIXO_MISMATCH']: {...timeline,id:'home',title:'Invalid',sections:[{type:'TEXT'}]},
+    ['publicTimeline/' + id]: {...timeline,id,title:'Synthetic timeline'},
+    ['publicTimeline/' + id + '_private']: {...timeline,id:id+'_private',title:'Private',published:false},
+    ['publicDocuments/' + id]: {...norm,id,title:'Synthetic norm'},
+    ['publicDocuments/' + id + '_old']: {...norm,id:id+'_old',title:'Revoked norm',status:'REVOGADA'},
     ['coreDevValidation/CF_DEV_EDIT_PILOT_V1/publicTimeline/' + id]: timeline
   };
   const signup = await fetch('http://127.0.0.1:9197/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo', {
@@ -44,6 +47,8 @@ test('editorial public queries and client isolation under Firestore rules', {
       for (const [path,status] of [
         ['publicPages/'+axisId,200], ['publicPages/'+historicalAxisId,200],
         ['publicPages/'+unpublishedAxisId,403], ['publicPages/EIXOS_DRAFT',403],
+        ['publicPages/EIXOS_TEST_EIXO_UNSANITIZED',403], ['publicPages/EIXOS_TEST_EIXO_SCHEMA',403],
+        ['publicPages/EIXOS_TEST_EIXO_MISMATCH',403], ['publicPages/EIXOS_MISSING_EIXO_SYN',404],
         ['canonicalEditorial/EIXOS_CURRENT',403], ['canonicalEditorial/EIXOS_DRAFT',403],
         ['publicTimeline/'+id,200], ['publicDocuments/'+id,200], ['publicTimeline/'+id+'_private',403],
         ['publicDocuments/'+id+'_old',403], ['coreDevValidation/CF_DEV_EDIT_PILOT_V1/publicTimeline/'+id,403],
@@ -53,6 +58,7 @@ test('editorial public queries and client isolation under Firestore rules', {
       for (const path of ['publicPages/home','publicPages/'+axisId,'publicTimeline/'+id,'publicDocuments/'+id,'canonicalEditorial/home','editorialControl/current']) {
         const response = await fetch(root+'/'+path,{method:'PATCH',headers,body:JSON.stringify({fields:{}})});
         assert.equal(response.status,403,path);
+        assert.equal((await fetch(root+'/'+path,{method:'DELETE',headers})).status,403,'delete '+path);
       }
       async function query(collection, fields, limit) {
         const filters = Object.entries(fields).map(([fieldPath,value])=>({fieldFilter:{

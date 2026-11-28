@@ -101,7 +101,10 @@ async function browserAcceptance(db, seed) {
           const closed=new Promise(ok=>child.once('close',ok)); child.kill(); await closed;
         }
         server.closeAllConnections(); await new Promise(ok=>server.close(ok));
-        fs.rmSync(profile,{recursive:true,force:true,maxRetries:5,retryDelay:100});
+        const resolvedProfile=path.resolve(profile);
+        assert.equal(path.dirname(resolvedProfile),path.resolve(os.tmpdir()));
+        assert.ok(path.basename(resolvedProfile).startsWith('geapa-editorial-browser-'));
+        fs.rmSync(resolvedProfile,{recursive:true,force:true,maxRetries:5,retryDelay:100});
       }
     }
   } finally {
